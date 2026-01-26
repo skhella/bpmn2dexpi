@@ -343,14 +343,17 @@ export class BpmnToDexpiTransformer {
     });
     
     // If this is a subprocess, map parent ports to child ports with same name/direction
+    // Only map to the FIRST matching child port (not all children with same name)
     if (isSubProcess && processStep.subProcessSteps.length > 0) {
       processStep.ports.forEach((parentPort: DexpiPort) => {
-        // Find matching ports in child process steps
-        processStep.subProcessSteps.forEach((childId: string) => {
+        let foundMatch = false;
+        // Find the first matching port in child process steps
+        for (const childId of processStep.subProcessSteps) {
+          if (foundMatch) break;
           const childStep = this.processSteps.get(childId);
           if (childStep) {
-            childStep.ports.forEach((childPort: DexpiPort) => {
-              // Match by port name and direction
+            for (const childPort of childStep.ports) {
+              // Match by port name and direction - only first match
               if (childPort.name === parentPort.name && 
                   childPort.direction === parentPort.direction) {
                 // Create parent-child port relationship
@@ -361,11 +364,13 @@ export class BpmnToDexpiTransformer {
                   if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
                   parentPortData.childPortIds.push(childPort.portId);
                   childPortData.parentPortId = parentPort.portId;
+                  foundMatch = true;
+                  break;
                 }
               }
-            });
+            }
           }
-        });
+        }
       });
     }
   }
