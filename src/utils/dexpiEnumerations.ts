@@ -55,6 +55,8 @@ export const DexpiEnumerations = {
     'Unspecified'
   ],
   
+  Scope: ['Alarm', 'Allowable', 'Design', 'Expected', 'Incidental', 'Operating', 'Protection', 'Rated', 'Test', 'Warning'],
+  
   PortDirection: ['Inlet', 'Outlet'],
   
   ProcessStepHierarchyLevel: [
@@ -68,6 +70,8 @@ export const DexpiEnumerations = {
     'UnitOperation'
   ],
   
+  Provenance: ['Set', 'Specified', 'Estimated', 'Calculated', 'Observed'],
+  
   PumpingMethod: [
     'CentrifugalMotion',
     'CustomMethod',
@@ -76,6 +80,8 @@ export const DexpiEnumerations = {
     'RotaryMotion',
     'Unspecified'
   ],
+  
+  Range: ['Actual', 'Average', 'LowerLimit', 'Nominal', 'Normal', 'UpperLimit'],
   
   ReactionProcessType: [
     'FluidizedBed',

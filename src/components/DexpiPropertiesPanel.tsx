@@ -679,6 +679,196 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           </div>
         ))}
       </div>
+
+      {/* ProcessStep Attributes Section */}
+      {(elementType === 'bpmn:Task' || 
+        elementType === 'bpmn:SubProcess' ||
+        elementType === 'bpmn:ServiceTask' ||
+        elementType === 'bpmn:UserTask' ||
+        elementType === 'bpmn:ScriptTask' ||
+        elementType === 'bpmn:ManualTask' ||
+        elementType === 'bpmn:BusinessRuleTask' ||
+        elementType === 'bpmn:SendTask' ||
+        elementType === 'bpmn:ReceiveTask' ||
+        elementType === 'bpmn:CallActivity') && (
+        <ProcessStepAttributesSection element={element} modeler={modeler} />
+      )}
+    </div>
+  );
+};
+
+// ProcessStep Attributes Component
+const ProcessStepAttributesSection: React.FC<{ element: any; modeler: any }> = ({ element, modeler }) => {
+  const [attributes, setAttributes] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (element) {
+      const businessObject = element.businessObject;
+      const extensionElements = businessObject.extensionElements;
+      
+      if (extensionElements?.values) {
+        const dexpiElement = extensionElements.values.find(
+          (e: any) => e.$type === 'dexpi:Element'
+        );
+        
+        if (dexpiElement) {
+          const attrs = dexpiElement.attributes || [];
+          setAttributes(Array.isArray(attrs) ? attrs : []);
+        }
+      }
+    }
+  }, [element]);
+
+  const addAttribute = () => {
+    const moddle = modeler.get('moddle');
+    const newAttr = moddle.create('dexpi:Attribute', {
+      name: `Attribute ${attributes.length + 1}`,
+      value: '',
+      unit: '',
+      scope: 'Design',
+      range: 'Nominal',
+      provenance: 'Calculated'
+    });
+
+    const updatedAttrs = [...attributes, newAttr];
+    setAttributes(updatedAttrs);
+    updateElementAttributes(updatedAttrs);
+  };
+
+  const removeAttribute = (index: number) => {
+    const updatedAttrs = attributes.filter((_, i) => i !== index);
+    setAttributes(updatedAttrs);
+    updateElementAttributes(updatedAttrs);
+  };
+
+  const updateAttribute = (index: number, updates: any) => {
+    const moddle = modeler.get('moddle');
+    const updatedAttrs = attributes.map((attr, i) => {
+      if (i === index) {
+        return moddle.create('dexpi:Attribute', {
+          name: updates.name !== undefined ? updates.name : attr.name,
+          value: updates.value !== undefined ? updates.value : attr.value,
+          unit: updates.unit !== undefined ? updates.unit : attr.unit,
+          scope: updates.scope !== undefined ? updates.scope : attr.scope,
+          range: updates.range !== undefined ? updates.range : attr.range,
+          provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance
+        });
+      }
+      return attr;
+    });
+    setAttributes(updatedAttrs);
+    updateElementAttributes(updatedAttrs);
+  };
+
+  const updateElementAttributes = (updatedAttrs: any[]) => {
+    const modeling = modeler.get('modeling');
+    const moddle = modeler.get('moddle');
+    const businessObject = element.businessObject;
+
+    let extensionElements = businessObject.extensionElements;
+    if (!extensionElements) {
+      extensionElements = moddle.create('bpmn:ExtensionElements');
+    }
+
+    let dexpiElement = extensionElements.values?.find(
+      (e: any) => e.$type === 'dexpi:Element'
+    );
+
+    if (!dexpiElement) {
+      dexpiElement = moddle.create('dexpi:Element');
+      if (!extensionElements.values) {
+        extensionElements.values = [];
+      }
+      extensionElements.values.push(dexpiElement);
+    }
+
+    dexpiElement.attributes = updatedAttrs;
+
+    modeling.updateProperties(element, {
+      extensionElements
+    });
+  };
+
+  return (
+    <div className="property-group">
+      <h4>ProcessStep Attributes ({attributes.length})</h4>
+      <button onClick={addAttribute} className="btn-add-port">Add Attribute</button>
+      
+      {attributes.map((attr, index) => (
+        <div key={index} className="port-item">
+          <div className="port-header">
+            <strong>{attr.name}</strong>
+            <button onClick={() => removeAttribute(index)} className="btn-remove">×</button>
+          </div>
+          
+          <label>
+            Name:
+            <input 
+              type="text" 
+              value={attr.name || ''} 
+              onChange={(e) => updateAttribute(index, { name: e.target.value })}
+            />
+          </label>
+
+          <label>
+            Value:
+            <input 
+              type="text" 
+              value={attr.value || ''} 
+              onChange={(e) => updateAttribute(index, { value: e.target.value })}
+            />
+          </label>
+
+          <label>
+            Unit:
+            <input 
+              type="text" 
+              value={attr.unit || ''} 
+              onChange={(e) => updateAttribute(index, { unit: e.target.value })}
+              placeholder="e.g., kg/h, °C, bar"
+            />
+          </label>
+
+          <label>
+            Scope:
+            <select 
+              value={attr.scope || 'Design'} 
+              onChange={(e) => updateAttribute(index, { scope: e.target.value })}
+            >
+              <option value="">-- Select Scope --</option>
+              {DexpiEnumerations.Scope.map(scope => (
+                <option key={scope} value={scope}>{scope}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Range:
+            <select 
+              value={attr.range || 'Actual'} 
+              onChange={(e) => updateAttribute(index, { range: e.target.value })}
+            >
+              <option value="">-- Select Range --</option>
+              {DexpiEnumerations.Range.map(range => (
+                <option key={range} value={range}>{range}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Provenance:
+            <select 
+              value={attr.provenance || 'Calculated'} 
+              onChange={(e) => updateAttribute(index, { provenance: e.target.value })}
+            >
+              <option value="">-- Select Provenance --</option>
+              {DexpiEnumerations.Provenance.map(prov => (
+                <option key={prov} value={prov}>{prov}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ))}
     </div>
   );
 };
@@ -1045,7 +1235,9 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       name: 'New Attribute',
       value: '',
       unit: '',
-      mode: 'Design',
+      scope: 'Design',
+      range: 'Nominal',
+      provenance: 'Calculated',
       qualifier: 'Average'
     });
 
@@ -1068,7 +1260,9 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           name: updates.name !== undefined ? updates.name : attr.name,
           value: updates.value !== undefined ? updates.value : attr.value,
           unit: updates.unit !== undefined ? updates.unit : attr.unit,
-          mode: updates.mode !== undefined ? updates.mode : attr.mode,
+          scope: updates.scope !== undefined ? updates.scope : attr.scope,
+          range: updates.range !== undefined ? updates.range : attr.range,
+          provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
           qualifier: updates.qualifier !== undefined ? updates.qualifier : attr.qualifier
         });
       }
@@ -1348,28 +1542,41 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
             </label>
 
             <label>
-              Mode:
+              Scope:
               <select 
-                value={attr.mode || 'Design'} 
-                onChange={(e) => updateAttribute(index, { mode: e.target.value })}
+                value={attr.scope || 'Design'} 
+                onChange={(e) => updateAttribute(index, { scope: e.target.value })}
               >
-                <option value="Design">Design</option>
-                <option value="Normal">Normal</option>
-                <option value="Maximum">Maximum</option>
-                <option value="Minimum">Minimum</option>
+                <option value="">-- Select Scope --</option>
+                {DexpiEnumerations.Scope.map(scope => (
+                  <option key={scope} value={scope}>{scope}</option>
+                ))}
               </select>
             </label>
 
             <label>
-              Qualifier:
+              Range:
               <select 
-                value={attr.qualifier || 'Average'} 
-                onChange={(e) => updateAttribute(index, { qualifier: e.target.value })}
+                value={attr.range || 'Nominal'} 
+                onChange={(e) => updateAttribute(index, { range: e.target.value })}
               >
-                <option value="Average">Average</option>
-                <option value="Maximum">Maximum</option>
-                <option value="Minimum">Minimum</option>
-                <option value="Total">Total</option>
+                <option value="">-- Select Range --</option>
+                {DexpiEnumerations.Range.map(range => (
+                  <option key={range} value={range}>{range}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Provenance:
+              <select 
+                value={attr.provenance || 'Calculated'} 
+                onChange={(e) => updateAttribute(index, { provenance: e.target.value })}
+              >
+                <option value="">-- Select Provenance --</option>
+                {DexpiEnumerations.Provenance.map(prov => (
+                  <option key={prov} value={prov}>{prov}</option>
+                ))}
               </select>
             </label>
           </div>

@@ -101,6 +101,185 @@ export class BpmnToDexpiTransformer {
     });
   }
 
+  // Valid DEXPI 2.0 ProcessStep types (from Process.xml schema - ConcreteClass definitions)
+  private static readonly VALID_PROCESS_STEP_TYPES = [
+    // Base
+    'ProcessStep',
+    // Reacting
+    'ReactingChemicals',
+    // Separating (and subtypes)
+    'Separating',
+    'SeparatingByCentrifugalForce',
+    'SeparatingByContact',
+    'SeparatingByCyclonicMotion',
+    'SeparatingByElectromagneticForce',
+    'SeparatingByElectrostaticForce',
+    'SeparatingByFlash',
+    'SeparatingByGravity',
+    'SeparatingByIonExchange',
+    'SeparatingByMagneticForce',
+    'SeparatingByPhaseSeparation',
+    'SeparatingByPhysicalProcess',
+    'SeparatingBySurfaceTension',
+    'SeparatingByThermalProcess',
+    'SeparatingMechanically',
+    'Absorbing',
+    'Adsorbing',
+    'Distilling',
+    'StrippingDistilling',
+    'StabilizingDistilling',
+    'VacuumDistilling',
+    'Drying',
+    'Evaporating',
+    'Filtering',
+    'Crystallizing',
+    'Sieving',
+    'Skimming',
+    // Thermal Energy
+    'ExchangingThermalEnergy',
+    'RemovingThermalEnergy',
+    'Cooling',
+    'SupplyingThermalEnergy',
+    'Boiling',
+    'GeneratingSteam',
+    'HeatingElectrical',
+    'HeatingInFurnace',
+    // Mechanical Energy
+    'SupplyingMechanicalEnergy',
+    'DrivingByEngine',
+    'DrivingByMotor',
+    'DrivingByTurbine',
+    // Electrical Energy
+    'SupplyingElectricalEnergy',
+    'GeneratingACPower',
+    'GeneratingDCPower',
+    'GeneratingInFuelCell',
+    'TransportingElectricalEnergy',
+    // Flow Generation
+    'GeneratingFlow',
+    'Compressing',
+    'Pumping',
+    // Steering Flow
+    'SteeringFlow',
+    'BlowingDown',
+    'Draining',
+    'FeedingMaterial',
+    'LimitingFlow',
+    'PreventingBackflow',
+    'RegulatingFlow',
+    'RelievingOverpressure',
+    'RelievingVacuum',
+    'RelievingVacuumAndOverpressure',
+    'ShuttingOffFlow',
+    // Mixing
+    'Mixing',
+    'MixingSimple',
+    'Humidifying',
+    'Kneading',
+    'RotaryMixing',
+    'StaticMixing',
+    // Splitting
+    'Splitting',
+    'SplittingEnergy',
+    'SplittingMaterial',
+    // Storing
+    'StoringEnergy',
+    'StoringElectricalEnergy',
+    'StoringInBattery',
+    'StoringThermalEnergy',
+    'StoringMaterial',
+    'StoringFluids',
+    'StoringInPressureVessel',
+    'StoringInTank',
+    'StoringSolids',
+    'StoringInSilo',
+    // Transporting
+    'TransportingFluids',
+    'TransportingFluidsInChannel',
+    'TransportingFluidsInHose',
+    'TransportingFluidsInPipe',
+    'TransportingSolids',
+    'TransportingSolidsContinuously',
+    'TransportingSolidsDiscontinuously',
+    // Supplying
+    'SupplyingFluids',
+    'SupplyingSolids',
+    // Particle Size
+    'IncreasingParticleSize',
+    'Agglomerating',
+    'Coalescing',
+    'Flocculating',
+    'ReducingParticleSize',
+    'Crushing',
+    'Cutting',
+    'Grinding',
+    'Milling',
+    // Forming Solid
+    'FormingSolidMaterial',
+    'Extruding',
+    'Pelletizing',
+    // Other Process Steps
+    'Emitting',
+    'Flaring',
+    'Packaging',
+    // Source and Sink
+    'Source',
+    'Sink',
+    // Instrumentation Activities
+    'InstrumentationActivity',
+    'CalculatingProcessVariable',
+    'CalculatingRatio',
+    'CalculatingSplitRange',
+    'TransformingProcessVariable',
+    'ControllingProcessVariable',
+    'ConveyingSignal',
+    'MeasuringProcessVariable'
+  ];
+
+  // Common aliases that map to actual DEXPI types
+  private static readonly TYPE_ALIASES: Record<string, string> = {
+    'measuring': 'MeasuringProcessVariable',
+    'controlling': 'ControllingProcessVariable',
+    'calculating': 'CalculatingProcessVariable',
+    'heating': 'SupplyingThermalEnergy',
+    'steeringflow': 'SteeringFlow',
+    'feeding': 'FeedingMaterial',
+    'storing': 'StoringMaterial',
+    'transporting': 'TransportingFluids',
+  };
+
+  private inferDexpiTypeFromName(name: string): string {
+    // Check if the name directly matches a valid DEXPI type (case-insensitive)
+    const normalized = name.trim();
+    const normalizedLower = normalized.toLowerCase();
+    
+    // First check aliases
+    if (BpmnToDexpiTransformer.TYPE_ALIASES[normalizedLower]) {
+      return BpmnToDexpiTransformer.TYPE_ALIASES[normalizedLower];
+    }
+    
+    // Then check exact match against valid types
+    const match = BpmnToDexpiTransformer.VALID_PROCESS_STEP_TYPES.find(
+      type => type.toLowerCase() === normalizedLower
+    );
+    if (match) {
+      return match;
+    }
+    
+    // Check if name contains a valid type (for names like "Pump 1" -> "Pumping")
+    // This handles partial matches - sort by length descending to match longest first
+    const sortedTypes = [...BpmnToDexpiTransformer.VALID_PROCESS_STEP_TYPES]
+      .sort((a, b) => b.length - a.length);
+    for (const type of sortedTypes) {
+      if (normalizedLower.includes(type.toLowerCase())) {
+        return type;
+      }
+    }
+    
+    // Default to ProcessStep if no match found
+    return 'ProcessStep';
+  }
+
   private extractProcessStep(task: Element, parentId: string | null): void {
     const id = task.getAttribute('id') || '';
     const name = task.getAttribute('name') || id;
@@ -110,13 +289,21 @@ export class BpmnToDexpiTransformer {
     // Extract DEXPI extension elements
     const dexpiData = this.extractDexpiExtension(task);
     
+    // Determine the DEXPI process step type:
+    // 1. Use dexpiType from extension if available
+    // 2. Fall back to the element name (e.g., "ReactingChemicals", "Separating")
+    // 3. Default to "ProcessStep" if neither is a valid DEXPI type
+    const dexpiType = dexpiData?.dexpiType || this.inferDexpiTypeFromName(name);
+    
     const processStep: any = {
       id,
       name,
-      type: dexpiData?.dexpiType || 'ProcessStep',
+      type: dexpiType,
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
+      hierarchyLevel: dexpiData?.hierarchyLevel,
       ports: dexpiData?.ports || [],
+      attributes: dexpiData?.attributes || [],
       parentId: parentId,
       subProcessSteps: []
     };
@@ -474,12 +661,16 @@ export class BpmnToDexpiTransformer {
     if (dexpiElement) {
       console.log('Extracting ports from dexpi:element, children count:', dexpiElement.children.length);
       const ports = this.extractPortsFromElement(dexpiElement);
+      const attributes = this.extractAttributesFromElement(dexpiElement);
       console.log('Extracted ports:', ports);
+      console.log('Extracted attributes:', attributes);
       return {
         dexpiType: dexpiElement.getAttribute('dexpiType') || undefined,
         identifier: dexpiElement.getAttribute('identifier') || undefined,
         uid: dexpiElement.getAttribute('uid') || undefined,
-        ports
+        hierarchyLevel: dexpiElement.getAttribute('hierarchyLevel') || undefined,
+        ports,
+        attributes
       };
     }
 
@@ -529,7 +720,9 @@ export class BpmnToDexpiTransformer {
           name: child.getAttribute('name') || '',
           value: child.getAttribute('value') || '',
           unit: child.getAttribute('unit') || '',
-          mode: child.getAttribute('mode') || 'Design',
+          scope: child.getAttribute('scope') || 'Design',
+          range: child.getAttribute('range') || 'Nominal',
+          provenance: child.getAttribute('provenance') || 'Calculated',
           qualifier: child.getAttribute('qualifier') || 'Average'
         });
       } else if (localName.toLowerCase() === 'materialstatereference') {
@@ -541,7 +734,9 @@ export class BpmnToDexpiTransformer {
         // These have Value/Unit child elements
         const valueElement = child.querySelector('Value');
         const unitElement = child.querySelector('Unit');
-        const modeElement = child.querySelector('Mode');
+        const scopeElement = child.querySelector('Scope');
+        const rangeElement = child.querySelector('Range');
+        const provenanceElement = child.querySelector('Provenance');
         const qualifierElement = child.querySelector('Qualifier');
         
         if (valueElement) {
@@ -550,7 +745,9 @@ export class BpmnToDexpiTransformer {
             name: propertyName,
             value: valueElement.textContent || '',
             unit: unitElement?.textContent || '',
-            mode: modeElement?.textContent || 'Design',
+            scope: scopeElement?.textContent || 'Design',
+            range: rangeElement?.textContent || 'Nominal',
+            provenance: provenanceElement?.textContent || 'Calculated',
             qualifier: qualifierElement?.textContent || 'Average'
           });
         }
@@ -569,6 +766,29 @@ export class BpmnToDexpiTransformer {
       range: dexpiStream.getAttribute('range') as any,
       attributes
     };
+  }
+
+  private extractAttributesFromElement(dexpiElement: Element): any[] {
+    const attributes: any[] = [];
+    
+    // Iterate through children to find attribute elements
+    for (let i = 0; i < dexpiElement.children.length; i++) {
+      const child = dexpiElement.children[i];
+      const localName = child.localName || child.tagName.split(':').pop() || '';
+      
+      if (localName.toLowerCase() === 'attribute') {
+        attributes.push({
+          name: child.getAttribute('name') || '',
+          value: child.getAttribute('value') || '',
+          unit: child.getAttribute('unit') || '',
+          scope: child.getAttribute('scope') || 'Design',
+          range: child.getAttribute('range') || 'Nominal',
+          provenance: child.getAttribute('provenance') || 'Calculated'
+        });
+      }
+    }
+    
+    return attributes;
   }
 
   private extractPortsFromElement(dexpiElement: Element): DexpiPort[] {
@@ -803,10 +1023,16 @@ export class BpmnToDexpiTransformer {
   }
 
   private buildProcessStepObject(step: any): any {
+      // Build the correct DEXPI type - use Process/Process.{Type} format
+      // If step.type is already "Process.X", use it; otherwise wrap it
+      const dexpiType = step.type.startsWith('Process.') 
+        ? `Process/${step.type}` 
+        : `Process/Process.${step.type}`;
+      
       const dexpiStep: any = {
         '$': {
           'id': step.uid,
-          'type': `Process/${step.type}`
+          'type': dexpiType
         },
         'Data': {
           '$': {
@@ -979,6 +1205,83 @@ export class BpmnToDexpiTransformer {
         }
       }
 
+      // Add ProcessStep Attributes (with Range, Provenance per DEXPI 2.0 QualifiedValue)
+      // Use Object with type="Core/QualifiedValue" per DEXPI 2.0 schema
+      if (step.attributes && step.attributes.length > 0) {
+        step.attributes.forEach((attr: any) => {
+          if (!attr.name || !attr.value) return;
+          
+          // If unit is provided, this is a physical quantity - add as QualifiedValue Object
+          if (attr.unit) {
+            if (!dexpiStep.Object) {
+              dexpiStep.Object = [];
+            }
+
+            const qualifiedValueObject: any = {
+              '$': {
+                'property': attr.name,
+                'type': 'Core/QualifiedValue'
+              },
+              'Data': [
+                {
+                  '$': { 'property': 'Value' },
+                  'PhysicalQuantity': {
+                    'Data': [
+                      {
+                        '$': { 'property': 'Value' },
+                        'Number': parseFloat(attr.value) || attr.value
+                      },
+                      {
+                        '$': { 'property': 'Unit' },
+                        'String': attr.unit
+                      }
+                    ]
+                  }
+                }
+              ]
+            };
+
+            // Add Provenance at QualifiedValue level
+            if (attr.provenance) {
+              qualifiedValueObject.Data.push({
+                '$': { 'property': 'Provenance' },
+                'String': attr.provenance
+              });
+            }
+
+            // Add Range at QualifiedValue level
+            if (attr.range) {
+              qualifiedValueObject.Data.push({
+                '$': { 'property': 'Range' },
+                'String': attr.range
+              });
+            }
+
+            // Scope is available in DEXPI 2.0 but not typically used on QualifiedValue
+
+            dexpiStep.Object.push(qualifiedValueObject);
+          } else {
+            // Simple string value - add to Data
+            dexpiStep.Data.push({
+              '$': {
+                'property': attr.name
+              },
+              'String': attr.value
+            });
+          }
+        });
+      }
+
+      // Add HierarchyLevel if present
+      if (step.hierarchyLevel) {
+        dexpiStep.Data.push({
+          '$': {
+            'property': 'HierarchyLevel'
+          },
+          'String': step.hierarchyLevel
+        });
+      }
+
       return dexpiStep;
   }
 
@@ -1048,58 +1351,60 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add Provenance if present
-      if (stream.provenance) {
-        dexpiStream.Data.push({
-          '$': {
-            'property': 'Provenance'
-          },
-          'String': stream.provenance
-        });
-      }
-
-      // Add Range if present
-      if (stream.range) {
-        dexpiStream.Data.push({
-          '$': {
-            'property': 'Range'
-          },
-          'String': stream.range
-        });
-      }
-
-      // Add all stream attributes
+      // Add all stream attributes as QualifiedValue Objects per DEXPI 2.0 schema
       if (stream.attributes && stream.attributes.length > 0) {
         stream.attributes.forEach((attr: any) => {
           if (!attr.name || !attr.value) return;
           
-          // If unit is provided, this is a physical quantity - add to CompositionProperties
+          // If unit is provided, this is a physical quantity - add as QualifiedValue Object
           if (attr.unit) {
-            if (!dexpiStream.CompositionProperties) {
-              dexpiStream.CompositionProperties = [];
+            if (!dexpiStream.Object) {
+              dexpiStream.Object = [];
             }
 
-            dexpiStream.CompositionProperties.push({
+            const qualifiedValueObject: any = {
               '$': {
-                'property': attr.name
+                'property': attr.name,
+                'type': 'Core/QualifiedValue'
               },
-              'PhysicalQuantity': {
-                'Data': [
-                  {
-                    '$': {
-                      'property': 'Value'
-                    },
-                    'Number': parseFloat(attr.value) || attr.value
-                  },
-                  {
-                    '$': {
-                      'property': 'Unit'
-                    },
-                    'String': attr.unit
+              'Data': [
+                {
+                  '$': { 'property': 'Value' },
+                  'PhysicalQuantity': {
+                    'Data': [
+                      {
+                        '$': { 'property': 'Value' },
+                        'Number': parseFloat(attr.value) || attr.value
+                      },
+                      {
+                        '$': { 'property': 'Unit' },
+                        'String': attr.unit
+                      }
+                    ]
                   }
-                ]
-              }
-            });
+                }
+              ]
+            };
+
+            // Add Provenance at QualifiedValue level
+            if (attr.provenance) {
+              qualifiedValueObject.Data.push({
+                '$': { 'property': 'Provenance' },
+                'String': attr.provenance
+              });
+            }
+
+            // Add Range at QualifiedValue level
+            if (attr.range) {
+              qualifiedValueObject.Data.push({
+                '$': { 'property': 'Range' },
+                'String': attr.range
+              });
+            }
+
+            // Scope is available in DEXPI 2.0 but typically not used on stream QualifiedValues
+
+            dexpiStream.Object.push(qualifiedValueObject);
           } else {
             // Simple string value - add to Data
             dexpiStream.Data.push({
@@ -1393,54 +1698,55 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add MoleFlow as CompositionProperty
+      // Add MoleFlow as QualifiedValue Object per DEXPI 2.0 schema
       if (stateType.flow?.moleFlow) {
-        if (!dexpiStateType.CompositionProperties) {
-          dexpiStateType.CompositionProperties = [];
+        if (!dexpiStateType.Object) {
+          dexpiStateType.Object = [];
         }
-        dexpiStateType.CompositionProperties.push({
+        dexpiStateType.Object.push({
           '$': {
-            'property': 'MoleFlow'
+            'property': 'MoleFlow',
+            'type': 'Core/QualifiedValue'
           },
-          'PhysicalQuantity': {
-            'Data': [
-              {
-                '$': {
-                  'property': 'Value'
-                },
-                'Number': stateType.flow.moleFlow.value
-              },
-              {
-                '$': {
-                  'property': 'Unit'
-                },
-                'String': stateType.flow.moleFlow.unit
+          'Data': [
+            {
+              '$': { 'property': 'Value' },
+              'PhysicalQuantity': {
+                'Data': [
+                  {
+                    '$': { 'property': 'Value' },
+                    'Number': stateType.flow.moleFlow.value
+                  },
+                  {
+                    '$': { 'property': 'Unit' },
+                    'String': stateType.flow.moleFlow.unit
+                  }
+                ]
               }
-            ]
-          }
+            }
+          ]
         });
       }
 
-      // Add Composition as ReferenceProperty
+      // Add Composition as Object
       if (stateType.flow?.composition) {
         const composition = stateType.flow.composition;
         
-        if (!dexpiStateType.ReferenceProperties) {
-          dexpiStateType.ReferenceProperties = [];
+        if (!dexpiStateType.Object) {
+          dexpiStateType.Object = [];
         }
 
-        const compositionRef: any = {
+        const compositionObj: any = {
           '$': {
-            'property': 'Composition'
+            'property': 'Composition',
+            'type': 'Process/Process.Composition'
           },
-          'Composition': {
-            'Data': []
-          }
+          'Data': []
         };
 
         // Add Basis if present
         if (composition.basis) {
-          compositionRef.Composition.Data.push({
+          compositionObj.Data.push({
             '$': {
               'property': 'Basis'
             },
@@ -1450,7 +1756,7 @@ export class BpmnToDexpiTransformer {
 
         // Add Display if present
         if (composition.display) {
-          compositionRef.Composition.Data.push({
+          compositionObj.Data.push({
             '$': {
               'property': 'Display'
             },
@@ -1458,36 +1764,35 @@ export class BpmnToDexpiTransformer {
           });
         }
 
-        // Add MoleFractions as PhysicalQuantityVector with positional values
+        // Add MoleFractions as PhysicalQuantityVector Object
         if (composition.fractions && composition.fractions.length > 0) {
           const fractionValues = composition.fractions.map((fraction: any) => {
             return typeof fraction === 'string' ? fraction : fraction.value;
           });
 
-          if (!compositionRef.Composition.CompositionProperties) {
-            compositionRef.Composition.CompositionProperties = [];
+          if (!compositionObj.Object) {
+            compositionObj.Object = [];
           }
 
-          compositionRef.Composition.CompositionProperties.push({
+          compositionObj.Object.push({
             '$': {
-              'property': 'MoleFractions'
+              'property': 'MoleFractions',
+              'type': 'Core/PhysicalQuantityVector'
             },
-            'PhysicalQuantityVector': {
-              'Data': [
-                {
-                  '$': {
-                    'property': 'Value'
-                  },
-                  'Array': {
-                    'Number': fractionValues
-                  }
+            'Data': [
+              {
+                '$': {
+                  'property': 'Value'
+                },
+                'Array': {
+                  'Number': fractionValues
                 }
-              ]
-            }
+              }
+            ]
           });
         }
 
-        dexpiStateType.ReferenceProperties.push(compositionRef);
+        dexpiStateType.Object.push(compositionObj);
       }
 
       stateTypes.push(dexpiStateType);

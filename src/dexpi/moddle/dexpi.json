@@ -31,6 +31,51 @@
           "name": "ports",
           "type": "Port",
           "isMany": true
+        },
+        {
+          "name": "attributes",
+          "type": "Attribute",
+          "isMany": true
+        },
+        {
+          "name": "hierarchyLevel",
+          "isAttr": true,
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "name": "Attribute",
+      "properties": [
+        {
+          "name": "name",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "value",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "unit",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "scope",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "range",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "provenance",
+          "isAttr": true,
+          "type": "String"
         }
       ]
     },
@@ -157,7 +202,17 @@
           "type": "String"
         },
         {
-          "name": "mode",
+          "name": "scope",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "range",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "provenance",
           "isAttr": true,
           "type": "String"
         },
