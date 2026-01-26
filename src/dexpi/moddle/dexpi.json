@@ -1,0 +1,353 @@
+{
+  "name": "DEXPI",
+  "uri": "http://dexpi.org/schema/bpmn-extension",
+  "prefix": "dexpi",
+  "xml": {
+    "tagAlias": "lowerCase"
+  },
+  "types": [
+    {
+      "name": "Element",
+      "meta": {
+        "allowedIn": ["bpmn:ExtensionElements"]
+      },
+      "properties": [
+        {
+          "name": "dexpiType",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "identifier",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "uid",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "ports",
+          "type": "Port",
+          "isMany": true
+        }
+      ]
+    },
+    {
+      "name": "Port",
+      "properties": [
+        {
+          "name": "portId",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "name",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "portType",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "direction",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "anchorSide",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "anchorOffset",
+          "isAttr": true,
+          "type": "Number"
+        },
+        {
+          "name": "anchorX",
+          "isAttr": true,
+          "type": "Number"
+        },
+        {
+          "name": "anchorY",
+          "isAttr": true,
+          "type": "Number"
+        }
+      ]
+    },
+    {
+      "name": "Stream",
+      "superClass": ["bpmn:BaseElement"],
+      "meta": {
+        "allowedIn": ["bpmn:ExtensionElements"]
+      },
+      "properties": [
+        {
+          "name": "identifier",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "name",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "streamType",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "sourcePortRef",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "targetPortRef",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "templateReference",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "materialStateReference",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "provenance",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "range",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "attributes",
+          "type": "StreamAttribute",
+          "isMany": true
+        }
+      ]
+    },
+    {
+      "name": "StreamAttribute",
+      "properties": [
+        {
+          "name": "name",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "value",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "unit",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "mode",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "qualifier",
+          "isAttr": true,
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "name": "InformationFlow",
+      "superClass": ["bpmn:BaseElement"],
+      "meta": {
+        "allowedIn": ["bpmn:ExtensionElements"]
+      },
+      "properties": [
+        {
+          "name": "identifier",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "name",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "dataObjectRef",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "sourceRef",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "targetRef",
+          "isAttr": true,
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "name": "MaterialTemplate",
+      "superClass": ["bpmn:BaseElement"],
+      "meta": {
+        "allowedIn": ["bpmn:ExtensionElements"]
+      },
+      "properties": [
+        {
+          "name": "identifier",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "name",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "uid",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "componentList",
+          "type": "Component",
+          "isMany": true
+        }
+      ]
+    },
+    {
+      "name": "Component",
+      "properties": [
+        {
+          "name": "name",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "casNumber",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "fraction",
+          "isAttr": true,
+          "type": "Number"
+        }
+      ]
+    },
+    {
+      "name": "MaterialState",
+      "superClass": ["bpmn:BaseElement"],
+      "meta": {
+        "allowedIn": ["bpmn:ExtensionElements"]
+      },
+      "properties": [
+        {
+          "name": "identifier",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "name",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "uid",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "templateRef",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "provenance",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "range",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "properties",
+          "type": "StateProperty",
+          "isMany": true
+        }
+      ]
+    },
+    {
+      "name": "StateProperty",
+      "properties": [
+        {
+          "name": "name",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "value",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "unit",
+          "isAttr": true,
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "name": "Case",
+      "superClass": ["bpmn:BaseElement"],
+      "meta": {
+        "allowedIn": ["bpmn:ExtensionElements"]
+      },
+      "properties": [
+        {
+          "name": "caseName",
+          "type": "CaseName"
+        },
+        {
+          "name": "materialStates",
+          "isMany": true,
+          "type": "MaterialState"
+        }
+      ]
+    },
+    {
+      "name": "CaseName",
+      "superClass": ["bpmn:BaseElement"],
+      "meta": {
+        "allowedIn": ["Case"]
+      },
+      "properties": [
+        {
+          "name": "body",
+          "isBody": true,
+          "type": "String"
+        }
+      ]
+    }
+  ],
+  "enumerations": [],
+  "associations": []
+}
