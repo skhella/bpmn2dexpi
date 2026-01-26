@@ -296,7 +296,7 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
               <label>Template Reference:</label>
               <input
                 type="text"
-                value={edited.templateReference || ''}
+                value={edited.templateRef || ''}
                 readOnly
                 disabled
                 title="Set by material template"

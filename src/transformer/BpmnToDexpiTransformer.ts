@@ -13,6 +13,7 @@ export class BpmnToDexpiTransformer {
   private materialTemplates: Map<string, any> = new Map();
   private materialComponents: Map<string, any> = new Map();
   private materialStates: Map<string, any> = new Map();
+  private materialStateTypes: Map<string, any> = new Map();
 
   async transform(bpmnXml: string, options: TransformOptions = {}): Promise<string> {
     console.log('=== Starting BPMN to DEXPI Transformation ===');
@@ -24,6 +25,7 @@ export class BpmnToDexpiTransformer {
     this.materialTemplates.clear();
     this.materialComponents.clear();
     this.materialStates.clear();
+    this.materialStateTypes.clear();
     
     // Parse BPMN XML
     const bpmnModel = this.parseBpmn(bpmnXml);
@@ -62,10 +64,16 @@ export class BpmnToDexpiTransformer {
     const process = doc.querySelector('process');
     if (!process) return;
 
-    // Extract tasks (ProcessSteps) - including all task types
-    const tasks = Array.from(process.querySelectorAll('task, subProcess, serviceTask, userTask, scriptTask, manualTask, businessRuleTask, sendTask, receiveTask, callActivity'));
-    tasks.forEach((task) => {
-      this.extractProcessStep(task);
+    // Extract tasks (ProcessSteps) - only direct children to maintain hierarchy
+    // Use > selector to get only direct children, not nested ones
+    const topLevelElements = Array.from(process.children).filter(child => {
+      const tagName = child.localName || child.tagName.split(':').pop() || '';
+      return ['task', 'subprocess', 'servicetask', 'usertask', 'scripttask', 
+              'manualtask', 'businessruletask', 'sendtask', 'receivetask', 'callactivity'].includes(tagName.toLowerCase());
+    });
+    
+    topLevelElements.forEach((task) => {
+      this.extractProcessStep(task as Element, null);
     });
 
     // Extract start events (Sources)
@@ -93,33 +101,86 @@ export class BpmnToDexpiTransformer {
     });
   }
 
-  private extractProcessStep(task: Element): void {
+  private extractProcessStep(task: Element, parentId: string | null): void {
     const id = task.getAttribute('id') || '';
     const name = task.getAttribute('name') || id;
+    const tagName = task.localName || task.tagName.split(':').pop() || '';
+    const isSubProcess = tagName.toLowerCase() === 'subprocess';
     
     // Extract DEXPI extension elements
     const dexpiData = this.extractDexpiExtension(task);
     
-    const processStep = {
+    const processStep: any = {
       id,
       name,
       type: dexpiData?.dexpiType || 'ProcessStep',
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
-      ports: dexpiData?.ports || []
+      ports: dexpiData?.ports || [],
+      parentId: parentId,
+      subProcessSteps: []
     };
 
     console.log(`Extracted process step ${id} with ${processStep.ports.length} ports:`, processStep.ports);
 
+    // Make port IDs unique by prefixing with step ID
+    processStep.ports = processStep.ports.map((port: DexpiPort) => ({
+      ...port,
+      portId: `${id}_${port.portId}`
+    }));
+
     this.processSteps.set(id, processStep);
+    
+    // If this is a subprocess, recursively extract its child process steps
+    if (isSubProcess) {
+      const childElements = Array.from(task.children).filter(child => {
+        const childTagName = child.localName || child.tagName.split(':').pop() || '';
+        return ['task', 'subprocess', 'servicetask', 'usertask', 'scripttask', 
+                'manualtask', 'businessruletask', 'sendtask', 'receivetask', 'callactivity'].includes(childTagName.toLowerCase());
+      });
+      
+      childElements.forEach(childTask => {
+        this.extractProcessStep(childTask as Element, id);
+        processStep.subProcessSteps.push(childTask.getAttribute('id'));
+      });
+    }
     
     // Register ports
     processStep.ports.forEach((port: DexpiPort) => {
       this.ports.set(port.portId, {
         ...port,
-        parentId: id
+        stepId: id,
+        parentPortId: undefined,
+        childPortIds: []
       });
     });
+    
+    // If this is a subprocess, map parent ports to child ports with same name/direction
+    if (isSubProcess && processStep.subProcessSteps.length > 0) {
+      processStep.ports.forEach((parentPort: DexpiPort) => {
+        // Find matching ports in child process steps
+        processStep.subProcessSteps.forEach((childId: string) => {
+          const childStep = this.processSteps.get(childId);
+          if (childStep) {
+            childStep.ports.forEach((childPort: DexpiPort) => {
+              // Match by port name and direction
+              if (childPort.name === parentPort.name && 
+                  childPort.direction === parentPort.direction) {
+                // Create parent-child port relationship
+                const parentPortData = this.ports.get(parentPort.portId);
+                const childPortData = this.ports.get(childPort.portId);
+                
+                if (parentPortData && childPortData) {
+                  if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
+                  parentPortData.childPortIds.push(childPort.portId);
+                  childPortData.parentPortId = parentPort.portId;
+                }
+              }
+            });
+          }
+        });
+      });
+    }
   }
 
   private extractSource(event: Element): void {
@@ -217,13 +278,41 @@ export class BpmnToDexpiTransformer {
       const numberOfComponents = this.getChildText(template, 'NumberOfMaterialComponents');
       const numberOfPhases = this.getChildText(template, 'NumberOfPhases');
 
+      // Extract component references from ListOfMaterialComponents
+      const listOfComponents = Array.from(template.children).find((c: any) => 
+        c.tagName === 'ListOfMaterialComponents' || c.localName === 'ListOfMaterialComponents'
+      );
+      const componentRefs: string[] = [];
+      if (listOfComponents) {
+        const identifiers = Array.from(listOfComponents.querySelectorAll('MaterialComponentIdentifier'));
+        identifiers.forEach((id: Element) => {
+          const uidRef = id.getAttribute('uidRef');
+          if (uidRef) componentRefs.push(uidRef);
+        });
+      }
+
+      // Extract phases from ListOfPhases
+      const listOfPhases = Array.from(template.children).find((c: any) => 
+        c.tagName === 'ListOfPhases' || c.localName === 'ListOfPhases'
+      );
+      const phases: string[] = [];
+      if (listOfPhases) {
+        const phaseIdentifiers = Array.from(listOfPhases.querySelectorAll('PhaseIdentifier'));
+        phaseIdentifiers.forEach((p: Element) => {
+          const identifier = p.getAttribute('Identifier') || this.getChildText(p, 'Identifier');
+          if (identifier) phases.push(identifier);
+        });
+      }
+
       this.materialTemplates.set(uid, {
         uid,
         identifier,
         label,
         description,
         numberOfComponents,
-        numberOfPhases
+        numberOfPhases,
+        componentRefs,
+        phases
       });
     });
 
@@ -236,6 +325,8 @@ export class BpmnToDexpiTransformer {
       const description = this.getChildText(component, 'Description');
       const chebiId = this.getChildText(component, 'ChEBI_identifier');
       const iupacId = this.getChildText(component, 'IUPAC_identifier');
+      const xsiType = component.getAttributeNS('http://www.w3.org/2001/XMLSchema-instance', 'type') || 
+                      component.getAttribute('xsi:type') || 'CustomMaterialComponent';
 
       this.materialComponents.set(uid, {
         uid,
@@ -243,35 +334,50 @@ export class BpmnToDexpiTransformer {
         label,
         description,
         chebiId,
-        iupacId
+        iupacId,
+        xsiType
       });
     });
 
-    // Extract MaterialStates from Case elements
+    // Extract MaterialStates from Case elements (new structure) or direct children (legacy)
     const cases = Array.from(extensionElements.querySelectorAll('Case'));
-    cases.forEach(caseElement => {
-      // Extract case name
-      let caseName: string | null = null;
-      for (let i = 0; i < caseElement.children.length; i++) {
-        const child = caseElement.children[i];
-        const localName = child.localName || child.tagName.split(':').pop() || '';
-        if (localName.toLowerCase() === 'casename') {
-          caseName = child.textContent || '';
-          break;
+    const hasNewStructure = cases.length > 0;
+    
+    if (hasNewStructure) {
+      // NEW STRUCTURE: MaterialStates inside Case elements
+      cases.forEach(caseElement => {
+        // Extract case name
+        let caseName: string | null = null;
+        for (let i = 0; i < caseElement.children.length; i++) {
+          const child = caseElement.children[i];
+          const localName = child.localName || child.tagName.split(':').pop() || '';
+          if (localName.toLowerCase() === 'casename') {
+            caseName = child.textContent || '';
+            break;
+          }
         }
-      }
 
-      // Extract MaterialStates within this Case
-      const states = Array.from(caseElement.querySelectorAll('MaterialState'));
+        // Extract MaterialStates within this Case
+        const states = Array.from(caseElement.querySelectorAll('MaterialState'));
+        states.forEach(state => {
+          this.extractMaterialState(state, caseName || name);
+        });
+      });
+    } else {
+      // LEGACY STRUCTURE: MaterialStates directly in extensionElements
+      const states = Array.from(extensionElements.querySelectorAll('MaterialState'));
       states.forEach(state => {
-        const uid = state.getAttribute('uid') || this.generateUid();
+        this.extractMaterialState(state, name);
+      });
+    }
+  }
+
+  private extractMaterialState(state: Element, caseName: string): void {
+    const uid = state.getAttribute('uid') || this.generateUid();
         const identifier = this.getChildText(state, 'Identifier');
         const label = this.getChildText(state, 'Label');
         const description = this.getChildText(state, 'Description');
         const templateRef = this.getChildValue(state, 'TemplateReference', 'uidRef');
-        
-        // Store the case name with the state
-        const stateWithCase = caseName || name;
 
         // Extract Flow data
         const flowElement = Array.from(state.children).find((c: any) => c.tagName === 'Flow' || c.localName === 'Flow');
@@ -295,21 +401,35 @@ export class BpmnToDexpiTransformer {
             flow.composition = {
               basis: this.getChildText(compositionElement as Element, 'Basis'),
               display: this.getChildText(compositionElement as Element, 'Display'),
-              fractions: fractions.map(f => this.getChildText(f, 'Value'))
+              fractions: fractions.map(f => ({
+                value: this.getChildText(f, 'Value'),
+                componentRef: this.getChildText(f, 'ComponentReference')
+              }))
             };
           }
         }
 
-        this.materialStates.set(uid, {
-          uid,
-          identifier,
-          label,
-          description,
-          caseName: stateWithCase,
-          templateRef,
-          flow
-        });
+    // Create MaterialStateType with flow data
+    const stateTypeUid = `${uid}_Type`;
+    if (flow) {
+      this.materialStateTypes.set(stateTypeUid, {
+        uid: stateTypeUid,
+        identifier: `${identifier}_Type`,
+        label: `${label} - Flow Data`,
+        description: `Flow data for ${label}`,
+        templateRef,
+        flow
       });
+    }
+
+    // Create MaterialState with metadata and reference to MaterialStateType
+    this.materialStates.set(uid, {
+      uid,
+      identifier,
+      label: caseName ? `${caseName} - ${label}` : label,
+      description,
+      caseName: caseName,
+      stateTypeRef: flow ? stateTypeUid : undefined
     });
   }
 
@@ -394,12 +514,17 @@ export class BpmnToDexpiTransformer {
     
     if (!dexpiStream) return null;
 
-    // Extract stream attributes
+    // Extract stream attributes and properties
     const attributes: any[] = [];
+    let materialStateRef: string | undefined = undefined;
+    let templateRef: string | undefined = undefined;
+    
     for (let i = 0; i < dexpiStream.children.length; i++) {
       const child = dexpiStream.children[i];
       const localName = child.localName || child.tagName.split(':').pop() || '';
+      
       if (localName.toLowerCase() === 'streamattribute') {
+        // Format 1: StreamAttribute elements
         attributes.push({
           name: child.getAttribute('name') || '',
           value: child.getAttribute('value') || '',
@@ -407,17 +532,39 @@ export class BpmnToDexpiTransformer {
           mode: child.getAttribute('mode') || 'Design',
           qualifier: child.getAttribute('qualifier') || 'Average'
         });
+      } else if (localName.toLowerCase() === 'materialstatereference') {
+        materialStateRef = child.getAttribute('uidRef') || undefined;
+      } else if (localName.toLowerCase() === 'templatereference') {
+        templateRef = child.getAttribute('uidRef') || undefined;
+      } else {
+        // Format 2: Direct property elements like Temperature, Pressure, MassFlow, etc.
+        // These have Value/Unit child elements
+        const valueElement = child.querySelector('Value');
+        const unitElement = child.querySelector('Unit');
+        const modeElement = child.querySelector('Mode');
+        const qualifierElement = child.querySelector('Qualifier');
+        
+        if (valueElement) {
+          const propertyName = localName.charAt(0).toUpperCase() + localName.slice(1);
+          attributes.push({
+            name: propertyName,
+            value: valueElement.textContent || '',
+            unit: unitElement?.textContent || '',
+            mode: modeElement?.textContent || 'Design',
+            qualifier: qualifierElement?.textContent || 'Average'
+          });
+        }
       }
     }
 
     return {
-      identifier: dexpiStream.getAttribute('identifier') || undefined,
+      identifier: dexpiStream.getAttribute('identifier') || dexpiStream.getAttribute('Identifier') || undefined,
       name: dexpiStream.getAttribute('name') || undefined,
       streamType: dexpiStream.getAttribute('streamType') as any,
       sourcePortRef: dexpiStream.getAttribute('sourcePortRef') || undefined,
       targetPortRef: dexpiStream.getAttribute('targetPortRef') || undefined,
-      templateReference: dexpiStream.getAttribute('templateReference') || undefined,
-      materialStateReference: dexpiStream.getAttribute('materialStateReference') || undefined,
+      templateReference: dexpiStream.getAttribute('templateReference') || templateRef,
+      materialStateReference: materialStateRef,
       provenance: dexpiStream.getAttribute('provenance') as any,
       range: dexpiStream.getAttribute('range') as any,
       attributes
@@ -566,6 +713,25 @@ export class BpmnToDexpiTransformer {
       }
     }
 
+    // Add MaterialStateTypes collection if there are any
+    if (this.materialStateTypes.size > 0) {
+      if (!processModelObject.Components) {
+        processModelObject.Components = [];
+      }
+      const stateTypesComponent = {
+        '$': {
+          'property': 'MaterialStateTypes'
+        },
+        'Object': this.buildMaterialStateTypes()
+      };
+      
+      if (Array.isArray(processModelObject.Components)) {
+        processModelObject.Components.push(stateTypesComponent);
+      } else {
+        processModelObject.Components = [processModelObject.Components, stateTypesComponent];
+      }
+    }
+
     // Add MaterialStates collection if there are any
     if (this.materialStates.size > 0) {
       if (!processModelObject.Components) {
@@ -626,7 +792,17 @@ export class BpmnToDexpiTransformer {
   private buildProcessSteps(): any[] {
     const steps: any[] = [];
 
+    // Only build top-level process steps (those without parents)
     this.processSteps.forEach((step) => {
+      if (step.parentId) return; // Skip child process steps, they'll be added as SubProcessSteps
+      
+      steps.push(this.buildProcessStepObject(step));
+    });
+
+    return steps;
+  }
+
+  private buildProcessStepObject(step: any): any {
       const dexpiStep: any = {
         '$': {
           'id': step.uid,
@@ -706,6 +882,55 @@ export class BpmnToDexpiTransformer {
           portObjects.push(portObject);
         });
 
+        // Second pass: add port hierarchy references after all ports are created
+        portObjects.forEach((portObject: any) => {
+          const portId = portObject.$.id;
+          const portData = this.ports.get(portId);
+          
+          // Add SuperReference if this port has a parent port
+          if (portData?.parentPortId) {
+            if (!portObject.References) portObject.References = [];
+            portObject.References.push({
+              '$': {
+                'property': 'SuperReference'
+              },
+              'ObjectReference': {
+                '$': {
+                  'ref': portData.parentPortId
+                }
+              }
+            });
+          }
+          
+          // Add SubReference if this port has child ports  
+          if (portData?.childPortIds && portData.childPortIds.length > 0) {
+            if (!portObject.Components) portObject.Components = [];
+            const subRefs = portData.childPortIds.map((childId: string) => ({
+              'ObjectReference': {
+                '$': {
+                  'ref': childId
+                }
+              }
+            }));
+            
+            if (Array.isArray(portObject.Components)) {
+              portObject.Components.push({
+                '$': {
+                  'property': 'SubReference'
+                },
+                'Object': subRefs
+              });
+            } else {
+              portObject.Components = [{
+                '$': {
+                  'property': 'SubReference'
+                },
+                'Object': subRefs
+              }];
+            }
+          }
+        });
+
         dexpiStep.Components = {
           '$': {
             'property': 'Ports'
@@ -716,10 +941,45 @@ export class BpmnToDexpiTransformer {
         console.log(`Added ${portObjects.length} ports to DEXPI step`);
       }
 
-      steps.push(dexpiStep);
-    });
+      // Add SubProcessSteps if this is a subprocess with children
+      if (step.subProcessSteps && step.subProcessSteps.length > 0) {
+        const subProcessObjects: any[] = [];
+        
+        step.subProcessSteps.forEach((childId: string) => {
+          const childStep = this.processSteps.get(childId);
+          if (childStep) {
+            subProcessObjects.push(this.buildProcessStepObject(childStep));
+          }
+        });
+        
+        if (subProcessObjects.length > 0) {
+          if (!dexpiStep.Components) {
+            dexpiStep.Components = [];
+          }
+          if (Array.isArray(dexpiStep.Components)) {
+            dexpiStep.Components.push({
+              '$': {
+                'property': 'SubProcessSteps'
+              },
+              'Object': subProcessObjects
+            });
+          } else {
+            // If Components is already an object (has Ports), convert to array
+            const existingComponents = dexpiStep.Components;
+            dexpiStep.Components = [
+              existingComponents,
+              {
+                '$': {
+                  'property': 'SubProcessSteps'
+                },
+                'Object': subProcessObjects
+              }
+            ];
+          }
+        }
+      }
 
-    return steps;
+      return dexpiStep;
   }
 
   private buildStreams(): any[] {
@@ -808,118 +1068,48 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add all stream attributes as Data properties
+      // Add all stream attributes
       if (stream.attributes && stream.attributes.length > 0) {
         stream.attributes.forEach((attr: any) => {
           if (!attr.name || !attr.value) return;
           
-          const attrData: any = {
-            '$': {
-              'property': attr.name
-            }
-          };
-
-          // If unit is provided, create a qualified value
+          // If unit is provided, this is a physical quantity - add to CompositionProperties
           if (attr.unit) {
-            attrData.Object = {
+            if (!dexpiStream.CompositionProperties) {
+              dexpiStream.CompositionProperties = [];
+            }
+
+            dexpiStream.CompositionProperties.push({
               '$': {
-                'type': 'Core/QualifiedValue'
+                'property': attr.name
               },
-              'Data': {
-                '$': {
-                  'property': 'Value'
-                },
-                'AggregatedDataValue': {
-                  '$': {
-                    'type': 'Core/PhysicalQuantities.PhysicalQuantity'
-                  },
-                  'Data': [
-                    {
-                      '$': {
-                        'property': 'Value'
-                      },
-                      'Double': attr.value
+              'PhysicalQuantity': {
+                'Data': [
+                  {
+                    '$': {
+                      'property': 'Value'
                     },
-                    {
-                      '$': {
-                        'property': 'Unit'
-                      },
-                      'String': attr.unit
-                    }
-                  ]
-                }
+                    'Number': parseFloat(attr.value) || attr.value
+                  },
+                  {
+                    '$': {
+                      'property': 'Unit'
+                    },
+                    'String': attr.unit
+                  }
+                ]
               }
-            };
-            
-            // Add mode and qualifier if present
-            if (attr.mode) {
-              attrData.Object.Data.Data.push({
-                '$': {
-                  'property': 'Mode'
-                },
-                'String': attr.mode
-              });
-            }
-            if (attr.qualifier) {
-              attrData.Object.Data.Data.push({
-                '$': {
-                  'property': 'Qualifier'
-                },
-                'String': attr.qualifier
-              });
-            }
+            });
           } else {
-            // Simple string value
-            attrData.String = attr.value;
-          }
-
-          dexpiStream.Data.push(attrData);
-        });
-      }
-
-      // Legacy: Add mass flow if it's a material stream (kept for backwards compatibility)
-      if (stream.streamType === 'MaterialFlow' && stream.attributes) {
-        const massFlowAttr = stream.attributes.find((a: any) => a.name === 'MassFlow');
-        if (massFlowAttr) {
-          dexpiStream.Components = {
-            '$': {
-              'property': 'MassFlow'
-            },
-            'Object': {
+            // Simple string value - add to Data
+            dexpiStream.Data.push({
               '$': {
-                'type': 'Core/QualifiedValue'
+                'property': attr.name
               },
-              'Data': {
-                '$': {
-                  'property': 'Value'
-                },
-                'AggregatedDataValue': {
-                  '$': {
-                    'type': 'Core/PhysicalQuantities.PhysicalQuantity'
-                  },
-                  'Data': [
-                    {
-                      '$': {
-                        'property': 'Value'
-                      },
-                      'Double': massFlowAttr.value
-                    },
-                    {
-                      '$': {
-                        'property': 'Unit'
-                      },
-                      'DataReference': {
-                        '$': {
-                          'data': 'Core/PhysicalQuantities.MassFlowRateUnit.' + (massFlowAttr.unit || 'kgh')
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          };
-        }
+              'String': attr.value
+            });
+          }
+        });
       }
 
       streamElements.push(dexpiStream);
@@ -987,6 +1177,33 @@ export class BpmnToDexpiTransformer {
         });
       }
 
+      // Add ListOfMaterialComponents if present
+      if (template.componentRefs && template.componentRefs.length > 0) {
+        if (!dexpiTemplate.References) {
+          dexpiTemplate.References = [];
+        }
+        dexpiTemplate.References.push({
+          '$': {
+            'property': 'ListOfMaterialComponents'
+          },
+          'ObjectReference': template.componentRefs.map((ref: string) => ({
+            '$': {
+              'ref': ref
+            }
+          }))
+        });
+      }
+
+      // Add ListOfPhases if present
+      if (template.phases && template.phases.length > 0) {
+        dexpiTemplate.Data.push({
+          '$': {
+            'property': 'ListOfPhases'
+          },
+          'String': template.phases.join(', ')
+        });
+      }
+
       templates.push(dexpiTemplate);
     });
 
@@ -1000,7 +1217,7 @@ export class BpmnToDexpiTransformer {
       const dexpiComponent: any = {
         '$': {
           'id': component.uid,
-          'type': 'Process/Process.MaterialComponent'
+          'type': component.xsiType === 'PureMaterialComponent' ? 'Process/Process.PureMaterialComponent' : 'Process/Process.MaterialComponent'
         },
         'Data': [
           {
@@ -1097,138 +1314,20 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add CaseName if present
-      if (state.caseName) {
-        dexpiState.Data.push({
-          '$': {
-            'property': 'CaseName'
-          },
-          'String': state.caseName
-        });
-      }
-
-      // Add TemplateReference if present
-      if (state.templateRef) {
+      // Add State reference to MaterialStateType
+      if (state.stateTypeRef) {
         if (!dexpiState.References) {
           dexpiState.References = [];
         }
         dexpiState.References.push({
           '$': {
-            'property': 'TemplateReference'
+            'property': 'State'
           },
           'ObjectReference': {
             '$': {
-              'ref': state.templateRef
+              'ref': state.stateTypeRef
             }
           }
-        });
-      }
-
-      // Add Flow data if present
-      if (state.flow) {
-        const flowObject: any = {
-          '$': {
-            'type': 'Process/Process.Flow'
-          },
-          'Components': []
-        };
-
-        // Add MoleFlow if present
-        if (state.flow.moleFlow) {
-          flowObject.Components.push({
-            '$': {
-              'property': 'MoleFlow'
-            },
-            'Object': {
-              '$': {
-                'type': 'Process/Process.MoleFlow'
-              },
-              'Data': [
-                {
-                  '$': {
-                    'property': 'Value'
-                  },
-                  'Number': state.flow.moleFlow.value
-                },
-                {
-                  '$': {
-                    'property': 'Unit'
-                  },
-                  'String': state.flow.moleFlow.unit
-                }
-              ]
-            }
-          });
-        }
-
-        // Add Composition if present
-        if (state.flow.composition) {
-          const compositionObject: any = {
-            '$': {
-              'property': 'Composition'
-            },
-            'Object': {
-              '$': {
-                'type': 'Process/Process.Composition'
-              },
-              'Data': []
-            }
-          };
-
-          // Add Basis if present
-          if (state.flow.composition.basis) {
-            compositionObject.Object.Data.push({
-              '$': {
-                'property': 'Basis'
-              },
-              'String': state.flow.composition.basis
-            });
-          }
-
-          // Add Display if present
-          if (state.flow.composition.display) {
-            compositionObject.Object.Data.push({
-              '$': {
-                'property': 'Display'
-              },
-              'String': state.flow.composition.display
-            });
-          }
-
-          // Add Fractions if present
-          if (state.flow.composition.fractions && state.flow.composition.fractions.length > 0) {
-            const fractionObjects = state.flow.composition.fractions.map((fraction: string) => ({
-              '$': {
-                'type': 'Process/Process.Fraction'
-              },
-              'Data': {
-                '$': {
-                  'property': 'Value'
-                },
-                'Number': fraction
-              }
-            }));
-
-            compositionObject.Object.Components = {
-              '$': {
-                'property': 'Fractions'
-              },
-              'Object': fractionObjects
-            };
-          }
-
-          flowObject.Components.push(compositionObject);
-        }
-
-        if (!dexpiState.Components) {
-          dexpiState.Components = [];
-        }
-        
-        dexpiState.Components.push({
-          '$': {
-            'property': 'Flow'
-          },
-          'Object': flowObject
         });
       }
 
@@ -1236,6 +1335,165 @@ export class BpmnToDexpiTransformer {
     });
 
     return states;
+  }
+
+  private buildMaterialStateTypes(): any[] {
+    const stateTypes: any[] = [];
+
+    this.materialStateTypes.forEach((stateType) => {
+      const dexpiStateType: any = {
+        '$': {
+          'id': stateType.uid,
+          'type': 'Process/Process.MaterialStateType'
+        },
+        'Data': [
+          {
+            '$': {
+              'property': 'Identifier'
+            },
+            'String': stateType.identifier
+          }
+        ]
+      };
+
+      // Add Label if present
+      if (stateType.label) {
+        dexpiStateType.Data.push({
+          '$': {
+            'property': 'Label'
+          },
+          'String': stateType.label
+        });
+      }
+
+      // Add Description if present
+      if (stateType.description) {
+        dexpiStateType.Data.push({
+          '$': {
+            'property': 'Description'
+          },
+          'String': stateType.description
+        });
+      }
+
+      // Add MaterialTemplateReference if present
+      if (stateType.templateRef) {
+        if (!dexpiStateType.References) {
+          dexpiStateType.References = [];
+        }
+        dexpiStateType.References.push({
+          '$': {
+            'property': 'MaterialTemplateReference'
+          },
+          'ObjectReference': {
+            '$': {
+              'ref': stateType.templateRef
+            }
+          }
+        });
+      }
+
+      // Add MoleFlow as CompositionProperty
+      if (stateType.flow?.moleFlow) {
+        if (!dexpiStateType.CompositionProperties) {
+          dexpiStateType.CompositionProperties = [];
+        }
+        dexpiStateType.CompositionProperties.push({
+          '$': {
+            'property': 'MoleFlow'
+          },
+          'PhysicalQuantity': {
+            'Data': [
+              {
+                '$': {
+                  'property': 'Value'
+                },
+                'Number': stateType.flow.moleFlow.value
+              },
+              {
+                '$': {
+                  'property': 'Unit'
+                },
+                'String': stateType.flow.moleFlow.unit
+              }
+            ]
+          }
+        });
+      }
+
+      // Add Composition as ReferenceProperty
+      if (stateType.flow?.composition) {
+        const composition = stateType.flow.composition;
+        
+        if (!dexpiStateType.ReferenceProperties) {
+          dexpiStateType.ReferenceProperties = [];
+        }
+
+        const compositionRef: any = {
+          '$': {
+            'property': 'Composition'
+          },
+          'Composition': {
+            'Data': []
+          }
+        };
+
+        // Add Basis if present
+        if (composition.basis) {
+          compositionRef.Composition.Data.push({
+            '$': {
+              'property': 'Basis'
+            },
+            'String': composition.basis
+          });
+        }
+
+        // Add Display if present
+        if (composition.display) {
+          compositionRef.Composition.Data.push({
+            '$': {
+              'property': 'Display'
+            },
+            'String': composition.display
+          });
+        }
+
+        // Add MoleFractions as PhysicalQuantityVector with positional values
+        if (composition.fractions && composition.fractions.length > 0) {
+          const fractionValues = composition.fractions.map((fraction: any) => {
+            return typeof fraction === 'string' ? fraction : fraction.value;
+          });
+
+          if (!compositionRef.Composition.CompositionProperties) {
+            compositionRef.Composition.CompositionProperties = [];
+          }
+
+          compositionRef.Composition.CompositionProperties.push({
+            '$': {
+              'property': 'MoleFractions'
+            },
+            'PhysicalQuantityVector': {
+              'Data': [
+                {
+                  '$': {
+                    'property': 'Value'
+                  },
+                  'Array': {
+                    'Number': fractionValues
+                  }
+                }
+              ]
+            }
+          });
+        }
+
+        dexpiStateType.ReferenceProperties.push(compositionRef);
+      }
+
+      stateTypes.push(dexpiStateType);
+    });
+
+    return stateTypes;
   }
 
   private findPortForConnection(elementRef: string, portRef: string | undefined, defaultDirection: string): string | null {

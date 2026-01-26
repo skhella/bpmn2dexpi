@@ -39,6 +39,9 @@ export default class DexpiRenderer extends BaseRenderer {
     // Let BPMN renderer draw the base shape
     const shape = this.bpmnRenderer.drawShape(parentNode, element);
 
+    // Apply color based on DEXPI type
+    this.applyDexpiTypeColor(shape, element);
+
     // Check if ports should be rendered (can be controlled via config or global flag)
     // For now, ports are disabled by default - they exist in XML but aren't displayed
     const shouldRenderPorts = (window as any).__dexpi_show_ports__ || false;
@@ -523,5 +526,97 @@ export default class DexpiRenderer extends BaseRenderer {
 
     svgClasses(shape).add('dexpi-port-shape');
     return shape;
+  }
+
+  private applyDexpiTypeColor(shape: SVGElement, element: any): void {
+    // Only apply to tasks and activities
+    const isTaskLike = element.type === 'bpmn:Task' || 
+                       element.type === 'bpmn:SubProcess' ||
+                       element.type === 'bpmn:ServiceTask' ||
+                       element.type === 'bpmn:UserTask' ||
+                       element.type === 'bpmn:ScriptTask' ||
+                       element.type === 'bpmn:ManualTask' ||
+                       element.type === 'bpmn:BusinessRuleTask' ||
+                       element.type === 'bpmn:SendTask' ||
+                       element.type === 'bpmn:ReceiveTask' ||
+                       element.type === 'bpmn:CallActivity';
+    
+    if (!isTaskLike) return;
+
+    const businessObject = element.businessObject;
+    const extensionElements = businessObject.extensionElements;
+
+    console.log('Checking DEXPI type for element:', element.businessObject.id, 'hasExtensions:', !!extensionElements);
+
+    if (!extensionElements || !extensionElements.values) return;
+
+    const dexpiElement = extensionElements.values.find(
+      (e: any) => e.$type === 'dexpi:Element' || e.$type === 'dexpi:element'
+    );
+
+    console.log('Found dexpiElement:', dexpiElement, 'dexpiType:', dexpiElement?.dexpiType);
+
+    if (!dexpiElement || !dexpiElement.dexpiType) return;
+
+    const dexpiType = dexpiElement.dexpiType;
+
+    // InstrumentationActivity types - Green
+    const instrumentationTypes = [
+      'InstrumentationActivity',
+      'CalculatingProcessVariable',
+      'ControllingProcessVariable',
+      'ConveyingSignal',
+      'MeasuringProcessVariable',
+      'CalculatingRatio',
+      'CalculatingSplitRange',
+      'TransformingProcessVariable'
+    ];
+
+    // ProcessStep types - Blue (all others)
+    const processStepTypes = [
+      'ProcessStep',
+      'Emitting', 'ExchangingThermalEnergy', 'Flaring', 'FormingSolidMaterial',
+      'GeneratingFlow', 'Compressing', 'Pumping',
+      'IncreasingParticleSize', 'Agglomerating', 'Coalescing', 'Crystallizing', 'Flocculating',
+      'Mixing', 'Packaging', 'ReactingChemicals',
+      'ReducingParticleSize', 'Crushing', 'Cutting', 'Grinding', 'Milling',
+      'RemovingThermalEnergy',
+      'Separating', 'Absorbing', 'Adsorbing', 'Distilling', 'Drying', 'Evaporating',
+      'Filtering', 'SeparatingByCentrifugalForce', 'SeparatingByGravity', 'Sieving',
+      'SupplyingElectricalEnergy', 'SupplyingFluids', 'SupplyingMechanicalEnergy',
+      'SupplyingSolids', 'SupplyingThermalEnergy',
+      'TransportingElectricalEnergy', 'TransportingFluids', 'TransportingSolids'
+    ];
+
+    let fillColor: string | null = null;
+    let strokeColor: string | null = null;
+
+    if (instrumentationTypes.includes(dexpiType)) {
+      // Green for InstrumentationActivity
+      fillColor = '#c8e6c9';  // Light green
+      strokeColor = '#205022'; // Dark green
+      console.log('Applying GREEN color for InstrumentationActivity:', dexpiType);
+    } else if (processStepTypes.includes(dexpiType)) {
+      // Blue for ProcessStep
+      fillColor = '#bbdefb';  // Light blue
+      strokeColor = '#0d4372'; // Dark blue
+      console.log('Applying BLUE color for ProcessStep:', dexpiType);
+    } else {
+      console.log('Unknown DEXPI type, no color applied:', dexpiType);
+    }
+
+    if (fillColor && strokeColor) {
+      // The shape itself IS the rect element for tasks
+      const rect = shape.tagName === 'rect' ? shape : shape.querySelector('rect');
+      console.log('Found rect element:', !!rect, 'shape tagName:', shape.tagName);
+      if (rect) {
+        svgAttr(rect, {
+          'fill': fillColor,
+          'stroke': strokeColor,
+          'stroke-width': '2'
+        });
+        console.log('Applied colors - fill:', fillColor, 'stroke:', strokeColor);
+      }
+    }
   }
 }

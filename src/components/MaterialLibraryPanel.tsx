@@ -20,6 +20,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
   const [stateGroups, setStateGroups] = React.useState<{ [key: string]: MaterialState[] }>({});
   const [expandedGroups, setExpandedGroups] = React.useState<{ [key: string]: boolean }>({});
   const [activeTab, setActiveTab] = React.useState<'templates' | 'components' | 'states'>(initialTab);
+  const [selectedTemplate, setSelectedTemplate] = React.useState<MaterialTemplate | null>(null);
   const [editingTemplate, setEditingTemplate] = React.useState<MaterialTemplate | null>(null);
   const [editingComponent, setEditingComponent] = React.useState<MaterialComponent | null>(null);
   const [editingState, setEditingState] = React.useState<MaterialState | null>(null);
@@ -82,14 +83,26 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
           console.log('Raw MaterialTemplate:', val);
           console.log('$children:', val.$children);
           
-          // Extract component identifiers from MaterialComponentIdentifier array
-          const componentRefs = val.ListOfMaterialComponents?.MaterialComponentIdentifier 
-            ? (Array.isArray(val.ListOfMaterialComponents.MaterialComponentIdentifier)
-                ? val.ListOfMaterialComponents.MaterialComponentIdentifier.map((c: any) => c.Identifier)
-                : [val.ListOfMaterialComponents.MaterialComponentIdentifier.Identifier])
-            : [];
+          // Extract component UIDs from ListOfMaterialComponents in $children
+          const listOfComponents = val.$children?.find((c: any) => 
+            c.$type === 'ListOfMaterialComponents' || c.$type?.includes('ListOfMaterialComponents')
+          );
           
-          loadedTemplates.push({
+          const componentRefs: string[] = [];
+          if (listOfComponents?.$children) {
+            listOfComponents.$children.forEach((child: any) => {
+              if (child.$type === 'MaterialComponentIdentifier' || child.$type?.includes('MaterialComponentIdentifier')) {
+                const uidRef = child.uidRef || child.$attrs?.uidRef;
+                if (uidRef) {
+                  componentRefs.push(uidRef);
+                }
+              }
+            });
+          }
+          
+          console.log('Extracted componentRefs:', componentRefs);
+          
+          const template = {
             uid: val.uid || '',
             identifier: getChildText(val, 'Identifier'),
             label: getChildText(val, 'Label'),
@@ -98,18 +111,26 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             numberOfPhases: getChildValue(val, 'NumberOfPhases'),
             componentRefs: componentRefs,
             phases: val.ListOfPhases?.PhaseIdentifier?.map((p: any) => p.Identifier) || []
-          });
+          };
+          console.log('Loaded template:', template);
+          loadedTemplates.push(template);
         }
         if (val.$type === 'MaterialComponent' || val.$type?.includes('MaterialComponent')) {
-          loadedComponents.push({
+          // Check for xsi:type attribute - it can be stored in various ways in the moddle
+          const xsiType = val.$attrs?.['xsi:type'] || val['xsi:type'] || 
+                         (val.$type === 'dexpi:PureMaterialComponent' ? 'PureMaterialComponent' : null);
+          
+          const component = {
             uid: val.uid || '',
             identifier: getChildText(val, 'Identifier'),
             label: getChildText(val, 'Label'),
             description: getChildText(val, 'Description'),
-            type: val.xsi?.type === 'PureMaterialComponent' ? 'PureMaterialComponent' : 'CustomMaterialComponent',
+            type: xsiType === 'PureMaterialComponent' ? 'PureMaterialComponent' : 'CustomMaterialComponent',
             chebiId: getChildText(val, 'ChEBI_identifier'),
             iupacId: getChildText(val, 'IUPAC_identifier')
-          });
+          };
+          console.log('Loaded component:', component);
+          loadedComponents.push(component);
         }
       });
     }
@@ -171,27 +192,20 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                 const compositionChild = flowChild?.$children?.find((c: any) => c.$type === 'Composition');
                 const templateRefUid = stateVal.$children?.find((c: any) => c.$type === 'TemplateReference')?.uidRef;
                 
-                // Load fractions from BPMN
-                let fractions = compositionChild?.$children
+                // Load fraction values from BPMN (without component references, just values)
+                const fractionValues = compositionChild?.$children
                   ?.filter((c: any) => c.$type === 'Fraction')
-                  .map((f: any) => ({
-                    componentReference: f.$children?.find((c: any) => c.$type === 'ComponentReference')?.$body || '',
-                    value: f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0'
-                  })) || [];
+                  .map((f: any) => f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0') || [];
                 
-                // If template is referenced and fractions are missing or incomplete, populate from template
+                // Build fractions array by matching with template components
+                let fractions: Array<{ componentReference: string; value: string }> = [];
                 if (templateRefUid) {
                   const template = loadedTemplates.find(t => t.uid === templateRefUid);
                   if (template && template.componentRefs && template.componentRefs.length > 0) {
-                    // Create a map of existing fractions by component ref
-                    const existingFractionsMap = new Map(
-                      fractions.map(f => [f.componentReference, f.value])
-                    );
-                    
-                    // Build fractions array based on template components
-                    fractions = template.componentRefs.map(componentRef => ({
+                    // Match fraction values (by position) with template component refs
+                    fractions = template.componentRefs.map((componentRef, index) => ({
                       componentReference: componentRef,
-                      value: existingFractionsMap.get(componentRef) || '0'
+                      value: fractionValues[index] || '0'
                     }));
                   }
                 }
@@ -244,27 +258,20 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
               const compositionChild = flowChild?.$children?.find((c: any) => c.$type === 'Composition');
               const templateRefUid = val.$children?.find((c: any) => c.$type === 'TemplateReference')?.uidRef;
               
-              // Load fractions from BPMN
-              let fractions = compositionChild?.$children
+              // Load fraction values from BPMN (without component references, just values)
+              const fractionValues = compositionChild?.$children
                 ?.filter((c: any) => c.$type === 'Fraction')
-                .map((f: any) => ({
-                  componentReference: f.$children?.find((c: any) => c.$type === 'ComponentReference')?.$body || '',
-                  value: f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0'
-                })) || [];
+                .map((f: any) => f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0') || [];
               
-              // If template is referenced and fractions are missing or incomplete, populate from template
+              // Build fractions array by matching with template components
+              let fractions: Array<{ componentReference: string; value: string }> = [];
               if (templateRefUid) {
                 const template = loadedTemplates.find(t => t.uid === templateRefUid);
                 if (template && template.componentRefs && template.componentRefs.length > 0) {
-                  // Create a map of existing fractions by component ref
-                  const existingFractionsMap = new Map(
-                    fractions.map(f => [f.componentReference, f.value])
-                  );
-                  
-                  // Build fractions array based on template components
-                  fractions = template.componentRefs.map(componentRef => ({
+                  // Match fraction values (by position) with template component refs
+                  fractions = template.componentRefs.map((componentRef, index) => ({
                     componentReference: componentRef,
-                    value: existingFractionsMap.get(componentRef) || '0'
+                    value: fractionValues[index] || '0'
                   }));
                 }
               }
@@ -681,81 +688,99 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       <div className="tabs">
         <button 
           className={activeTab === 'templates' ? 'active' : ''} 
-          onClick={() => setActiveTab('templates')}
+          onClick={() => { setActiveTab('templates'); setSelectedTemplate(null); }}
         >
           Templates ({templates.length})
         </button>
         <button 
-          className={activeTab === 'components' ? 'active' : ''} 
-          onClick={() => setActiveTab('components')}
-        >
-          Components ({components.length})
-        </button>
-        <button 
           className={activeTab === 'states' ? 'active' : ''} 
-          onClick={() => setActiveTab('states')}
+          onClick={() => { setActiveTab('states'); setSelectedTemplate(null); }}
         >
           States ({states.length})
         </button>
       </div>
 
       {activeTab === 'templates' && (
-        <div className="templates-section">
-          <button onClick={addTemplate} className="btn-add">+ Add Template</button>
-          <div className="material-list">
-            {templates.map(template => (
-              <div 
-                key={template.uid} 
-                className={`item ${selectedItemId === template.uid ? 'item-selected' : ''}`}
-                onClick={() => onSelectItem?.({ type: 'template', data: template })}
-              >
-                <div className="item-header">
-                  <strong>{template.label}</strong>
-                  <div className="item-actions">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); deleteTemplate(template.uid); }} 
-                      className="btn-icon" 
-                      title="Delete"
-                    >🗑️</button>
+        <div className="templates-section" style={{ display: 'flex', gap: '10px', height: 'calc(100vh - 200px)' }}>
+          <div style={{ flex: selectedTemplate ? '0 0 45%' : '1', overflowY: 'auto' }}>
+            <button onClick={addTemplate} className="btn-add">+ Add Template</button>
+            <div className="material-list">
+              {templates.map(template => (
+                <div 
+                  key={template.uid} 
+                  className={`item ${selectedTemplate?.uid === template.uid ? 'item-selected' : ''}`}
+                  onClick={() => {
+                    setSelectedTemplate(template);
+                    onSelectItem?.({ type: 'template', data: template });
+                  }}
+                >
+                  <div className="item-header">
+                    <strong>{template.label}</strong>
+                    <div className="item-actions">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); deleteTemplate(template.uid); }} 
+                        className="btn-icon" 
+                        title="Delete"
+                      >🗑️</button>
+                    </div>
+                  </div>
+                  <div className="item-meta">
+                    {template.identifier} • {template.numberOfComponents} components • {template.numberOfPhases} phases
                   </div>
                 </div>
-                <div className="item-meta">
-                  {template.identifier} • {template.numberOfComponents} components • {template.numberOfPhases} phases
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+          {selectedTemplate && (
+            <div style={{ flex: '0 0 50%', overflowY: 'auto', borderLeft: '2px solid #ddd', paddingLeft: '10px' }}>
+              <div style={{ position: 'sticky', top: 0, background: 'white', paddingBottom: '10px', borderBottom: '1px solid #eee', marginBottom: '10px' }}>
+                <h3 style={{ margin: '0 0 5px 0' }}>📦 Components in {selectedTemplate.label}</h3>
+                <button onClick={addComponent} className="btn-add" style={{ marginTop: '5px' }}>+ Add Component</button>
+              </div>
+              <div className="material-list">
+                {selectedTemplate.componentRefs && selectedTemplate.componentRefs.length > 0 ? (
+                  selectedTemplate.componentRefs.map(componentRef => {
+                    console.log('Looking for component:', componentRef, 'in', components.map(c => ({ uid: c.uid, identifier: c.identifier })));
+                    const component = components.find(c => c.uid === componentRef || c.identifier === componentRef);
+                    if (!component) {
+                      console.warn('Component not found for ref:', componentRef);
+                      return null;
+                    }
+                    return (
+                      <div 
+                        key={component.uid} 
+                        className={`item ${selectedItemId === component.uid ? 'item-selected' : ''}`}
+                        onClick={() => onSelectItem?.({ type: 'component', data: component })}
+                      >
+                        <div className="item-header">
+                          <strong>{component.label}</strong>
+                          <div className="item-actions">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); deleteComponent(component.uid); }} 
+                              className="btn-icon" 
+                              title="Delete"
+                            >🗑️</button>
+                          </div>
+                        </div>
+                        <div className="item-meta">
+                          {component.identifier} • {component.type}
+                          {component.chebiId && <div style={{ fontSize: '0.85em', color: '#666' }}>ChEBI: {component.chebiId}</div>}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+                    No components in this template
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {activeTab === 'components' && (
-        <div className="components-section">
-          <button onClick={addComponent} className="btn-add">+ Add Component</button>
-          <div className="material-list">
-            {components.map(component => (
-              <div 
-                key={component.uid} 
-                className={`item ${selectedItemId === component.uid ? 'item-selected' : ''}`}
-                onClick={() => onSelectItem?.({ type: 'component', data: component })}
-              >
-                <div className="item-header">
-                  <strong>{component.label}</strong>
-                  <div className="item-actions">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); deleteComponent(component.uid); }} 
-                      className="btn-icon" 
-                      title="Delete"
-                    >🗑️</button>
-                  </div>
-                </div>
-                <div className="item-meta">
-                  {component.identifier} • {component.type}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {activeTab === 'states' && (
         <div className="states-section">

@@ -94,37 +94,7 @@ export default class DexpiPaletteProvider {
         group: 'tools',
         separator: true,
         action: {}
-      } as any,
-      'create.process-step': createAction(
-        'bpmn:Task',
-        'activity',
-        'bpmn-icon-task',
-        'Create Process Step'
-      ),
-      'create.instrumentation-activity': createAction(
-        'bpmn:Task',
-        'activity',
-        'bpmn-icon-manual-task',
-        'Create Instrumentation Activity'
-      ),
-      'create.source': createAction(
-        'bpmn:StartEvent',
-        'event',
-        'bpmn-icon-start-event-none',
-        'Create Source'
-      ),
-      'create.sink': createAction(
-        'bpmn:EndEvent',
-        'event',
-        'bpmn-icon-end-event-none',
-        'Create Sink'
-      ),
-      'create.data-object': createAction(
-        'bpmn:DataObjectReference',
-        'data',
-        'bpmn-icon-data-object',
-        'Create Material Template/State'
-      )
+      } as any
     };
   }
 }

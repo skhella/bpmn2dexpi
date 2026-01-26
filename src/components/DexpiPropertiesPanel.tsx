@@ -1,5 +1,6 @@
 import React from 'react';
 import type { DexpiElement, DexpiPort, DexpiStream } from '../dexpi/moddle';
+import { DexpiEnumerations, ProcessStepTypes, InstrumentationActivityTypes, type EnumerationKey } from '../utils/dexpiEnumerations';
 
 interface DexpiPropertiesPanelProps {
   element: any;
@@ -181,6 +182,14 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
     modeling.updateProperties(element, {
       extensionElements
     });
+    
+    // Trigger visual update if dexpiType changed
+    if (updates.dexpiType) {
+      const eventBus = modeler.get('eventBus');
+      
+      // Force a redraw by firing element.changed event
+      eventBus.fire('element.changed', { element });
+    }
   };
 
   const handleDexpiTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -419,8 +428,81 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
               elementType === 'bpmn:ReceiveTask' ||
               elementType === 'bpmn:CallActivity') && (
               <>
-                <option value="ProcessStep">Process Step</option>
-                <option value="InstrumentationActivity">Instrumentation Activity</option>
+                <optgroup label="General">
+                  <option value="ProcessStep">ProcessStep (Generic)</option>
+                  <option value="InstrumentationActivity">InstrumentationActivity (Generic)</option>
+                </optgroup>
+                
+                <optgroup label="Instrumentation">
+                  <option value="MeasuringProcessVariable">MeasuringProcessVariable</option>
+                  <option value="ControllingProcessVariable">ControllingProcessVariable</option>
+                  <option value="ConveyingSignal">ConveyingSignal</option>
+                  <option value="CalculatingProcessVariable">CalculatingProcessVariable</option>
+                  <option value="CalculatingRatio">CalculatingRatio</option>
+                  <option value="CalculatingSplitRange">CalculatingSplitRange</option>
+                  <option value="TransformingProcessVariable">TransformingProcessVariable</option>
+                </optgroup>
+                
+                <optgroup label="Flow Generation">
+                  <option value="GeneratingFlow">GeneratingFlow</option>
+                  <option value="Compressing">Compressing</option>
+                  <option value="Pumping">Pumping</option>
+                </optgroup>
+                
+                <optgroup label="Separation">
+                  <option value="Separating">Separating</option>
+                  <option value="Absorbing">Absorbing</option>
+                  <option value="Adsorbing">Adsorbing</option>
+                  <option value="Distilling">Distilling</option>
+                  <option value="Drying">Drying</option>
+                  <option value="Evaporating">Evaporating</option>
+                  <option value="Filtering">Filtering</option>
+                  <option value="SeparatingByCentrifugalForce">SeparatingByCentrifugalForce</option>
+                  <option value="SeparatingByGravity">SeparatingByGravity</option>
+                  <option value="Sieving">Sieving</option>
+                </optgroup>
+                
+                <optgroup label="Energy Transfer">
+                  <option value="ExchangingThermalEnergy">ExchangingThermalEnergy</option>
+                  <option value="RemovingThermalEnergy">RemovingThermalEnergy</option>
+                  <option value="SupplyingThermalEnergy">SupplyingThermalEnergy</option>
+                  <option value="SupplyingElectricalEnergy">SupplyingElectricalEnergy</option>
+                  <option value="SupplyingMechanicalEnergy">SupplyingMechanicalEnergy</option>
+                </optgroup>
+                
+                <optgroup label="Particle Size">
+                  <option value="IncreasingParticleSize">IncreasingParticleSize</option>
+                  <option value="Agglomerating">Agglomerating</option>
+                  <option value="Coalescing">Coalescing</option>
+                  <option value="Crystallizing">Crystallizing</option>
+                  <option value="ReducingParticleSize">ReducingParticleSize</option>
+                  <option value="Crushing">Crushing</option>
+                  <option value="Grinding">Grinding</option>
+                  <option value="Milling">Milling</option>
+                </optgroup>
+                
+                <optgroup label="Material Processing">
+                  <option value="ReactingChemicals">ReactingChemicals</option>
+                  <option value="Mixing">Mixing</option>
+                  <option value="FormingSolidMaterial">FormingSolidMaterial</option>
+                </optgroup>
+                
+                <optgroup label="Transport">
+                  <option value="TransportingFluids">TransportingFluids</option>
+                  <option value="TransportingSolids">TransportingSolids</option>
+                  <option value="TransportingElectricalEnergy">TransportingElectricalEnergy</option>
+                </optgroup>
+                
+                <optgroup label="Supply">
+                  <option value="SupplyingFluids">SupplyingFluids</option>
+                  <option value="SupplyingSolids">SupplyingSolids</option>
+                </optgroup>
+                
+                <optgroup label="Other">
+                  <option value="Emitting">Emitting</option>
+                  <option value="Flaring">Flaring</option>
+                  <option value="Packaging">Packaging</option>
+                </optgroup>
               </>
             )}
             {(elementType === 'bpmn:StartEvent' || elementType === 'bpmn:IntermediateCatchEvent') && (
@@ -456,6 +538,51 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           />
         </label>
       </div>
+
+      {/* Process Step specific properties */}
+      {(dexpiType === 'ProcessStep' || elementType === 'bpmn:Task' || elementType === 'bpmn:SubProcess') && (
+        <div className="property-group">
+          <label>
+            Hierarchy Level:
+            <select 
+              value={element.businessObject.extensionElements?.values?.find((e: any) => 
+                e.$type === 'dexpi:Element' || e.$type === 'dexpi:element'
+              )?.hierarchyLevel || ''} 
+              onChange={(e) => {
+                const modeling = modeler.get('modeling');
+                const moddle = modeler.get('moddle');
+                const businessObject = element.businessObject;
+                
+                if (!businessObject.extensionElements) {
+                  businessObject.extensionElements = moddle.create('bpmn:ExtensionElements');
+                }
+                if (!businessObject.extensionElements.values) {
+                  businessObject.extensionElements.values = [];
+                }
+                
+                let dexpiElement = businessObject.extensionElements.values.find(
+                  (el: any) => el.$type === 'dexpi:Element' || el.$type === 'dexpi:element'
+                );
+                
+                if (!dexpiElement) {
+                  dexpiElement = moddle.create('dexpi:Element');
+                  businessObject.extensionElements.values.push(dexpiElement);
+                }
+                
+                dexpiElement.hierarchyLevel = e.target.value;
+                modeling.updateProperties(element, {
+                  extensionElements: businessObject.extensionElements
+                });
+              }}
+            >
+              <option value="">-- Select Hierarchy Level --</option>
+              {DexpiEnumerations.ProcessStepHierarchyLevel.map(level => (
+                <option key={level} value={level}>{level}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
 
       <div className="property-group">
         <h4>Ports ({ports.length})</h4>
@@ -509,8 +636,9 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                 value={port.direction} 
                 onChange={(e) => updatePort(port.portId, { direction: e.target.value as any })}
               >
-                <option value="Inlet">Inlet</option>
-                <option value="Outlet">Outlet</option>
+                {DexpiEnumerations.PortDirection.map(dir => (
+                  <option key={dir} value={dir}>{dir}</option>
+                ))}
               </select>
             </label>
 
