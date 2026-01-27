@@ -245,6 +245,11 @@ function App() {
       const element = e.newSelection[0];
       setSelectedElement(element || null);
       
+      // Close material editor when selecting a diagram element
+      if (element) {
+        setSelectedMaterialItem(null);
+      }
+      
       // Auto-open Material Library when clicking on material data objects
       if (element?.type === 'bpmn:DataObjectReference') {
         const name = element.businessObject?.name;
@@ -412,7 +417,16 @@ function App() {
       </header>
       
       <div className="app-content">
-        <div className="canvas-container" ref={containerRef}></div>
+        <div 
+          className="canvas-container" 
+          ref={containerRef}
+          onClick={() => {
+            // Close material editor panel when clicking on canvas
+            if (selectedMaterialItem) {
+              setSelectedMaterialItem(null);
+            }
+          }}
+        ></div>
         
         {showMaterialLibrary && (
           <>
