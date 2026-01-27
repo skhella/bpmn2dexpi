@@ -1,0 +1,4362 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Model name="process-model" uri="http://www.example.org">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel">
+      <Object id="uid-1769508231105-woast8d28" type="Process/ProcessModel">
+        <Components property="ProcessSteps">
+          <Object id="uid-1769508231059-qyn50dg4l" type="Process/Process.ReactingChemicals">
+            <Data property="Identifier">
+              <String>Activity_07878z5</String>
+            </Data>
+            <Data property="Label">
+              <String>ReactingChemicals</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="Activity_07878z5_MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_07878z5_MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_0msgfdr_MI1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_07878z5_MI2_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_07878z5_MI2_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI2</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_16sydhz_MI2_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_07878z5_MI3_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_07878z5_MI3_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI3</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_16sydhz_MI3_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_07878z5_MI4_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_07878z5_MI4_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI4</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_16sydhz_MI4_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_07878z5_MI5_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_07878z5_MI5_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI5</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_16sydhz_MI5_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_07878z5_MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_07878z5_MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_0msgfdr_MO1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+            </Components>
+            <Components property="SubProcessSteps">
+              <Object id="uid-1769508231061-pul4sl8xv" type="Process/Process.RemovingThermalEnergy">
+                <Data property="Identifier">
+                  <String>Activity_11rkrj8</String>
+                </Data>
+                <Data property="Label">
+                  <String>RemovingThermalEnergy</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_11rkrj8_TEI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_11rkrj8_TEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>TEI1</String>
+                    </Data>
+                    <Components property="SubReference">
+                      <Object>
+                        <ObjectReference ref="Activity_03d7qhp_TEI1_port"/>
+                      </Object>
+                    </Components>
+                  </Object>
+                </Components>
+                <Components property="SubProcessSteps">
+                  <Object id="uid-1769508231062-kla02f2j9" type="Process/Process.RegulatingFlow">
+                    <Data property="Identifier">
+                      <String>Activity_1pzszmn</String>
+                    </Data>
+                    <Data property="Label">
+                      <String>RegulatingFlow</String>
+                    </Data>
+                    <Components property="Ports">
+                      <Object id="Activity_1pzszmn_MI1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_1pzszmn_MI1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MI1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_1pzszmn_MO1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_1pzszmn_MO1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MO1</String>
+                        </Data>
+                      </Object>
+                    </Components>
+                  </Object>
+                  <Object id="uid-1769508231062-8dsurwws3" type="Process/Process.RemovingThermalEnergy">
+                    <Data property="Identifier">
+                      <String>Activity_03d7qhp</String>
+                    </Data>
+                    <Data property="Label">
+                      <String>RemovingThermalEnergy</String>
+                    </Data>
+                    <Components property="Ports">
+                      <Object id="Activity_03d7qhp_MI1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_03d7qhp_MI1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MI1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_03d7qhp_MO1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_03d7qhp_MO1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MO1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_03d7qhp_TEI1_port" type="Process/Process.ThermalEnergyPort">
+                        <Data property="Identifier">
+                          <String>Activity_03d7qhp_TEI1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>TEI1</String>
+                        </Data>
+                        <References property="SuperReference">
+                          <ObjectReference ref="Activity_11rkrj8_TEI1_port"/>
+                        </References>
+                      </Object>
+                      <Object id="Activity_03d7qhp_TEO1_port" type="Process/Process.ThermalEnergyPort">
+                        <Data property="Identifier">
+                          <String>Activity_03d7qhp_TEO1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>TEO1</String>
+                        </Data>
+                      </Object>
+                    </Components>
+                  </Object>
+                  <Object id="uid-1769508231062-j7pwxkmvg" type="Process/Process.ExchangingThermalEnergy">
+                    <Data property="Identifier">
+                      <String>Activity_0iie89x</String>
+                    </Data>
+                    <Data property="Label">
+                      <String>ExchangingThermalEnergy</String>
+                    </Data>
+                    <Components property="Ports">
+                      <Object id="Activity_0iie89x_MI1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_0iie89x_MI1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MI1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_0iie89x_MO1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_0iie89x_MO1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MO1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_0iie89x_TEI1_port" type="Process/Process.ThermalEnergyPort">
+                        <Data property="Identifier">
+                          <String>Activity_0iie89x_TEI1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>TEI1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_0iie89x_TEO1_port" type="Process/Process.ThermalEnergyPort">
+                        <Data property="Identifier">
+                          <String>Activity_0iie89x_TEO1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>TEO1</String>
+                        </Data>
+                      </Object>
+                    </Components>
+                  </Object>
+                  <Object id="uid-1769508231063-kr4cww1l3" type="Process/Process.MeasuringProcessVariable">
+                    <Data property="Identifier">
+                      <String>Activity_18ratv8</String>
+                    </Data>
+                    <Data property="Label">
+                      <String>MeasuringProcessVariable</String>
+                    </Data>
+                    <Components property="Ports">
+                      <Object id="Activity_18ratv8_IPO_Temperature" type="Process/Process.InformationPort">
+                        <Data property="Identifier">
+                          <String>Activity_18ratv8_IPO_Temperature</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>IPO_Temperature</String>
+                        </Data>
+                      </Object>
+                    </Components>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231063-twx6j1twy" type="Process/Process.DrivingByMotor">
+                <Data property="Identifier">
+                  <String>Activity_1d6n7np</String>
+                </Data>
+                <Data property="Label">
+                  <String>DrivingByMotor</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1d6n7np_EEI1_port" type="Process/Process.ElectricalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_1d6n7np_EEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>EEI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1d6n7np_MEO1_port" type="Process/Process.MechanicalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_1d6n7np_MEO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MEO1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1d6n7np_IPI_RotationalFrequency" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_1d6n7np_IPI_RotationalFrequency</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPI_RotationalFrequency</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231063-mp1shg84c" type="Process/Process.ReactingChemicals">
+                <Data property="Identifier">
+                  <String>Activity_0msgfdr</String>
+                </Data>
+                <Data property="Label">
+                  <String>ReactingChemicals</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0msgfdr_MEI1_port" type="Process/Process.MechanicalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_0msgfdr_MEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MEI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_0msgfdr_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0msgfdr_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_07878z5_MI1_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_0msgfdr_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0msgfdr_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_07878z5_MO1_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_0msgfdr_TEO1_port" type="Process/Process.ThermalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_0msgfdr_TEO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>TEO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231064-k3f31dqfl" type="Process/Process.TransportingFluids">
+                <Data property="Identifier">
+                  <String>Activity_16sydhz</String>
+                </Data>
+                <Data property="Label">
+                  <String>TransportingFluids</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_16sydhz_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_16sydhz_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_16sydhz_MI2_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_16sydhz_MI2_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI2</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_07878z5_MI2_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_16sydhz_MI3_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_16sydhz_MI3_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI3</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_07878z5_MI3_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_16sydhz_MI4_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_16sydhz_MI4_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI4</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_07878z5_MI4_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_16sydhz_MI5_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_16sydhz_MI5_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI5</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_07878z5_MI5_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_16sydhz_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_16sydhz_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231064-w57powbsc" type="Process/Process.ControllingProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_07twnf1</String>
+                </Data>
+                <Data property="Label">
+                  <String>ControllingProcessVariable</String>
+                </Data>
+              </Object>
+              <Object id="uid-1769508231064-8b2i0se4z" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_1qz2q4q</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1qz2q4q_IPO_MassFlow" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_1qz2q4q_IPO_MassFlow</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_MassFlow</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231067-a4apf8501" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_0tg7cm0</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0tg7cm0_IPO_Composition" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_0tg7cm0_IPO_Composition</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Composition</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231067-ijoorvr9r" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_15ct9gk</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_15ct9gk_IPO_Temperature" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_15ct9gk_IPO_Temperature</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Temperature</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231068-iqii093lz" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_101s6y2</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_101s6y2_IPO_Level" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_101s6y2_IPO_Level</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Level</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231068-h673c0cmv" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_072h89n</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_072h89n_IPO_Pressure" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_072h89n_IPO_Pressure</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Pressure</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231068-79yjo93at" type="Process/Process.Separating">
+            <Data property="Identifier">
+              <String>Activity_148nxrl</String>
+            </Data>
+            <Data property="Label">
+              <String>Separating</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="Activity_148nxrl_MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_148nxrl_MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_0x085ms_MI1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_148nxrl_MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_148nxrl_MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_0x085ms_MO1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_148nxrl_MO2_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_148nxrl_MO2_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO2</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_0x085ms_MO2_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_148nxrl_MO3_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_148nxrl_MO3_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO3</String>
+                </Data>
+              </Object>
+            </Components>
+            <Components property="SubProcessSteps">
+              <Object id="uid-1769508231068-kdiayjzpr" type="Process/Process.SeparatingByPhaseSeparation">
+                <Data property="Identifier">
+                  <String>Activity_0x085ms</String>
+                </Data>
+                <Data property="Label">
+                  <String>SeparatingByPhaseSeparation</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0x085ms_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0x085ms_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_148nxrl_MI1_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_0x085ms_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0x085ms_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_148nxrl_MO1_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_0x085ms_MO2_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0x085ms_MO2_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO2</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_148nxrl_MO2_port"/>
+                    </References>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231068-uh59mk878" type="Process/Process.SplittingMaterial">
+                <Data property="Identifier">
+                  <String>Activity_1ozs40z</String>
+                </Data>
+                <Data property="Label">
+                  <String>SplittingMaterial</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1ozs40z_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1ozs40z_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1ozs40z_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1ozs40z_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1ozs40z_MO2_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1ozs40z_MO2_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO2</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231069-pa45c5um0" type="Process/Process.RegulatingFlow">
+                <Data property="Identifier">
+                  <String>Activity_0pq2475</String>
+                </Data>
+                <Data property="Label">
+                  <String>RegulatingFlow</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0pq2475_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0pq2475_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_0pq2475_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0pq2475_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231069-fju84yyde" type="Process/Process.Pumping">
+                <Data property="Identifier">
+                  <String>Activity_11jo3tg</String>
+                </Data>
+                <Data property="Label">
+                  <String>Pumping</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_11jo3tg_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_11jo3tg_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_11jo3tg_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_11jo3tg_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_11jo3tg_EEI1_port" type="Process/Process.ElectricalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_11jo3tg_EEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>EEI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_11jo3tg_MEI1_port" type="Process/Process.MechanicalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_11jo3tg_MEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MEI1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231069-3r3lfohii" type="Process/Process.RegulatingFlow">
+                <Data property="Identifier">
+                  <String>Activity_1g6kz8f</String>
+                </Data>
+                <Data property="Label">
+                  <String>RegulatingFlow</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1g6kz8f_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1g6kz8f_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1g6kz8f_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1g6kz8f_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231069-3jt2wlgzz" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_09ul91z</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_09ul91z_IPO_Temperature" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_09ul91z_IPO_Temperature</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Temperature</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231069-dwuhkth7u" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_09g9kks</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_09g9kks_IPO_Level" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_09g9kks_IPO_Level</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Level</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231069-e4mrb1nok" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_0zpct04</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0zpct04_IPO_MassFlow" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_0zpct04_IPO_MassFlow</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_MassFlow</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231069-j964qkiok" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_1jl445f</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1jl445f_IPO_Pressure" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_1jl445f_IPO_Pressure</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Pressure</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231070-8fg0issz0" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_0o7v7ax</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0o7v7ax_IPO_MassFlow" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_0o7v7ax_IPO_MassFlow</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_MassFlow</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231070-axgbx60be" type="Process/Process.StrippingDistilling">
+            <Data property="Identifier">
+              <String>Activity_1h23lzf</String>
+            </Data>
+            <Data property="Label">
+              <String>StrippingDistilling</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="Activity_1h23lzf_MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_1h23lzf_MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_0uxjdkn_MI1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_1h23lzf_MI2_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_1h23lzf_MI2_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI2</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_0uxjdkn_MI2_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_1h23lzf_MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_1h23lzf_MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_0uxjdkn_MO1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_1h23lzf_MO2_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_1h23lzf_MO2_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO2</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_0uxjdkn_MO2_port"/>
+                  </Object>
+                </Components>
+              </Object>
+            </Components>
+            <Components property="SubProcessSteps">
+              <Object id="uid-1769508231070-pw21rwqys" type="Process/Process.StrippingDistilling">
+                <Data property="Identifier">
+                  <String>Activity_0uxjdkn</String>
+                </Data>
+                <Data property="Label">
+                  <String>StrippingDistilling</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0uxjdkn_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0uxjdkn_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_1h23lzf_MI1_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_0uxjdkn_MI2_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0uxjdkn_MI2_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI2</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_1h23lzf_MI2_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_0uxjdkn_MI3_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0uxjdkn_MI3_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI3</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_0uxjdkn_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0uxjdkn_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_1h23lzf_MO1_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_0uxjdkn_MO2_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0uxjdkn_MO2_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO2</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_1h23lzf_MO2_port"/>
+                    </References>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231070-i6keafp8h" type="Process/Process.ExchangingThermalEnergy">
+                <Data property="Identifier">
+                  <String>Activity_1uqovub</String>
+                </Data>
+                <Data property="Label">
+                  <String>ExchangingThermalEnergy</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1uqovub_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1uqovub_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1uqovub_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1uqovub_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1uqovub_TEI1_port" type="Process/Process.ThermalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_1uqovub_TEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>TEI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1uqovub_TEO1_port" type="Process/Process.ThermalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_1uqovub_TEO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>TEO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231071-sd7obomqf" type="Process/Process.SplittingMaterial">
+                <Data property="Identifier">
+                  <String>Activity_1kyou8x</String>
+                </Data>
+                <Data property="Label">
+                  <String>SplittingMaterial</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1kyou8x_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1kyou8x_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1kyou8x_MO1 -MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1kyou8x_MO1 -MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1 -MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1kyou8x_MO2_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1kyou8x_MO2_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO2</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231071-e46mv1hqc" type="Process/Process.RegulatingFlow">
+                <Data property="Identifier">
+                  <String>Activity_0dvp1ez</String>
+                </Data>
+                <Data property="Label">
+                  <String>RegulatingFlow</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0dvp1ez_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0dvp1ez_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_0dvp1ez_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0dvp1ez_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231071-4qfyg93m6" type="Process/Process.Pumping">
+                <Data property="Identifier">
+                  <String>Activity_1atxmzx</String>
+                </Data>
+                <Data property="Label">
+                  <String>Pumping</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1atxmzx_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1atxmzx_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1atxmzx_EEI1_port" type="Process/Process.ElectricalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_1atxmzx_EEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>EEI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1atxmzx_MEI1_port" type="Process/Process.MechanicalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_1atxmzx_MEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MEI1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231071-vkxcludil" type="Process/Process.RegulatingFlow">
+                <Data property="Identifier">
+                  <String>Activity_17bqtl6</String>
+                </Data>
+                <Data property="Label">
+                  <String>RegulatingFlow</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_17bqtl6_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_17bqtl6_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_17bqtl6_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_17bqtl6_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231071-k7y2irzb5" type="Process/Process.SupplyingThermalEnergy">
+                <Data property="Identifier">
+                  <String>Activity_0xhunfw</String>
+                </Data>
+                <Data property="Label">
+                  <String>SupplyingThermalEnergy</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0xhunfw_TEO1 -TEI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0xhunfw_TEO1 -TEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>TEO1 -TEI1</String>
+                    </Data>
+                  </Object>
+                </Components>
+                <Components property="SubProcessSteps">
+                  <Object id="uid-1769508231071-k6njqvljs" type="Process/Process.ExchangingThermalEnergy">
+                    <Data property="Identifier">
+                      <String>Activity_0uicpy3</String>
+                    </Data>
+                    <Data property="Label">
+                      <String>ExchangingThermalEnergy</String>
+                    </Data>
+                    <Components property="Ports">
+                      <Object id="Activity_0uicpy3_MI1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_0uicpy3_MI1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MI1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_0uicpy3_MO1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_0uicpy3_MO1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MO1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_0uicpy3_TEI1_port" type="Process/Process.ThermalEnergyPort">
+                        <Data property="Identifier">
+                          <String>Activity_0uicpy3_TEI1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>TEI1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_0uicpy3_TEO1_port" type="Process/Process.ThermalEnergyPort">
+                        <Data property="Identifier">
+                          <String>Activity_0uicpy3_TEO1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>TEO1</String>
+                        </Data>
+                      </Object>
+                    </Components>
+                  </Object>
+                  <Object id="uid-1769508231072-dn01l3h20" type="Process/Process.ProcessStep">
+                    <Data property="Identifier">
+                      <String>Activity_1nyhzy8</String>
+                    </Data>
+                    <Data property="Label">
+                      <String>SuppyingThermalEnergy</String>
+                    </Data>
+                    <Components property="Ports">
+                      <Object id="Activity_1nyhzy8_MI1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_1nyhzy8_MI1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MI1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_1nyhzy8_MO1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_1nyhzy8_MO1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MO1</String>
+                        </Data>
+                      </Object>
+                    </Components>
+                  </Object>
+                  <Object id="uid-1769508231072-kirjz1deb" type="Process/Process.RegulatingFlow">
+                    <Data property="Identifier">
+                      <String>Activity_0b0nu52</String>
+                    </Data>
+                    <Data property="Label">
+                      <String>RegulatingFlow</String>
+                    </Data>
+                    <Components property="Ports">
+                      <Object id="Activity_0b0nu52_MI1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_0b0nu52_MI1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MI1</String>
+                        </Data>
+                      </Object>
+                      <Object id="Activity_0b0nu52_MO1_port" type="Process/Process.MaterialPort">
+                        <Data property="Identifier">
+                          <String>Activity_0b0nu52_MO1_port</String>
+                        </Data>
+                        <Data property="NominalDirection">
+                          <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                        </Data>
+                        <Data property="Label">
+                          <String>MO1</String>
+                        </Data>
+                      </Object>
+                    </Components>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231073-9o4kt50ga" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_1ggf4yj</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1ggf4yj_IPO_Temperature" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_1ggf4yj_IPO_Temperature</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Temperature</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231074-33kxgcivu" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_0r3bi8v</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0r3bi8v_IPO_Level" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_0r3bi8v_IPO_Level</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Level</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231074-787ctoe58" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_1h809d1</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1h809d1_IPO_MassFlow" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_1h809d1_IPO_MassFlow</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_MassFlow</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231074-8f4vq4lsx" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_1ah3e15</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1ah3e15_IPO_Composition" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_1ah3e15_IPO_Composition</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Composition</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231075-p43tawavg" type="Process/Process.Compressing">
+            <Data property="Identifier">
+              <String>Activity_0yezzw8</String>
+            </Data>
+            <Data property="Label">
+              <String>Compressing</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="Activity_0yezzw8_MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_0yezzw8_MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_11ivs96_MI1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_0yezzw8_MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_0yezzw8_MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_11ivs96_MO1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+            </Components>
+            <Components property="SubProcessSteps">
+              <Object id="uid-1769508231075-dn4vvzo00" type="Process/Process.RegulatingFlow">
+                <Data property="Identifier">
+                  <String>Activity_11ivs96</String>
+                </Data>
+                <Data property="Label">
+                  <String>RegulatingFlow</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_11ivs96_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_11ivs96_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_0yezzw8_MI1_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_11ivs96_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_11ivs96_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_0yezzw8_MO1_port"/>
+                    </References>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231075-gn891fnbc" type="Process/Process.MixingSimple">
+                <Data property="Identifier">
+                  <String>Activity_0avtq87</String>
+                </Data>
+                <Data property="Label">
+                  <String>MixingSimple</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0avtq87_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0avtq87_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_0avtq87_MI2_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0avtq87_MI2_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI2</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_0avtq87_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0avtq87_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231075-ky7jcoby8" type="Process/Process.Compressing">
+                <Data property="Identifier">
+                  <String>Activity_02gkcfc</String>
+                </Data>
+                <Data property="Label">
+                  <String>Compressing</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_02gkcfc_EEI1_port" type="Process/Process.ElectricalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_02gkcfc_EEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>EEI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_02gkcfc_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_02gkcfc_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_02gkcfc_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_02gkcfc_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231076-obxi8gm98" type="Process/Process.SplittingMaterial">
+                <Data property="Identifier">
+                  <String>Activity_00hgxpv</String>
+                </Data>
+                <Data property="Label">
+                  <String>SplittingMaterial</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_00hgxpv_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_00hgxpv_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_00hgxpv_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_00hgxpv_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_00hgxpv_MO2_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_00hgxpv_MO2_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO2</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231076-eraf2b3tr" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_03icv4t</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_03icv4t_IPO_Duty" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_03icv4t_IPO_Duty</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Duty</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231076-2m5med6fl" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_1u8l6hb</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1u8l6hb_IPO_MassFlow" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_1u8l6hb_IPO_MassFlow</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_MassFlow</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231076-wpr0grq3k" type="Process/Process.Cooling">
+            <Data property="Identifier">
+              <String>Activity_13e86yb</String>
+            </Data>
+            <Data property="Label">
+              <String>Cooling</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="Activity_13e86yb_MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_13e86yb_MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_061upw8_MI1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="Activity_13e86yb_MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>Activity_13e86yb_MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+                <Components property="SubReference">
+                  <Object>
+                    <ObjectReference ref="Activity_061upw8_MO1_port"/>
+                  </Object>
+                </Components>
+              </Object>
+            </Components>
+            <Components property="SubProcessSteps">
+              <Object id="uid-1769508231076-6zo68fqf5" type="Process/Process.RegulatingFlow">
+                <Data property="Identifier">
+                  <String>Activity_061upw8</String>
+                </Data>
+                <Data property="Label">
+                  <String>RegulatingFlow</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_061upw8_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_061upw8_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_13e86yb_MI1_port"/>
+                    </References>
+                  </Object>
+                  <Object id="Activity_061upw8_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_061upw8_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                    <References property="SuperReference">
+                      <ObjectReference ref="Activity_13e86yb_MO1_port"/>
+                    </References>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231076-br9n0dwk6" type="Process/Process.RemovingThermalEnergy">
+                <Data property="Identifier">
+                  <String>Activity_0h23axj</String>
+                </Data>
+                <Data property="Label">
+                  <String>RemovingThermalEnergy</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0h23axj_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0h23axj_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_0h23axj_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_0h23axj_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_0h23axj_TEI1_port" type="Process/Process.ThermalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_0h23axj_TEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>TEI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_0h23axj_TEO1_port" type="Process/Process.ThermalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_0h23axj_TEO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>TEO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231076-3rgm3opl2" type="Process/Process.ExchangingThermalEnergy">
+                <Data property="Identifier">
+                  <String>Activity_1rs6esf</String>
+                </Data>
+                <Data property="Label">
+                  <String>ExchangingThermalEnergy</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_1rs6esf_MI1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1rs6esf_MI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1rs6esf_MO1_port" type="Process/Process.MaterialPort">
+                    <Data property="Identifier">
+                      <String>Activity_1rs6esf_MO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>MO1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1rs6esf_TEI1_port" type="Process/Process.ThermalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_1rs6esf_TEI1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>TEI1</String>
+                    </Data>
+                  </Object>
+                  <Object id="Activity_1rs6esf_TEO1_port" type="Process/Process.ThermalEnergyPort">
+                    <Data property="Identifier">
+                      <String>Activity_1rs6esf_TEO1_port</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>TEO1</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+              <Object id="uid-1769508231076-3ktws0q8k" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier">
+                  <String>Activity_0gc2qjt</String>
+                </Data>
+                <Data property="Label">
+                  <String>MeasuringProcessVariable</String>
+                </Data>
+                <Components property="Ports">
+                  <Object id="Activity_0gc2qjt_IPO_Temperature" type="Process/Process.InformationPort">
+                    <Data property="Identifier">
+                      <String>Activity_0gc2qjt_IPO_Temperature</String>
+                    </Data>
+                    <Data property="NominalDirection">
+                      <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                    </Data>
+                    <Data property="Label">
+                      <String>IPO_Temperature</String>
+                    </Data>
+                  </Object>
+                </Components>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231084-6rhvrlbj2" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>StartEvent_1</String>
+            </Data>
+            <Data property="Label">
+              <String>Reactant C</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231084-5qzxz5snh" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_11q5mwu</String>
+            </Data>
+            <Data property="Label">
+              <String>Reactant A</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231084-2jvbhwpdr" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_04126je</String>
+            </Data>
+            <Data property="Label">
+              <String>Reactant D</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231084-c8abv4d22" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_0qb64fh</String>
+            </Data>
+            <Data property="Label">
+              <String>Reactant E</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231085-7en08pc02" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_15gcv4n</String>
+            </Data>
+            <Data property="Label">
+              <String>MI5</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI5_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI5_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI5</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231085-ll67t8ikl" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_13mofb0</String>
+            </Data>
+            <Data property="Label">
+              <String>MI4</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI4_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI4_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI4</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231085-c9f2tvhti" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_17fqava</String>
+            </Data>
+            <Data property="Label">
+              <String>MI3</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI3_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI3_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI3</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231085-4l4ay21we" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_1p0vvqc</String>
+            </Data>
+            <Data property="Label">
+              <String>MI2</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI2_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI2_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI2</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231085-ugnq5kc0j" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_1npicji</String>
+            </Data>
+            <Data property="Label">
+              <String>MI1</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231085-xl2xrlq5t" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_01fem2h</String>
+            </Data>
+            <Data property="Label">
+              <String>EEI1</String>
+            </Data>
+          </Object>
+          <Object id="uid-1769508231085-52bzc2msq" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_1f801tk</String>
+            </Data>
+            <Data property="Label">
+              <String>MI1</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231085-wtua3ypoe" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_0h1gv72</String>
+            </Data>
+            <Data property="Label">
+              <String>MI1</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231086-g63r1wfok" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_0xub7hl</String>
+            </Data>
+            <Data property="Label">
+              <String>MI2</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI2_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI2_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI2</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231086-4qcpjzqck" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_1g1zmip</String>
+            </Data>
+            <Data property="Label">
+              <String>MI1</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.Out"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231086-rrba8pwxp" type="Process/Process.Source">
+            <Data property="Identifier">
+              <String>Event_1mp0d4h</String>
+            </Data>
+            <Data property="Label">
+              <String>EEI1</String>
+            </Data>
+          </Object>
+          <Object id="uid-1769508231088-9j0mq8pyr" type="Process/Process.Sink">
+            <Data property="Identifier">
+              <String>Event_062k0v7</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231088-d7tjw4evd" type="Process/Process.Sink">
+            <Data property="Identifier">
+              <String>Event_0rjd6py</String>
+            </Data>
+            <Data property="Label">
+              <String>MO3</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO3_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO3_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO3</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231088-0eoihcrha" type="Process/Process.Sink">
+            <Data property="Identifier">
+              <String>Event_0ztd5pv</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231089-l1j4goeme" type="Process/Process.Sink">
+            <Data property="Identifier">
+              <String>Event_1f01vwi</String>
+            </Data>
+            <Data property="Label">
+              <String>MO2</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO2_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO2_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO2</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231089-xn3jshlgg" type="Process/Process.Sink">
+            <Data property="Identifier">
+              <String>Event_1gcqtzr</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231089-ym2zcelly" type="Process/Process.Sink">
+            <Data property="Identifier">
+              <String>Event_1w0hjx9</String>
+            </Data>
+            <Data property="Label">
+              <String>MO2</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO2_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO2_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO2</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231089-ze9sezucw" type="Process/Process.Sink">
+            <Data property="Identifier">
+              <String>Event_1pcm1vz</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MO1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MO1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MO1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231089-zuw8btqw8" type="Process/Process.Sink">
+            <Data property="Identifier">
+              <String>Event_1hvcrvf</String>
+            </Data>
+            <Data property="Label">
+              <String>Product</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+          <Object id="uid-1769508231089-4q7k89mn4" type="Process/Process.Sink">
+            <Data property="Identifier">
+              <String>Event_0g1h7bs</String>
+            </Data>
+            <Data property="Label">
+              <String>Purge</String>
+            </Data>
+            <Components property="Ports">
+              <Object id="MI1_port" type="Process/Process.MaterialPort">
+                <Data property="Identifier">
+                  <String>MI1_port</String>
+                </Data>
+                <Data property="NominalDirection">
+                  <DataReference data="Process/Enumerations.PortDirectionClassification.In"/>
+                </Data>
+                <Data property="Label">
+                  <String>MI1</String>
+                </Data>
+              </Object>
+            </Components>
+          </Object>
+        </Components>
+        <Components property="ProcessConnections">
+          <Object id="uid-1769508231091-5bgh96lzp" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0wbkd91</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_1pzszmn_MO1_port" property="Source"/>
+            <References objects="#Activity_03d7qhp_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-s3vg8jjw9" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_04ncgwf</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_03d7qhp_MO1_port" property="Source"/>
+            <References objects="#Activity_0iie89x_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-xlzj2z1bc" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1b869xp</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_0iie89x_MO1_port" property="Source"/>
+            <References objects="#Activity_1pzszmn_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-nqqhypbr4" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1hd54gp</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MO1</String>
+            </Data>
+            <References objects="#Activity_0msgfdr_MO1_port" property="Source"/>
+            <References objects="#MO1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-cfb54n5v8" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0wulh9g</String>
+            </Data>
+            <Data property="Label">
+              <String>TEO1 - TEI1</String>
+            </Data>
+            <References objects="#Activity_0msgfdr_MO1_port" property="Source"/>
+            <References objects="#Activity_11rkrj8_TEI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-8xpn7uaco" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_11ko4yy</String>
+            </Data>
+            <Data property="Label">
+              <String>MEO1 - MEI1</String>
+            </Data>
+            <References objects="#Activity_1d6n7np_MEO1_port" property="Source"/>
+            <References objects="#Activity_0msgfdr_MEI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-8psoct4eq" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>6</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - Stream 6 - MI1</String>
+            </Data>
+            <References objects="#Activity_16sydhz_MO1_port" property="Source"/>
+            <References objects="#Activity_0msgfdr_MEI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S6"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>48015.4</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>86.1</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231091-hbpckwq1o" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0em311i</String>
+            </Data>
+            <Data property="Label">
+              <String>MI1 - MI1</String>
+            </Data>
+            <References objects="#MI1_port" property="Source"/>
+            <References objects="#Activity_16sydhz_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-uov5qhs38" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0lp976q</String>
+            </Data>
+            <Data property="Label">
+              <String>MI2 - MI2</String>
+            </Data>
+            <References objects="#MI2_port" property="Source"/>
+            <References objects="#Activity_16sydhz_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-qswlurtz8" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0sk9xqb</String>
+            </Data>
+            <Data property="Label">
+              <String>MI3 - MI3</String>
+            </Data>
+            <References objects="#MI3_port" property="Source"/>
+            <References objects="#Activity_16sydhz_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-1evl977kk" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0ey8rro</String>
+            </Data>
+            <Data property="Label">
+              <String>MI4 - MI4</String>
+            </Data>
+            <References objects="#MI4_port" property="Source"/>
+            <References objects="#Activity_16sydhz_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-mhue7feku" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1cam6h1</String>
+            </Data>
+            <Data property="Label">
+              <String>MI5 - MI5</String>
+            </Data>
+            <References objects="#MI5_port" property="Source"/>
+            <References objects="#Activity_16sydhz_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-tm53nydtu" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0kavtkx</String>
+            </Data>
+            <Data property="Label">
+              <String>MI1 - MI1</String>
+            </Data>
+            <References objects="#MI1_port" property="Source"/>
+            <References objects="#Activity_0x085ms_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-5c389j0rj" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_09m76dx</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_0x085ms_MO1_port" property="Source"/>
+            <References objects="#Activity_1ozs40z_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-a1dkrthxr" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0ny5wle</String>
+            </Data>
+            <Data property="Label">
+              <String>MO2 - MI1</String>
+            </Data>
+            <References objects="#Activity_0x085ms_MO1_port" property="Source"/>
+            <References objects="#Activity_11jo3tg_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-dnn01ms1a" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0abomlp</String>
+            </Data>
+            <Data property="Label">
+              <String>MO2 - MI1</String>
+            </Data>
+            <References objects="#Activity_1ozs40z_MO1_port" property="Source"/>
+            <References objects="#Activity_0pq2475_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-aogto7gdo" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1ynvptb</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MO3</String>
+            </Data>
+            <References objects="#Activity_1ozs40z_MO1_port" property="Source"/>
+            <References objects="#MO3_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-l3dr5oo8h" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0lglh82</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MO1</String>
+            </Data>
+            <References objects="#Activity_0pq2475_MO1_port" property="Source"/>
+            <References objects="#MO1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-16xgx29z7" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1alxw5e</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_11jo3tg_MO1_port" property="Source"/>
+            <References objects="#Activity_1g6kz8f_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-207hnszza" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0g6xxqk</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MO2</String>
+            </Data>
+            <References objects="#Activity_1g6kz8f_MO1_port" property="Source"/>
+            <References objects="#MO2_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-uab1an5q2" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0oulgq8</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_0b0nu52_MO1_port" property="Source"/>
+            <References objects="#Activity_0uicpy3_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-prsdgktt2" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1dz905k</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_0uicpy3_MO1_port" property="Source"/>
+            <References objects="#Activity_1nyhzy8_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-owydgu9wt" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0jts504</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_1nyhzy8_MO1_port" property="Source"/>
+            <References objects="#Activity_0b0nu52_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-0mai6paas" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0i60ys0</String>
+            </Data>
+            <Data property="Label">
+              <String>MI2 - MI2</String>
+            </Data>
+            <References objects="#MI2_port" property="Source"/>
+            <References objects="#Activity_0uxjdkn_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-7nedgm017" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_17ox75z</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_0dvp1ez_MO1_port" property="Source"/>
+            <References objects="#Activity_0uxjdkn_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-8lhtlxziw" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0idmwg8</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI3</String>
+            </Data>
+            <References objects="#Activity_1uqovub_MO1_port" property="Source"/>
+            <References objects="#Activity_0uxjdkn_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-qndfa9vzr" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0xyvyyt</String>
+            </Data>
+            <Data property="Label">
+              <String>MO2 - MI1</String>
+            </Data>
+            <References objects="#Activity_0uxjdkn_MO1_port" property="Source"/>
+            <References objects="#Activity_1kyou8x_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-uozro69gk" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1iwrfte</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MO1</String>
+            </Data>
+            <References objects="#Activity_0uxjdkn_MO1_port" property="Source"/>
+            <References objects="#MO1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-j412hk17o" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_16mvdb6</String>
+            </Data>
+            <Data property="Label">
+              <String>MO2 - MI1</String>
+            </Data>
+            <References objects="#Activity_1kyou8x_MO1 -MI1_port" property="Source"/>
+            <References objects="#Activity_1uqovub_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-iu99eadoz" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0ii62nn</String>
+            </Data>
+            <Data property="Label">
+              <String>TEO1 -TEI1</String>
+            </Data>
+            <References objects="#Activity_0xhunfw_TEO1 -TEI1_port" property="Source"/>
+            <References objects="#Activity_1uqovub_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-z0j0quz15" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1xayaxu</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 -MI1</String>
+            </Data>
+            <References objects="#Activity_1kyou8x_MO1 -MI1_port" property="Source"/>
+            <References objects="#Activity_1atxmzx_EEI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-8wcwbttc0" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0y79tc9</String>
+            </Data>
+            <Data property="Label">
+              <String>MI1 - MI1</String>
+            </Data>
+            <References objects="#MI1_port" property="Source"/>
+            <References objects="#Activity_0dvp1ez_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-7z3k9cwzg" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1queo8p</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MO2</String>
+            </Data>
+            <References objects="#Activity_17bqtl6_MO1_port" property="Source"/>
+            <References objects="#MO2_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231091-q6a7wt6ob" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0agl4n2</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_1atxmzx_MO1_port" property="Source"/>
+            <References objects="#Activity_17bqtl6_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-67j6972b5" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_18uagmc</String>
+            </Data>
+            <Data property="Label">
+              <String>MO2 - MI1</String>
+            </Data>
+            <References objects="#Activity_00hgxpv_MO1_port" property="Source"/>
+            <References objects="#Activity_11ivs96_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-f9zmsytg4" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1o980ku</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI2</String>
+            </Data>
+            <References objects="#Activity_11ivs96_MO1_port" property="Source"/>
+            <References objects="#Activity_0avtq87_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-2boy75yz9" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1l0luaa</String>
+            </Data>
+            <Data property="Label">
+              <String>MI1 - MI1</String>
+            </Data>
+            <References objects="#MI1_port" property="Source"/>
+            <References objects="#Activity_0avtq87_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-edfo64pil" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0ulibbm</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_0avtq87_MO1_port" property="Source"/>
+            <References objects="#Activity_02gkcfc_EEI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-mnjf9kh8v" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_00cotc8</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_02gkcfc_MO1_port" property="Source"/>
+            <References objects="#Activity_00hgxpv_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-pb7i8avjx" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1i0rl3h</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MO1</String>
+            </Data>
+            <References objects="#Activity_00hgxpv_MO1_port" property="Source"/>
+            <References objects="#MO1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-7jhrhai9v" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1wfrjse</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_1rs6esf_MO1_port" property="Source"/>
+            <References objects="#Activity_061upw8_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-73lsd6i98" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_08kzky6</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_061upw8_MO1_port" property="Source"/>
+            <References objects="#Activity_0h23axj_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-4hwb2hcha" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_0tv8sn4</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_0h23axj_MO1_port" property="Source"/>
+            <References objects="#Activity_1rs6esf_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231092-eoz9vnvfw" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>4</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - Stream 4 - MI1</String>
+            </Data>
+            <References objects="#MO1_port" property="Source"/>
+            <References objects="#Activity_1h23lzf_MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S4"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>6419.4</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>45</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231092-2sf59l051" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>1</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - Stream 1 - MI1</String>
+            </Data>
+            <References objects="#MO1_port" property="Source"/>
+            <References objects="#Activity_07878z5_MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S1"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>22.4</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>45</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231092-mkd284cm6" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>2</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - Stream 2 - MI2</String>
+            </Data>
+            <References objects="#MO1_port" property="Source"/>
+            <References objects="#Activity_07878z5_MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S2"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>3664</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>45</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231092-hwk6byt8s" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>3</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - Stream 3 - MI3</String>
+            </Data>
+            <References objects="#MO1_port" property="Source"/>
+            <References objects="#Activity_07878z5_MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S3"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>4509.3</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>45</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231092-x5urxl4ke" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>5</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - Stream 5 - MI4</String>
+            </Data>
+            <References objects="#Activity_1h23lzf_MO1_port" property="Source"/>
+            <References objects="#Activity_07878z5_MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S5"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>8978.6</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>65.7</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231092-ob4pnbg56" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>8</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - Stream 8 - MI5</String>
+            </Data>
+            <References objects="#Activity_0yezzw8_MO1_port" property="Source"/>
+            <References objects="#Activity_07878z5_MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S8"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>30840</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>102.9</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231092-5k63it75m" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>7</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - Stream 7 - MI1</String>
+            </Data>
+            <References objects="#Activity_07878z5_MO1_port" property="Source"/>
+            <References objects="#Activity_13e86yb_MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S7"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>48015.4</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>120.4</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231092-60ovy6fra" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_1eezxa7</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - MI1</String>
+            </Data>
+            <References objects="#Activity_13e86yb_MO1_port" property="Source"/>
+            <References objects="#Activity_148nxrl_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231093-rabr98kx0" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>9</String>
+            </Data>
+            <Data property="Label">
+              <String>MO1 - Stream 9 - MI1</String>
+            </Data>
+            <References objects="#Activity_148nxrl_MO1_port" property="Source"/>
+            <References objects="#MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S9"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>386.5</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>80.1</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231093-k736hidwo" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>Flow_11f0gdt</String>
+            </Data>
+            <Data property="Label">
+              <String>MO3 - MI1</String>
+            </Data>
+            <References objects="#Activity_148nxrl_MO1_port" property="Source"/>
+            <References objects="#Activity_0yezzw8_MI1_port" property="Target"/>
+          </Object>
+          <Object id="uid-1769508231093-b5vvulned" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>10</String>
+            </Data>
+            <Data property="Label">
+              <String>MO2 - Stream 10 - MI2</String>
+            </Data>
+            <References objects="#Activity_148nxrl_MO1_port" property="Source"/>
+            <References objects="#Activity_1h23lzf_MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S10"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>16788.9</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>80.1</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+          <Object id="uid-1769508231093-93rm7fxf8" type="Process/Process.Stream">
+            <Data property="Identifier">
+              <String>11</String>
+            </Data>
+            <Data property="Label">
+              <String>MO2 - Stream 11 -  MI1</String>
+            </Data>
+            <References objects="#Activity_1h23lzf_MO1_port" property="Source"/>
+            <References objects="#MI1_port" property="Target"/>
+            <References property="MaterialStateReference">
+              <ObjectReference ref="uuid_MS_S11"/>
+            </References>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>14288.6</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="MassFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>1476</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilogramPerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+            <Object property="Temperature" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>65.7</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>degC</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+              <Data property="Provenance">
+                <String>Calculated</String>
+              </Data>
+              <Data property="Range">
+                <String>Nominal</String>
+              </Data>
+            </Object>
+          </Object>
+        </Components>
+        <Components property="MaterialTemplates">
+          <Object id="uuid_Water_MaterialTemplate" type="Process/Process.MaterialTemplate">
+            <Data property="Identifier">
+              <String>WaterTemplate</String>
+            </Data>
+            <Data property="Label">
+              <String>Water</String>
+            </Data>
+            <Data property="Description">
+              <String>Material Template for Water</String>
+            </Data>
+            <Data property="NumberOfMaterialComponents">
+              <Number>1</Number>
+            </Data>
+            <Data property="NumberOfPhases">
+              <Number>2</Number>
+            </Data>
+            <Data property="ListOfPhases">
+              <String>Liquid, Vapour</String>
+            </Data>
+            <References property="ListOfMaterialComponents">
+              <ObjectReference ref="uuid_Component_H2O"/>
+            </References>
+          </Object>
+          <Object id="uuid_TEP_MaterialTemplate" type="Process/Process.MaterialTemplate">
+            <Data property="Identifier">
+              <String>TEMaterial</String>
+            </Data>
+            <Data property="Label">
+              <String>Tennessee Eastman Material</String>
+            </Data>
+            <Data property="Description">
+              <String>Material Template for Tennessee Eastman Process</String>
+            </Data>
+            <Data property="NumberOfMaterialComponents">
+              <Number>8</Number>
+            </Data>
+            <Data property="NumberOfPhases">
+              <Number>2</Number>
+            </Data>
+            <Data property="ListOfPhases">
+              <String>Liquid, Vapour</String>
+            </Data>
+            <References property="ListOfMaterialComponents">
+              <ObjectReference ref="uuid_ComponentA_TEP"/>
+              <ObjectReference ref="uuid_ComponentB_TEP"/>
+              <ObjectReference ref="uuid_ComponentC_TEP"/>
+              <ObjectReference ref="uuid_ComponentD_TEP"/>
+              <ObjectReference ref="uuid_ComponentE_TEP"/>
+              <ObjectReference ref="uuid_ComponentF_TEP"/>
+              <ObjectReference ref="uuid_ComponentG_TEP"/>
+              <ObjectReference ref="uuid_ComponentH_TEP"/>
+            </References>
+          </Object>
+        </Components>
+        <Components property="MaterialComponents">
+          <Object id="uuid_Component_H2O" type="Process/Process.PureMaterialComponent">
+            <Data property="Identifier">
+              <String>H2O</String>
+            </Data>
+            <Data property="Label">
+              <String>Water</String>
+            </Data>
+            <Data property="Description">
+              <String>Water</String>
+            </Data>
+            <Data property="ChEBI_identifier">
+              <String>CHEBI:15377</String>
+            </Data>
+            <Data property="IUPAC_identifier">
+              <String>XLYOFNOQVPJJNP-UHFFFAOYSA-N</String>
+            </Data>
+          </Object>
+          <Object id="uuid_ComponentA_TEP" type="Process/Process.MaterialComponent">
+            <Data property="Identifier">
+              <String>A</String>
+            </Data>
+            <Data property="Label">
+              <String>A</String>
+            </Data>
+            <Data property="Description">
+              <String>Component A</String>
+            </Data>
+          </Object>
+          <Object id="uuid_ComponentB_TEP" type="Process/Process.MaterialComponent">
+            <Data property="Identifier">
+              <String>B</String>
+            </Data>
+            <Data property="Label">
+              <String>B</String>
+            </Data>
+            <Data property="Description">
+              <String>Component B</String>
+            </Data>
+          </Object>
+          <Object id="uuid_ComponentC_TEP" type="Process/Process.MaterialComponent">
+            <Data property="Identifier">
+              <String>C</String>
+            </Data>
+            <Data property="Label">
+              <String>C</String>
+            </Data>
+            <Data property="Description">
+              <String>Component C</String>
+            </Data>
+          </Object>
+          <Object id="uuid_ComponentD_TEP" type="Process/Process.MaterialComponent">
+            <Data property="Identifier">
+              <String>D</String>
+            </Data>
+            <Data property="Label">
+              <String>D</String>
+            </Data>
+            <Data property="Description">
+              <String>Component D</String>
+            </Data>
+          </Object>
+          <Object id="uuid_ComponentE_TEP" type="Process/Process.MaterialComponent">
+            <Data property="Identifier">
+              <String>E</String>
+            </Data>
+            <Data property="Label">
+              <String>E</String>
+            </Data>
+            <Data property="Description">
+              <String>Component E</String>
+            </Data>
+          </Object>
+          <Object id="uuid_ComponentF_TEP" type="Process/Process.MaterialComponent">
+            <Data property="Identifier">
+              <String>F</String>
+            </Data>
+            <Data property="Label">
+              <String>F</String>
+            </Data>
+            <Data property="Description">
+              <String>Component F</String>
+            </Data>
+          </Object>
+          <Object id="uuid_ComponentG_TEP" type="Process/Process.MaterialComponent">
+            <Data property="Identifier">
+              <String>G</String>
+            </Data>
+            <Data property="Label">
+              <String>G</String>
+            </Data>
+            <Data property="Description">
+              <String>Component G</String>
+            </Data>
+          </Object>
+          <Object id="uuid_ComponentH_TEP" type="Process/Process.MaterialComponent">
+            <Data property="Identifier">
+              <String>H</String>
+            </Data>
+            <Data property="Label">
+              <String>H</String>
+            </Data>
+            <Data property="Description">
+              <String>Component H</String>
+            </Data>
+          </Object>
+        </Components>
+        <Components property="MaterialStateTypes">
+          <Object id="uuid_MS_S1_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>1_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>A Feed - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for A Feed</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>11.2</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.99990</Number>
+                    <Number>0.00010</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_MS_S2_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>2_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>D Feed - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for D Feed</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>114.5</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.00000</Number>
+                    <Number>0.00010</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.99990</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_MS_S3_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>3_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>E Feed - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for E Feed</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>98.0</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.99990</Number>
+                    <Number>0.00010</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_MS_S7_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>7_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>Reactor Product - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for Reactor Product</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>1476.0</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.27164</Number>
+                    <Number>0.11393</Number>
+                    <Number>0.19763</Number>
+                    <Number>0.01075</Number>
+                    <Number>0.17722</Number>
+                    <Number>0.02159</Number>
+                    <Number>0.12302</Number>
+                    <Number>0.08423</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_MS_S4_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>4_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>C Feed - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for C Feed</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>417.5</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.48500</Number>
+                    <Number>0.00500</Number>
+                    <Number>0.51000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_MS_S11_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>11_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>Product - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for Product</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>211.3</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.00479</Number>
+                    <Number>0.00009</Number>
+                    <Number>0.01008</Number>
+                    <Number>0.00018</Number>
+                    <Number>0.00836</Number>
+                    <Number>0.00099</Number>
+                    <Number>0.53724</Number>
+                    <Number>0.43828</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_MS_S5_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>5_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>Strp Ovhd - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for Strp Ovhd</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>465.7</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.43263</Number>
+                    <Number>0.00444</Number>
+                    <Number>0.45264</Number>
+                    <Number>0.00116</Number>
+                    <Number>0.07256</Number>
+                    <Number>0.00885</Number>
+                    <Number>0.01964</Number>
+                    <Number>0.00808</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_MS_S10_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>10_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>Separation liquid - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for Separation liquid</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>259.5</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00000</Number>
+                    <Number>0.00222</Number>
+                    <Number>0.13704</Number>
+                    <Number>0.01669</Number>
+                    <Number>0.47269</Number>
+                    <Number>0.37136</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>9_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>Purge - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for Purge</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>15.1</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.32958</Number>
+                    <Number>0.13823</Number>
+                    <Number>0.23978</Number>
+                    <Number>0.01257</Number>
+                    <Number>0.18579</Number>
+                    <Number>0.02263</Number>
+                    <Number>0.04844</Number>
+                    <Number>0.02299</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_MS_S8_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>8_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>Recycle - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for Recycle</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>1201.5</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.32958</Number>
+                    <Number>0.13823</Number>
+                    <Number>0.23978</Number>
+                    <Number>0.01257</Number>
+                    <Number>0.18579</Number>
+                    <Number>0.02263</Number>
+                    <Number>0.04844</Number>
+                    <Number>0.02299</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+          <Object id="uuid_MS_S6_Type" type="Process/Process.MaterialStateType">
+            <Data property="Identifier">
+              <String>6_Type</String>
+            </Data>
+            <Data property="Label">
+              <String>Reactor Feed - Flow Data</String>
+            </Data>
+            <Data property="Description">
+              <String>Flow data for Reactor Feed</String>
+            </Data>
+            <References property="MaterialTemplateReference">
+              <ObjectReference ref="uuid_TEP_MaterialTemplate"/>
+            </References>
+            <Object property="MoleFlow" type="Core/QualifiedValue">
+              <Data property="Value">
+                <PhysicalQuantity>
+                  <Data property="Value">
+                    <Number>1890.8</Number>
+                  </Data>
+                  <Data property="Unit">
+                    <String>KilomolePerHour</String>
+                  </Data>
+                </PhysicalQuantity>
+              </Data>
+            </Object>
+            <Object property="Composition" type="Process/Process.Composition">
+              <Data property="Basis">
+                <String>Mole</String>
+              </Data>
+              <Data property="Display">
+                <String>Fraction</String>
+              </Data>
+              <Object property="MoleFractions" type="Core/PhysicalQuantityVector">
+                <Data property="Value">
+                  <Array>
+                    <Number>0.32188</Number>
+                    <Number>0.08893</Number>
+                    <Number>0.26383</Number>
+                    <Number>0.06882</Number>
+                    <Number>0.18776</Number>
+                    <Number>0.01657</Number>
+                    <Number>0.03561</Number>
+                    <Number>0.01659</Number>
+                  </Array>
+                </Data>
+              </Object>
+            </Object>
+          </Object>
+        </Components>
+        <Components property="MaterialStates">
+          <Object id="uuid_MS_S1" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>1</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - A Feed</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S1_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_MS_S2" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>2</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - D Feed</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S2_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_MS_S3" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>3</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - E Feed</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S3_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_MS_S7" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>7</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - Reactor Product</String>
+            </Data>
+            <Data property="Description">
+              <String>Reactor Product</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S7_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_MS_S4" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>4</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - C Feed</String>
+            </Data>
+            <Data property="Description">
+              <String>C Feed</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S4_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_MS_S11" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>11</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - Product</String>
+            </Data>
+            <Data property="Description">
+              <String>Separation liquid</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S11_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_MS_S5" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>5</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - Strp Ovhd</String>
+            </Data>
+            <Data property="Description">
+              <String>Stripper overhead</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S5_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_MS_S10" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>10</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - Separation liquid</String>
+            </Data>
+            <Data property="Description">
+              <String>Separation liquid</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S10_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>9</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - Purge</String>
+            </Data>
+            <Data property="Description">
+              <String>Purge</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_MS_S8" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>8</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - Recycle</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S8_Type"/>
+            </References>
+          </Object>
+          <Object id="uuid_MS_S6" type="Process/Process.MaterialState">
+            <Data property="Identifier">
+              <String>6</String>
+            </Data>
+            <Data property="Label">
+              <String>Base Case MaterialStates - Reactor Feed</String>
+            </Data>
+            <References property="State">
+              <ObjectReference ref="uuid_MS_S6_Type"/>
+            </References>
+          </Object>
+        </Components>
+      </Object>
+    </Components>
+  </Object>
+</Model>
