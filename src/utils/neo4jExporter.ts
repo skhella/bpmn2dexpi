@@ -276,9 +276,10 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
   
   // Parse Process Steps recursively
   function parseProcessSteps(parent: Element, parentId: string | undefined, level: number) {
-    const processStepsContainer = Array.from(parent.querySelectorAll(':scope > Components[property="ProcessSteps"]'));
+    // Look for both ProcessSteps (top-level) and SubProcessSteps (nested)
+    const processStepsContainers = Array.from(parent.querySelectorAll(':scope > Components[property="ProcessSteps"], :scope > Components[property="SubProcessSteps"]'));
     
-    for (const container of processStepsContainer) {
+    for (const container of processStepsContainers) {
       const stepObjects = container.querySelectorAll(':scope > Object');
       
       for (const stepObj of Array.from(stepObjects)) {
