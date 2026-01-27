@@ -49,9 +49,7 @@ export default class DexpiRenderer extends BaseRenderer {
     // Handle StartEvent/EndEvent dimming when it's a port proxy and ports are visible
     if ((element.type === 'bpmn:StartEvent' || element.type === 'bpmn:EndEvent') && shouldRenderPorts) {
       const isProxy = this.isPortProxyEvent(element);
-      console.log('Event check:', element.type, element.businessObject.id, element.businessObject.name, 'isProxy:', isProxy);
       if (isProxy) {
-        console.log('Dimming Event:', element.businessObject.id);
         // Dim the Event to indicate it's redundant with the port overlay
         svgAttr(shape, {
           opacity: '0.1'
@@ -143,14 +141,16 @@ export default class DexpiRenderer extends BaseRenderer {
     // Use default BPMN connection rendering
     const connection = this.bpmnRenderer.drawConnection(parentNode, element);
     
-    // Check if ports are visible and if this connection comes from/to a port proxy Event
-    const shouldRenderPorts = (window as any).__dexpi_show_ports__ || false;
-    if (shouldRenderPorts && element.type === 'bpmn:SequenceFlow') {
+    // Always check if this connection comes from/to a port proxy Event
+    if (element.type === 'bpmn:SequenceFlow') {
       const source = element.source;
       const target = element.target;
       
       const sourceIsProxy = source && (source.type === 'bpmn:StartEvent' || source.type === 'bpmn:EndEvent') && this.isPortProxyEvent(source);
       const targetIsProxy = target && (target.type === 'bpmn:StartEvent' || target.type === 'bpmn:EndEvent') && this.isPortProxyEvent(target);
+      
+                  'source:', source?.businessObject?.id, 'sourceIsProxy:', sourceIsProxy,
+                  'target:', target?.businessObject?.id, 'targetIsProxy:', targetIsProxy);
       
       if (sourceIsProxy || targetIsProxy) {
         // Dim the proxy sequence flow to match the dimmed Event
@@ -179,6 +179,7 @@ export default class DexpiRenderer extends BaseRenderer {
    * Detects if a Start/EndEvent is a "port proxy" - a legacy pattern where Start/EndEvents
    * inside subprocesses represent inlet/outlet ports from the parent level.
    * These are redundant when port overlays are shown.
+   * Also checks for events without ports that connect to activities with matching port names.
    */
   private isPortProxyEvent(element: any): boolean {
     if (element.type !== 'bpmn:StartEvent' && element.type !== 'bpmn:EndEvent') return false;
@@ -187,7 +188,10 @@ export default class DexpiRenderer extends BaseRenderer {
     const businessObject = element.businessObject;
     const extensionElements = businessObject.extensionElements;
     
-    if (!extensionElements || !extensionElements.values) return false;
+    if (!extensionElements || !extensionElements.values) {
+      // Check if this is an event without ports that connects to an activity
+      return this.isPortlessProxyEvent(element);
+    }
     
     const portsContainer = extensionElements.values.find(
       (e: any) => {
@@ -196,7 +200,10 @@ export default class DexpiRenderer extends BaseRenderer {
       }
     );
     
-    if (!portsContainer) return false;
+    if (!portsContainer) {
+      // No ports container found - check portless proxy pattern
+      return this.isPortlessProxyEvent(element);
+    }
     
     // Extract port name from the StartEvent's port definition
     let portName: string | null = null;
@@ -278,8 +285,69 @@ export default class DexpiRenderer extends BaseRenderer {
       return false;
     });
     
-    console.log('Port proxy check:', element.businessObject.id, portName, 'StartEvent dir:', startEventPortDirection, 'Match:', hasMatchingPort);
     
+    return hasMatchingPort;
+  }
+
+  /**
+   * Check if an event without ports is a proxy by examining its connected activity.
+   * Pattern: Event (e.g., "EEI1") flows to/from an activity that has a port matching the event's name.
+   */
+  private isPortlessProxyEvent(element: any): boolean {
+    const businessObject = element.businessObject;
+    const eventName = businessObject.name;
+    if (!eventName) return false;
+
+    const isStartEvent = element.type === 'bpmn:StartEvent';
+    const isEndEvent = element.type === 'bpmn:EndEvent';
+
+    // Find the connected activity via sequence flow
+    let targetActivity: any = null;
+
+    if (isStartEvent && businessObject.outgoing && businessObject.outgoing.length > 0) {
+      // For start events, look at outgoing flows
+      const flow = businessObject.outgoing[0];
+      targetActivity = flow.targetRef;
+    } else if (isEndEvent && businessObject.incoming && businessObject.incoming.length > 0) {
+      // For end events, look at incoming flows
+      const flow = businessObject.incoming[0];
+      targetActivity = flow.sourceRef;
+    }
+
+    if (!targetActivity) return false;
+
+    // Check if the connected activity has a port matching the event's name
+    const activityExtensions = targetActivity.extensionElements;
+    if (!activityExtensions || !activityExtensions.values) return false;
+
+    const portsContainer = activityExtensions.values.find(
+      (e: any) => {
+        const type = (e.$type || '').toLowerCase();
+        return type === 'ports' || type.includes('ports') || e.port !== undefined;
+      }
+    );
+
+    if (!portsContainer) return false;
+
+    // Extract ports from the activity
+    let activityPorts: any[] = [];
+    if (Array.isArray(portsContainer.port)) {
+      activityPorts = portsContainer.port;
+    } else if (portsContainer.port) {
+      activityPorts = [portsContainer.port];
+    } else if (portsContainer.$children) {
+      activityPorts = portsContainer.$children;
+    }
+
+    // Check if any port name matches the event name
+    const hasMatchingPort = activityPorts.some((port: any) => {
+      const portName = port.name || port.label;
+      return portName === eventName;
+    });
+
+    if (hasMatchingPort) {
+    }
+
     return hasMatchingPort;
   }
 
@@ -546,7 +614,6 @@ export default class DexpiRenderer extends BaseRenderer {
     const businessObject = element.businessObject;
     const extensionElements = businessObject.extensionElements;
 
-    console.log('Checking DEXPI type for element:', element.businessObject.id, 'hasExtensions:', !!extensionElements);
 
     if (!extensionElements || !extensionElements.values) return;
 
@@ -554,7 +621,6 @@ export default class DexpiRenderer extends BaseRenderer {
       (e: any) => e.$type === 'dexpi:Element' || e.$type === 'dexpi:element'
     );
 
-    console.log('Found dexpiElement:', dexpiElement, 'dexpiType:', dexpiElement?.dexpiType);
 
     if (!dexpiElement || !dexpiElement.dexpiType) return;
 
@@ -595,27 +661,22 @@ export default class DexpiRenderer extends BaseRenderer {
       // Green for InstrumentationActivity
       fillColor = '#c8e6c9';  // Light green
       strokeColor = '#205022'; // Dark green
-      console.log('Applying GREEN color for InstrumentationActivity:', dexpiType);
     } else if (processStepTypes.includes(dexpiType)) {
       // Blue for ProcessStep
       fillColor = '#bbdefb';  // Light blue
       strokeColor = '#0d4372'; // Dark blue
-      console.log('Applying BLUE color for ProcessStep:', dexpiType);
     } else {
-      console.log('Unknown DEXPI type, no color applied:', dexpiType);
     }
 
     if (fillColor && strokeColor) {
       // The shape itself IS the rect element for tasks
       const rect = shape.tagName === 'rect' ? shape : shape.querySelector('rect');
-      console.log('Found rect element:', !!rect, 'shape tagName:', shape.tagName);
       if (rect) {
         svgAttr(rect, {
           'fill': fillColor,
           'stroke': strokeColor,
           'stroke-width': '2'
         });
-        console.log('Applied colors - fill:', fillColor, 'stroke:', strokeColor);
       }
     }
   }
