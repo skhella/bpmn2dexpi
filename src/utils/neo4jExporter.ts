@@ -27,7 +27,7 @@ export interface ProcessStepNode {
   type: string;
   nodeType: 'ProcessStep' | 'Source' | 'Sink' | 'InstrumentationActivity';
   parent?: string;
-  hierarchyLevel: number;
+  hierarchy_level: number;
   isSubProcess: boolean;
   isNavigational: boolean;
   inputPorts: string[];
@@ -155,20 +155,24 @@ function determineFlowType(portLabel: string): 'MaterialStream' | 'ElectricalEne
 
 /**
  * Check if a process step should be treated as a navigational event
- * Navigational events are port connectors that should be filtered from standard flow relationships
+ * Navigational events are port connectors used for subprocess boundaries
+ * They have Sub/SuperReferences but are NOT explicitly typed as Source, Sink, or specific process steps
  */
-function isNavigationalEvent(stepName: string, ports: PortInfo[]): boolean {
-  if (!stepName) return false;
+function isNavigationalEvent(elementType: string, ports: PortInfo[]): boolean {
+  if (!ports || ports.length === 0) return false;
   
-  const normalizedName = stepName.toUpperCase().trim();
+  // If element is explicitly typed as Source or Sink, it's NOT navigational
+  const normalizedType = elementType.toLowerCase();
+  if (normalizedType.includes('source') || normalizedType.includes('sink')) {
+    return false;
+  }
   
-  // Check if name matches port pattern (MI1, MO2, EEI1, etc.)
-  const portPattern = /^(MI|MO|EEI|EEO|TEI|TEO|MEI|MEO|IOI|IOO|II|IO)\d+$/;
-  const matches = normalizedName.match(portPattern);
-  
-  // If name is just a port identifier and has exactly 2 ports, it's navigational
-  if (matches && ports.length === 2) {
-    return true;
+  // Check if any port has a SubReference or SuperReference
+  // These references indicate this is a port connector linking parent/child subprocess boundaries
+  for (const port of ports) {
+    if (port.subReference || port.superReference) {
+      return true;
+    }
   }
   
   return false;
@@ -364,7 +368,7 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
             allPorts.push(ports.get(portId)!);
           }
         }
-        const isNavigational = isNavigationalEvent(label, allPorts.filter(p => p));
+        const isNavigational = isNavigationalEvent(type, allPorts.filter(p => p));
         
         processSteps.push({
           id,
@@ -373,7 +377,7 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
           type: type.replace('Process/Process.', '').replace('Process/', ''),
           nodeType,
           parent: parentId,
-          hierarchyLevel: level,
+          hierarchy_level: level,
           isSubProcess: hasSubSteps || false,
           isNavigational,
           inputPorts,
@@ -759,10 +763,14 @@ CREATE (ms)-[:HAS_TYPE]->(mst)`);
   
   // Create Process Steps with ports as properties
   // Use proper node types: ProcessStep, Source, Sink, InstrumentationActivity
+  // Skip navigational events (port connectors) - they are not actual process steps
   for (const step of data.processSteps) {
+    // Skip navigational events - they're just port connectors for subprocess analysis
+    if (step.isNavigational) continue;
+    
     const props = buildPropsString({
       id: step.id, identifier: step.identifier, label: step.label, type: step.type,
-      hierarchyLevel: step.hierarchyLevel, isSubProcess: step.isSubProcess,
+      hierarchy_level: step.hierarchy_level, isSubProcess: step.isSubProcess,
       isNavigational: step.isNavigational,
       inputPorts: step.inputPorts, outputPorts: step.outputPorts,
       ...step.attributes
