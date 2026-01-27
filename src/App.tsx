@@ -361,6 +361,29 @@ function App() {
     }
   };
 
+  const handleExportSvg = async () => {
+    if (!modeler) return;
+
+    try {
+      const canvas = modeler.get('canvas');
+      const { svg } = await modeler.saveSVG();
+      
+      // Download SVG
+      const blob = new Blob([svg], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'process-diagram.svg';
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      setValidationMessage('SVG exported successfully!');
+    } catch (err) {
+      console.error('SVG export failed:', err);
+      setValidationMessage('SVG export failed: ' + (err as Error).message);
+    }
+  };
+
   const handleImportBpmn = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -412,6 +435,7 @@ function App() {
           </button>
           <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
           <button onClick={handleExportBpmn} className="btn">Export BPMN</button>
+          <button onClick={handleExportSvg} className="btn">Export SVG</button>
           <button onClick={handleExportDexpi} className="btn btn-primary">Export DEXPI XML</button>
         </div>
       </header>
