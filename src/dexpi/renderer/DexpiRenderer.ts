@@ -149,9 +149,6 @@ export default class DexpiRenderer extends BaseRenderer {
       const sourceIsProxy = source && (source.type === 'bpmn:StartEvent' || source.type === 'bpmn:EndEvent') && this.isPortProxyEvent(source);
       const targetIsProxy = target && (target.type === 'bpmn:StartEvent' || target.type === 'bpmn:EndEvent') && this.isPortProxyEvent(target);
       
-                  'source:', source?.businessObject?.id, 'sourceIsProxy:', sourceIsProxy,
-                  'target:', target?.businessObject?.id, 'targetIsProxy:', targetIsProxy);
-      
       if (sourceIsProxy || targetIsProxy) {
         // Dim the proxy sequence flow to match the dimmed Event
         svgAttr(connection, {
