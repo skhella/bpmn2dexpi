@@ -531,6 +531,129 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
 }
 
 /**
+ * Analyze subprocess flow connections to create entry/exit relationships
+ * Matches Python's analyze_subprocess_flow_connections() function
+ */
+function analyzeSubprocessFlows(
+  processSteps: ProcessStepNode[],
+  streams: StreamConnection[]
+): Array<{
+  source: string;
+  target: string;
+  flowType: string;
+  relationshipType: 'enters_subprocess' | 'exits_subprocess' | 'subprocess_internal_entry' | 'subprocess_internal_exit';
+  name: string;
+  originalFlowId: string;
+  subprocessLevel: number;
+}> {
+  const subprocessFlows: Array<{
+    source: string;
+    target: string;
+    flowType: string;
+    relationshipType: 'enters_subprocess' | 'exits_subprocess' | 'subprocess_internal_entry' | 'subprocess_internal_exit';
+    name: string;
+    originalFlowId: string;
+    subprocessLevel: number;
+  }> = [];
+
+  // Build hierarchy map
+  const hierarchy = new Map<string, string[]>(); // parent -> children
+  for (const step of processSteps) {
+    if (step.parent) {
+      if (!hierarchy.has(step.parent)) {
+        hierarchy.set(step.parent, []);
+      }
+      hierarchy.get(step.parent)!.push(step.id);
+    }
+  }
+
+  // Get all descendants recursively
+  function getAllDescendants(parentId: string): Set<string> {
+    const descendants = new Set<string>();
+    const children = hierarchy.get(parentId) || [];
+    for (const childId of children) {
+      descendants.add(childId);
+      const childDescendants = getAllDescendants(childId);
+      childDescendants.forEach(d => descendants.add(d));
+    }
+    return descendants;
+  }
+
+  // Get subprocess level (nesting depth)
+  function getSubprocessLevel(stepId: string): number {
+    let level = 0;
+    let currentId = stepId;
+    const step = processSteps.find(s => s.id === currentId);
+    if (!step) return 0;
+    
+    let currentParent = step.parent;
+    while (currentParent) {
+      level++;
+      const parentStep = processSteps.find(s => s.id === currentParent);
+      if (!parentStep) break;
+      currentParent = parentStep.parent;
+    }
+    return level;
+  }
+
+  // Analyze each subprocess
+  for (const subprocess of processSteps.filter(s => s.isSubProcess)) {
+    const subprocessId = subprocess.id;
+    const descendants = getAllDescendants(subprocessId);
+    const level = getSubprocessLevel(subprocessId);
+
+    // Find entry points (flows from outside to inside)
+    for (const stream of streams) {
+      const sourceId = stream.sourceStepId;
+      const targetId = stream.targetStepId;
+
+      // Entry: source outside, target inside (but not the subprocess itself)
+      if (!descendants.has(sourceId) && sourceId !== subprocessId && 
+          descendants.has(targetId)) {
+        
+        // Determine if this is a direct entry or internal nested entry
+        const targetStep = processSteps.find(s => s.id === targetId);
+        const isDirectChild = targetStep?.parent === subprocessId;
+        
+        const relType = isDirectChild ? 'enters_subprocess' : 'subprocess_internal_entry';
+        
+        subprocessFlows.push({
+          source: subprocessId,
+          target: targetId,
+          flowType: stream.flowType,
+          relationshipType: relType,
+          name: `${subprocess.label} entry to ${targetStep?.label || targetId}`,
+          originalFlowId: stream.id,
+          subprocessLevel: level
+        });
+      }
+
+      // Exit: source inside, target outside (but not the subprocess itself)
+      if (descendants.has(sourceId) && 
+          !descendants.has(targetId) && targetId !== subprocessId) {
+        
+        const sourceStep = processSteps.find(s => s.id === sourceId);
+        const isDirectChild = sourceStep?.parent === subprocessId;
+        
+        const relType = isDirectChild ? 'exits_subprocess' : 'subprocess_internal_exit';
+        
+        subprocessFlows.push({
+          source: sourceId,
+          target: subprocessId,
+          flowType: stream.flowType,
+          relationshipType: relType,
+          name: `${sourceStep?.label || sourceId} exit from ${subprocess.label}`,
+          originalFlowId: stream.id,
+          subprocessLevel: level
+        });
+      }
+    }
+  }
+
+  return subprocessFlows;
+}
+
+/**
  * Generate Cypher queries for Neo4j import
  */
 export function generateCypherQueries(data: DexpiGraphData): string[] {
@@ -725,6 +848,25 @@ MATCH (parent {id: '${escapeString(parentPort.ownerStepId)}'})
 MERGE (child)-[:SUB_PROCESS_EXIT {flowType: '${stream.flowType}', port: '${escapeString(parentPort.label)}'}]->(parent)`);
       }
     }
+  }
+  
+  // Analyze and create subprocess entry/exit relationships
+  // This matches Python's analyze_subprocess_flow_connections() approach
+  console.log('Analyzing subprocess flows...');
+  const subprocessFlows = analyzeSubprocessFlows(data.processSteps, data.streams);
+  
+  console.log(`Creating ${subprocessFlows.length} subprocess flow relationships...`);
+  for (const subFlow of subprocessFlows) {
+    const relType = escapeLabel(subFlow.relationshipType);
+    queries.push(`
+MATCH (source {id: '${escapeString(subFlow.source)}'})
+MATCH (target {id: '${escapeString(subFlow.target)}'})
+MERGE (source)-[:${relType} {
+  flowType: '${escapeString(subFlow.flowType)}',
+  name: '${escapeString(subFlow.name)}',
+  originalFlowId: '${escapeString(subFlow.originalFlowId)}',
+  subprocessLevel: ${subFlow.subprocessLevel}
+}]->(target)`);
   }
   
   return queries;
