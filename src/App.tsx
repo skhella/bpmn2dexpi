@@ -74,59 +74,121 @@ function App() {
           
           const businessObject = element.businessObject;
           const extensionElements = businessObject?.extensionElements;
-          if (!extensionElements || !extensionElements.values) return false;
           
-          // Check if this event has a port definition
-          const portsContainer = extensionElements.values.find((e: any) => {
-            const type = (e.$type || '').toLowerCase();
-            return type === 'ports' || type.includes('ports') || e.port !== undefined;
-          });
-          
-          if (!portsContainer) return false;
-          
-          // Extract port name
-          let portName: string | null = null;
-          if (Array.isArray(portsContainer.port) && portsContainer.port.length > 0) {
-            portName = portsContainer.port[0].name || portsContainer.port[0].label;
-          } else if (portsContainer.port) {
-            portName = portsContainer.port.name || portsContainer.port.label;
-          } else if (portsContainer.$children && portsContainer.$children.length > 0) {
-            portName = portsContainer.$children[0].name || portsContainer.$children[0].label;
+          // Check for port-based proxy (events WITH ports matching parent)
+          if (extensionElements && extensionElements.values) {
+            const portsContainer = extensionElements.values.find((e: any) => {
+              const type = (e.$type || '').toLowerCase();
+              return type === 'ports' || type.includes('ports') || e.port !== undefined;
+            });
+            
+            if (portsContainer) {
+              // Extract port name
+              let portName: string | null = null;
+              if (Array.isArray(portsContainer.port) && portsContainer.port.length > 0) {
+                portName = portsContainer.port[0].name || portsContainer.port[0].label;
+              } else if (portsContainer.port) {
+                portName = portsContainer.port.name || portsContainer.port.label;
+              } else if (portsContainer.$children && portsContainer.$children.length > 0) {
+                portName = portsContainer.$children[0].name || portsContainer.$children[0].label;
+              }
+              
+              if (portName) {
+                // Check if parent has matching port
+                const parent = element.parent;
+                if (parent && (parent.type === 'bpmn:SubProcess' || parent.type === 'bpmn:Process')) {
+                  const parentExtensions = parent.businessObject?.extensionElements;
+                  if (parentExtensions && parentExtensions.values) {
+                    const parentPortsContainer = parentExtensions.values.find((e: any) => {
+                      const type = (e.$type || '').toLowerCase();
+                      return type === 'ports' || type.includes('ports') || e.port !== undefined;
+                    });
+                    
+                    if (parentPortsContainer) {
+                      // Extract parent ports
+                      let parentPorts: any[] = [];
+                      if (Array.isArray(parentPortsContainer.port)) {
+                        parentPorts = parentPortsContainer.port;
+                      } else if (parentPortsContainer.port) {
+                        parentPorts = [parentPortsContainer.port];
+                      } else if (parentPortsContainer.$children) {
+                        parentPorts = parentPortsContainer.$children;
+                      }
+                      
+                      // Check if parent has matching port
+                      const hasMatchingParentPort = parentPorts.some((port: any) => {
+                        const pName = port.name || port.label;
+                        return pName === portName;
+                      });
+                      
+                      if (hasMatchingParentPort) {
+                        return true;
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
           
-          if (!portName) return false;
-          
-          // Check if parent has matching port
-          const parent = element.parent;
-          if (!parent || (parent.type !== 'bpmn:SubProcess' && parent.type !== 'bpmn:Process')) {
+          // Check for portless proxy (events WITHOUT ports connecting to activities with matching ports)
+          // This handles legacy BPMN files where events don't have extensionElements
+          const eventName = businessObject?.name;
+          if (!eventName || !eventName.trim()) {
             return false;
           }
           
-          const parentExtensions = parent.businessObject?.extensionElements;
-          if (!parentExtensions || !parentExtensions.values) return false;
+          // Get all incoming/outgoing sequence flows
+          const flows = [...(element.incoming || []), ...(element.outgoing || [])];
           
-          const parentPortsContainer = parentExtensions.values.find((e: any) => {
-            const type = (e.$type || '').toLowerCase();
-            return type === 'ports' || type.includes('ports') || e.port !== undefined;
-          });
-          
-          if (!parentPortsContainer) return false;
-          
-          // Extract parent ports
-          let parentPorts: any[] = [];
-          if (Array.isArray(parentPortsContainer.port)) {
-            parentPorts = parentPortsContainer.port;
-          } else if (parentPortsContainer.port) {
-            parentPorts = [parentPortsContainer.port];
-          } else if (parentPortsContainer.$children) {
-            parentPorts = parentPortsContainer.$children;
+          for (const flow of flows) {
+            // Get the other end of the connection
+            const otherElement = flow.source?.id === element.id ? flow.target : flow.source;
+            
+            // Check if other element is an Activity (Task or SubProcess)
+            if (otherElement && (
+              otherElement.type === 'bpmn:Task' ||
+              otherElement.type === 'bpmn:SubProcess' ||
+              otherElement.type === 'bpmn:ServiceTask' ||
+              otherElement.type === 'bpmn:UserTask' ||
+              otherElement.type === 'bpmn:ManualTask' ||
+              otherElement.type === 'bpmn:ScriptTask' ||
+              otherElement.type === 'bpmn:BusinessRuleTask' ||
+              otherElement.type === 'bpmn:SendTask' ||
+              otherElement.type === 'bpmn:ReceiveTask'
+            )) {
+              const activityExtensions = otherElement.businessObject?.extensionElements;
+              if (activityExtensions && activityExtensions.values) {
+                const activityPortsContainer = activityExtensions.values.find((e: any) => {
+                  const type = (e.$type || '').toLowerCase();
+                  return type === 'ports' || type.includes('ports') || e.port !== undefined;
+                });
+                
+                if (activityPortsContainer) {
+                  let activityPorts: any[] = [];
+                  if (Array.isArray(activityPortsContainer.port)) {
+                    activityPorts = activityPortsContainer.port;
+                  } else if (activityPortsContainer.port) {
+                    activityPorts = [activityPortsContainer.port];
+                  } else if (activityPortsContainer.$children) {
+                    activityPorts = activityPortsContainer.$children;
+                  }
+                  
+                  // Check if any activity port matches the event name
+                  const hasMatchingPort = activityPorts.some((port: any) => {
+                    const portName = port.name || port.label;
+                    return portName === eventName;
+                  });
+                  
+                  if (hasMatchingPort) {
+                    return true;
+                  }
+                }
+              }
+            }
           }
           
-          // Check if parent has matching port
-          return parentPorts.some((port: any) => {
-            const pName = port.name || port.label;
-            return pName === portName;
-          });
+          return false;
         };
         
         const allFlows = elementRegistry.filter((el: any) => el.type === 'bpmn:SequenceFlow');
