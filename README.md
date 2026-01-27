@@ -2,45 +2,41 @@
 
 A graphical DEXPI process modeling tool built on top of bpmn.io, allowing you to create process flow diagrams with DEXPI-specific semantics and export them to DEXPI XML format.
 
-**🌐 Web App** | **⚙️ CLI Tool** | **🐍 Python Integration**
-
 ## Features
-
-### Visual Modeling (Web App)
 
 - **Visual Process Modeling**: Use BPMN.io's powerful diagramming engine
 - **DEXPI-Specific Palette**: Specialized elements for process engineering
-  - Process Steps
-  - Instrumentation Activities
+  - 130+ ProcessStep types (DEXPI 2.0 compliant)
+  - InstrumentationActivity types with automatic color coding
   - Sources and Sinks
   - Material/Energy Flows
-- **Material Library**: Inline editing for:
-  - Material Templates (compositions with component lists)
-  - Material Components (individual substances)
-  - Material States (temperature, pressure, composition fractions)
+  - Auto-type assignment for new elements
+- **Material Library System**:
+  - Material templates with component lists
+  - Material states with composition fractions
+  - Inline editing (no modals)
+  - Template-based auto-population of compositions
 - **Port Management**: Graphical port editor with:
   - Multiple port types (Material, Energy, Information)
   - Port directions (Inlet/Outlet)
   - Visual positioning on shapes
-  - Toggle visibility (hide ports for cleaner diagrams)
+  - Hierarchical port mapping (parent-child relationships)
+  - Automatic port positioning behavior
 - **Stream Properties**: Define material flows with:
   - Stream types (MaterialFlow, EnergyFlow)
   - Provenance and range qualifiers
   - Material state references
+  - Port-to-port connections
 - **BPMN ↔ DEXPI Transformation**: 
   - Export BPMN diagrams with DEXPI extensions
   - Transform to DEXPI 2.0.0 XML format
+  - QualifiedValue structure compliance
+  - Proper hierarchical ProcessStep and port relationships
 - **Round-trip Support**: Import and continue editing BPMN files
-- **Subprocess Navigation**: Drill down into subprocesses with breadcrumb navigation
-
-### Command-Line Interface (CLI)
-
-- **Batch Processing**: Transform BPMN files to DEXPI XML without UI
-- **Python Integration**: Use from Python scripts and data pipelines
-- **Identical Output**: Same transformation as web app
-- **No Server Required**: Standalone execution
-
-See [CLI_USAGE.md](CLI_USAGE.md) for detailed CLI documentation.
+- **CLI Tool**: Command-line interface for batch processing
+  - Node.js CLI for terminal usage
+  - Python wrapper for data pipeline integration
+  - Identical output to web app export
 
 ## Based on Research
 
@@ -48,32 +44,24 @@ This tool implements the mapping methodology described in:
 **"Mapping DEXPI to BPMN"** by Khella et al.
 
 The tool maps:
-- `ProcessStep` → BPMN Task
+- `ProcessStep` → BPMN Task (130+ subtypes supported)
+- `InstrumentationActivity` → BPMN Task (color-coded green)
 - `Source` → BPMN Start Event
 - `Sink` → BPMN End Event
 - `MaterialFlow/EnergyFlow` → BPMN Sequence Flow
 - `InformationFlow` → BPMN Association
-- Ports stored as BPMN extensionElements
+- Ports stored as BPMN extensionElements with hierarchy support
 
 ## Getting Started
-
-### Prerequisites
-
-- **Node.js** >= 18
-- **npm** >= 9
-- **Python** >= 3.7 (optional, for Python integration)
 
 ### Installation
 
 ```bash
-git clone https://github.com/skhella/dexpi-process-tool.git
 cd dexpi-process-tool
 npm install
 ```
 
-### Web Application
-
-Start the development server:
+### Development
 
 ```bash
 npm run dev
@@ -83,41 +71,37 @@ Open http://localhost:5174 in your browser.
 
 ### CLI Usage
 
-Transform BPMN to DEXPI XML:
+Transform BPMN files to DEXPI XML from the command line:
 
 ```bash
-# Save to file
+# Using npm script
 npm run transform input.bpmn output.xml
 
-# Print to console
-npm run transform input.bpmn
+# Direct node execution
+node --import tsx cli.js input.bpmn output.xml
 
-# From Python
-python3 transform.py input.bpmn output.xml
+# Print to stdout
+npm run transform input.bpmn
 ```
 
-See [CLI_USAGE.md](CLI_USAGE.md) for complete CLI documentation.
+**Python Integration:**
 
-### Build for Production
+```python
+from transform import bpmn_to_dexpi
+
+# Save to file
+bpmn_to_dexpi('process.bpmn', 'output.xml')
+
+# Get as string
+dexpi_xml = bpmn_to_dexpi('process.bpmn')
+```
+
+See [CLI_USAGE.md](./CLI_USAGE.md) for detailed documentation and examples.
+
+### Build
 
 ```bash
 npm run build
-```
-
-### Deploy to Web
-
-The app can be deployed to Vercel, Netlify, or any static host:
-
-```bash
-# Example: Vercel
-npm i -g vercel
-vercel
-```
-
-Or expose locally with ngrok:
-
-```bash
-ngrok http 5174
 ```
 
 ## Architecture
@@ -127,91 +111,71 @@ ngrok http 5174
 1. **DEXPI Moddle Extension** (`src/dexpi/moddle/`)
    - JSON schema defining DEXPI metadata structure
    - TypeScript interfaces for type safety
-   - Material data model (templates, components, states)
+   - Material templates and states system
 
 2. **Custom Renderer** (`src/dexpi/renderer/`)
    - Renders ports as visual overlays on BPMN shapes
    - Different colors/shapes for different port types
-   - Toggle port visibility
+   - Color-coded ProcessStep types (blue) and InstrumentationActivity (green)
 
 3. **Custom Palette** (`src/dexpi/palette/`)
    - Restricted palette with DEXPI-relevant elements
    - Custom icons and labels
 
-4. **Properties Panels** (`src/components/`)
-   - **DexpiPropertiesPanel**: Edit element types and properties
-   - **MaterialLibraryPanel**: Manage templates, components, and states
-   - **MaterialEditorPanel**: Edit material compositions inline
+4. **Behaviors** (`src/dexpi/behavior/`)
+   - **AutoTypeBehavior**: Automatically assigns default DEXPI types to new elements
+   - **PortBehavior**: Automatic port positioning on element creation
+
+5. **Properties Panels** (`src/components/`)
+   - **DexpiPropertiesPanel**: Edit DEXPI element types with organized dropdowns
+   - **MaterialLibraryPanel**: Browse and manage material templates, components, and states
+   - **MaterialEditorPanel**: Inline editing of material properties and compositions
    - Port management (add/remove/configure)
    - Stream properties configuration
 
-5. **BPMN → DEXPI Transformer** (`src/transformer/`)
+6. **BPMN → DEXPI Transformer** (`src/transformer/`)
    - Parses BPMN XML with DEXPI extensions
    - Builds DEXPI 2.0.0 compliant XML
-   - Handles port references, material templates, and states
-   - Maps process hierarchy to DEXPI structure
+   - Handles hierarchical port references
+   - Processes material templates and states
+   - QualifiedValue structure for attributes
+   - 130+ ProcessStep type mappings from schema
 
-6. **CLI Tool** (`cli.js`, `transform.py`)
-   - Standalone Node.js CLI for batch processing
-   - Python wrapper for integration in data pipelines
-   - Uses same transformer as web app
+7. **Enumerations** (`src/utils/dexpiEnumerations.ts`)
+   - Comprehensive DEXPI type system
+   - 60+ ProcessStep types
+   - 7 InstrumentationActivity types
+   - Type aliases for common names
 
 ## Usage
 
-### Web Application
-
-#### Creating a Process Diagram
+### Creating a Process Diagram
 
 1. **Add Elements**: Drag elements from the palette onto the canvas
-2. **Set DEXPI Type**: Select an element and choose its DEXPI type in the properties panel
+2. **Set DEXPI Type**: Select an element and choose its DEXPI type from organized dropdowns in the properties panel
+   - Auto-type assignment happens for new elements
+   - 130+ ProcessStep types available
+   - InstrumentationActivity types (color-coded green)
 3. **Add Ports**: Click "Add Port" and configure port properties
-4. **Connect Elements**: Draw connections between elements (via ports)
-5. **Set Stream Properties**: Select a connection and configure stream metadata
+   - Ports automatically position on element boundaries
+   - Support for hierarchical parent-child port relationships
+4. **Manage Materials**: Open the Material Library to:
+   - Create material templates with component lists
+   - Define material states with composition fractions
+   - Edit compositions inline (auto-populated from templates)
+5. **Connect Elements**: Draw connections between elements (via ports)
+6. **Set Stream Properties**: Select a connection and configure:
+   - Stream type and provenance
+   - Material state references
+   - Port connections
 
-#### Managing Materials
-
-1. **Open Material Library**: Click the "📚 Materials" button
-2. **Add Templates**: Define material compositions with component lists
-3. **Add States**: Create material states with temperature, pressure, and composition fractions
-4. **Reference in Streams**: Select a stream and choose a material state
-
-#### Subprocess Navigation
-
-1. **Create Subprocess**: Add a subprocess element
-2. **Enter Subprocess**: Double-click or use the marker to drill down
-3. **Navigate Back**: Use the "← Back to Parent" button in the toolbar
-
-#### Exporting
+### Exporting
 
 - **Export BPMN**: Save your work in BPMN format (preserves all DEXPI metadata)
 - **Export DEXPI XML**: Transform to DEXPI 2.0.0 XML for interoperability
-
-### Command-Line Usage
-
-#### Basic Transformation
-
-```bash
-# Transform single file
-npm run transform process.bpmn output.xml
-
-# Process multiple files
-for f in *.bpmn; do npm run transform "$f" "${f%.bpmn}.xml"; done
-```
-
-#### Python Integration
-
-```python
-from transform import bpmn_to_dexpi
-
-# Convert and save
-bpmn_to_dexpi('tennessee-eastman.bpmn', 'output.xml')
-
-# Get XML string
-xml = bpmn_to_dexpi('process.bpmn')
-print(xml)
-```
-
-See [CLI_USAGE.md](CLI_USAGE.md) for advanced usage and batch processing examples.
+  - Via web UI: Click "Export DEXPI XML" button
+  - Via CLI: `npm run transform input.bpmn output.xml`
+  - Via Python: `bpmn_to_dexpi('input.bpmn', 'output.xml')`
 
 ## DEXPI Specification Compliance
 
@@ -220,21 +184,23 @@ https://dexpi.gitlab.io/-/Specification/-/jobs/11676485644/artifacts/src/.build/
 
 ### Supported DEXPI Elements
 
-- ProcessStep (and subtypes like ReactingChemicals, Separating, etc.)
-- Source / Sink
-- Stream (MaterialFlow, EnergyFlow)
-- MaterialTemplate, MaterialComponent, MaterialState
-- Ports (Material, Energy, Information)
-- Attributes with qualifiers (Provenance, Range, Mode)
-- Process hierarchy (nested subprocesses)
-
-## Examples
-
-The repository includes a complete example:
-
-- **`sample-tennessee.bpmn`**: Tennessee Eastman Process with instrumentation, ports, and material states
-- Demonstrates subprocess hierarchy, port connections, and material library usage
-- Can be imported and exported to DEXPI XML
+- **ProcessStep** (130+ subtypes from DEXPI 2.0 schema)
+  - Type aliases for common names (e.g., "Measuring" → "MeasuringProcessVariable")
+  - All types map to concrete classes from Process.xml
+- **InstrumentationActivity** (7 types)
+  - Automatically color-coded green for visual distinction
+- **Source/Sink** - Process boundaries
+- **Stream** - Material/Energy flows with qualified attributes
+- **MaterialTemplate** - Reusable material definitions with component lists
+- **MaterialComponent** - Chemical components
+- **MaterialState** - Material compositions with fractions
+- **MaterialStateType** - Object-based state types
+- **Ports** (Material, Energy, Information)
+  - Hierarchical parent-child relationships
+  - Automatic positioning
+- **Attributes with qualifiers**
+  - QualifiedValue structure (Provenance, Range, Scope)
+  - DEXPI 2.0 compliant enumerations
 
 ## Technology Stack
 
@@ -244,36 +210,38 @@ The repository includes a complete example:
 - **xml2js**: XML parsing and generation
 - **Vite**: Build tool and dev server
 - **tsx**: TypeScript execution for CLI
-- **jsdom**: DOM APIs for Node.js CLI
+- **jsdom**: DOM API support for Node.js CLI
 
-## Repository
+## Sample Files
 
-**GitHub**: https://github.com/skhella/dexpi-process-tool
+- **`sample-tennessee.bpmn`**: Tennessee Eastman Process with full instrumentation, ports, streams, and material states
 
-```bash
-git clone https://github.com/skhella/dexpi-process-tool.git
-```
+## Project Files
+
+- **`cli.js`**: Node.js CLI tool for BPMN → DEXPI transformation
+- **`transform.py`**: Python wrapper for CLI integration
+- **`CLI_USAGE.md`**: Detailed CLI documentation with examples
+- **`README.md`**: This file
+
+## Recent Updates
+
+### v0.2.0 (Latest)
+- ✅ Added CLI tool for command-line and Python usage
+- ✅ Fixed material editor panel closing behavior
+- ✅ Added jsdom and tsx dependencies for Node.js support
+
+### v0.1.0
+- ✅ Port hierarchy mapping (parent ports → single child port)
+- ✅ DEXPI 2.0 schema compliance updates
+- ✅ 130+ ProcessStep type mappings
+- ✅ QualifiedValue structure fixes
+- ✅ Material library with inline editing
+- ✅ Template-based composition auto-population
+- ✅ AutoTypeBehavior and PortBehavior
+- ✅ Comprehensive DEXPI enumerations
 
 ## License
 
 This project is provided under the MIT License.
 
 The DEXPI specification is licensed under Creative Commons Attribution 4.0 International License (CC BY 4.0).
-
-## Contributing
-
-Contributions are welcome! Please open an issue or pull request on GitHub.
-
-## Citation
-
-If you use this tool in your research, please cite:
-
-```
-Khella, S. et al. (2024). "Mapping DEXPI to BPMN for Process Engineering Workflows"
-```
-
-## Support
-
-- **Issues**: https://github.com/skhella/dexpi-process-tool/issues
-- **Documentation**: See [CLI_USAGE.md](CLI_USAGE.md) for CLI documentation
-- **DEXPI Spec**: https://dexpi.org
