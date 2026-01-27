@@ -763,11 +763,7 @@ CREATE (ms)-[:HAS_TYPE]->(mst)`);
   
   // Create Process Steps with ports as properties
   // Use proper node types: ProcessStep, Source, Sink, InstrumentationActivity
-  // Skip navigational events (port connectors) - they are not actual process steps
   for (const step of data.processSteps) {
-    // Skip navigational events - they're just port connectors for subprocess analysis
-    if (step.isNavigational) continue;
-    
     const props = buildPropsString({
       id: step.id, identifier: step.identifier, label: step.label, type: step.type,
       hierarchy_level: step.hierarchy_level, isSubProcess: step.isSubProcess,
@@ -791,13 +787,19 @@ CREATE (parent)-[:CONTAINS]->(child)`);
   }
   
   // Create Flow relationships (MaterialStream, ElectricalEnergyFlow, etc.)
-  // Filter out navigational events for standard flow relationships
-  // and SubProcessEntry/SubProcessExit relationships
+  console.log(`Creating flow relationships for ${data.streams.length} streams...`);
+  console.log(`Total process steps available: ${data.processSteps.length}`);
+  console.log(`Sources: ${data.processSteps.filter(s => s.nodeType === 'Source').length}`);
+  console.log(`Sinks: ${data.processSteps.filter(s => s.nodeType === 'Sink').length}`);
+  
   for (const stream of data.streams) {
     const sourcePort = data.ports.get(stream.sourcePortId);
     const targetPort = data.ports.get(stream.targetPortId);
     
-    if (!sourcePort || !targetPort) continue;
+    if (!sourcePort || !targetPort) {
+      console.log(`Skipping stream ${stream.id}: missing port (source: ${!!sourcePort}, target: ${!!targetPort})`);
+      continue;
+    }
     
     const sourceStepId = sourcePort.ownerStepId;
     const targetStepId = targetPort.ownerStepId;
@@ -806,7 +808,10 @@ CREATE (parent)-[:CONTAINS]->(child)`);
     const sourceStep = data.processSteps.find(s => s.id === sourceStepId);
     const targetStep = data.processSteps.find(s => s.id === targetStepId);
     
-    if (!sourceStep || !targetStep) continue;
+    if (!sourceStep || !targetStep) {
+      console.log(`Skipping stream ${stream.id} (${stream.label}): missing step (source: ${sourceStepId} -> ${!!sourceStep}, target: ${targetStepId} -> ${!!targetStep})`);
+      continue;
+    }
     
     const relProps = buildPropsString({
       id: stream.id, identifier: stream.identifier, label: stream.label,
@@ -818,13 +823,10 @@ CREATE (parent)-[:CONTAINS]->(child)`);
     const flowLabel = escapeLabel(stream.flowType);
     
     // Create the main flow relationship between steps
-    // Skip navigational events for standard flows (but keep for subprocess analysis)
-    if (!sourceStep.isNavigational && !targetStep.isNavigational) {
-      queries.push(`
+    queries.push(`
 MATCH (source {id: '${escapeString(sourceStepId)}'})
 MATCH (target {id: '${escapeString(targetStepId)}'})
 CREATE (source)-[:${flowLabel} {${relProps}}]->(target)`);
-    }
     
     // Check for SubProcessEntry: if source port has SubReference, the flow enters a subprocess
     // The parent port points to the child port - create entry from parent subprocess to first internal task
