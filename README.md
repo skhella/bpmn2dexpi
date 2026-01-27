@@ -66,6 +66,11 @@ Implements the BPMN-DEXPI mapping from **"Mapping DEXPI to BPMN"** by Khella et 
 
 Built with React, TypeScript, and bpmn.io. Targets [DEXPI 2.0 specification](https://dexpi.gitlab.io/-/Specification).
 
+## Development
+
+This project was developed with assistance from Large Language Models and AI coding tools, including GitHub Copilot and Claude Sonnet 4.5. These tools helped with code generation, debugging, and implementation of features.
+
+
 ## License
 
 This project is released under the MIT License.
