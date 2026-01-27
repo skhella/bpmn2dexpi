@@ -25,9 +25,11 @@ export interface ProcessStepNode {
   identifier: string;
   label: string;
   type: string;
+  nodeType: 'ProcessStep' | 'Source' | 'Sink' | 'InstrumentationActivity';
   parent?: string;
   hierarchyLevel: number;
   isSubProcess: boolean;
+  isNavigational: boolean;
   inputPorts: string[];
   outputPorts: string[];
   attributes: AttributeMap;
@@ -47,9 +49,11 @@ export interface StreamConnection {
   id: string;
   identifier: string;
   label: string;
-  flowType: 'MaterialFlow' | 'EnergyFlow' | 'InformationFlow';
+  flowType: 'MaterialStream' | 'ElectricalEnergyFlow' | 'ThermalEnergyFlow' | 'MechanicalEnergyFlow' | 'InformationFlow';
   sourcePortId: string;
   targetPortId: string;
+  sourceStepId: string;
+  targetStepId: string;
   attributes: AttributeMap;
   materialStateRef?: string;
 }
@@ -99,22 +103,75 @@ export interface DexpiGraphData {
 }
 
 /**
- * Determine flow type from port type string
+ * Flow type mapping based on port naming conventions (matches Python FLOW_TYPE_MAPPING)
  */
-function determineFlowType(portType: string, portLabel: string): 'MaterialFlow' | 'EnergyFlow' | 'InformationFlow' {
-  const normalizedType = portType.toLowerCase();
-  const normalizedLabel = portLabel.toUpperCase();
+const FLOW_TYPE_MAPPING: Record<string, 'MaterialStream' | 'ElectricalEnergyFlow' | 'ThermalEnergyFlow' | 'MechanicalEnergyFlow' | 'InformationFlow'> = {
+  'MI': 'MaterialStream',
+  'MO': 'MaterialStream',
+  'EEI': 'ElectricalEnergyFlow',
+  'EEO': 'ElectricalEnergyFlow',
+  'TEI': 'ThermalEnergyFlow',
+  'TEO': 'ThermalEnergyFlow',
+  'MEI': 'MechanicalEnergyFlow',
+  'MEO': 'MechanicalEnergyFlow',
+  'IOI': 'InformationFlow',
+  'IOO': 'InformationFlow',
+  'II': 'InformationFlow',
+  'IO': 'InformationFlow'
+};
+
+/**
+ * Determine flow type from port label (matches Python implementation)
+ */
+function determineFlowType(portLabel: string): 'MaterialStream' | 'ElectricalEnergyFlow' | 'ThermalEnergyFlow' | 'MechanicalEnergyFlow' | 'InformationFlow' {
+  if (!portLabel) return 'MaterialStream';
   
-  // Check port type first
-  if (normalizedType.includes('information')) return 'InformationFlow';
-  if (normalizedType.includes('energy') || normalizedType.includes('thermal') || 
-      normalizedType.includes('electrical') || normalizedType.includes('mechanical')) return 'EnergyFlow';
+  const normalizedLabel = portLabel.toUpperCase().trim();
   
-  // Check label pattern
-  if (normalizedLabel.match(/^(IPI|IPO|IOI|IOO|II|IO)/i)) return 'InformationFlow';
-  if (normalizedLabel.match(/^(TEI|TEO|EEI|EEO|MEI|MEO)/i)) return 'EnergyFlow';
+  // Extract port type prefix (MI, MO, EEI, etc.)
+  const portPattern = /^(MI|MO|EEI|EEO|TEI|TEO|MEI|MEO|IOI|IOO|II|IO)\d*/;
+  const match = normalizedLabel.match(portPattern);
   
-  return 'MaterialFlow';
+  if (match && match[1]) {
+    return FLOW_TYPE_MAPPING[match[1]] || 'MaterialStream';
+  }
+  
+  // Check for full type names in label
+  if (normalizedLabel.includes('ELECTRICAL') || normalizedLabel.includes('POWER')) {
+    return 'ElectricalEnergyFlow';
+  }
+  if (normalizedLabel.includes('THERMAL') || normalizedLabel.includes('HEAT')) {
+    return 'ThermalEnergyFlow';
+  }
+  if (normalizedLabel.includes('MECHANICAL')) {
+    return 'MechanicalEnergyFlow';
+  }
+  if (normalizedLabel.includes('INFORMATION') || normalizedLabel.includes('SIGNAL')) {
+    return 'InformationFlow';
+  }
+  
+  return 'MaterialStream';
+}
+
+/**
+ * Check if a process step should be treated as a navigational event
+ * Navigational events are port connectors that should be filtered from standard flow relationships
+ */
+function isNavigationalEvent(stepName: string, ports: PortInfo[]): boolean {
+  if (!stepName) return false;
+  
+  const normalizedName = stepName.toUpperCase().trim();
+  
+  // Check if name matches port pattern (MI1, MO2, EEI1, etc.)
+  const portPattern = /^(MI|MO|EEI|EEO|TEI|TEO|MEI|MEO|IOI|IOO|II|IO)\d+$/;
+  const matches = normalizedName.match(portPattern);
+  
+  // If name is just a port identifier and has exactly 2 ports, it's navigational
+  if (matches && ports.length === 2) {
+    return true;
+  }
+  
+  return false;
 }
 
 /**
@@ -285,14 +342,39 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
         
         const attributes = extractAllAttributes(stepObj);
         
+        // Determine node type based on element type and characteristics
+        let nodeType: 'ProcessStep' | 'Source' | 'Sink' | 'InstrumentationActivity' = 'ProcessStep';
+        const normalizedType = type.toLowerCase();
+        
+        if (normalizedType.includes('source')) {
+          nodeType = 'Source';
+        } else if (normalizedType.includes('sink')) {
+          nodeType = 'Sink';
+        } else if (normalizedType.includes('instrument')) {
+          nodeType = 'InstrumentationActivity';
+        }
+        
+        // Check if this is a navigational event
+        const allPorts: PortInfo[] = [];
+        if (portsContainer) {
+          const portObjects = portsContainer.querySelectorAll(':scope > Object');
+          for (const portObj of Array.from(portObjects)) {
+            const portId = portObj.getAttribute('id') || '';
+            allPorts.push(ports.get(portId)!);
+          }
+        }
+        const isNavigational = isNavigationalEvent(label, allPorts.filter(p => p));
+        
         processSteps.push({
           id,
           identifier,
           label,
           type: type.replace('Process/Process.', '').replace('Process/', ''),
+          nodeType,
           parent: parentId,
           hierarchyLevel: level,
           isSubProcess: hasSubSteps || false,
+          isNavigational,
           inputPorts,
           outputPorts,
           attributes
@@ -329,7 +411,8 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
       
       if (!sourcePortInfo || !targetPortInfo) continue;
       
-      const flowType = determineFlowType(sourcePortInfo.type, sourcePortInfo.label);
+      // Use the new flow type determination based on port labels
+      const flowType = determineFlowType(sourcePortInfo.label);
       
       let materialStateRef: string | undefined;
       const matStateRefEl = streamObj.querySelector('References[property="MaterialStateReference"] ObjectReference');
@@ -346,6 +429,8 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
         flowType,
         sourcePortId,
         targetPortId,
+        sourceStepId: sourcePortInfo.ownerStepId,
+        targetStepId: targetPortInfo.ownerStepId,
         attributes,
         materialStateRef
       });
@@ -535,28 +620,32 @@ CREATE (ms)-[:HAS_TYPE]->(mst)`);
   }
   
   // Create Process Steps with ports as properties
+  // Use proper node types: ProcessStep, Source, Sink, InstrumentationActivity
   for (const step of data.processSteps) {
     const props = buildPropsString({
       id: step.id, identifier: step.identifier, label: step.label, type: step.type,
       hierarchyLevel: step.hierarchyLevel, isSubProcess: step.isSubProcess,
+      isNavigational: step.isNavigational,
       inputPorts: step.inputPorts, outputPorts: step.outputPorts,
       ...step.attributes
     });
     const typeLabel = escapeLabel(step.type);
-    queries.push(`CREATE (:ProcessStep:${typeLabel} {${props}})`);
+    const nodeTypeLabel = step.nodeType;
+    queries.push(`CREATE (:${nodeTypeLabel}:${typeLabel} {${props}})`);
   }
   
   // Create CONTAINS relationships for subprocess hierarchy
   for (const step of data.processSteps) {
     if (step.parent) {
       queries.push(`
-MATCH (parent:ProcessStep {id: '${escapeString(step.parent)}'})
-MATCH (child:ProcessStep {id: '${escapeString(step.id)}'})
+MATCH (parent {id: '${escapeString(step.parent)}'})
+MATCH (child {id: '${escapeString(step.id)}'})
 CREATE (parent)-[:CONTAINS]->(child)`);
     }
   }
   
-  // Create Flow relationships (MaterialFlow, EnergyFlow, InformationFlow)
+  // Create Flow relationships (MaterialStream, ElectricalEnergyFlow, etc.)
+  // Filter out navigational events for standard flow relationships
   // and SubProcessEntry/SubProcessExit relationships
   for (const stream of data.streams) {
     const sourcePort = data.ports.get(stream.sourcePortId);
@@ -567,6 +656,12 @@ CREATE (parent)-[:CONTAINS]->(child)`);
     const sourceStepId = sourcePort.ownerStepId;
     const targetStepId = targetPort.ownerStepId;
     
+    // Get source and target steps
+    const sourceStep = data.processSteps.find(s => s.id === sourceStepId);
+    const targetStep = data.processSteps.find(s => s.id === targetStepId);
+    
+    if (!sourceStep || !targetStep) continue;
+    
     const relProps = buildPropsString({
       id: stream.id, identifier: stream.identifier, label: stream.label,
       sourcePort: sourcePort.label, targetPort: targetPort.label,
@@ -576,11 +671,14 @@ CREATE (parent)-[:CONTAINS]->(child)`);
     
     const flowLabel = escapeLabel(stream.flowType);
     
-    // Create the main flow relationship between tasks
-    queries.push(`
-MATCH (source:ProcessStep {id: '${escapeString(sourceStepId)}'})
-MATCH (target:ProcessStep {id: '${escapeString(targetStepId)}'})
+    // Create the main flow relationship between steps
+    // Skip navigational events for standard flows (but keep for subprocess analysis)
+    if (!sourceStep.isNavigational && !targetStep.isNavigational) {
+      queries.push(`
+MATCH (source {id: '${escapeString(sourceStepId)}'})
+MATCH (target {id: '${escapeString(targetStepId)}'})
 CREATE (source)-[:${flowLabel} {${relProps}}]->(target)`);
+    }
     
     // Check for SubProcessEntry: if source port has SubReference, the flow enters a subprocess
     // The parent port points to the child port - create entry from parent subprocess to first internal task
@@ -589,8 +687,8 @@ CREATE (source)-[:${flowLabel} {${relProps}}]->(target)`);
       if (childPort) {
         // Parent subprocess (owner of source port) -> Child task (owner of child port)
         queries.push(`
-MATCH (parent:ProcessStep {id: '${escapeString(sourceStepId)}'})
-MATCH (child:ProcessStep {id: '${escapeString(childPort.ownerStepId)}'})
+MATCH (parent {id: '${escapeString(sourceStepId)}'})
+MATCH (child {id: '${escapeString(childPort.ownerStepId)}'})
 MERGE (parent)-[:SUB_PROCESS_ENTRY {flowType: '${stream.flowType}', port: '${escapeString(sourcePort.label)}'}]->(child)`);
       }
     }
@@ -601,8 +699,8 @@ MERGE (parent)-[:SUB_PROCESS_ENTRY {flowType: '${stream.flowType}', port: '${esc
       if (childPort) {
         // Child task (owner of child port) -> Parent subprocess (owner of target port)
         queries.push(`
-MATCH (child:ProcessStep {id: '${escapeString(childPort.ownerStepId)}'})
-MATCH (parent:ProcessStep {id: '${escapeString(targetStepId)}'})
+MATCH (child {id: '${escapeString(childPort.ownerStepId)}'})
+MATCH (parent {id: '${escapeString(targetStepId)}'})
 MERGE (child)-[:SUB_PROCESS_EXIT {flowType: '${stream.flowType}', port: '${escapeString(targetPort.label)}'}]->(parent)`);
       }
     }
@@ -612,8 +710,8 @@ MERGE (child)-[:SUB_PROCESS_EXIT {flowType: '${stream.flowType}', port: '${escap
       const parentPort = data.ports.get(sourcePort.superReference);
       if (parentPort) {
         queries.push(`
-MATCH (parent:ProcessStep {id: '${escapeString(parentPort.ownerStepId)}'})
-MATCH (child:ProcessStep {id: '${escapeString(sourceStepId)}'})
+MATCH (parent {id: '${escapeString(parentPort.ownerStepId)}'})
+MATCH (child {id: '${escapeString(sourceStepId)}'})
 MERGE (parent)-[:SUB_PROCESS_ENTRY {flowType: '${stream.flowType}', port: '${escapeString(parentPort.label)}'}]->(child)`);
       }
     }
@@ -622,8 +720,8 @@ MERGE (parent)-[:SUB_PROCESS_ENTRY {flowType: '${stream.flowType}', port: '${esc
       const parentPort = data.ports.get(targetPort.superReference);
       if (parentPort) {
         queries.push(`
-MATCH (child:ProcessStep {id: '${escapeString(targetStepId)}'})
-MATCH (parent:ProcessStep {id: '${escapeString(parentPort.ownerStepId)}'})
+MATCH (child {id: '${escapeString(targetStepId)}'})
+MATCH (parent {id: '${escapeString(parentPort.ownerStepId)}'})
 MERGE (child)-[:SUB_PROCESS_EXIT {flowType: '${stream.flowType}', port: '${escapeString(parentPort.label)}'}]->(parent)`);
       }
     }
