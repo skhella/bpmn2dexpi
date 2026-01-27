@@ -390,12 +390,18 @@ export class BpmnToDexpiTransformer {
       ports: dexpiData?.ports || []
     };
 
+    // Make port IDs unique by prefixing with element ID (same as ProcessSteps)
+    source.ports = source.ports.map((port: DexpiPort) => ({
+      ...port,
+      portId: `${id}_${port.portId}`
+    }));
+
     this.processSteps.set(id, source);
     
     source.ports.forEach((port: DexpiPort) => {
       this.ports.set(port.portId, {
         ...port,
-        parentId: id
+        stepId: id
       });
     });
   }
@@ -415,12 +421,18 @@ export class BpmnToDexpiTransformer {
       ports: dexpiData?.ports || []
     };
 
+    // Make port IDs unique by prefixing with element ID (same as ProcessSteps)
+    sink.ports = sink.ports.map((port: DexpiPort) => ({
+      ...port,
+      portId: `${id}_${port.portId}`
+    }));
+
     this.processSteps.set(id, sink);
     
     sink.ports.forEach((port: DexpiPort) => {
       this.ports.set(port.portId, {
         ...port,
-        parentId: id
+        stepId: id
       });
     });
   }
@@ -1810,10 +1822,26 @@ export class BpmnToDexpiTransformer {
     const element = this.processSteps.get(elementRef);
     if (!element) return null;
 
-    // If specific port is referenced, use it
+    // If specific port is referenced, find it
     if (portRef) {
-      const port = this.ports.get(portRef);
-      return port ? portRef : null;
+      // Port IDs are now prefixed with elementRef, so try both formats
+      const prefixedPortRef = `${elementRef}_${portRef}`;
+      
+      // First try the prefixed version (new format)
+      if (this.ports.has(prefixedPortRef)) {
+        return prefixedPortRef;
+      }
+      
+      // Then try the original portRef (in case it's already prefixed)
+      if (this.ports.has(portRef)) {
+        return portRef;
+      }
+      
+      // Finally, try to find a port on this element that matches the portRef name
+      const matchingPort = element.ports.find((p: DexpiPort) => 
+        p.name === portRef || p.portId === portRef || p.portId.endsWith(`_${portRef}`)
+      );
+      return matchingPort ? matchingPort.portId : null;
     }
 
     // Otherwise, find first port with matching direction

@@ -215,11 +215,10 @@ function App() {
   useEffect(() => {
     if (!containerRef.current) return;
 
+    let isDestroyed = false;
+
     const bpmnModeler = new BpmnModeler({
       container: containerRef.current,
-      keyboard: {
-        bindTo: document
-      },
       moddleExtensions: {
         dexpi: dexpiDescriptor
       },
@@ -228,20 +227,13 @@ function App() {
       ]
     });
 
-    bpmnModeler.importXML(initialDiagram).then(() => {
-      const canvas = bpmnModeler.get('canvas');
-      canvas.zoom('fit-viewport');
-    }).catch((err: any) => {
-      console.error('Failed to import BPMN:', err);
-    });
-
     const eventBus = bpmnModeler.get('eventBus');
-    const canvas = bpmnModeler.get('canvas');
     
     // Track current root to detect navigation
-    let currentRootElement = canvas.getRootElement();
+    let currentRootElement: any = null;
     
     eventBus.on('selection.changed', (e: any) => {
+      if (isDestroyed) return;
       const element = e.newSelection[0];
       setSelectedElement(element || null);
       
@@ -263,6 +255,7 @@ function App() {
 
     // Track ALL plane changes - fires when clicking marker or navigating
     eventBus.on('root.set', (e: any) => {
+      if (isDestroyed) return;
       const newRoot = e.element;
       
       // Skip tracking if we're navigating back (to prevent adding to stack)
@@ -294,9 +287,27 @@ function App() {
       }
     });
 
-    setModeler(bpmnModeler);
+    // Import the initial diagram, then set up canvas-dependent code
+    bpmnModeler.importXML(initialDiagram).then(() => {
+      if (isDestroyed) return;
+      
+      const canvas = bpmnModeler.get('canvas');
+      canvas.zoom('fit-viewport');
+      
+      // Initialize currentRootElement after import is complete
+      currentRootElement = canvas.getRootElement();
+      
+      // Now set the modeler state - the app is ready
+      setModeler(bpmnModeler);
+    }).catch((err: any) => {
+      if (isDestroyed) return;
+      console.error('Failed to import BPMN:', err);
+      // Still set modeler even on error so the app doesn't freeze
+      setModeler(bpmnModeler);
+    });
 
     return () => {
+      isDestroyed = true;
       bpmnModeler.destroy();
     };
   }, []);
