@@ -26,10 +26,13 @@ export default class PortBehavior extends CommandInterceptor {
       this.handleConnectionWaypointChange(event);
     });
 
-    // Setup port drag behavior after a delay to ensure canvas is ready
-    setTimeout(() => {
-      this.setupPortDragBehavior();
-    }, 100);
+    // Setup port drag behavior after diagram is imported
+    eventBus.on('import.done', () => {
+      // Delay to ensure canvas is fully initialized
+      setTimeout(() => {
+        this.setupPortDragBehavior();
+      }, 100);
+    });
   }
 
   private handleConnectionWaypointChange(event: any): void {
@@ -130,14 +133,27 @@ export default class PortBehavior extends CommandInterceptor {
     }
   }
 
+  private portDragBehaviorSetup = false;
+
   private setupPortDragBehavior(): void {
+    // Prevent duplicate setup
+    if (this.portDragBehaviorSetup) return;
+
     let draggedPort: { element: any; port: any; initialX: number; initialY: number } | null = null;
+
+    // Guard against canvas not being ready - this is expected during initial load
+    if (!this.canvas || typeof this.canvas.get !== 'function') {
+      // Silently skip - will be called again after import
+      return;
+    }
 
     const svg = this.canvas.get('svg');
     if (!svg) {
-      console.warn('Canvas SVG not ready for port drag behavior');
+      // Silently skip - will be called again after import
       return;
     }
+
+    this.portDragBehaviorSetup = true;
 
     // Listen for mouse down on port
     svg.addEventListener('mousedown', (e: MouseEvent) => {

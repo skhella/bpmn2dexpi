@@ -7,7 +7,10 @@ import dexpiDescriptor from './dexpi/moddle/dexpi.json';
 import { DexpiPropertiesPanel, StreamPropertiesPanel } from './components/DexpiPropertiesPanel';
 import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
+import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { transformer } from './transformer/BpmnToDexpiTransformer';
+import { exportToNeo4j } from './utils/neo4jExporter';
+import type { Neo4jConfig } from './utils/neo4jExporter';
 import './App.css';
 
 const initialDiagram = '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -36,6 +39,9 @@ function App() {
   const [showMaterialLibrary, setShowMaterialLibrary] = useState<boolean>(false);
   const [materialLibraryTab, setMaterialLibraryTab] = useState<'templates' | 'components' | 'states'>('templates');
   const [selectedMaterialItem, setSelectedMaterialItem] = useState<{type: 'template' | 'component' | 'state', data: any} | null>(null);
+  const [showNeo4jModal, setShowNeo4jModal] = useState(false);
+  const [neo4jExporting, setNeo4jExporting] = useState(false);
+  const [neo4jProgress, setNeo4jProgress] = useState<{ current: number; total: number; stage: string } | null>(null);
   const isNavigatingBack = useRef(false);
   
   // Update global flag for port visibility
@@ -215,11 +221,10 @@ function App() {
   useEffect(() => {
     if (!containerRef.current) return;
 
+    let isDestroyed = false;
+
     const bpmnModeler = new BpmnModeler({
       container: containerRef.current,
-      keyboard: {
-        bindTo: document
-      },
       moddleExtensions: {
         dexpi: dexpiDescriptor
       },
@@ -228,20 +233,13 @@ function App() {
       ]
     });
 
-    bpmnModeler.importXML(initialDiagram).then(() => {
-      const canvas = bpmnModeler.get('canvas');
-      canvas.zoom('fit-viewport');
-    }).catch((err: any) => {
-      console.error('Failed to import BPMN:', err);
-    });
-
     const eventBus = bpmnModeler.get('eventBus');
-    const canvas = bpmnModeler.get('canvas');
     
     // Track current root to detect navigation
-    let currentRootElement = canvas.getRootElement();
+    let currentRootElement: any = null;
     
     eventBus.on('selection.changed', (e: any) => {
+      if (isDestroyed) return;
       const element = e.newSelection[0];
       setSelectedElement(element || null);
       
@@ -263,6 +261,7 @@ function App() {
 
     // Track ALL plane changes - fires when clicking marker or navigating
     eventBus.on('root.set', (e: any) => {
+      if (isDestroyed) return;
       const newRoot = e.element;
       
       // Skip tracking if we're navigating back (to prevent adding to stack)
@@ -294,9 +293,27 @@ function App() {
       }
     });
 
-    setModeler(bpmnModeler);
+    // Import the initial diagram, then set up canvas-dependent code
+    bpmnModeler.importXML(initialDiagram).then(() => {
+      if (isDestroyed) return;
+      
+      const canvas = bpmnModeler.get('canvas');
+      canvas.zoom('fit-viewport');
+      
+      // Initialize currentRootElement after import is complete
+      currentRootElement = canvas.getRootElement();
+      
+      // Now set the modeler state - the app is ready
+      setModeler(bpmnModeler);
+    }).catch((err: any) => {
+      if (isDestroyed) return;
+      console.error('Failed to import BPMN:', err);
+      // Still set modeler even on error so the app doesn't freeze
+      setModeler(bpmnModeler);
+    });
 
     return () => {
+      isDestroyed = true;
       bpmnModeler.destroy();
     };
   }, []);
@@ -384,6 +401,49 @@ function App() {
     }
   };
 
+  const handleExportNeo4j = async (config: Neo4jConfig, options: { clearDatabase: boolean }) => {
+    if (!modeler) return;
+
+    setNeo4jExporting(true);
+    setNeo4jProgress({ current: 0, total: 100, stage: 'Starting...' });
+
+    try {
+      // Generate BPMN XML then transform to DEXPI
+      const result = await modeler.saveXML({ format: true });
+      const bpmnXml = result.xml;
+      
+      if (!bpmnXml) {
+        setValidationMessage('No BPMN XML to export');
+        setNeo4jExporting(false);
+        return;
+      }
+
+      // Transform to DEXPI XML
+      const dexpiXml = await transformer.transform(bpmnXml);
+      
+      // Export to Neo4j
+      const exportResult = await exportToNeo4j(dexpiXml, config, {
+        clearDatabase: options.clearDatabase,
+        onProgress: (current, total, stage) => {
+          setNeo4jProgress({ current, total, stage });
+        }
+      });
+
+      if (exportResult.success) {
+        setValidationMessage(`✅ ${exportResult.message}`);
+        setShowNeo4jModal(false);
+      } else {
+        setValidationMessage(`❌ ${exportResult.message}`);
+      }
+    } catch (err) {
+      console.error('Neo4j export failed:', err);
+      setValidationMessage('Neo4j export failed: ' + (err as Error).message);
+    } finally {
+      setNeo4jExporting(false);
+      setNeo4jProgress(null);
+    }
+  };
+
   const handleImportBpmn = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -436,6 +496,9 @@ function App() {
           <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
           <button onClick={handleExportBpmn} className="btn">Export BPMN</button>
           <button onClick={handleExportSvg} className="btn">Export SVG</button>
+          <button onClick={() => setShowNeo4jModal(true)} className="btn btn-neo4j" title="Export to Neo4j Graph Database">
+            🔗 Neo4j
+          </button>
           <button onClick={handleExportDexpi} className="btn btn-primary">Export DEXPI XML</button>
         </div>
       </header>
@@ -494,6 +557,14 @@ function App() {
           <button onClick={() => setValidationMessage('')} className="btn-close">×</button>
         </div>
       )}
+      
+      <Neo4jExportModal
+        isOpen={showNeo4jModal}
+        onClose={() => setShowNeo4jModal(false)}
+        onExport={handleExportNeo4j}
+        isExporting={neo4jExporting}
+        progress={neo4jProgress}
+      />
     </div>
   );
 }
