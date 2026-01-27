@@ -54,6 +54,14 @@ See [CLI_USAGE.md](./CLI_USAGE.md) for more examples.
 
 Implements the BPMN-DEXPI mapping from **"Mapping DEXPI to BPMN"** by Khella et al.
 
+**Mapping:**
+- ProcessStep → BPMN Task
+- Source → BPMN Start Event  
+- Sink → BPMN End Event
+- MaterialFlow/EnergyFlow → BPMN Sequence Flow
+- InformationFlow → BPMN Association
+- Ports → BPMN extensionElements
+
 ## Technology
 
 Built with React, TypeScript, and bpmn.io. Targets [DEXPI 2.0 specification](https://dexpi.gitlab.io/-/Specification).
