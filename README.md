@@ -68,4 +68,18 @@ Built with React, TypeScript, and bpmn.io. Targets [DEXPI 2.0 specification](htt
 
 ## License
 
-MIT License. DEXPI specification: CC BY 4.0.
+This project is released under the MIT License.
+
+### Third-Party Licenses
+
+**bpmn-js** (https://bpmn.io/license/)  
+This tool uses bpmn-js, which is dual-licensed:
+- Free for non-commercial and evaluation purposes
+- Requires a commercial license for production use in commercial projects
+
+If you plan to use this tool in a commercial setting, please review bpmn-js licensing at https://bpmn.io/license/ and obtain appropriate licenses.
+
+**DEXPI Specification**  
+The DEXPI specification is licensed under Creative Commons Attribution 4.0 International License (CC BY 4.0).
+
+See [LICENSE](./LICENSE) for the MIT License terms of this project.
