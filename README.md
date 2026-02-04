@@ -2,8 +2,6 @@
 
 A web-based tool for creating DEXPI-compliant process flow diagrams. Model chemical processes visually and export to DEXPI XML format for interoperability with engineering tools.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-
 ## Features
 
 - **Visual Modeling**: Drag-and-drop interface for process diagrams
