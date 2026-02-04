@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python cache
+.mypy_cache/
+__pycache__/
+*.pyc
+
+# Test outputs
+test-output.xml
