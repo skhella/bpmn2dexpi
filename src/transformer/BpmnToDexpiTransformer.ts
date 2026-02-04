@@ -1315,7 +1315,7 @@ export class BpmnToDexpiTransformer {
       const targetPort = this.findPortForConnection(stream.targetRef, stream.targetPortRef, 'Inlet');
 
       if (!sourcePort || !targetPort) {
-        console.warn(`Cannot create stream ${stream.id}: missing port references`);
+        // Skip streams without proper port references (e.g., connections to gateways)
         return;
       }
 

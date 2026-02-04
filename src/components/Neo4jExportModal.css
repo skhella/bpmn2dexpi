@@ -1,0 +1,227 @@
+.neo4j-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.neo4j-modal {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 550px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.neo4j-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.neo4j-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.neo4j-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  line-height: 1;
+}
+
+.neo4j-modal-close:hover {
+  color: #333;
+}
+
+.neo4j-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.neo4j-form-group {
+  margin-bottom: 16px;
+}
+
+.neo4j-form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.neo4j-form-group input[type="text"],
+.neo4j-form-group input[type="password"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.neo4j-form-group input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+.neo4j-form-group input:disabled {
+  background: #f5f5f5;
+  color: #999;
+}
+
+.neo4j-help-text {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #888;
+}
+
+.neo4j-form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.neo4j-form-row .neo4j-form-group {
+  flex: 1;
+}
+
+.neo4j-options {
+  margin: 20px 0;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.neo4j-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.neo4j-checkbox:last-child {
+  margin-bottom: 0;
+}
+
+.neo4j-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.neo4j-progress {
+  margin: 16px 0;
+}
+
+.neo4j-progress-bar {
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.neo4j-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0066cc, #00aaff);
+  transition: width 0.3s ease;
+}
+
+.neo4j-progress-text {
+  font-size: 13px;
+  color: #666;
+}
+
+.neo4j-info {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f0f7ff;
+  border-radius: 4px;
+  border-left: 3px solid #0066cc;
+}
+
+.neo4j-info h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.neo4j-info ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #555;
+}
+
+.neo4j-info li {
+  margin-bottom: 4px;
+}
+
+.neo4j-info strong {
+  color: #0066cc;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.neo4j-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.neo4j-modal-footer .btn {
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background: white;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.neo4j-modal-footer .btn:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.neo4j-modal-footer .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.neo4j-modal-footer .btn-primary {
+  background: #0066cc;
+  color: white;
+  border-color: #0066cc;
+}
+
+.neo4j-modal-footer .btn-primary:hover:not(:disabled) {
+  background: #0055aa;
+}

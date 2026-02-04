@@ -66,6 +66,15 @@
   background-color: #c0392b;
 }
 
+.btn-neo4j {
+  background-color: #018bff;
+  font-weight: 500;
+}
+
+.btn-neo4j:hover {
+  background-color: #006fcc;
+}
+
 .app-content {
   display: flex;
   flex: 1;
