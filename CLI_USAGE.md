@@ -22,10 +22,10 @@ npm run transform <input.bpmn> [output.xml]
 **Examples:**
 ```bash
 # Save to file
-npm run transform sample-tennessee.bpmn output.xml
+npm run transform "examples/Tennessee_Eastman_Process.bpmn" output.xml
 
 # Print to console
-npm run transform sample-tennessee.bpmn
+npm run transform "examples/Tennessee_Eastman_Process.bpmn"
 ```
 
 #### Option 2: Direct node execution

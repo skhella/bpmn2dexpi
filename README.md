@@ -122,5 +122,3 @@ Licensed under the bpmn.io License (modified MIT). Free to use, including commer
 
 **DEXPI Specification**  
 Licensed under Creative Commons Attribution 4.0 International License (CC BY 4.0).
-
-See [LICENSE](./LICENSE) for the MIT License terms of this project.
