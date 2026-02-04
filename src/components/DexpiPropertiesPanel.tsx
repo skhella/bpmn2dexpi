@@ -517,18 +517,6 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
 
       <div className="property-group">
         <label>
-          Identifier:
-          <input 
-            type="text" 
-            value={identifier} 
-            onChange={handleIdentifierChange}
-            placeholder="Enter identifier..."
-          />
-        </label>
-      </div>
-
-      <div className="property-group">
-        <label>
           UID:
           <input 
             type="text" 
@@ -1316,22 +1304,12 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
 
       <div className="property-group">
         <label>
-          Identifier:
+          UID:
           <input 
             type="text" 
-            value={streamData.identifier || ''} 
-            onChange={(e) => updateStream({ identifier: e.target.value })}
-          />
-        </label>
-      </div>
-
-      <div className="property-group">
-        <label>
-          DEXPI Name:
-          <input 
-            type="text" 
-            value={streamData.name || ''} 
-            onChange={(e) => updateStream({ name: e.target.value })}
+            value={element.businessObject.id || ''} 
+            readOnly
+            style={{ backgroundColor: '#f5f5f5', color: '#666' }}
           />
         </label>
       </div>

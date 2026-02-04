@@ -20,6 +20,14 @@ export default class AutoTypeBehavior extends CommandInterceptor {
       
       this.autoSetDexpiType(shape);
     });
+
+    // Listen to connection creation for auto-setting stream type
+    this.postExecuted('connection.create', (event: any) => {
+      const context = event.context;
+      const connection = context.connection;
+      
+      this.autoSetStreamType(connection);
+    });
   }
 
   private autoSetDexpiType(element: any): void {
@@ -74,5 +82,42 @@ export default class AutoTypeBehavior extends CommandInterceptor {
     }
 
     extensionElements.values.push(dexpiElement);
+  }
+
+  private autoSetStreamType(connection: any): void {
+    if (connection.type !== 'bpmn:SequenceFlow') {
+      return;
+    }
+
+    const businessObject = connection.businessObject;
+
+    // Check if it already has extension elements with stream data
+    let extensionElements = businessObject.extensionElements;
+    if (!extensionElements) {
+      extensionElements = this.moddle.create('bpmn:ExtensionElements');
+      businessObject.extensionElements = extensionElements;
+    }
+
+    if (!extensionElements.values) {
+      extensionElements.values = [];
+    }
+
+    // Check if Stream already exists
+    const existingStream = extensionElements.values.find(
+      (e: any) => e.$type === 'Stream' || e.$type?.includes('Stream')
+    );
+
+    if (existingStream) {
+      // Already has stream data, don't override
+      return;
+    }
+
+    // Create new Stream with MaterialFlow as default type
+    const stream = this.moddle.create('Stream');
+    stream.streamType = 'MaterialFlow';
+    stream.uid = businessObject.id; // Use BPMN ID as UID
+    stream.identifier = businessObject.id;
+
+    extensionElements.values.push(stream);
   }
 }
