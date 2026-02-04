@@ -7,7 +7,10 @@ import dexpiDescriptor from './dexpi/moddle/dexpi.json';
 import { DexpiPropertiesPanel, StreamPropertiesPanel } from './components/DexpiPropertiesPanel';
 import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
+import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { transformer } from './transformer/BpmnToDexpiTransformer';
+import { exportToNeo4j } from './utils/neo4jExporter';
+import type { Neo4jConfig } from './utils/neo4jExporter';
 import './App.css';
 
 const initialDiagram = '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -36,6 +39,9 @@ function App() {
   const [showMaterialLibrary, setShowMaterialLibrary] = useState<boolean>(false);
   const [materialLibraryTab, setMaterialLibraryTab] = useState<'templates' | 'components' | 'states'>('templates');
   const [selectedMaterialItem, setSelectedMaterialItem] = useState<{type: 'template' | 'component' | 'state', data: any} | null>(null);
+  const [showNeo4jModal, setShowNeo4jModal] = useState(false);
+  const [neo4jExporting, setNeo4jExporting] = useState(false);
+  const [neo4jProgress, setNeo4jProgress] = useState<{ current: number; total: number; stage: string } | null>(null);
   const isNavigatingBack = useRef(false);
   
   // Update global flag for port visibility
@@ -457,6 +463,49 @@ function App() {
     }
   };
 
+  const handleExportNeo4j = async (config: Neo4jConfig, options: { clearDatabase: boolean }) => {
+    if (!modeler) return;
+
+    setNeo4jExporting(true);
+    setNeo4jProgress({ current: 0, total: 100, stage: 'Starting...' });
+
+    try {
+      // Generate BPMN XML then transform to DEXPI
+      const result = await modeler.saveXML({ format: true });
+      const bpmnXml = result.xml;
+      
+      if (!bpmnXml) {
+        setValidationMessage('No BPMN XML to export');
+        setNeo4jExporting(false);
+        return;
+      }
+
+      // Transform to DEXPI XML
+      const dexpiXml = await transformer.transform(bpmnXml);
+      
+      // Export to Neo4j
+      const exportResult = await exportToNeo4j(dexpiXml, config, {
+        clearDatabase: options.clearDatabase,
+        onProgress: (current, total, stage) => {
+          setNeo4jProgress({ current, total, stage });
+        }
+      });
+
+      if (exportResult.success) {
+        setValidationMessage(`✅ ${exportResult.message}`);
+        setShowNeo4jModal(false);
+      } else {
+        setValidationMessage(`❌ ${exportResult.message}`);
+      }
+    } catch (err) {
+      console.error('Neo4j export failed:', err);
+      setValidationMessage('Neo4j export failed: ' + (err as Error).message);
+    } finally {
+      setNeo4jExporting(false);
+      setNeo4jProgress(null);
+    }
+  };
+
   const handleImportBpmn = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -509,6 +558,9 @@ function App() {
           <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
           <button onClick={handleExportBpmn} className="btn">Export BPMN</button>
           <button onClick={handleExportSvg} className="btn">Export SVG</button>
+          <button onClick={() => setShowNeo4jModal(true)} className="btn btn-neo4j" title="Export to Neo4j Graph Database">
+            🔗 Neo4j
+          </button>
           <button onClick={handleExportDexpi} className="btn btn-primary">Export DEXPI XML</button>
         </div>
       </header>
@@ -567,6 +619,14 @@ function App() {
           <button onClick={() => setValidationMessage('')} className="btn-close">×</button>
         </div>
       )}
+      
+      <Neo4jExportModal
+        isOpen={showNeo4jModal}
+        onClose={() => setShowNeo4jModal(false)}
+        onExport={handleExportNeo4j}
+        isExporting={neo4jExporting}
+        progress={neo4jProgress}
+      />
     </div>
   );
 }
