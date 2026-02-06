@@ -121,6 +121,16 @@
           "name": "anchorY",
           "isAttr": true,
           "type": "Number"
+        },
+        {
+          "name": "subReference",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "superReference",
+          "isAttr": true,
+          "type": "String"
         }
       ]
     },
