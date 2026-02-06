@@ -675,6 +675,12 @@ export default class DexpiRenderer extends BaseRenderer {
           'stroke-width': '2'
         });
       }
+
+      // Ensure text is rendered on top by moving it to the end
+      const textElement = shape.querySelector('text');
+      if (textElement && textElement.parentNode) {
+        textElement.parentNode.appendChild(textElement);
+      }
     }
   }
 }
