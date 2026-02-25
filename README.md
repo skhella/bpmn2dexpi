@@ -1,4 +1,4 @@
-# DEXPI Process Tool
+# DEXPI Process Modeling Tool
 
 A web-based tool for creating DEXPI-compliant block flow and process flow diagrams. Model chemical processes visually and export to DEXPI XML format for interoperability with engineering tools.
 
