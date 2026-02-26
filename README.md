@@ -1,5 +1,4 @@
-# DEXPI Process Tool
-
+# bpmn2dexpi
 A web-based tool for creating DEXPI-compliant block flow and process flow diagrams. Model chemical processes visually and export to DEXPI XML format for interoperability with engineering tools.
 
 ## Features
