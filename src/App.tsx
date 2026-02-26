@@ -420,7 +420,7 @@ function App() {
       const dexpiXml = await transformer.transform(bpmnXml, {
         projectName: 'DEXPI Process Model',
         projectDescription: 'Generated from BPMN.io',
-        author: 'DEXPI Process Tool'
+        author: 'bpmn2dexpi'
       });
       
       
@@ -534,7 +534,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>DEXPI Process Tool</h1>
+        <h1>bpmn2dexpi</h1>
         <div className="toolbar">
           {planeStack.length > 0 && (
             <button onClick={navigateToParent} className="btn btn-nav" title="Back to parent">

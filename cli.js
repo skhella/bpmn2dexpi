@@ -21,7 +21,7 @@ const args = process.argv.slice(2);
 
 if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
   console.log(`
-DEXPI Process Tool - BPMN to DEXPI XML Transformer
+bpmn2dexpi - BPMN to DEXPI XML Transformer
 
 Usage:
   node cli.js <input.bpmn> [output.xml]

@@ -1,5 +1,5 @@
 {
-  "name": "dexpi-process-tool",
+  "name": "bpmn2dexpi",
   "private": true,
   "version": "0.0.0",
   "type": "module",
