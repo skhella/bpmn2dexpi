@@ -40,6 +40,7 @@ npm run transform input.bpmn output.xml
 4. Add materials and compositions in the Material Library
 5. Configure ports and streams in the properties panel
 6. Export to DEXPI XML or Neo4j
+![Web Interface Screenshot](./examples/Web-Interface-Screenshot.png)
 
 ### Command Line
 
@@ -121,3 +122,5 @@ Licensed under the bpmn.io License (modified MIT). Free to use, including commer
 
 **DEXPI Specification**  
 Licensed under Creative Commons Attribution 4.0 International License (CC BY 4.0).
+
+
