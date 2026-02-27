@@ -41,8 +41,6 @@ npm run transform input.bpmn output.xml
 5. Configure ports and streams in the properties panel
 6. Export to DEXPI XML or Neo4j
 
-![DEXPI Process Modeling Tool Web Interface](docs/web-interface-screenshot.png)
-
 ### Command Line
 
 ```bash
