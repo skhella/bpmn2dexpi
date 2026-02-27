@@ -534,7 +534,10 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>DEXPI Process Tool</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <h1 style={{ marginBottom: 0 }}>bpmn2dexpi</h1>
+          <span style={{ fontSize: '0.9rem', fontWeight: 'normal', marginTop: 0 }}>DEXPI Process Modeling Tool</span>
+        </div>
         <div className="toolbar">
           {planeStack.length > 0 && (
             <button onClick={navigateToParent} className="btn btn-nav" title="Back to parent">
