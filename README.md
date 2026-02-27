@@ -73,8 +73,6 @@ The tool can export process diagrams directly to a Neo4j graph database:
 3. Choose whether to clear existing data
 4. Click Export
 
-Note: the app can remember URI/username/database locally. Neo4j passwords are kept only for the current browser tab session and are not persisted long-term.
-
 **Exported graph structure:**
 - `ProcessStep` nodes with port properties
 - `Source` and `Sink` nodes for process boundaries
