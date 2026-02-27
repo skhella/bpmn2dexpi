@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Example: Using DEXPI Process Tool from Python
+Example: Using bpmn2dexpi from Python
 
 This script demonstrates how to convert BPMN files to DEXPI XML
 using the Node.js CLI tool from Python.

@@ -1,13 +1,13 @@
-# DEXPI Process Tool - CLI Usage
+# bpmn2dexpi - CLI Usage
 
 ## Command Line Interface
 
-The DEXPI Process Tool includes a CLI for converting BPMN files to DEXPI XML without using the web interface.
+The bpmn2dexpi project includes a CLI for converting BPMN files to DEXPI XML without using the web interface.
 
 ### Installation
 
 ```bash
-cd dexpi-process-tool
+cd bpmn2dexpi
 npm install
 ```
 
@@ -54,7 +54,7 @@ import subprocess
 
 # Method 1: Using the helper script
 import sys
-sys.path.append('path/to/dexpi-process-tool')
+sys.path.append('path/to/bpmn2dexpi')
 from transform import bpmn_to_dexpi
 
 # Convert and save to file
@@ -88,7 +88,7 @@ def convert_bpmn_to_dexpi(bpmn_path: str, output_path: str = None) -> str:
     
     result = subprocess.run(
         cmd,
-        cwd='path/to/dexpi-process-tool',
+        cwd='path/to/bpmn2dexpi',
         capture_output=True,
         text=True,
         check=True

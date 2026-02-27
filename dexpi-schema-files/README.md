@@ -16,7 +16,7 @@ These schema files are part of the DEXPI specification, licensed under the **Cre
 
 ## Usage
 
-The DEXPI Process Tool exports reference these schemas. The exported DEXPI XML files import them via:
+The bpmn2dexpi exports reference these schemas. The exported DEXPI XML files import them via:
 
 ```xml
 <Import uid="..." Alias="Core" Namespace="http://sandbox.dexpi.org/rdl/Core"/>

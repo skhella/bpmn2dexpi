@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Neo4jConfig } from '../utils/neo4jExporter';
 import './Neo4jExportModal.css';
 
@@ -17,14 +17,29 @@ export const Neo4jExportModal: React.FC<Neo4jExportModalProps> = ({
   isExporting,
   progress
 }) => {
+  const SESSION_PASSWORD_KEY = 'neo4j_password_session';
+
   const [config, setConfig] = useState<Neo4jConfig>({
     uri: localStorage.getItem('neo4j_uri') || 'bolt://localhost:7687',
     user: localStorage.getItem('neo4j_user') || 'neo4j',
-    password: localStorage.getItem('neo4j_password') || '',
+    password: sessionStorage.getItem(SESSION_PASSWORD_KEY) || '',
     database: localStorage.getItem('neo4j_database') || 'neo4j'
   });
   const [clearDatabase, setClearDatabase] = useState(true);
   const [saveCredentials, setSaveCredentials] = useState(true);
+
+  useEffect(() => {
+    // Remove any previously persisted password from older versions.
+    localStorage.removeItem('neo4j_password');
+  }, []);
+
+  useEffect(() => {
+    if (config.password) {
+      sessionStorage.setItem(SESSION_PASSWORD_KEY, config.password);
+      return;
+    }
+    sessionStorage.removeItem(SESSION_PASSWORD_KEY);
+  }, [config.password]);
 
   if (!isOpen) return null;
 
@@ -33,7 +48,6 @@ export const Neo4jExportModal: React.FC<Neo4jExportModalProps> = ({
     if (saveCredentials) {
       localStorage.setItem('neo4j_uri', config.uri);
       localStorage.setItem('neo4j_user', config.user);
-      localStorage.setItem('neo4j_password', config.password);
       localStorage.setItem('neo4j_database', config.database || 'neo4j');
     }
     
@@ -87,6 +101,9 @@ export const Neo4jExportModal: React.FC<Neo4jExportModalProps> = ({
                 placeholder="Enter password"
                 disabled={isExporting}
               />
+              <span className="neo4j-help-text">
+                Password is kept only for this browser tab session.
+              </span>
             </div>
           </div>
           
@@ -120,7 +137,7 @@ export const Neo4jExportModal: React.FC<Neo4jExportModalProps> = ({
                 onChange={e => setSaveCredentials(e.target.checked)}
                 disabled={isExporting}
               />
-              <span>Remember connection settings</span>
+              <span>Remember connection settings (excluding password)</span>
             </label>
           </div>
           
