@@ -85,9 +85,8 @@ See the [examples/](./examples/) folder for sample BPMN files
 
 ## Based on Research
 
-This tool implements the BPMN-DEXPI mapping methodology presented in the article:
+This tool implements the BPMN-DEXPI mapping methodology presented in the article by:
 
-**Mapping DEXPI Process to BPMN 2.0 for Graphical Modeling of Block Flow and Process Flow Diagrams**  
 Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke.
 
 **Core Mapping:**
