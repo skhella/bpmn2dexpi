@@ -87,7 +87,10 @@ See the [examples/](./examples/) folder for sample BPMN files
 
 ## Based on Research
 
-This tool implements the BPMN-DEXPI mapping approach for representing chemical process information using BPMN notation with DEXPI extensions.
+This tool implements the BPMN-DEXPI mapping methodology presented in the article:
+
+**Mapping DEXPI Process to BPMN 2.0 for Graphical Modeling of Block Flow and Process Flow Diagrams**  
+Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke.
 
 **Core Mapping:**
 | DEXPI Concept | BPMN Element |
