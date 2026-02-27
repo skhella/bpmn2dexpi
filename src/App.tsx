@@ -420,7 +420,7 @@ function App() {
       const dexpiXml = await transformer.transform(bpmnXml, {
         projectName: 'DEXPI Process Model',
         projectDescription: 'Generated from BPMN.io',
-        author: 'DEXPI Process Tool'
+        author: 'bpmn2dexpi'
       });
       
       

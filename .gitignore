@@ -30,3 +30,13 @@ __pycache__/
 
 # Test outputs
 test-output.xml
+
+# Coverage and caches
+coverage/
+.coverage
+.pytest_cache/
+
+# Environment files
+.env
+.env.*
+!.env.example
