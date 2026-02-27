@@ -40,7 +40,8 @@ npm run transform input.bpmn output.xml
 4. Add materials and compositions in the Material Library
 5. Configure ports and streams in the properties panel
 6. Export to DEXPI XML or Neo4j
-![Web Interface Screenshot](./examples/Web-Interface-Screenshot.png)
+
+<img src="./examples/Web-Interface-Screenshot.png" alt="Web Interface Screenshot" width="90%" />
 
 ### Command Line
 
