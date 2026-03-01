@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-def bpmn_to_dexpi(bpmn_file: str, output_file: str = None) -> str:
+def bpmn2dexpi(bpmn_file: str, output_file: str = None) -> str:
     """
     Convert a BPMN file to DEXPI XML format.
     
@@ -62,7 +62,7 @@ def main():
     output_file = sys.argv[2] if len(sys.argv) > 2 else None
     
     try:
-        result = bpmn_to_dexpi(input_file, output_file)
+        result = bpmn2dexpi(input_file, output_file)
         if result:
             print(result)
     except FileNotFoundError as e:

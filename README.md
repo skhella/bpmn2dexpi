@@ -52,12 +52,16 @@ npm run transform process.bpmn output.xml
 
 ### Python Integration
 
+The included `transform.py` script wraps the CLI for use from Python:
+
 ```python
-from transform import bpmn_to_dexpi
+from transform import bpmn2dexpi
 
 # Convert and save to file
-bpmn_to_dexpi('input.bpmn', 'output.xml')
+bpmn2dexpi('input.bpmn', 'output.xml')
 
+# Get XML as string
+xml = bpmn2dexpi('input.bpmn')
 ```
 
 See [CLI_USAGE.md](./CLI_USAGE.md) for more examples.
@@ -106,11 +110,9 @@ Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repk
 - **Build**: Vite 7
 - **Target Spec**: [DEXPI 2.0](https://dexpi.gitlab.io/-/Specification)
 
+## Acknowledgments
 
-
-## AI-Assisted Development
-
-This project was developed with assistance from Large Language Models and AI coding tools, including GitHub Copilot and Claude. These tools helped with code generation, debugging, and implementation of features.
+This project was developed with assistance from AI coding tools, including GitHub Copilot and Claude.
 
 ## License
 
@@ -124,4 +126,6 @@ Licensed under the bpmn.io License (modified MIT). Free to use, including commer
 **DEXPI Specification**  
 Licensed under Creative Commons Attribution 4.0 International License (CC BY 4.0).
 
+---
 
+*Current version: 0.1.0*
