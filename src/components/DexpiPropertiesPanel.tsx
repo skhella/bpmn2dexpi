@@ -1,6 +1,6 @@
 import React from 'react';
 import type { DexpiElement, DexpiPort, DexpiStream } from '../dexpi/moddle';
-import { DexpiEnumerations, ProcessStepTypes, InstrumentationActivityTypes, type EnumerationKey } from '../utils/dexpiEnumerations';
+import { DexpiEnumerations } from '../utils/dexpiEnumerations';
 
 interface DexpiPropertiesPanelProps {
   element: any;
@@ -9,7 +9,7 @@ interface DexpiPropertiesPanelProps {
 
 export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ element, modeler }) => {
   const [dexpiType, setDexpiType] = React.useState<string>('');
-  const [identifier, setIdentifier] = React.useState<string>('');
+  const [_identifier, setIdentifier] = React.useState<string>('');
   const [uid, setUid] = React.useState<string>('');
   const [ports, setPorts] = React.useState<DexpiPort[]>([]);
   const [hasData, setHasData] = React.useState<boolean>(false);
@@ -196,12 +196,6 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
     const newType = e.target.value;
     setDexpiType(newType);
     updateDexpiElement({ dexpiType: newType });
-  };
-
-  const handleIdentifierChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newIdentifier = e.target.value;
-    setIdentifier(newIdentifier);
-    updateDexpiElement({ identifier: newIdentifier });
   };
 
   const handleUidChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -955,7 +949,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       
       
       if (extensionElements && extensionElements.values) {
-        extensionElements.values.forEach((val: any, idx: number) => {
+        extensionElements.values.forEach((_val: any, _idx: number) => {
         });
         
         // Look for dexpi:Stream with various possible type names, or legacy <Stream>

@@ -203,5 +203,5 @@ export function getEnumValues(enumName: EnumerationKey): readonly string[] {
 
 // Helper to check if a value is valid for an enum
 export function isValidEnumValue(enumName: EnumerationKey, value: string): boolean {
-  return DexpiEnumerations[enumName].includes(value as any);
+  return (DexpiEnumerations[enumName] as readonly string[]).includes(value);
 }

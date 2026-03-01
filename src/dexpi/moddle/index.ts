@@ -6,7 +6,9 @@ export interface DexpiElement {
   dexpiType?: string;
   identifier?: string;
   uid?: string;
+  hierarchyLevel?: string;
   ports?: DexpiPort[];
+  attributes?: Array<{ name: string; value: string }>;
 }
 
 export interface DexpiPort {
