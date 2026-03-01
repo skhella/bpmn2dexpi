@@ -55,13 +55,13 @@ import subprocess
 # Method 1: Using the helper script
 import sys
 sys.path.append('path/to/bpmn2dexpi')
-from transform import bpmn_to_dexpi
+from transform import bpmn2dexpi
 
 # Convert and save to file
-bpmn_to_dexpi('process.bpmn', 'output.xml')
+bpmn2dexpi('process.bpmn', 'output.xml')
 
 # Convert and get XML as string
-dexpi_xml = bpmn_to_dexpi('process.bpmn')
+dexpi_xml = bpmn2dexpi('process.bpmn')
 print(dexpi_xml)
 ```
 
@@ -104,7 +104,7 @@ convert_bpmn_to_dexpi('input.bpmn', 'output.xml')
 
 ```python
 from pathlib import Path
-from transform import bpmn_to_dexpi
+from transform import bpmn2dexpi
 
 # Process multiple files
 input_dir = Path('bpmn_files')
@@ -114,7 +114,7 @@ output_dir.mkdir(exist_ok=True)
 for bpmn_file in input_dir.glob('*.bpmn'):
     output_file = output_dir / f"{bpmn_file.stem}.xml"
     print(f"Converting {bpmn_file.name}...")
-    bpmn_to_dexpi(str(bpmn_file), str(output_file))
+    bpmn2dexpi(str(bpmn_file), str(output_file))
     print(f"  → {output_file.name}")
 ```
 

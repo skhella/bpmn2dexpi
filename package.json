@@ -2,6 +2,22 @@
   "name": "bpmn2dexpi",
   "private": true,
   "version": "0.1.0",
+  "description": "A web-based tool for creating DEXPI-compliant block flow and process flow diagrams using BPMN notation",
+  "author": "Shady Khella",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skhella/bpmn2dexpi.git"
+  },
+  "keywords": [
+    "dexpi",
+    "bpmn",
+    "process-engineering",
+    "block-flow-diagram",
+    "process-flow-diagram",
+    "chemical-engineering",
+    "xml"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",
