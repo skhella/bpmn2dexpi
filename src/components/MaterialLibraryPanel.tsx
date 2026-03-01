@@ -57,12 +57,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       el.businessObject.name === 'MaterialTemplates'
     );
 
-    // Find MaterialStates DataObjectReference
-    const statesDataObj = allElements.find((el: any) => 
-      el.type === 'bpmn:DataObjectReference' && 
-      (el.businessObject.name === 'Base Case MaterialStates' || el.businessObject.name === 'MaterialStates')
-    );
-
     const loadedTemplates: MaterialTemplate[] = [];
     const loadedComponents: MaterialComponent[] = [];
 
@@ -80,9 +74,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     if (templatesDataObj?.businessObject?.extensionElements?.values) {
       templatesDataObj.businessObject.extensionElements.values.forEach((val: any) => {
         if (val.$type === 'MaterialTemplate' || val.$type?.includes('MaterialTemplate')) {
-          console.log('Raw MaterialTemplate:', val);
-          console.log('$children:', val.$children);
-          
           // Extract component UIDs from ListOfMaterialComponents in $children
           const listOfComponents = val.$children?.find((c: any) => 
             c.$type === 'ListOfMaterialComponents' || c.$type?.includes('ListOfMaterialComponents')
@@ -100,8 +91,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             });
           }
           
-          console.log('Extracted componentRefs:', componentRefs);
-          
           const template = {
             uid: val.uid || '',
             identifier: getChildText(val, 'Identifier'),
@@ -112,7 +101,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             componentRefs: componentRefs,
             phases: val.ListOfPhases?.PhaseIdentifier?.map((p: any) => p.Identifier) || []
           };
-          console.log('Loaded template:', template);
           loadedTemplates.push(template);
         }
         if (val.$type === 'MaterialComponent' || val.$type?.includes('MaterialComponent')) {
@@ -125,11 +113,10 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             identifier: getChildText(val, 'Identifier'),
             label: getChildText(val, 'Label'),
             description: getChildText(val, 'Description'),
-            type: xsiType === 'PureMaterialComponent' ? 'PureMaterialComponent' : 'CustomMaterialComponent',
+            type: (xsiType === 'PureMaterialComponent' ? 'PureMaterialComponent' : 'CustomMaterialComponent') as MaterialComponent['type'],
             chebiId: getChildText(val, 'ChEBI_identifier'),
             iupacId: getChildText(val, 'IUPAC_identifier')
           };
-          console.log('Loaded component:', component);
           loadedComponents.push(component);
         }
       });
@@ -198,15 +185,14 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                   .map((f: any) => f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0') || [];
                 
                 // Build fractions array by matching with template components
-                let fractions: Array<{ componentReference: string; value: string }> = [];
+                let fractions: number[] = [];
                 if (templateRefUid) {
                   const template = loadedTemplates.find(t => t.uid === templateRefUid);
                   if (template && template.componentRefs && template.componentRefs.length > 0) {
                     // Match fraction values (by position) with template component refs
-                    fractions = template.componentRefs.map((componentRef, index) => ({
-                      componentReference: componentRef,
-                      value: fractionValues[index] || '0'
-                    }));
+                    fractions = template.componentRefs.map((_componentRef, index) => 
+                      parseFloat(fractionValues[index]) || 0
+                    );
                   }
                 }
                 
@@ -264,15 +250,14 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                 .map((f: any) => f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0') || [];
               
               // Build fractions array by matching with template components
-              let fractions: Array<{ componentReference: string; value: string }> = [];
+              let fractions: number[] = [];
               if (templateRefUid) {
                 const template = loadedTemplates.find(t => t.uid === templateRefUid);
                 if (template && template.componentRefs && template.componentRefs.length > 0) {
                   // Match fraction values (by position) with template component refs
-                  fractions = template.componentRefs.map((componentRef, index) => ({
-                    componentReference: componentRef,
-                    value: fractionValues[index] || '0'
-                  }));
+                  fractions = template.componentRefs.map((_componentRef, index) => 
+                    parseFloat(fractionValues[index]) || 0
+                  );
                 }
               }
               
@@ -305,12 +290,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       }
     });
 
-    console.log('Loaded materials:', { 
-      templates: loadedTemplates, 
-      components: loadedComponents, 
-      states: loadedStates,
-      stateGroups: groupedStates
-    });
     setTemplates(loadedTemplates);
     setComponents(loadedComponents);
     setStates(loadedStates);
@@ -557,7 +536,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
   const saveMaterialData = (
     updatedTemplates: MaterialTemplate[],
     updatedComponents: MaterialComponent[],
-    updatedStates: MaterialState[]
+    _updatedStates: MaterialState[]
   ) => {
     const modeling = modeler.get('modeling');
     const moddle = modeler.get('moddle');
@@ -740,10 +719,9 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
               <div className="material-list">
                 {selectedTemplate.componentRefs && selectedTemplate.componentRefs.length > 0 ? (
                   selectedTemplate.componentRefs.map(componentRef => {
-                    console.log('Looking for component:', componentRef, 'in', components.map(c => ({ uid: c.uid, identifier: c.identifier })));
-                    const component = components.find(c => c.uid === componentRef || c.identifier === componentRef);
+                    const ref = typeof componentRef === 'string' ? componentRef : componentRef.uidRef;
+                    const component = components.find(c => c.uid === ref || c.identifier === ref);
                     if (!component) {
-                      console.warn('Component not found for ref:', componentRef);
                       return null;
                     }
                     return (

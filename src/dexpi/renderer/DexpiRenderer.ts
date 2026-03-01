@@ -159,7 +159,6 @@ export default class DexpiRenderer extends BaseRenderer {
         
         // Add tooltip
         const title = svgCreate('title');
-        const portName = sourceIsProxy ? (source.businessObject.name || 'Unknown') : (target.businessObject.name || 'Unknown');
         title.textContent = `Proxy Flow: This connection represents a port proxy from the parent level`;
         svgAppend(connection, title);
       }

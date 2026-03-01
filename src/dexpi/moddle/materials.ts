@@ -20,7 +20,7 @@ export interface MaterialTemplate {
   description?: string;
   numberOfComponents: number;
   numberOfPhases: number;
-  componentRefs: Array<{ identifier: string; uidRef: string }>;
+  componentRefs: Array<string | { identifier: string; uidRef: string }>;
   phases: string[];
 }
 

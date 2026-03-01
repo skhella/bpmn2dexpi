@@ -1,18 +1,9 @@
+// @ts-expect-error xml2js has no type declarations
 import { parseString, Builder } from 'xml2js';
-
-interface BpmnElement {
-  $: any;
-  extensionElements?: any[];
-  sequenceFlow?: any[];
-  task?: any[];
-  startEvent?: any[];
-  endEvent?: any[];
-  dataObjectReference?: any[];
-}
 
 export async function exportToDexpiXml(bpmnXml: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    parseString(bpmnXml, (err, result) => {
+    parseString(bpmnXml, (err: Error | null, result: Record<string, unknown>) => {
       if (err) {
         reject(err);
         return;

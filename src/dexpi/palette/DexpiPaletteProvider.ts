@@ -1,8 +1,6 @@
 import type { PaletteEntries } from 'bpmn-js/lib/features/palette/PaletteProvider';
 
 export default class DexpiPaletteProvider {
-  private create: any;
-  private elementFactory: any;
   private spaceTool: any;
   private lassoTool: any;
   private handTool: any;
@@ -18,14 +16,12 @@ export default class DexpiPaletteProvider {
 
   constructor(
     palette: any,
-    create: any,
-    elementFactory: any,
+    _create: any,
+    _elementFactory: any,
     spaceTool: any,
     lassoTool: any,
     handTool: any
   ) {
-    this.create = create;
-    this.elementFactory = elementFactory;
     this.spaceTool = spaceTool;
     this.lassoTool = lassoTool;
     this.handTool = handTool;
@@ -35,29 +31,10 @@ export default class DexpiPaletteProvider {
 
   getPaletteEntries(): PaletteEntries {
     const {
-      create,
-      elementFactory,
       spaceTool,
       lassoTool,
       handTool
     } = this;
-
-    function createAction(type: string, group: string, className: string, title: string, options = {}) {
-      function createListener(event: any) {
-        const shape = elementFactory.createShape({ type, ...options });
-        create.start(event, shape);
-      }
-
-      return {
-        group,
-        className,
-        title,
-        action: {
-          dragstart: createListener,
-          click: createListener
-        }
-      };
-    }
 
     return {
       'hand-tool': {

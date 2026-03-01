@@ -840,26 +840,6 @@ export class BpmnToDexpiTransformer {
     return ports;
   }
 
-  private extractPorts(dexpiElement: Element): DexpiPort[] {
-    // Try with and without namespace prefix
-    let ports = Array.from(dexpiElement.querySelectorAll('port'));
-    if (ports.length === 0) {
-      ports = Array.from(dexpiElement.querySelectorAll('Port'));
-    }
-    if (ports.length === 0) return [];
-    
-    return ports.map((port) => ({
-      portId: port.getAttribute('portId') || port.getAttribute('id') || this.generateUid(),
-      name: port.getAttribute('name') || port.getAttribute('label') || 'Port',
-      portType: (port.getAttribute('portType') || port.getAttribute('type') || 'MaterialPort') as any,
-      direction: (port.getAttribute('direction') || 'Inlet') as any,
-      anchorSide: port.getAttribute('anchorSide') as any,
-      anchorOffset: port.getAttribute('anchorOffset') ? parseFloat(port.getAttribute('anchorOffset')!) : undefined,
-      anchorX: port.getAttribute('anchorX') ? parseFloat(port.getAttribute('anchorX')!) : undefined,
-      anchorY: port.getAttribute('anchorY') ? parseFloat(port.getAttribute('anchorY')!) : undefined
-    }));
-  }
-
   private extractPortsFromExtensionElements(extensionElements: Element): DexpiPort[] {
     const portsContainer = extensionElements.querySelector('ports');
     if (!portsContainer) return [];
@@ -879,7 +859,7 @@ export class BpmnToDexpiTransformer {
     }));
   }
 
-  private buildDexpiModel(options: TransformOptions): any {
+  private buildDexpiModel(_options: TransformOptions): any {
     const modelUid = this.generateUid();
     
     // Build ProcessModel object

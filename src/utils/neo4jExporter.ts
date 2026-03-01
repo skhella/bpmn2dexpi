@@ -572,11 +572,6 @@ function analyzeSubprocessFlows(
     }
   }
 
-  console.log(`Hierarchy map size: ${hierarchy.size}`);
-  console.log(`Total process steps: ${processSteps.length}`);
-  console.log(`Subprocesses: ${processSteps.filter(s => s.isSubProcess).length}`);
-  console.log(`Streams: ${streams.length}`);
-
   // Get all descendants recursively
   function getAllDescendants(parentId: string): Set<string> {
     const descendants = new Set<string>();
@@ -608,14 +603,11 @@ function analyzeSubprocessFlows(
 
   // Analyze each subprocess
   const subprocesses = processSteps.filter(s => s.isSubProcess);
-  console.log(`Analyzing ${subprocesses.length} subprocesses...`);
   
   for (const subprocess of subprocesses) {
     const subprocessId = subprocess.id;
     const descendants = getAllDescendants(subprocessId);
     const level = getSubprocessLevel(subprocessId);
-
-    console.log(`Subprocess ${subprocess.label} (${subprocessId}): ${descendants.size} descendants, level ${level}`);
 
     // Find entry points (flows from outside to inside)
     for (const stream of streams) {
@@ -631,8 +623,6 @@ function analyzeSubprocessFlows(
         const isDirectChild = targetStep?.parent === subprocessId;
         
         const relType = isDirectChild ? 'enters_subprocess' : 'subprocess_internal_entry';
-        
-        console.log(`Found entry: ${sourceId} -> ${targetId} (${relType})`);
         
         subprocessFlows.push({
           source: subprocessId,
@@ -653,8 +643,6 @@ function analyzeSubprocessFlows(
         const isDirectChild = sourceStep?.parent === subprocessId;
         
         const relType = isDirectChild ? 'exits_subprocess' : 'subprocess_internal_exit';
-        
-        console.log(`Found exit: ${sourceId} -> ${targetId} (${relType})`);
         
         subprocessFlows.push({
           source: sourceId,
@@ -787,17 +775,11 @@ CREATE (parent)-[:CONTAINS]->(child)`);
   }
   
   // Create Flow relationships (MaterialStream, ElectricalEnergyFlow, etc.)
-  console.log(`Creating flow relationships for ${data.streams.length} streams...`);
-  console.log(`Total process steps available: ${data.processSteps.length}`);
-  console.log(`Sources: ${data.processSteps.filter(s => s.nodeType === 'Source').length}`);
-  console.log(`Sinks: ${data.processSteps.filter(s => s.nodeType === 'Sink').length}`);
-  
   for (const stream of data.streams) {
     const sourcePort = data.ports.get(stream.sourcePortId);
     const targetPort = data.ports.get(stream.targetPortId);
     
     if (!sourcePort || !targetPort) {
-      console.log(`Skipping stream ${stream.id}: missing port (source: ${!!sourcePort}, target: ${!!targetPort})`);
       continue;
     }
     
@@ -809,7 +791,6 @@ CREATE (parent)-[:CONTAINS]->(child)`);
     const targetStep = data.processSteps.find(s => s.id === targetStepId);
     
     if (!sourceStep || !targetStep) {
-      console.log(`Skipping stream ${stream.id} (${stream.label}): missing step (source: ${sourceStepId} -> ${!!sourceStep}, target: ${targetStepId} -> ${!!targetStep})`);
       continue;
     }
     
@@ -877,10 +858,7 @@ MERGE (child)-[:SUB_PROCESS_EXIT {flowType: '${stream.flowType}', port: '${escap
   
   // Analyze and create subprocess entry/exit relationships
   // This matches Python's analyze_subprocess_flow_connections() approach
-  console.log('Analyzing subprocess flows...');
   const subprocessFlows = analyzeSubprocessFlows(data.processSteps, data.streams);
-  
-  console.log(`Creating ${subprocessFlows.length} subprocess flow relationships...`);
   for (const subFlow of subprocessFlows) {
     const relType = escapeLabel(subFlow.relationshipType);
     queries.push(`

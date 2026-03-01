@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import BpmnModeler from 'bpmn-js/lib/Modeler';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css';
@@ -33,7 +33,7 @@ function App() {
   const [modeler, setModeler] = useState<BpmnModeler | null>(null);
   const [selectedElement, setSelectedElement] = useState<any>(null);
   const [validationMessage, setValidationMessage] = useState<string>('');
-  const [currentPlane, setCurrentPlane] = useState<string | null>(null);
+  const [_currentPlane, setCurrentPlane] = useState<string | null>(null);
   const [planeStack, setPlaneStack] = useState<string[]>([]);
   const [showPorts, setShowPorts] = useState<boolean>(false);
   const [showMaterialLibrary, setShowMaterialLibrary] = useState<boolean>(false);
@@ -50,8 +50,8 @@ function App() {
     
     // Force canvas re-render when port visibility changes
     if (modeler) {
-      const elementRegistry = modeler.get('elementRegistry');
-      const eventBus = modeler.get('eventBus');
+      const elementRegistry = modeler.get('elementRegistry') as any;
+      const eventBus = modeler.get('eventBus') as any;
       
       // Get all elements to trigger re-render
       const allElements = elementRegistry.filter((el: any) => {
@@ -238,28 +238,12 @@ function App() {
     }
   }, [showPorts, modeler]);
 
-  const navigateToSubprocess = (subprocess: any) => {
-    if (!modeler) return;
-
-    const canvas = modeler.get('canvas');
-    
-    // Get the current root element before navigating
-    const rootElement = canvas.getRootElement();
-    if (rootElement) {
-      setPlaneStack(prevStack => [...prevStack, rootElement.id]);
-    }
-
-    // Navigate to subprocess
-    canvas.setRootElement(subprocess);
-    canvas.zoom('fit-viewport');
-  };
-
   const navigateToParent = () => {
     if (!modeler || planeStack.length === 0) return;
 
     isNavigatingBack.current = true;
-    const canvas = modeler.get('canvas');
-    const elementRegistry = modeler.get('elementRegistry');
+    const canvas = modeler.get('canvas') as any;
+    const elementRegistry = modeler.get('elementRegistry') as any;
     
     // Get parent plane ID from stack
     const newStack = [...planeStack];
@@ -295,7 +279,7 @@ function App() {
       ]
     });
 
-    const eventBus = bpmnModeler.get('eventBus');
+    const eventBus = bpmnModeler.get('eventBus') as any;
     
     // Track current root to detect navigation
     let currentRootElement: any = null;
@@ -359,7 +343,7 @@ function App() {
     bpmnModeler.importXML(initialDiagram).then(() => {
       if (isDestroyed) return;
       
-      const canvas = bpmnModeler.get('canvas');
+      const canvas = bpmnModeler.get('canvas') as any;
       canvas.zoom('fit-viewport');
       
       // Initialize currentRootElement after import is complete
@@ -444,7 +428,6 @@ function App() {
     if (!modeler) return;
 
     try {
-      const canvas = modeler.get('canvas');
       const { svg } = await modeler.saveSVG();
       
       // Download SVG
@@ -463,7 +446,7 @@ function App() {
     }
   };
 
-  const handleExportNeo4j = async (config: Neo4jConfig, options: { clearDatabase: boolean }) => {
+  const handleExportNeo4j = async (config: Neo4jConfig, _options: { clearDatabase: boolean }) => {
     if (!modeler) return;
 
     setNeo4jExporting(true);
@@ -484,11 +467,8 @@ function App() {
       const dexpiXml = await transformer.transform(bpmnXml);
       
       // Export to Neo4j
-      const exportResult = await exportToNeo4j(dexpiXml, config, {
-        clearDatabase: options.clearDatabase,
-        onProgress: (current, total, stage) => {
-          setNeo4jProgress({ current, total, stage });
-        }
+      const exportResult = await exportToNeo4j(dexpiXml, config, (current: number, total: number) => {
+        setNeo4jProgress({ current, total, stage: 'Executing queries...' });
       });
 
       if (exportResult.success) {
@@ -521,7 +501,7 @@ function App() {
         // Reset navigation state
         setPlaneStack([]);
         setCurrentPlane(null);
-        const canvas = modeler.get('canvas');
+        const canvas = modeler.get('canvas') as any;
         canvas.zoom('fit-viewport');
       } catch (err) {
         console.error('Import failed:', err);
