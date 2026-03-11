@@ -14,6 +14,8 @@ import type { Neo4jConfig } from './utils/neo4jExporter';
 import logoImg from './assets/cropped_logo_B2P.png';
 import './App.css';
 
+const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
+
 const initialDiagram = '<?xml version="1.0" encoding="UTF-8"?>\n' +
   '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"\n' +
   '                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"\n' +
@@ -340,8 +342,11 @@ function App() {
       }
     });
 
-    // Import the initial diagram, then set up canvas-dependent code
-    bpmnModeler.importXML(initialDiagram).then(() => {
+    // Restore autosaved diagram or use initial empty diagram
+    const savedXml = localStorage.getItem(AUTOSAVE_KEY);
+    const diagramToLoad = savedXml || initialDiagram;
+
+    bpmnModeler.importXML(diagramToLoad).then(() => {
       if (isDestroyed) return;
       
       const canvas = bpmnModeler.get('canvas') as any;
@@ -350,13 +355,28 @@ function App() {
       // Initialize currentRootElement after import is complete
       currentRootElement = canvas.getRootElement();
       
+      // Auto-save on every diagram change
+      eventBus.on('commandStack.changed', () => {
+        bpmnModeler.saveXML({ format: true }).then(({ xml }) => {
+          if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
+        });
+      });
+
       // Now set the modeler state - the app is ready
       setModeler(bpmnModeler);
+      if (savedXml) setValidationMessage('Restored previous session');
     }).catch((err: any) => {
       if (isDestroyed) return;
       console.error('Failed to import BPMN:', err);
-      // Still set modeler even on error so the app doesn't freeze
-      setModeler(bpmnModeler);
+      // If autosaved data was corrupted, fall back to empty diagram
+      if (savedXml) {
+        localStorage.removeItem(AUTOSAVE_KEY);
+        bpmnModeler.importXML(initialDiagram).then(() => {
+          setModeler(bpmnModeler);
+        });
+      } else {
+        setModeler(bpmnModeler);
+      }
     });
 
     return () => {
@@ -498,6 +518,9 @@ function App() {
       try {
         const text = await file.text();
         await modeler.importXML(text);
+        // Save imported diagram immediately
+        const { xml } = await modeler.saveXML({ format: true });
+        if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
         setValidationMessage('BPMN imported successfully!');
         // Reset navigation state
         setPlaneStack([]);
@@ -510,6 +533,19 @@ function App() {
       }
     };
     input.click();
+  };
+
+  const handleNewDiagram = async () => {
+    if (!modeler) return;
+    if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
+    await modeler.importXML(initialDiagram);
+    localStorage.removeItem(AUTOSAVE_KEY);
+    setPlaneStack([]);
+    setCurrentPlane(null);
+    setSelectedElement(null);
+    const canvas = modeler.get('canvas') as any;
+    canvas.zoom('fit-viewport');
+    setValidationMessage('New diagram created');
   };
 
   return (
@@ -542,6 +578,7 @@ function App() {
           >
             {showMaterialLibrary ? '📚 Materials' : '📚 Materials'}
           </button>
+          <button onClick={handleNewDiagram} className="btn" title="Start a new empty diagram">New</button>
           <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
           <button onClick={handleExportBpmn} className="btn">Export BPMN</button>
           <button onClick={handleExportSvg} className="btn">Export SVG</button>
