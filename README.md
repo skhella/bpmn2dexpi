@@ -132,4 +132,4 @@ Licensed under Creative Commons Attribution 4.0 International License (CC BY 4.0
 
 ---
 
-*Current version: 0.1.0*
+*Current version: v0.1.0*
