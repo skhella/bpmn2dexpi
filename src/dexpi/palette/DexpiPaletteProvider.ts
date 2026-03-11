@@ -6,6 +6,7 @@ export default class DexpiPaletteProvider {
   private spaceTool: any;
   private lassoTool: any;
   private handTool: any;
+  private globalConnect: any;
 
   static $inject = [
     'palette',
@@ -13,7 +14,8 @@ export default class DexpiPaletteProvider {
     'elementFactory',
     'spaceTool',
     'lassoTool',
-    'handTool'
+    'handTool',
+    'globalConnect'
   ];
 
   constructor(
@@ -22,13 +24,15 @@ export default class DexpiPaletteProvider {
     elementFactory: any,
     spaceTool: any,
     lassoTool: any,
-    handTool: any
+    handTool: any,
+    globalConnect: any
   ) {
     this.create = create;
     this.elementFactory = elementFactory;
     this.spaceTool = spaceTool;
     this.lassoTool = lassoTool;
     this.handTool = handTool;
+    this.globalConnect = globalConnect;
 
     palette.registerProvider(this);
   }
@@ -39,7 +43,8 @@ export default class DexpiPaletteProvider {
       elementFactory,
       spaceTool,
       lassoTool,
-      handTool
+      handTool,
+      globalConnect
     } = this;
 
     function createShapeAction(type: string, options?: object) {
@@ -85,6 +90,16 @@ export default class DexpiPaletteProvider {
         separator: true,
         action: {}
       } as any,
+      'global-connect-tool': {
+        group: 'tools',
+        className: 'bpmn-icon-connection-multi',
+        title: 'Activate Global Connect Tool / DEXPI: Stream',
+        action: {
+          click: (event: any) => {
+            globalConnect.toggle(event);
+          }
+        }
+      },
 
       // Override default entries to include DEXPI mapping in tooltip
       'create.start-event': {
