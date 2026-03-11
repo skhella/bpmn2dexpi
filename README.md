@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./src/assets/noncropped_logo.png" alt="BPMN2DEXPI Logo" width="400" />
+</p>
+
 # bpmn2dexpi
 A web-based tool for creating DEXPI-compliant block flow and process flow diagrams. Model chemical processes visually and export to DEXPI XML format for interoperability with engineering tools.
 
