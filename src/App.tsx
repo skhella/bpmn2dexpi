@@ -11,6 +11,7 @@ import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { transformer } from './transformer/BpmnToDexpiTransformer';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
+import logoImg from './assets/cropped_logo_B2P.png';
 import './App.css';
 
 const initialDiagram = '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -514,9 +515,12 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-          <h1 style={{ marginBottom: 0 }}>bpmn2dexpi</h1>
-          <span style={{ fontSize: '0.9rem', fontWeight: 'normal', marginTop: 0 }}>DEXPI Process Modeling Tool</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <img src={logoImg} alt="bpmn2dexpi logo" style={{ height: '40px' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <h1 style={{ marginBottom: 0 }}>BPMN2DEXPI</h1>
+            <span style={{ fontSize: '0.9rem', fontWeight: 'normal', marginTop: 0 }}>DEXPI Process Modeling Tool</span>
+          </div>
         </div>
         <div className="toolbar">
           {planeStack.length > 0 && (

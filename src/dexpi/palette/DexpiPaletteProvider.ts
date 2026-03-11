@@ -1,6 +1,8 @@
 import type { PaletteEntries } from 'bpmn-js/lib/features/palette/PaletteProvider';
 
 export default class DexpiPaletteProvider {
+  private create: any;
+  private elementFactory: any;
   private spaceTool: any;
   private lassoTool: any;
   private handTool: any;
@@ -16,12 +18,14 @@ export default class DexpiPaletteProvider {
 
   constructor(
     palette: any,
-    _create: any,
-    _elementFactory: any,
+    create: any,
+    elementFactory: any,
     spaceTool: any,
     lassoTool: any,
     handTool: any
   ) {
+    this.create = create;
+    this.elementFactory = elementFactory;
     this.spaceTool = spaceTool;
     this.lassoTool = lassoTool;
     this.handTool = handTool;
@@ -31,10 +35,19 @@ export default class DexpiPaletteProvider {
 
   getPaletteEntries(): PaletteEntries {
     const {
+      create,
+      elementFactory,
       spaceTool,
       lassoTool,
       handTool
     } = this;
+
+    function createShapeAction(type: string, options?: object) {
+      return function (event: any) {
+        const shape = elementFactory.createShape({ type, ...options });
+        create.start(event, shape);
+      };
+    }
 
     return {
       'hand-tool': {
@@ -71,7 +84,45 @@ export default class DexpiPaletteProvider {
         group: 'tools',
         separator: true,
         action: {}
-      } as any
+      } as any,
+
+      // Override default entries to include DEXPI mapping in tooltip
+      'create.start-event': {
+        group: 'event',
+        className: 'bpmn-icon-start-event-none',
+        title: 'Start Event / DEXPI: Source',
+        action: {
+          dragstart: createShapeAction('bpmn:StartEvent'),
+          click: createShapeAction('bpmn:StartEvent')
+        }
+      },
+      'create.end-event': {
+        group: 'event',
+        className: 'bpmn-icon-end-event-none',
+        title: 'End Event / DEXPI: Sink',
+        action: {
+          dragstart: createShapeAction('bpmn:EndEvent'),
+          click: createShapeAction('bpmn:EndEvent')
+        }
+      },
+      'create.task': {
+        group: 'activity',
+        className: 'bpmn-icon-task',
+        title: 'Task / DEXPI: ProcessStep / DEXPI: InstrumentationActivity',
+        action: {
+          dragstart: createShapeAction('bpmn:Task'),
+          click: createShapeAction('bpmn:Task')
+        }
+      },
+      'create.subprocess-expanded': {
+        group: 'activity',
+        className: 'bpmn-icon-subprocess-expanded',
+        title: 'SubProcess (expanded) / DEXPI: ProcessStep / DEXPI: InstrumentationActivity',
+        action: {
+          dragstart: createShapeAction('bpmn:SubProcess', { isExpanded: true }),
+          click: createShapeAction('bpmn:SubProcess', { isExpanded: true })
+        }
+      }
     };
   }
 }
