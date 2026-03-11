@@ -20,16 +20,7 @@ A web-based tool for creating DEXPI-compliant block flow and process flow diagra
 
 ## Quick Start
 
-### Option A: Install via npm (CLI only)
-
-```bash
-npm install -g bpmn2dexpi
-
-# Convert BPMN to DEXPI XML
-bpmn2dexpi input.bpmn output.xml
-```
-
-### Option B: Clone and run (web interface + CLI)
+### Option A: Clone and run (web interface + CLI)
 
 ```bash
 git clone https://github.com/skhella/bpmn2dexpi.git
@@ -41,6 +32,15 @@ npm run dev
 
 # Or use CLI for batch processing
 npm run transform input.bpmn output.xml
+```
+
+### Option B: Install via npm (CLI only)
+
+```bash
+npm install -g bpmn2dexpi
+
+# Convert BPMN to DEXPI XML
+bpmn2dexpi input.bpmn output.xml
 ```
 
 ## Usage
