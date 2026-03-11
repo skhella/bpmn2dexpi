@@ -1,6 +1,5 @@
 {
   "name": "bpmn2dexpi",
-  "private": true,
   "version": "0.1.0",
   "description": "A web-based tool for creating DEXPI-compliant block flow and process flow diagrams using BPMN notation",
   "author": "Shady Khella",
@@ -19,6 +18,20 @@
     "xml"
   ],
   "type": "module",
+  "bin": {
+    "bpmn2dexpi": "./cli.js"
+  },
+  "files": [
+    "cli.js",
+    "src/transformer/",
+    "src/dexpi/moddle/",
+    "bpmn2dexpi.py",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
