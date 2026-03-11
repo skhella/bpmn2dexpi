@@ -53,16 +53,16 @@ npm run transform process.bpmn output.xml
 
 ### Python Integration
 
-The included `transform.py` script wraps the CLI for use from Python:
+The included `bpmn2dexpi.py` script wraps the CLI for use from Python:
 
 ```python
-from transform import bpmn2dexpi
+from bpmn2dexpi import transform
 
 # Convert and save to file
-bpmn2dexpi('input.bpmn', 'output.xml')
+transform('input.bpmn', 'output.xml')
 
 # Get XML as string
-xml = bpmn2dexpi('input.bpmn')
+xml = transform('input.bpmn')
 ```
 
 See [CLI_USAGE.md](./CLI_USAGE.md) for more examples.

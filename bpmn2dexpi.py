@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-def bpmn2dexpi(bpmn_file: str, output_file: str = None) -> str:
+def transform(bpmn_file: str, output_file: str = None) -> str:
     """
     Convert a BPMN file to DEXPI XML format.
     
@@ -52,17 +52,17 @@ def bpmn2dexpi(bpmn_file: str, output_file: str = None) -> str:
 def main():
     """Example usage"""
     if len(sys.argv) < 2:
-        print("Usage: python transform.py <input.bpmn> [output.xml]")
+        print("Usage: python bpmn2dexpi.py <input.bpmn> [output.xml]")
         print("\nExamples:")
-        print("  python transform.py process.bpmn              # Print to console")
-        print("  python transform.py process.bpmn output.xml   # Save to file")
+        print("  python bpmn2dexpi.py process.bpmn              # Print to console")
+        print("  python bpmn2dexpi.py process.bpmn output.xml   # Save to file")
         sys.exit(1)
     
     input_file = sys.argv[1]
     output_file = sys.argv[2] if len(sys.argv) > 2 else None
     
     try:
-        result = bpmn2dexpi(input_file, output_file)
+        result = transform(input_file, output_file)
         if result:
             print(result)
     except FileNotFoundError as e:
