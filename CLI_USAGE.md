@@ -13,6 +13,10 @@ npm install
 
 ### Usage
 
+The examples below vary across two dimensions:
+- how you run the CLI (npm script vs direct node/global command)
+- what input you provide (BPMN or DEXPI XML)
+
 #### Option 1: Using npm script (recommended)
 
 ```bash

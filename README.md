@@ -58,17 +58,28 @@ bpmn2dexpi input.bpmn output.xml
 
 ### Command Line
 
+Choose your install mode first, then choose input type.
+
+**Mode 1: Cloned repository (local npm scripts)**
+
 ```bash
-# If using cloned repo
+# Transform BPMN -> DEXPI XML
 npm run transform process.bpmn output.xml
 
-# Export BPMN directly to Neo4j (BPMN -> DEXPI -> Neo4j)
+# Export BPMN -> DEXPI -> Neo4j
 npm run neo4j-export process.bpmn -- --uri bolt://localhost:7687 --user neo4j --password secret
+```
 
-# If installed globally via npm
+**Mode 2: Globally installed CLI (`npm install -g bpmn2dexpi`)**
+
+```bash
+# Transform BPMN -> DEXPI XML
 bpmn2dexpi process.bpmn output.xml
 
-# Export DEXPI XML directly to Neo4j
+# Export BPMN -> DEXPI -> Neo4j
+bpmn2dexpi neo4j-export process.bpmn --uri bolt://localhost:7687 --user neo4j --password secret
+
+# Export DEXPI XML -> Neo4j
 bpmn2dexpi neo4j-export process.xml --uri bolt://localhost:7687 --user neo4j --password secret --input-type dexpi
 ```
 
