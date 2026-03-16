@@ -58,7 +58,7 @@ bpmn2dexpi input.bpmn output.xml
 
 ### Command Line
 
-Choose your install mode first, then choose input type.
+Run `bpmn2dexpi --help` or `bpmn2dexpi neo4j-export --help` for full option details.
 
 **Mode 1: Cloned repository (local npm scripts)**
 
@@ -68,6 +68,12 @@ npm run transform process.bpmn output.xml
 
 # Export BPMN -> DEXPI -> Neo4j
 npm run neo4j-export process.bpmn -- --uri bolt://localhost:7687 --user neo4j --password secret
+
+# Export DEXPI XML -> Neo4j
+npm run neo4j-export process.xml -- --input-type dexpi --uri bolt://localhost:7687 --user neo4j --password secret
+
+# Specify a non-default database
+npm run neo4j-export process.bpmn -- --uri bolt://localhost:7687 --user neo4j --password secret --database mydb
 ```
 
 **Mode 2: Globally installed CLI (`npm install -g bpmn2dexpi`)**
@@ -81,6 +87,9 @@ bpmn2dexpi neo4j-export process.bpmn --uri bolt://localhost:7687 --user neo4j --
 
 # Export DEXPI XML -> Neo4j
 bpmn2dexpi neo4j-export process.xml --uri bolt://localhost:7687 --user neo4j --password secret --input-type dexpi
+
+# Specify a non-default database
+bpmn2dexpi neo4j-export process.bpmn --uri bolt://localhost:7687 --user neo4j --password secret --database mydb
 ```
 
 ### Python Integration
@@ -103,6 +112,15 @@ export_to_neo4j(
    user='neo4j',
    password='secret'
 )
+
+# Export DEXPI XML directly to Neo4j
+export_to_neo4j(
+   input_file='output.xml',
+   uri='bolt://localhost:7687',
+   user='neo4j',
+   password='secret',
+   input_type='dexpi'
+)
 ```
 
 See [CLI_USAGE.md](./CLI_USAGE.md) for more examples.
@@ -117,6 +135,8 @@ The tool can export process diagrams directly to a Neo4j graph database:
    - **Aura**: `neo4j+s://xxx.databases.neo4j.io`
 3. Choose whether to clear existing data
 4. Click Export
+
+> **Tip:** Both `bolt://` (local) and `neo4j+s://` (Aura cloud) URIs work in the CLI as well.
 
 **Exported graph structure:**
 - `ProcessStep` nodes with port properties

@@ -24,34 +24,45 @@ function printHelp() {
   console.log(`
 bpmn2dexpi - BPMN/DEXPI CLI Utilities
 
+Commands:
+  bpmn2dexpi <input.bpmn> [output.xml]          Transform BPMN to DEXPI XML
+  bpmn2dexpi neo4j-export <input> [options]      Export to Neo4j database
+
+Run 'bpmn2dexpi <command> --help' for command-specific help.
+
+Examples:
+  node cli.js process.bpmn output.xml
+  node cli.js neo4j-export process.bpmn --uri bolt://localhost:7687 --user neo4j --password secret
+`);
+}
+
+function printNeo4jHelp() {
+  console.log(`
+bpmn2dexpi neo4j-export - Export BPMN/DEXPI to Neo4j
+
 Usage:
-  node cli.js <input.bpmn> [output.xml]
-  npm run transform <input.bpmn> [output.xml]
-  node cli.js neo4j-export <input.{bpmn|xml}> --uri <uri> --user <user> --password <password> [options]
+  bpmn2dexpi neo4j-export <input.{bpmn|xml}> --uri <uri> --user <user> --password <password> [options]
 
-Arguments:
-  input.bpmn         Path to input BPMN file for transform mode
-  output.xml         Path to output DEXPI XML file (optional, prints to stdout if not provided)
-
-neo4j-export options:
-  --uri <uri>                Neo4j URI (e.g., bolt://localhost:7687)
+Required:
+  <input>                    Path to BPMN or DEXPI XML file
+  --uri <uri>                Neo4j URI (bolt://localhost:7687 or neo4j+s://xxx.databases.neo4j.io)
   --user <user>              Neo4j username
   --password <password>      Neo4j password
+
+Optional:
   --database <database>      Neo4j database (default: neo4j)
-  --input-type <bpmn|dexpi>  Force input type (auto-detected by extension if omitted)
+  --input-type <bpmn|dexpi>  Force input type (auto-detected by file extension if omitted)
   --dexpi-out <path>         Save generated DEXPI XML when input is BPMN
 
 Examples:
-  node cli.js process.bpmn                  # Print DEXPI XML to console
-  node cli.js process.bpmn output.xml       # Save DEXPI XML to file
-  npm run transform process.bpmn output.xml # Using npm script
+  # BPMN input (auto-transforms to DEXPI before export)
   node cli.js neo4j-export process.bpmn --uri bolt://localhost:7687 --user neo4j --password secret
-  node cli.js neo4j-export process.xml --input-type dexpi --uri bolt://localhost:7687 --user neo4j --password secret
 
-From Python:
-  import subprocess
-  result = subprocess.run(['node', 'cli.js', 'input.bpmn'], capture_output=True, text=True)
-  dexpi_xml = result.stdout
+  # DEXPI input
+  node cli.js neo4j-export output.xml --input-type dexpi --uri bolt://localhost:7687 --user neo4j --password secret
+
+  # Save intermediate DEXPI while exporting
+  node cli.js neo4j-export process.bpmn --uri bolt://localhost:7687 --user neo4j --password secret --dexpi-out output.xml
 `);
 }
 
@@ -98,12 +109,22 @@ async function runTransform(inputPath, outputPath) {
 }
 
 async function runNeo4jExport(commandArgs) {
-  if (commandArgs.length === 0) {
-    throw new Error('neo4j-export requires an input file path');
+  if (commandArgs.length === 0 || commandArgs[0] === '--help' || commandArgs[0] === '-h') {
+    printNeo4jHelp();
+    process.exit(0);
   }
 
   const inputPath = commandArgs[0];
   const options = parseOptions(commandArgs.slice(1));
+
+  // Validate required options individually
+  const missing = [];
+  if (!options['--uri']) missing.push('--uri');
+  if (!options['--user']) missing.push('--user');
+  if (!options['--password']) missing.push('--password');
+  if (missing.length > 0) {
+    throw new Error(`Missing required option(s): ${missing.join(', ')}\nRun 'bpmn2dexpi neo4j-export --help' for usage.`);
+  }
 
   const uri = options['--uri'];
   const user = options['--user'];
@@ -112,14 +133,15 @@ async function runNeo4jExport(commandArgs) {
   const forcedType = options['--input-type'];
   const dexpiOutPath = options['--dexpi-out'];
 
-  if (!uri || !user || !password) {
-    throw new Error('neo4j-export requires --uri, --user, and --password');
+  // Validate --input-type value
+  if (forcedType && forcedType !== 'bpmn' && forcedType !== 'dexpi') {
+    throw new Error(`Invalid --input-type '${forcedType}'. Must be 'bpmn' or 'dexpi'.`);
   }
 
   const detected = detectInputType(inputPath);
   const inputType = forcedType || detected;
   if (inputType !== 'bpmn' && inputType !== 'dexpi') {
-    throw new Error('Unable to determine input type. Use --input-type bpmn or --input-type dexpi');
+    throw new Error(`Cannot determine input type from '${inputPath}'. Use --input-type bpmn or --input-type dexpi.`);
   }
 
   const inputXml = readFileSync(inputPath, 'utf-8');
@@ -148,28 +170,22 @@ async function runNeo4jExport(commandArgs) {
   console.error(`✓ ${result.message}`);
 }
 
-if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
-  printHelp();
-  process.exit(0);
-}
-
 async function main() {
+  if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
+    printHelp();
+    process.exit(0);
+  }
+
   try {
     if (args[0] === 'neo4j-export') {
       await runNeo4jExport(args.slice(1));
     } else {
-      // Backward-compatible transform mode
       const inputPath = args[0];
       const outputPath = args[1];
       await runTransform(inputPath, outputPath);
     }
-
-    process.exit(0);
   } catch (error) {
     console.error(`✗ Error: ${error.message}`);
-    if (error.stack) {
-      console.error(error.stack);
-    }
     process.exit(1);
   }
 }

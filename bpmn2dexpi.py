@@ -42,9 +42,10 @@ def transform(bpmn_file: str, output_file: str = None) -> str:
         text=True,
         check=True
     )
+    if result.stderr:
+        print(result.stderr, end='', file=sys.stderr)
     
     if output_file:
-        print(f"✓ Saved DEXPI XML to {output_file}")
         return None
     else:
         return result.stdout
@@ -107,7 +108,9 @@ def export_to_neo4j(
     if dexpi_output_file:
         cmd.extend(['--dexpi-out', str(dexpi_output_file)])
 
-    subprocess.run(cmd, capture_output=True, text=True, check=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    if result.stderr:
+        print(result.stderr, end='', file=sys.stderr)
 
 
 def main():

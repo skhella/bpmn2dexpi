@@ -45,8 +45,10 @@ node --import tsx cli.js <input.bpmn> [output.xml]
 npm run neo4j-export <input.bpmn> -- --uri <uri> --user <user> --password <password> [--database neo4j]
 
 # DEXPI input
-node --import tsx cli.js neo4j-export <input.xml> --input-type dexpi --uri <uri> --user <user> --password <password>
+npm run neo4j-export <input.xml> -- --input-type dexpi --uri <uri> --user <user> --password <password>
 ```
+
+Both `bolt://` (local) and `neo4j+s://` (Aura cloud) URIs are supported.
 
 **Examples:**
 ```bash
@@ -54,16 +56,23 @@ node --import tsx cli.js neo4j-export <input.xml> --input-type dexpi --uri <uri>
 npm run neo4j-export "examples/Tennessee_Eastman_Process.bpmn" -- --uri bolt://localhost:7687 --user neo4j --password secret
 
 # Export DEXPI XML directly to Neo4j
-node --import tsx cli.js neo4j-export output.xml --input-type dexpi --uri bolt://localhost:7687 --user neo4j --password secret
+npm run neo4j-export output.xml -- --input-type dexpi --uri bolt://localhost:7687 --user neo4j --password secret
 
 # Save transformed DEXPI while exporting BPMN
-node --import tsx cli.js neo4j-export process.bpmn --uri bolt://localhost:7687 --user neo4j --password secret --dexpi-out process-dexpi.xml
+npm run neo4j-export process.bpmn -- --uri bolt://localhost:7687 --user neo4j --password secret --dexpi-out process-dexpi.xml
+
+# Use a non-default database
+npm run neo4j-export process.bpmn -- --uri bolt://localhost:7687 --user neo4j --password secret --database mydb
 ```
 
 ### Help
 
 ```bash
-npm run transform --help
+# General help
+node --import tsx cli.js --help
+
+# Neo4j export help (shows all options)
+node --import tsx cli.js neo4j-export --help
 ```
 
 ---
@@ -177,6 +186,13 @@ for bpmn_file in input_dir.glob('*.bpmn'):
 **3. `ENOENT: no such file or directory`**
 - Check the input file path
 - Use absolute paths if relative paths fail
+
+**4. `Missing required option(s): --uri, --password`**
+- The CLI tells you exactly which flags are missing
+- Run `bpmn2dexpi neo4j-export --help` to see all required options
+
+**5. `Cannot determine input type from 'file.dat'`**
+- Use `--input-type bpmn` or `--input-type dexpi` when the file extension isn't `.bpmn` or `.xml`
 
 ### Exit Codes
 
