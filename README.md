@@ -59,8 +59,11 @@ bpmn2dexpi input.bpmn output.xml
 ### Command Line
 
 ```bash
-# Convert BPMN to DEXPI XML
+# If using cloned repo
 npm run transform process.bpmn output.xml
+
+# If installed globally via npm
+bpmn2dexpi process.bpmn output.xml
 ```
 
 ### Python Integration
