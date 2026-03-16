@@ -62,8 +62,14 @@ bpmn2dexpi input.bpmn output.xml
 # If using cloned repo
 npm run transform process.bpmn output.xml
 
+# Export BPMN directly to Neo4j (BPMN -> DEXPI -> Neo4j)
+npm run neo4j-export process.bpmn -- --uri bolt://localhost:7687 --user neo4j --password secret
+
 # If installed globally via npm
 bpmn2dexpi process.bpmn output.xml
+
+# Export DEXPI XML directly to Neo4j
+bpmn2dexpi neo4j-export process.xml --uri bolt://localhost:7687 --user neo4j --password secret --input-type dexpi
 ```
 
 ### Python Integration
@@ -71,13 +77,21 @@ bpmn2dexpi process.bpmn output.xml
 The included `bpmn2dexpi.py` script wraps the CLI for use from Python:
 
 ```python
-from bpmn2dexpi import transform
+from bpmn2dexpi import transform, export_to_neo4j
 
 # Convert and save to file
 transform('input.bpmn', 'output.xml')
 
 # Get XML as string
 xml = transform('input.bpmn')
+
+# Export BPMN directly to Neo4j
+export_to_neo4j(
+   input_file='input.bpmn',
+   uri='bolt://localhost:7687',
+   user='neo4j',
+   password='secret'
+)
 ```
 
 See [CLI_USAGE.md](./CLI_USAGE.md) for more examples.

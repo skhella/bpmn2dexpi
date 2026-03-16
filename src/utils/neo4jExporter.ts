@@ -933,7 +933,10 @@ export async function executeNeo4jQueries(
   }
   
   const endpoint = `${httpUri}/db/${database}/tx/commit`;
-  const auth = btoa(`${user}:${password}`);
+  const credentials = `${user}:${password}`;
+  const auth = typeof btoa === 'function'
+    ? btoa(credentials)
+    : Buffer.from(credentials, 'utf-8').toString('base64');
   
   let successCount = 0;
   let errorCount = 0;

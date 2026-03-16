@@ -25,6 +25,7 @@
     "cli.js",
     "src/transformer/",
     "src/dexpi/moddle/",
+    "src/utils/neo4jExporter.ts",
     "bpmn2dexpi.py",
     "README.md",
     "LICENSE"
@@ -37,7 +38,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "transform": "node --import tsx cli.js"
+    "transform": "node --import tsx cli.js",
+    "neo4j-export": "node --import tsx cli.js neo4j-export"
   },
   "dependencies": {
     "bpmn-js": "^18.10.1",

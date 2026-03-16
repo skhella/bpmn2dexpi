@@ -34,6 +34,28 @@ npm run transform "examples/Tennessee_Eastman_Process.bpmn"
 node --import tsx cli.js <input.bpmn> [output.xml]
 ```
 
+#### Option 3: Export to Neo4j (BPMN or DEXPI input)
+
+```bash
+# BPMN input (auto transforms BPMN -> DEXPI before export)
+npm run neo4j-export <input.bpmn> -- --uri <uri> --user <user> --password <password> [--database neo4j]
+
+# DEXPI input
+node --import tsx cli.js neo4j-export <input.xml> --input-type dexpi --uri <uri> --user <user> --password <password>
+```
+
+**Examples:**
+```bash
+# Export BPMN directly to Neo4j
+npm run neo4j-export "examples/Tennessee_Eastman_Process.bpmn" -- --uri bolt://localhost:7687 --user neo4j --password secret
+
+# Export DEXPI XML directly to Neo4j
+node --import tsx cli.js neo4j-export output.xml --input-type dexpi --uri bolt://localhost:7687 --user neo4j --password secret
+
+# Save transformed DEXPI while exporting BPMN
+node --import tsx cli.js neo4j-export process.bpmn --uri bolt://localhost:7687 --user neo4j --password secret --dexpi-out process-dexpi.xml
+```
+
 ### Help
 
 ```bash
@@ -55,7 +77,7 @@ import subprocess
 # Method 1: Using the helper script
 import sys
 sys.path.append('path/to/bpmn2dexpi')
-from bpmn2dexpi import transform
+from bpmn2dexpi import transform, export_to_neo4j
 
 # Convert and save to file
 transform('process.bpmn', 'output.xml')
@@ -63,6 +85,24 @@ transform('process.bpmn', 'output.xml')
 # Convert and get XML as string
 dexpi_xml = transform('process.bpmn')
 print(dexpi_xml)
+
+# Export BPMN directly to Neo4j
+export_to_neo4j(
+    input_file='process.bpmn',
+    uri='bolt://localhost:7687',
+    user='neo4j',
+    password='secret',
+    database='neo4j'
+)
+
+# Export DEXPI XML directly to Neo4j
+export_to_neo4j(
+    input_file='process.xml',
+    uri='bolt://localhost:7687',
+    user='neo4j',
+    password='secret',
+    input_type='dexpi'
+)
 ```
 
 ### Advanced Python Usage
