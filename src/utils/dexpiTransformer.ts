@@ -1,17 +1,39 @@
 // @ts-expect-error xml2js has no type declarations
 import { parseString, Builder } from 'xml2js';
 
+// ── Minimal types for xml2js-parsed BPMN nodes ──────────────────────────────
+
+type XmlNode = Record<string, unknown>;
+type XmlAttr = Record<string, string>;
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
+function nodeAttr(node: unknown): XmlAttr {
+  if (!isRecord(node)) return {};
+  const a = (node as Record<string, unknown>)['$'];
+  return isRecord(a) ? (a as XmlAttr) : {};
+}
+
+function nodeChildren(node: unknown, key: string): unknown[] {
+  if (!isRecord(node)) return [];
+  const v = (node as Record<string, unknown>)[key];
+  return Array.isArray(v) ? v : [];
+}
+
+function first(arr: unknown[]): unknown {
+  return arr[0];
+}
+
+// ── Public API ───────────────────────────────────────────────────────────────
+
 export async function exportToDexpiXml(bpmnXml: string): Promise<string> {
   return new Promise((resolve, reject) => {
     parseString(bpmnXml, (err: Error | null, result: Record<string, unknown>) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-
+      if (err) { reject(err); return; }
       try {
-        const dexpiXml = transformBpmnToDexpi(result);
-        resolve(dexpiXml);
+        resolve(transformBpmnToDexpi(result));
       } catch (error) {
         reject(error);
       }
@@ -19,306 +41,135 @@ export async function exportToDexpiXml(bpmnXml: string): Promise<string> {
   });
 }
 
-function transformBpmnToDexpi(bpmnData: any): string {
-  const dexpiData: any = {
-    ProcessModel: {
-      $: {
-        'xmlns': 'http://www.dexpi.org/2023/schema',
-        'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'SchemaVersion': '3.0'
-      },
-      ProcessSteps: [],
-      Sources: [],
-      Sinks: [],
-      Streams: [],
-      MaterialTemplates: [],
-      MaterialStates: []
-    }
+// ── Internal helpers ─────────────────────────────────────────────────────────
+
+function buildPort(port: unknown): XmlNode {
+  const a = nodeAttr(port);
+  return { Port: { $: { ID: a.portId, Name: a.name, Type: a.portType, Direction: a.direction } } };
+}
+
+function buildPorts(ports: unknown[]): XmlNode[] {
+  return ports.map(buildPort);
+}
+
+function extractDexpiElement(bpmnElement: unknown): unknown {
+  const ext = first(nodeChildren(bpmnElement, 'extensionElements'));
+  if (!ext) return null;
+  return first(nodeChildren(ext, 'dexpi:Element')) ?? null;
+}
+
+function extractDexpiStream(bpmnFlow: unknown): unknown {
+  const ext = first(nodeChildren(bpmnFlow, 'extensionElements'));
+  if (!ext) return null;
+  return first(nodeChildren(ext, 'dexpi:Stream')) ?? null;
+}
+
+// ── Core transform ────────────────────────────────────────────────────────────
+
+function transformBpmnToDexpi(bpmnData: unknown): string {
+  if (!isRecord(bpmnData)) throw new Error('Invalid BPMN structure');
+
+  const defs = first(nodeChildren(bpmnData, 'bpmn:definitions'));
+  const process = first(nodeChildren(defs, 'bpmn:process'));
+  if (!process) throw new Error('Invalid BPMN structure');
+
+  const model: XmlNode = {
+    $: {
+      xmlns: 'http://www.dexpi.org/2023/schema',
+      'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+      SchemaVersion: '3.0',
+    },
+    ProcessSteps: [],
+    Sources: [],
+    Sinks: [],
+    Streams: [],
+    MaterialTemplates: [],
+    MaterialStates: [],
   };
 
-  const bpmnDefinitions = bpmnData['bpmn:definitions'];
-  if (!bpmnDefinitions || !bpmnDefinitions['bpmn:process']) {
-    throw new Error('Invalid BPMN structure');
+  // Tasks → ProcessSteps / InstrumentationActivities
+  for (const task of nodeChildren(process, 'bpmn:task')) {
+    const el = extractDexpiElement(task);
+    if (!el) continue;
+    const a = nodeAttr(el);
+    const ta = nodeAttr(task);
+    const step: XmlNode = { $: { ID: a.identifier || ta.id, Name: ta.name || '' }, Ports: buildPorts(nodeChildren(el, 'dexpi:Port')) };
+    if (a.dexpiType === 'InstrumentationActivity') {
+      if (!model.InstrumentationActivities) model.InstrumentationActivities = [];
+      (model.InstrumentationActivities as XmlNode[]).push({ InstrumentationActivity: step });
+    } else {
+      (model.ProcessSteps as XmlNode[]).push({ ProcessStep: step });
+    }
   }
 
-  const process = bpmnDefinitions['bpmn:process'][0];
-
-  // Process tasks (Process Steps and Instrumentation Activities)
-  if (process['bpmn:task']) {
-    process['bpmn:task'].forEach((task: any) => {
-      const dexpiElement = extractDexpiElement(task);
-      
-      if (dexpiElement) {
-        const processStep: any = {
-          $: {
-            ID: dexpiElement.identifier || task.$.id,
-            Name: task.$.name || ''
-          },
-          Ports: []
-        };
-
-        if (dexpiElement.ports && dexpiElement.ports.length > 0) {
-          dexpiElement.ports.forEach((port: any) => {
-            processStep.Ports.push({
-              Port: {
-                $: {
-                  ID: port.$.portId,
-                  Name: port.$.name,
-                  Type: port.$.portType,
-                  Direction: port.$.direction
-                }
-              }
-            });
-          });
-        }
-
-        if (dexpiElement.dexpiType === 'ProcessStep') {
-          dexpiData.ProcessModel.ProcessSteps.push({ ProcessStep: processStep });
-        } else if (dexpiElement.dexpiType === 'InstrumentationActivity') {
-          if (!dexpiData.ProcessModel.InstrumentationActivities) {
-            dexpiData.ProcessModel.InstrumentationActivities = [];
-          }
-          dexpiData.ProcessModel.InstrumentationActivities.push({ InstrumentationActivity: processStep });
-        }
-      }
-    });
+  // StartEvents → Sources
+  for (const ev of nodeChildren(process, 'bpmn:startEvent')) {
+    const el = extractDexpiElement(ev);
+    const ea = nodeAttr(ev);
+    const src: XmlNode = { $: { ID: nodeAttr(el).identifier || ea.id, Name: ea.name || 'Source' }, Ports: buildPorts(nodeChildren(el, 'dexpi:Port')) };
+    (model.Sources as XmlNode[]).push({ Source: src });
   }
 
-  // Process start events (Sources)
-  if (process['bpmn:startEvent']) {
-    process['bpmn:startEvent'].forEach((startEvent: any) => {
-      const dexpiElement = extractDexpiElement(startEvent);
-      
-      const source: any = {
-        $: {
-          ID: dexpiElement?.identifier || startEvent.$.id,
-          Name: startEvent.$.name || 'Source'
-        },
-        Ports: []
-      };
-
-      if (dexpiElement?.ports) {
-        dexpiElement.ports.forEach((port: any) => {
-          source.Ports.push({
-            Port: {
-              $: {
-                ID: port.$.portId,
-                Name: port.$.name,
-                Type: port.$.portType,
-                Direction: port.$.direction
-              }
-            }
-          });
-        });
-      }
-
-      dexpiData.ProcessModel.Sources.push({ Source: source });
-    });
+  // EndEvents → Sinks
+  for (const ev of nodeChildren(process, 'bpmn:endEvent')) {
+    const el = extractDexpiElement(ev);
+    const ea = nodeAttr(ev);
+    const snk: XmlNode = { $: { ID: nodeAttr(el).identifier || ea.id, Name: ea.name || 'Sink' }, Ports: buildPorts(nodeChildren(el, 'dexpi:Port')) };
+    (model.Sinks as XmlNode[]).push({ Sink: snk });
   }
 
-  // Process end events (Sinks)
-  if (process['bpmn:endEvent']) {
-    process['bpmn:endEvent'].forEach((endEvent: any) => {
-      const dexpiElement = extractDexpiElement(endEvent);
-      
-      const sink: any = {
-        $: {
-          ID: dexpiElement?.identifier || endEvent.$.id,
-          Name: endEvent.$.name || 'Sink'
-        },
-        Ports: []
-      };
-
-      if (dexpiElement?.ports) {
-        dexpiElement.ports.forEach((port: any) => {
-          sink.Ports.push({
-            Port: {
-              $: {
-                ID: port.$.portId,
-                Name: port.$.name,
-                Type: port.$.portType,
-                Direction: port.$.direction
-              }
-            }
-          });
-        });
-      }
-
-      dexpiData.ProcessModel.Sinks.push({ Sink: sink });
-    });
+  // SequenceFlows → Streams
+  for (const flow of nodeChildren(process, 'bpmn:sequenceFlow')) {
+    const ds = extractDexpiStream(flow);
+    const fa = nodeAttr(flow);
+    const da = nodeAttr(ds);
+    const stream: XmlNode = {
+      $: {
+        ID: da.identifier || fa.id,
+        Name: da.name || fa.name || 'Stream',
+        SourceRef: fa.sourceRef,
+        TargetRef: fa.targetRef,
+        ...(da.streamType && { Type: da.streamType }),
+        ...(da.sourcePortRef && { SourcePortRef: da.sourcePortRef }),
+        ...(da.targetPortRef && { TargetPortRef: da.targetPortRef }),
+        ...(da.templateReference && { TemplateReference: da.templateReference }),
+        ...(da.materialStateReference && { MaterialStateReference: da.materialStateReference }),
+        ...(da.provenance && { Provenance: da.provenance }),
+        ...(da.range && { Range: da.range }),
+      },
+    };
+    const attrs = nodeChildren(ds, 'dexpi:StreamAttribute');
+    if (attrs.length) {
+      stream.Attributes = attrs.map(attr => {
+        const aa = nodeAttr(attr);
+        return { Attribute: { $: { Name: aa.name, Value: aa.value, Unit: aa.unit || '', Mode: aa.mode || '', Qualifier: aa.qualifier || '' } } };
+      });
+    }
+    (model.Streams as XmlNode[]).push({ Stream: stream });
   }
 
-  // Process sequence flows (Material/Energy Streams)
-  if (process['bpmn:sequenceFlow']) {
-    process['bpmn:sequenceFlow'].forEach((flow: any) => {
-      const dexpiStream = extractDexpiStream(flow);
-      
-      const stream: any = {
-        $: {
-          ID: dexpiStream?.identifier || flow.$.id,
-          Name: dexpiStream?.name || flow.$.name || 'Stream',
-          SourceRef: flow.$.sourceRef,
-          TargetRef: flow.$.targetRef
-        }
-      };
+  // DataObjectReferences → MaterialTemplates / MaterialStates
+  for (const dataObj of nodeChildren(process, 'bpmn:dataObjectReference')) {
+    const ext = first(nodeChildren(dataObj, 'extensionElements'));
+    if (!ext) continue;
 
-      if (dexpiStream) {
-        if (dexpiStream.streamType) {
-          stream.$.Type = dexpiStream.streamType;
-        }
-        if (dexpiStream.sourcePortRef) {
-          stream.$.SourcePortRef = dexpiStream.sourcePortRef;
-        }
-        if (dexpiStream.targetPortRef) {
-          stream.$.TargetPortRef = dexpiStream.targetPortRef;
-        }
-        if (dexpiStream.templateReference) {
-          stream.$.TemplateReference = dexpiStream.templateReference;
-        }
-        if (dexpiStream.materialStateReference) {
-          stream.$.MaterialStateReference = dexpiStream.materialStateReference;
-        }
-        if (dexpiStream.provenance) {
-          stream.$.Provenance = dexpiStream.provenance;
-        }
-        if (dexpiStream.range) {
-          stream.$.Range = dexpiStream.range;
-        }
+    for (const mt of nodeChildren(ext, 'dexpi:MaterialTemplate')) {
+      const a = nodeAttr(mt); const da = nodeAttr(dataObj);
+      const tmpl: XmlNode = { $: { ID: a.identifier || da.id, Name: a.name || da.name || 'Material Template', UID: a.uid || a.identifier } };
+      const comps = nodeChildren(mt, 'dexpi:Component');
+      if (comps.length) tmpl.Components = comps.map(c => { const ca = nodeAttr(c); return { Component: { $: { Name: ca.name, CASNumber: ca.casNumber || '', Fraction: ca.fraction || '' } } }; });
+      (model.MaterialTemplates as XmlNode[]).push({ MaterialTemplate: tmpl });
+    }
 
-        if (dexpiStream.attributes && dexpiStream.attributes.length > 0) {
-          stream.Attributes = [];
-          dexpiStream.attributes.forEach((attr: any) => {
-            stream.Attributes.push({
-              Attribute: {
-                $: {
-                  Name: attr.$.name,
-                  Value: attr.$.value,
-                  Unit: attr.$.unit || '',
-                  Mode: attr.$.mode || '',
-                  Qualifier: attr.$.qualifier || ''
-                }
-              }
-            });
-          });
-        }
-      }
-
-      dexpiData.ProcessModel.Streams.push({ Stream: stream });
-    });
+    for (const ms of nodeChildren(ext, 'dexpi:MaterialState')) {
+      const a = nodeAttr(ms); const da = nodeAttr(dataObj);
+      const state: XmlNode = { $: { ID: a.identifier || da.id, Name: a.name || da.name || 'Material State', UID: a.uid || a.identifier, TemplateRef: a.templateRef || '', ...(a.provenance && { Provenance: a.provenance }), ...(a.range && { Range: a.range }) } };
+      const props = nodeChildren(ms, 'dexpi:StateProperty');
+      if (props.length) state.Properties = props.map(p => { const pa = nodeAttr(p); return { Property: { $: { Name: pa.name, Value: pa.value, Unit: pa.unit || '' } } }; });
+      (model.MaterialStates as XmlNode[]).push({ MaterialState: state });
+    }
   }
 
-  // Process data objects (Material Templates/States)
-  if (process['bpmn:dataObjectReference']) {
-    process['bpmn:dataObjectReference'].forEach((dataObj: any) => {
-      const extensionElements = dataObj.extensionElements;
-      
-      if (extensionElements && extensionElements[0]) {
-        const values = extensionElements[0];
-        
-        // Check for MaterialTemplate
-        if (values['dexpi:MaterialTemplate']) {
-          const mtArray = values['dexpi:MaterialTemplate'];
-          mtArray.forEach((mt: any) => {
-            const template: any = {
-              $: {
-                ID: mt.$.identifier || dataObj.$.id,
-                Name: mt.$.name || dataObj.$.name || 'Material Template',
-                UID: mt.$.uid || mt.$.identifier
-              }
-            };
-
-            if (mt['dexpi:Component']) {
-              template.Components = [];
-              mt['dexpi:Component'].forEach((comp: any) => {
-                template.Components.push({
-                  Component: {
-                    $: {
-                      Name: comp.$.name,
-                      CASNumber: comp.$.casNumber || '',
-                      Fraction: comp.$.fraction || ''
-                    }
-                  }
-                });
-              });
-            }
-
-            dexpiData.ProcessModel.MaterialTemplates.push({ MaterialTemplate: template });
-          });
-        }
-
-        // Check for MaterialState
-        if (values['dexpi:MaterialState']) {
-          const msArray = values['dexpi:MaterialState'];
-          msArray.forEach((ms: any) => {
-            const state: any = {
-              $: {
-                ID: ms.$.identifier || dataObj.$.id,
-                Name: ms.$.name || dataObj.$.name || 'Material State',
-                UID: ms.$.uid || ms.$.identifier,
-                TemplateRef: ms.$.templateRef || ''
-              }
-            };
-
-            if (ms.$.provenance) {
-              state.$.Provenance = ms.$.provenance;
-            }
-            if (ms.$.range) {
-              state.$.Range = ms.$.range;
-            }
-
-            if (ms['dexpi:StateProperty']) {
-              state.Properties = [];
-              ms['dexpi:StateProperty'].forEach((prop: any) => {
-                state.Properties.push({
-                  Property: {
-                    $: {
-                      Name: prop.$.name,
-                      Value: prop.$.value,
-                      Unit: prop.$.unit || ''
-                    }
-                  }
-                });
-              });
-            }
-
-            dexpiData.ProcessModel.MaterialStates.push({ MaterialState: state });
-          });
-        }
-      }
-    });
-  }
-
-  // Build XML
-  const builder = new Builder({
-    xmldec: { version: '1.0', encoding: 'UTF-8' },
-    renderOpts: { pretty: true, indent: '  ' }
-  });
-  
-  return builder.buildObject(dexpiData);
-}
-
-function extractDexpiElement(bpmnElement: any): any {
-  if (!bpmnElement.extensionElements || !bpmnElement.extensionElements[0]) {
-    return null;
-  }
-
-  const extensionValues = bpmnElement.extensionElements[0];
-  if (!extensionValues['dexpi:Element']) {
-    return null;
-  }
-
-  return extensionValues['dexpi:Element'][0];
-}
-
-function extractDexpiStream(bpmnFlow: any): any {
-  if (!bpmnFlow.extensionElements || !bpmnFlow.extensionElements[0]) {
-    return null;
-  }
-
-  const extensionValues = bpmnFlow.extensionElements[0];
-  if (!extensionValues['dexpi:Stream']) {
-    return null;
-  }
-
-  return extensionValues['dexpi:Stream'][0];
+  const builder = new Builder({ xmldec: { version: '1.0', encoding: 'UTF-8' }, renderOpts: { pretty: true, indent: '  ' } });
+  return builder.buildObject({ ProcessModel: model });
 }

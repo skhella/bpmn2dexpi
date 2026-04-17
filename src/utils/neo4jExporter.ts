@@ -587,7 +587,7 @@ function analyzeSubprocessFlows(
   // Get subprocess level (nesting depth)
   function getSubprocessLevel(stepId: string): number {
     let level = 0;
-    let currentId = stepId;
+    const currentId = stepId;
     const step = processSteps.find(s => s.id === currentId);
     if (!step) return 0;
     

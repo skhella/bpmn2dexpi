@@ -41,10 +41,12 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     return () => window.removeEventListener('material-library-tab', handleTabChange);
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     if (modeler) {
       loadMaterialData();
     }
+  // eslint-disable-next-line no-use-before-define
   }, [modeler]);
 
   const loadMaterialData = () => {

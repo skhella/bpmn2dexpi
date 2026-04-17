@@ -17,9 +17,7 @@ export async function validateDexpiOutputXsd(
   xsdPath: string
 ): Promise<ValidationResult> {
   try {
-    const { execFile, writeFile, unlink } = await import('child_process').then(
-      m => ({ execFile: m.execFile, ...m })
-    );
+    const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const { tmpdir } = await import('os');
     const { join } = await import('path');
