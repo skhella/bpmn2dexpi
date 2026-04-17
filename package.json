@@ -37,13 +37,26 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "transform": "node --import tsx cli.js"
+    "transform": "node --import tsx cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "vitest": {
+    "environment": "node",
+    "include": [
+      "src/**/*.test.ts",
+      "src/**/*.spec.ts"
+    ],
+    "exclude": [
+      "node_modules",
+      "dist"
+    ]
   },
   "dependencies": {
     "bpmn-js": "^18.10.1",
     "bpmn-js-properties-panel": "^5.48.0",
     "diagram-js": "^15.6.0",
-    "jsdom": "^27.4.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "xml2js": "^0.6.2"
@@ -54,13 +67,17 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "@vitest/coverage-v8": "^4.1.4",
+    "@vitest/ui": "^4.1.4",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "jsdom": "^29.0.2",
     "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^4.1.4"
   }
 }
