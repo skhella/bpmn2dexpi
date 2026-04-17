@@ -35,8 +35,16 @@ export interface InternalPort extends DexpiPort {
 
 export interface StreamAttribute {
   name: string;
+  /** Optional URI linking the attribute name to a standard quantity kind.
+   *  e.g. https://qudt.org/vocab/quantitykind/MassFlowRate
+   *       https://data.15926.org/rdl/R... */
+  nameUri?: string;
   value: string;
   unit?: string;
+  /** Optional URI linking the unit to a standard unit definition.
+   *  e.g. https://qudt.org/vocab/unit/KiloGM-PER-HR
+   *       https://qudt.org/vocab/unit/DEG_C */
+  unitUri?: string;
   scope?: string;
   range?: string;
   provenance?: string;
