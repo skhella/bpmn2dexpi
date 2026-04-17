@@ -225,7 +225,7 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
       const out = await t.transform(xml);
 
       expect(out).toContain('ReactingChemicals');
-      expect(out).toContain('uid-T1');
+      expect(out).toContain('uid_T1');  // sanitizeId converts hyphens → underscores per XSD pattern
     });
 
     it('generates valid XML (no unclosed tags)', async () => {

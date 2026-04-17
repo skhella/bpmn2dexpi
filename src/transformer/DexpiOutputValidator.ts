@@ -1,51 +1,77 @@
 /**
- * DexpiOutputValidator
+ * DexpiOutputValidator (R1-C2)
  *
- * Validates DEXPI 2.0 XML produced by BpmnToDexpiTransformer.
- * The transformer emits the DEXPI linked-data object model:
+ * Validates DEXPI 2.0 XML produced by BpmnToDexpiTransformer against the
+ * official DEXPI XML Schema (DEXPI_XML_Schema.xsd, bundled in dexpi-schema-files/).
  *
- *   <Model name="..." uri="...">
- *     <Import prefix="Core"    source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
- *     <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
- *     <Object type="Core/EngineeringModel">
- *       <Components property="ConceptualModel">
- *         <Object type="Process/ProcessModel">
- *           <Components property="ProcessSteps">
- *             <Object id="uid-…" type="Process/Process.ReactingChemicals">…</Object>
- *           </Components>
- *         </Object>
- *       </Components>
- *     </Object>
- *   </Model>
+ * In Node / CLI environments (where child_process is available), full XSD
+ * validation is performed via xmllint.  In browser environments, a structural
+ * fallback checks the key invariants of the DEXPI 2.0 object model.
  */
 
 import type { ValidationResult } from './types';
 
+// ── Node-only XSD validation ───────────────────────────────────────────────
+export async function validateDexpiOutputXsd(
+  xml: string,
+  xsdPath: string
+): Promise<ValidationResult> {
+  try {
+    const { execFile, writeFile, unlink } = await import('child_process').then(
+      m => ({ execFile: m.execFile, ...m })
+    );
+    const { promisify } = await import('util');
+    const { tmpdir } = await import('os');
+    const { join } = await import('path');
+    const { writeFile: wf, unlink: ul } = await import('fs/promises');
+
+    const tmpFile = join(tmpdir(), `dexpi_validate_${Date.now()}.xml`);
+    await wf(tmpFile, xml, 'utf-8');
+
+    return new Promise<ValidationResult>(resolve => {
+      const execFileP = promisify(execFile);
+      execFileP('xmllint', ['--noout', '--schema', xsdPath, tmpFile])
+        .then(() => {
+          ul(tmpFile).catch(() => {});
+          resolve({ valid: true, errors: [], warnings: [] });
+        })
+        .catch((err: { stderr?: string; stdout?: string }) => {
+          ul(tmpFile).catch(() => {});
+          const output = (err.stderr || err.stdout || String(err));
+          const errors = output
+            .split('\n')
+            .filter(l => l.includes('error') || l.includes('fails to validate'))
+            .map(l => l.trim())
+            .filter(Boolean);
+          resolve({ valid: false, errors, warnings: [] });
+        });
+    });
+  } catch {
+    // child_process not available (browser) — fall back to structural checks
+    return validateDexpiOutput(xml);
+  }
+}
+
+// ── Structural fallback (browser-safe) ────────────────────────────────────
 export function validateDexpiOutput(xml: string): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
   let doc: Document;
   try {
-    if (typeof DOMParser !== 'undefined') {
-      doc = new DOMParser().parseFromString(xml, 'text/xml');
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { JSDOM } = require('jsdom');
-      doc = new JSDOM(xml, { contentType: 'text/xml' }).window.document;
-    }
+    const parser = new DOMParser();
+    doc = parser.parseFromString(xml, 'text/xml');
   } catch {
-    errors.push('Failed to parse generated XML as a DOM document.');
+    errors.push('Failed to parse generated XML.');
     return { valid: false, errors, warnings };
   }
 
-  const parseError = doc.querySelector('parsererror');
-  if (parseError) {
-    errors.push(`Generated XML is not well-formed: ${(parseError.textContent ?? '').slice(0, 200)}`);
+  const parseErr = doc.querySelector('parsererror');
+  if (parseErr) {
+    errors.push(`Generated XML is not well-formed: ${(parseErr.textContent ?? '').slice(0, 200)}`);
     return { valid: false, errors, warnings };
   }
 
-  // Root must be <Model>
   const root = doc.documentElement;
   const rootLocal = root.localName || root.tagName.split(':').pop() || '';
   if (rootLocal !== 'Model') {
@@ -53,61 +79,56 @@ export function validateDexpiOutput(xml: string): ValidationResult {
     return { valid: false, errors, warnings };
   }
 
-  // Check imports
   const imports = Array.from(root.children).filter(
-    (c) => (c.localName || c.tagName.split(':').pop() || '') === 'Import'
+    c => (c.localName || c.tagName.split(':').pop()) === 'Import'
   );
-  const importSources = imports.map((i) => i.getAttribute('source') ?? '');
-  if (!importSources.some((s) => s.includes('Core'))) {
-    warnings.push('Missing Core import declaration.');
-  }
-  if (!importSources.some((s) => s.includes('Process'))) {
-    warnings.push('Missing Process import declaration.');
-  }
+  if (!imports.some(i => i.getAttribute('prefix') === 'Core'))
+    warnings.push('Missing <Import prefix="Core"> declaration.');
+  if (!imports.some(i => i.getAttribute('prefix') === 'Process'))
+    warnings.push('Missing <Import prefix="Process"> declaration.');
 
-  // All top-level Object elements (direct children of root or direct children of Components)
   const allObjects = Array.from(doc.querySelectorAll('Object'));
   if (allObjects.length === 0) {
     errors.push('No <Object> elements found in generated DEXPI XML.');
     return { valid: false, errors, warnings };
   }
 
-  // ProcessModel container
-  const hasProcessModel = allObjects.some(
-    (o) => o.getAttribute('type') === 'Process/ProcessModel'
+  const processModel = allObjects.find(
+    o => (o.getAttribute('type') ?? '').includes('ProcessModel')
   );
-  if (!hasProcessModel) {
-    warnings.push('No Process/ProcessModel container Object found.');
-  }
+  if (!processModel)
+    warnings.push('No Object with type="Process/ProcessModel" found.');
 
-  // ProcessStep objects are direct children of a Components[property="ProcessSteps"] element.
-  // This avoids incorrectly flagging nested data objects (e.g. Composition fractions).
-  const processStepContainers = Array.from(
-    doc.querySelectorAll('Components[property="ProcessSteps"]')
-  );
+  // ProcessStep Objects — only check DIRECT children of Components[property="ProcessSteps"]
+  // Nested objects (Composition, Port, QualifiedValue) have optional id per XSD
+  const topLevelStepObjects: Element[] = processModel
+    ? Array.from(processModel.querySelectorAll('Components'))
+        .filter(c => c.getAttribute('property') === 'ProcessSteps')
+        .flatMap(comp => Array.from(comp.children)
+          .filter(c => (c.localName || c.tagName.split(':').pop()) === 'Object') as Element[])
+    : [];
 
-  if (processStepContainers.length === 0) {
-    warnings.push('No <Components property="ProcessSteps"> container found — no ProcessSteps in output.');
-  }
+  if (topLevelStepObjects.length === 0)
+    warnings.push('No ProcessStep Object elements (type="Process/Process.*") found.');
 
-  let processStepCount = 0;
-  processStepContainers.forEach((container) => {
-    // Only direct Object children of the ProcessSteps container are process steps
-    const stepObjects = Array.from(container.children).filter(
-      (c) => (c.localName || c.tagName.split(':').pop() || '') === 'Object'
-    );
-    stepObjects.forEach((ps, i) => {
-      processStepCount++;
-      const id = ps.getAttribute('id');
-      const type = ps.getAttribute('type') ?? '';
-      if (!id) {
-        errors.push(`ProcessStep Object[${i}] (type=${type}) is missing required 'id' attribute.`);
-      }
-    });
+  topLevelStepObjects.forEach((obj, i) => {
+    const id   = obj.getAttribute('id');
+    const type = obj.getAttribute('type');
+    if (!id)   errors.push(`ProcessStep Object[${i}] (type=${type ?? '?'}) is missing required 'id'.`);
+    if (!type) errors.push(`ProcessStep Object[${i}] (id=${id ?? '?'}) is missing required 'type'.`);
   });
 
-  if (processStepCount === 0 && processStepContainers.length > 0) {
-    warnings.push('ProcessSteps container is empty — no process step Objects found.');
+  if (processModel) {
+    Array.from(processModel.querySelectorAll('Components'))
+      .filter(c => c.getAttribute('property') === 'ProcessConnections')
+      .forEach(comp => {
+        Array.from(comp.children)
+          .filter(c => (c.localName || c.tagName.split(':').pop()) === 'Object')
+          .forEach((obj, i) => {
+            if (!obj.getAttribute('id'))
+              errors.push(`ProcessConnection Object[${i}] is missing required 'id'.`);
+          });
+      });
   }
 
   return { valid: errors.length === 0, errors, warnings };
