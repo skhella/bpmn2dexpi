@@ -1,23 +1,48 @@
 import type { DexpiElement, DexpiPort, DexpiStream } from '../dexpi/moddle';
+import type {
+  InternalProcessStep,
+  InternalPort,
+  InternalStream,
+  InternalMaterialTemplate,
+  InternalMaterialComponent,
+  InternalMaterialState,
+  InternalMaterialStateType,
+  StreamAttribute,
+  TransformOptions,
+  StepTypingResult,
+} from './types';
+import { TransformerLogger } from './TransformerLogger';
+import { validateDexpiOutput } from './DexpiOutputValidator';
+import { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';
 
-interface TransformOptions {
-  projectName?: string;
-  projectDescription?: string;
-  author?: string;
-}
+export type { TransformOptions } from './types';
+export { validateDexpiOutput } from './DexpiOutputValidator';
 
 export class BpmnToDexpiTransformer {
-  private processSteps: Map<string, any> = new Map();
-  private streams: Map<string, any> = new Map();
-  private ports: Map<string, any> = new Map();
-  private materialTemplates: Map<string, any> = new Map();
-  private materialComponents: Map<string, any> = new Map();
-  private materialStates: Map<string, any> = new Map();
-  private materialStateTypes: Map<string, any> = new Map();
+  private processSteps: Map<string, InternalProcessStep> = new Map();
+  private streams: Map<string, InternalStream> = new Map();
+  private ports: Map<string, InternalPort> = new Map();
+  private materialTemplates: Map<string, InternalMaterialTemplate> = new Map();
+  private materialComponents: Map<string, InternalMaterialComponent> = new Map();
+  private materialStates: Map<string, InternalMaterialState> = new Map();
+  private materialStateTypes: Map<string, InternalMaterialStateType> = new Map();
+
+  /** Warnings and errors collected during the last call to transform(). */
+  readonly logger = new TransformerLogger();
 
   async transform(bpmnXml: string, options: TransformOptions = {}): Promise<string> {
     
-    // Clear state from previous transformations
+    // Clear state and log from previous transformations
+    this.logger.reset();
+
+    // Load DEXPI class registry from Process.xml (fast — cached after first call)
+    this.registry = await DexpiProcessClassRegistry.load();
+    if (this.registry.size === 0) {
+      this.logger.warn(
+        'Could not load dexpi-schema-files/Process.xml — class validation disabled. ' +
+        'All dexpiType annotations will be accepted without validation.'
+      );
+    }
     this.processSteps.clear();
     this.streams.clear();
     this.ports.clear();
@@ -98,182 +123,115 @@ export class BpmnToDexpiTransformer {
   }
 
   // Valid DEXPI 2.0 ProcessStep types (from Process.xml schema - ConcreteClass definitions)
-  private static readonly VALID_PROCESS_STEP_TYPES = [
-    // Base
-    'ProcessStep',
-    // Reacting
-    'ReactingChemicals',
-    // Separating (and subtypes)
-    'Separating',
-    'SeparatingByCentrifugalForce',
-    'SeparatingByContact',
-    'SeparatingByCyclonicMotion',
-    'SeparatingByElectromagneticForce',
-    'SeparatingByElectrostaticForce',
-    'SeparatingByFlash',
-    'SeparatingByGravity',
-    'SeparatingByIonExchange',
-    'SeparatingByMagneticForce',
-    'SeparatingByPhaseSeparation',
-    'SeparatingByPhysicalProcess',
-    'SeparatingBySurfaceTension',
-    'SeparatingByThermalProcess',
-    'SeparatingMechanically',
-    'Absorbing',
-    'Adsorbing',
-    'Distilling',
-    'StrippingDistilling',
-    'StabilizingDistilling',
-    'VacuumDistilling',
-    'Drying',
-    'Evaporating',
-    'Filtering',
-    'Crystallizing',
-    'Sieving',
-    'Skimming',
-    // Thermal Energy
-    'ExchangingThermalEnergy',
-    'RemovingThermalEnergy',
-    'Cooling',
-    'SupplyingThermalEnergy',
-    'Boiling',
-    'GeneratingSteam',
-    'HeatingElectrical',
-    'HeatingInFurnace',
-    // Mechanical Energy
-    'SupplyingMechanicalEnergy',
-    'DrivingByEngine',
-    'DrivingByMotor',
-    'DrivingByTurbine',
-    // Electrical Energy
-    'SupplyingElectricalEnergy',
-    'GeneratingACPower',
-    'GeneratingDCPower',
-    'GeneratingInFuelCell',
-    'TransportingElectricalEnergy',
-    // Flow Generation
-    'GeneratingFlow',
-    'Compressing',
-    'Pumping',
-    // Steering Flow
-    'SteeringFlow',
-    'BlowingDown',
-    'Draining',
-    'FeedingMaterial',
-    'LimitingFlow',
-    'PreventingBackflow',
-    'RegulatingFlow',
-    'RelievingOverpressure',
-    'RelievingVacuum',
-    'RelievingVacuumAndOverpressure',
-    'ShuttingOffFlow',
-    // Mixing
-    'Mixing',
-    'MixingSimple',
-    'Humidifying',
-    'Kneading',
-    'RotaryMixing',
-    'StaticMixing',
-    // Splitting
-    'Splitting',
-    'SplittingEnergy',
-    'SplittingMaterial',
-    // Storing
-    'StoringEnergy',
-    'StoringElectricalEnergy',
-    'StoringInBattery',
-    'StoringThermalEnergy',
-    'StoringMaterial',
-    'StoringFluids',
-    'StoringInPressureVessel',
-    'StoringInTank',
-    'StoringSolids',
-    'StoringInSilo',
-    // Transporting
-    'TransportingFluids',
-    'TransportingFluidsInChannel',
-    'TransportingFluidsInHose',
-    'TransportingFluidsInPipe',
-    'TransportingSolids',
-    'TransportingSolidsContinuously',
-    'TransportingSolidsDiscontinuously',
-    // Supplying
-    'SupplyingFluids',
-    'SupplyingSolids',
-    // Particle Size
-    'IncreasingParticleSize',
-    'Agglomerating',
-    'Coalescing',
-    'Flocculating',
-    'ReducingParticleSize',
-    'Crushing',
-    'Cutting',
-    'Grinding',
-    'Milling',
-    // Forming Solid
-    'FormingSolidMaterial',
-    'Extruding',
-    'Pelletizing',
-    // Other Process Steps
-    'Emitting',
-    'Flaring',
-    'Packaging',
-    // Source and Sink
-    'Source',
-    'Sink',
-    // Instrumentation Activities
-    'InstrumentationActivity',
-    'CalculatingProcessVariable',
-    'CalculatingRatio',
-    'CalculatingSplitRange',
-    'TransformingProcessVariable',
-    'ControllingProcessVariable',
-    'ConveyingSignal',
-    'MeasuringProcessVariable'
-  ];
+  /**
+   * DEXPI Process class registry — loaded from dexpi-schema-files/Process.xml.
+   * Replaces the previous hardcoded class list. To update when DEXPI releases
+   * a new version: replace Process.xml, no code changes needed.
+   */
+  private registry: DexpiProcessClassRegistry = new DexpiProcessClassRegistry(new Map());
 
-  // Common aliases that map to actual DEXPI types
-  private static readonly TYPE_ALIASES: Record<string, string> = {
-    'measuring': 'MeasuringProcessVariable',
-    'controlling': 'ControllingProcessVariable',
-    'calculating': 'CalculatingProcessVariable',
-    'heating': 'SupplyingThermalEnergy',
-    'steeringflow': 'SteeringFlow',
-    'feeding': 'FeedingMaterial',
-    'storing': 'StoringMaterial',
-    'transporting': 'TransportingFluids',
-  };
+  /**
+   * Resolve the DEXPI type for a process step — three-mode system:
+   *
+   * Mode 1 'dexpi-validated':
+   *   dexpiType annotation present AND class is in the official Process.xml registry.
+   *   → Clean output, no warning.
+   *
+   * Mode 2 'custom-uri':
+   *   dexpiType annotation present but NOT in the registry.
+   *   User has provided a customUri referencing another RDL (e.g. ISO 15926, OntoCAPE).
+   *   → Output includes external reference URI; warning recommends a DEXPI class.
+   *   If no customUri is provided, the unknown type is still used but warned about.
+   *
+   * Mode 3 'heuristic':
+   *   No dexpiType annotation. Inferred from task name by substring matching.
+   *   → Always emits a warning; result is unreliable.
+   */
+  private resolveStepType(
+    annotatedType: string | undefined,
+    customUri: string | undefined,
+    taskName: string,
+    taskId: string
+  ): StepTypingResult {
 
-  private inferDexpiTypeFromName(name: string): string {
-    // Check if the name directly matches a valid DEXPI type (case-insensitive)
-    const normalized = name.trim();
-    const normalizedLower = normalized.toLowerCase();
-    
-    // First check aliases
-    if (BpmnToDexpiTransformer.TYPE_ALIASES[normalizedLower]) {
-      return BpmnToDexpiTransformer.TYPE_ALIASES[normalizedLower];
-    }
-    
-    // Then check exact match against valid types
-    const match = BpmnToDexpiTransformer.VALID_PROCESS_STEP_TYPES.find(
-      type => type.toLowerCase() === normalizedLower
-    );
-    if (match) {
-      return match;
-    }
-    
-    // Check if name contains a valid type (for names like "Pump 1" -> "Pumping")
-    // This handles partial matches - sort by length descending to match longest first
-    const sortedTypes = [...BpmnToDexpiTransformer.VALID_PROCESS_STEP_TYPES]
-      .sort((a, b) => b.length - a.length);
-    for (const type of sortedTypes) {
-      if (normalizedLower.includes(type.toLowerCase())) {
-        return type;
+    // ── Mode 1: explicit annotation, validated against registry ──────────────
+    if (annotatedType) {
+      if (this.registry.size === 0 || this.registry.isValidClass(annotatedType)) {
+        // Registry not loaded (offline/browser) OR class is known — accept it
+        return { dexpiClass: annotatedType, mode: 'dexpi-validated' };
       }
+
+      // ── Mode 2: explicit annotation but NOT in DEXPI registry ─────────────
+      // Find closest match as a suggestion
+      const suggestion = this.findClosestDexpiClass(annotatedType);
+      const uriNote = customUri
+        ? ` External reference URI stored: ${customUri}`
+        : ' No customUri provided — add one to reference your RDL.';
+
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a known ` +
+        `DEXPI 2.0 Process class. Treating as custom/non-DEXPI step.${uriNote}` +
+        (suggestion ? ` Closest DEXPI class: "${suggestion}".` : '')
+      );
+
+      return {
+        dexpiClass: annotatedType,
+        mode: 'custom-uri',
+        customUri,
+        suggestedDexpiClass: suggestion,
+      };
     }
-    
-    // Default to ProcessStep if no match found
+
+    // ── Mode 3: heuristic name-matching fallback ──────────────────────────────
+    const inferred = this.inferFromName(taskName);
+    if (inferred !== 'ProcessStep') {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}) has no dexpi:element extensionElements annotation. ` +
+        `Heuristic name-matching inferred type "${inferred}". ` +
+        `This may be incorrect (e.g. "Pump feed data to dashboard" would match "Pumping"). ` +
+        `Add a dexpiType attribute in extensionElements for unambiguous typing.`
+      );
+    } else {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}) has no dexpi:element extensionElements annotation ` +
+        `and no name match was found. Defaulting to "ProcessStep". ` +
+        `Add a dexpiType attribute in extensionElements for explicit typing.`
+      );
+    }
+    return { dexpiClass: inferred, mode: 'heuristic' };
+  }
+
+  /** Heuristic name-based inference (mode 3 only). */
+  private inferFromName(name: string): string {
+    const normalized = name.trim().toLowerCase();
+    const classes = this.registry.size > 0
+      ? this.registry.allClasses()
+      : ['ProcessStep', 'Pumping', 'Compressing', 'ReactingChemicals',
+         'Separating', 'ExchangingThermalEnergy', 'RemovingThermalEnergy',
+         'SupplyingThermalEnergy', 'MeasuringProcessVariable',
+         'ControllingProcessVariable', 'TransportingFluids', 'Source', 'Sink'];
+
+    // Exact match first
+    const exact = classes.find(c => c.toLowerCase() === normalized);
+    if (exact) return exact;
+
+    // Substring match — longest class name wins to avoid short matches like "Mixing" in "MixingSimple"
+    const sorted = [...classes].sort((a, b) => b.length - a.length);
+    for (const cls of sorted) {
+      if (normalized.includes(cls.toLowerCase())) return cls;
+    }
     return 'ProcessStep';
+  }
+
+  /** Find the closest known DEXPI class for a non-registry type (for suggestions). */
+  private findClosestDexpiClass(unknown: string): string | undefined {
+    if (this.registry.size === 0) return undefined;
+    const lower = unknown.toLowerCase();
+    // Simple prefix/substring match for suggestion
+    return this.registry.concreteClasses().find(c =>
+      c.toLowerCase().startsWith(lower.slice(0, 4)) ||
+      lower.includes(c.toLowerCase().slice(0, 5))
+    );
   }
 
   private extractProcessStep(task: Element, parentId: string | null): void {
@@ -285,16 +243,21 @@ export class BpmnToDexpiTransformer {
     // Extract DEXPI extension elements
     const dexpiData = this.extractDexpiExtension(task);
     
-    // Determine the DEXPI process step type:
-    // 1. Use dexpiType from extension if available
-    // 2. Fall back to the element name (e.g., "ReactingChemicals", "Separating")
-    // 3. Default to "ProcessStep" if neither is a valid DEXPI type
-    const dexpiType = dexpiData?.dexpiType || this.inferDexpiTypeFromName(name);
+    // Resolve DEXPI type — three-mode system (see resolveStepType)
+    const typing = this.resolveStepType(
+      dexpiData?.dexpiType,
+      dexpiData?.customUri,
+      name,
+      id
+    );
     
-    const processStep: any = {
+    const processStep: InternalProcessStep = {
       id,
       name,
-      type: dexpiType,
+      type: typing.dexpiClass,
+      typingMode: typing.mode,
+      customUri: typing.customUri,
+      suggestedDexpiClass: typing.suggestedDexpiClass,
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
       hierarchyLevel: dexpiData?.hierarchyLevel,
@@ -327,8 +290,19 @@ export class BpmnToDexpiTransformer {
       });
     }
     
-    // Register ports
+    // Register ports — detect and warn on duplicate name+direction within this step (R1-C4)
+    const seenPortKeys = new Set<string>();
     processStep.ports.forEach((port: DexpiPort) => {
+      const key = `${port.name}::${port.direction}`;
+      if (seenPortKeys.has(key)) {
+        this.logger.warn(
+          `Duplicate port detected in step "${name}" (id=${id}): ` +
+          `name="${port.name}", direction="${port.direction}". ` +
+          `DEXPI Process requires unique port name+direction combinations per element. ` +
+          `Subprocess parent-port mapping will use the first match only.`
+        );
+      }
+      seenPortKeys.add(key);
       this.ports.set(port.portId, {
         ...port,
         stepId: id,
@@ -387,28 +361,25 @@ export class BpmnToDexpiTransformer {
       return;
     }
     
-    const source = {
+    const source: InternalProcessStep = {
       id,
       name,
       type: 'Source',
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
-      ports: dexpiData?.ports || []
+      ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
+        ...port,
+        portId: `${id}_${port.portId}`
+      })),
+      attributes: [],
+      parentId: null,
+      subProcessSteps: [],
     };
 
-    // Make port IDs unique by prefixing with element ID (same as ProcessSteps)
-    source.ports = source.ports.map((port: DexpiPort) => ({
-      ...port,
-      portId: `${id}_${port.portId}`
-    }));
-
     this.processSteps.set(id, source);
-    
+
     source.ports.forEach((port: DexpiPort) => {
-      this.ports.set(port.portId, {
-        ...port,
-        stepId: id
-      });
+      this.ports.set(port.portId, { ...port, stepId: id });
     });
   }
 
@@ -429,28 +400,25 @@ export class BpmnToDexpiTransformer {
       return;
     }
     
-    const sink = {
+    const sink: InternalProcessStep = {
       id,
       name,
       type: 'Sink',
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
-      ports: dexpiData?.ports || []
+      ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
+        ...port,
+        portId: `${id}_${port.portId}`
+      })),
+      attributes: [],
+      parentId: null,
+      subProcessSteps: [],
     };
 
-    // Make port IDs unique by prefixing with element ID (same as ProcessSteps)
-    sink.ports = sink.ports.map((port: DexpiPort) => ({
-      ...port,
-      portId: `${id}_${port.portId}`
-    }));
-
     this.processSteps.set(id, sink);
-    
+
     sink.ports.forEach((port: DexpiPort) => {
-      this.ports.set(port.portId, {
-        ...port,
-        stepId: id
-      });
+      this.ports.set(port.portId, { ...port, stepId: id });
     });
   }
 
@@ -462,7 +430,7 @@ export class BpmnToDexpiTransformer {
     
     const dexpiData = this.extractDexpiStreamExtension(flow);
     
-    const stream = {
+    const stream: InternalStream = {
       id,
       name,
       identifier: dexpiData?.identifier || id,
@@ -471,12 +439,12 @@ export class BpmnToDexpiTransformer {
       targetRef,
       sourcePortRef: dexpiData?.sourcePortRef,
       targetPortRef: dexpiData?.targetPortRef,
-      streamType: dexpiData?.streamType || 'MaterialFlow',
+      streamType: (dexpiData?.streamType ?? 'MaterialFlow') as InternalStream['streamType'],
       templateReference: dexpiData?.templateReference,
       materialStateReference: dexpiData?.materialStateReference,
-      provenance: dexpiData?.provenance || 'Calculated',
-      range: dexpiData?.range || 'Design',
-      attributes: dexpiData?.attributes || []
+      provenance: dexpiData?.provenance ?? 'Calculated',
+      range: dexpiData?.range ?? 'Design',
+      attributes: (dexpiData?.attributes ?? []) as StreamAttribute[],
     };
 
     this.streams.set(id, stream);
@@ -500,7 +468,7 @@ export class BpmnToDexpiTransformer {
       const numberOfPhases = this.getChildText(template, 'NumberOfPhases');
 
       // Extract component references from ListOfMaterialComponents
-      const listOfComponents = Array.from(template.children).find((c: any) => 
+      const listOfComponents = Array.from(template.children).find((c: Element) => 
         c.tagName === 'ListOfMaterialComponents' || c.localName === 'ListOfMaterialComponents'
       );
       const componentRefs: string[] = [];
@@ -513,7 +481,7 @@ export class BpmnToDexpiTransformer {
       }
 
       // Extract phases from ListOfPhases
-      const listOfPhases = Array.from(template.children).find((c: any) => 
+      const listOfPhases = Array.from(template.children).find((c: Element) => 
         c.tagName === 'ListOfPhases' || c.localName === 'ListOfPhases'
       );
       const phases: string[] = [];
@@ -601,12 +569,12 @@ export class BpmnToDexpiTransformer {
         const templateRef = this.getChildValue(state, 'TemplateReference', 'uidRef');
 
         // Extract Flow data
-        const flowElement = Array.from(state.children).find((c: any) => c.tagName === 'Flow' || c.localName === 'Flow');
-        let flow: any = null;
+        const flowElement = Array.from(state.children).find((c: Element) => c.tagName === 'Flow' || c.localName === 'Flow');
+        let flow: import('./types').FlowData | null = null;
         
         if (flowElement) {
-          const moleFlowElement = Array.from(flowElement.children).find((c: any) => c.tagName === 'MoleFlow' || c.localName === 'MoleFlow');
-          const compositionElement = Array.from(flowElement.children).find((c: any) => c.tagName === 'Composition' || c.localName === 'Composition');
+          const moleFlowElement = Array.from(flowElement.children).find((c: Element) => c.tagName === 'MoleFlow' || c.localName === 'MoleFlow');
+          const compositionElement = Array.from(flowElement.children).find((c: Element) => c.tagName === 'Composition' || c.localName === 'Composition');
           
           flow = {};
           
@@ -655,14 +623,14 @@ export class BpmnToDexpiTransformer {
   }
 
   private getChildText(parent: Element, childName: string): string {
-    const child = Array.from(parent.children).find((c: any) => 
+    const child = Array.from(parent.children).find((c: Element) => 
       c.tagName === childName || c.localName === childName
     );
     return child?.textContent || '';
   }
 
   private getChildValue(parent: Element, childName: string, attrName: string): string {
-    const child = Array.from(parent.children).find((c: any) => 
+    const child = Array.from(parent.children).find((c: Element) => 
       c.tagName === childName || c.localName === childName
     );
     return child?.getAttribute(attrName) || '';
@@ -693,6 +661,10 @@ export class BpmnToDexpiTransformer {
       const attributes = this.extractAttributesFromElement(dexpiElement);
       return {
         dexpiType: dexpiElement.getAttribute('dexpiType') || undefined,
+        // customUri: optional URI referencing an external RDL (e.g. ISO 15926, OntoCAPE).
+        // Used when dexpiType is not a standard DEXPI class (mode 2 typing).
+        // Example: <dexpi:element dexpiType="MyStep" customUri="https://my-rdl.org/MyStep"/>
+        customUri: dexpiElement.getAttribute('customUri') || undefined,
         identifier: dexpiElement.getAttribute('identifier') || undefined,
         uid: dexpiElement.getAttribute('uid') || undefined,
         hierarchyLevel: dexpiElement.getAttribute('hierarchyLevel') || undefined,
@@ -730,7 +702,7 @@ export class BpmnToDexpiTransformer {
     if (!dexpiStream) return null;
 
     // Extract stream attributes and properties
-    const attributes: any[] = [];
+    const attributes: StreamAttribute[] = [];
     let materialStateRef: string | undefined = undefined;
     let templateRef: string | undefined = undefined;
     
@@ -781,19 +753,19 @@ export class BpmnToDexpiTransformer {
     return {
       identifier: dexpiStream.getAttribute('identifier') || dexpiStream.getAttribute('Identifier') || undefined,
       name: dexpiStream.getAttribute('name') || undefined,
-      streamType: dexpiStream.getAttribute('streamType') as any,
+      streamType: (dexpiStream.getAttribute('streamType') ?? 'MaterialFlow') as 'MaterialFlow' | 'EnergyFlow' | 'InformationFlow',
       sourcePortRef: dexpiStream.getAttribute('sourcePortRef') || undefined,
       targetPortRef: dexpiStream.getAttribute('targetPortRef') || undefined,
       templateReference: dexpiStream.getAttribute('templateReference') || templateRef,
       materialStateReference: materialStateRef,
-      provenance: dexpiStream.getAttribute('provenance') as any,
-      range: dexpiStream.getAttribute('range') as any,
+      provenance: dexpiStream.getAttribute('provenance') || undefined,
+      range: dexpiStream.getAttribute('range') || undefined,
       attributes
     };
   }
 
-  private extractAttributesFromElement(dexpiElement: Element): any[] {
-    const attributes: any[] = [];
+  private extractAttributesFromElement(dexpiElement: Element): StreamAttribute[] {
+    const attributes: StreamAttribute[] = [];
     
     // Iterate through children to find attribute elements
     for (let i = 0; i < dexpiElement.children.length; i++) {
@@ -827,9 +799,9 @@ export class BpmnToDexpiTransformer {
         ports.push({
           portId: child.getAttribute('portId') || child.getAttribute('id') || this.generateUid(),
           name: child.getAttribute('name') || child.getAttribute('label') || 'Port',
-          portType: (child.getAttribute('portType') || child.getAttribute('type') || 'MaterialPort') as any,
-          direction: (child.getAttribute('direction') || 'Inlet') as any,
-          anchorSide: child.getAttribute('anchorSide') as any,
+          portType: (child.getAttribute('portType') || child.getAttribute('type') || 'MaterialPort') as DexpiPort['portType'],
+          direction: (child.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
+          anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
           anchorOffset: child.getAttribute('anchorOffset') ? parseFloat(child.getAttribute('anchorOffset')!) : undefined,
           anchorX: child.getAttribute('anchorX') ? parseFloat(child.getAttribute('anchorX')!) : undefined,
           anchorY: child.getAttribute('anchorY') ? parseFloat(child.getAttribute('anchorY')!) : undefined
@@ -850,22 +822,22 @@ export class BpmnToDexpiTransformer {
     return ports.map((port) => ({
       portId: port.getAttribute('id') || port.getAttribute('portId') || this.generateUid(),
       name: port.getAttribute('name') || port.getAttribute('label') || 'Port',
-      portType: (port.getAttribute('type') || port.getAttribute('portType') || 'MaterialPort') as any,
-      direction: (port.getAttribute('direction') || 'Inlet') as any,
-      anchorSide: port.getAttribute('anchorSide') as any,
+      portType: (port.getAttribute('type') || port.getAttribute('portType') || 'MaterialPort') as DexpiPort['portType'],
+      direction: (port.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
+      anchorSide: (port.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
       anchorOffset: port.getAttribute('anchorOffset') ? parseFloat(port.getAttribute('anchorOffset')!) : undefined,
       anchorX: port.getAttribute('anchorX') ? parseFloat(port.getAttribute('anchorX')!) : undefined,
       anchorY: port.getAttribute('anchorY') ? parseFloat(port.getAttribute('anchorY')!) : undefined
     }));
   }
 
-  private buildDexpiModel(_options: TransformOptions): any {
+  private buildDexpiModel(_options: TransformOptions): Record<string, unknown> {
     const modelUid = this.generateUid();
     
     // Build ProcessModel object
-    const processModelObject: any = {
+    const processModelObject: Record<string, unknown> = {
       '$': {
-        'id': modelUid,
+        'id': this.sanitizeId(modelUid),
         'type': 'Process/ProcessModel'
       }
     };
@@ -976,10 +948,10 @@ export class BpmnToDexpiTransformer {
     }
 
     // Build the full Model structure following DEXPI 2.0.0 specification
-    const model: any = {
+    const model: Record<string, unknown> = {
       'Model': {
         '$': {
-          'name': 'process-model',
+          'name': 'process_model',
           'uri': 'http://www.example.org'
         },
         'Import': [
@@ -1013,8 +985,8 @@ export class BpmnToDexpiTransformer {
     return model;
   }
 
-  private buildProcessSteps(): any[] {
-    const steps: any[] = [];
+  private buildProcessSteps(): Record<string, unknown>[] {
+    const steps: Record<string, unknown>[] = [];
 
     // Only build top-level process steps (those without parents)
     this.processSteps.forEach((step) => {
@@ -1026,16 +998,16 @@ export class BpmnToDexpiTransformer {
     return steps;
   }
 
-  private buildProcessStepObject(step: any): any {
+  private buildProcessStepObject(step: InternalProcessStep): Record<string, unknown> {
       // Build the correct DEXPI type - use Process/Process.{Type} format
       // If step.type is already "Process.X", use it; otherwise wrap it
       const dexpiType = step.type.startsWith('Process.') 
         ? `Process/${step.type}` 
         : `Process/Process.${step.type}`;
       
-      const dexpiStep: any = {
+      const dexpiStep: Record<string, unknown> = {
         '$': {
-          'id': step.uid,
+          'id': this.sanitizeId(step.uid),
           'type': dexpiType
         },
         'Data': {
@@ -1068,14 +1040,34 @@ export class BpmnToDexpiTransformer {
         }
       }
 
+      // Add ExternalReference URI if this is a custom/non-DEXPI step (mode 2)
+      // This preserves the foreign RDL URI in the DEXPI output for downstream tools.
+      if (step.customUri) {
+        if (!Array.isArray(dexpiStep.Data)) {
+          dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
+        }
+        (dexpiStep.Data as Record<string, unknown>[]).push({
+          '$': { 'property': 'ExternalReference' },
+          'String': step.customUri
+        });
+        if (step.suggestedDexpiClass) {
+          (dexpiStep.Data as Record<string, unknown>[]).push({
+            '$': { 'property': 'SuggestedDexpiClass' },
+            'String': step.suggestedDexpiClass
+          });
+        }
+      }
+
       // Add ports as composition properties
       if (step.ports && step.ports.length > 0) {
-        const portObjects: any[] = [];
+        const portObjects: Record<string, unknown>[] = [];
         
         step.ports.forEach((port: DexpiPort) => {
-          const portObject: any = {
+          // Sanitize portId for DEXPI XSD compliance (no spaces, hyphens, must start with letter)
+          const safePortId = this.sanitizeId(port.portId);
+          const portObject: Record<string, unknown> = {
             '$': {
-              'id': port.portId,
+              'id': safePortId,
               'type': `Process/Process.${port.portType}`
             },
             'Data': [
@@ -1083,7 +1075,7 @@ export class BpmnToDexpiTransformer {
                 '$': {
                   'property': 'Identifier'
                 },
-                'String': port.portId
+                'String': safePortId
               },
               {
                 '$': {
@@ -1112,51 +1104,34 @@ export class BpmnToDexpiTransformer {
         });
 
         // Second pass: add port hierarchy references after all ports are created
-        portObjects.forEach((portObject: any) => {
+        portObjects.forEach((portObject: Record<string, unknown>) => {
           const portId = portObject.$.id;
           const portData = this.ports.get(portId);
           
           // Add SuperReference if this port has a parent port
+          // Per DEXPI XSD: References element uses 'objects' attr (space-sep IDREFs), no child elements
           if (portData?.parentPortId) {
             if (!portObject.References) portObject.References = [];
-            portObject.References.push({
+            (portObject.References as Record<string, unknown>[]).push({
               '$': {
-                'property': 'SuperReference'
-              },
-              'ObjectReference': {
-                '$': {
-                  'ref': portData.parentPortId
-                }
+                'property': 'SuperReference',
+                'objects': `#${this.sanitizeId(portData.parentPortId)}`
               }
             });
           }
           
-          // Add SubReference if this port has child ports  
+          // Add SubReference if this port has child ports
           if (portData?.childPortIds && portData.childPortIds.length > 0) {
-            if (!portObject.Components) portObject.Components = [];
-            const subRefs = portData.childPortIds.map((childId: string) => ({
-              'ObjectReference': {
-                '$': {
-                  'ref': childId
-                }
+            if (!portObject.References) portObject.References = [];
+            const childRefs = portData.childPortIds
+              .map((childId: string) => `#${this.sanitizeId(childId)}`)
+              .join(' ');
+            (portObject.References as Record<string, unknown>[]).push({
+              '$': {
+                'property': 'SubReference',
+                'objects': childRefs
               }
-            }));
-            
-            if (Array.isArray(portObject.Components)) {
-              portObject.Components.push({
-                '$': {
-                  'property': 'SubReference'
-                },
-                'Object': subRefs
-              });
-            } else {
-              portObject.Components = [{
-                '$': {
-                  'property': 'SubReference'
-                },
-                'Object': subRefs
-              }];
-            }
+            });
           }
         });
 
@@ -1171,7 +1146,7 @@ export class BpmnToDexpiTransformer {
 
       // Add SubProcessSteps if this is a subprocess with children
       if (step.subProcessSteps && step.subProcessSteps.length > 0) {
-        const subProcessObjects: any[] = [];
+        const subProcessObjects: Record<string, unknown>[] = [];
         
         step.subProcessSteps.forEach((childId: string) => {
           const childStep = this.processSteps.get(childId);
@@ -1210,7 +1185,7 @@ export class BpmnToDexpiTransformer {
       // Add ProcessStep Attributes (with Range, Provenance per DEXPI 2.0 QualifiedValue)
       // Use Object with type="Core/QualifiedValue" per DEXPI 2.0 schema
       if (step.attributes && step.attributes.length > 0) {
-        step.attributes.forEach((attr: any) => {
+        step.attributes.forEach((attr) => {
           if (!attr.name || !attr.value) return;
           
           // If unit is provided, this is a physical quantity - add as QualifiedValue Object
@@ -1219,7 +1194,7 @@ export class BpmnToDexpiTransformer {
               dexpiStep.Object = [];
             }
 
-            const qualifiedValueObject: any = {
+            const qualifiedValueObject: Record<string, unknown> = {
               '$': {
                 'property': attr.name,
                 'type': 'Core/QualifiedValue'
@@ -1231,7 +1206,7 @@ export class BpmnToDexpiTransformer {
                     'Data': [
                       {
                         '$': { 'property': 'Value' },
-                        'Number': parseFloat(attr.value) || attr.value
+                        'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined, 'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined
                       },
                       {
                         '$': { 'property': 'Unit' },
@@ -1242,6 +1217,20 @@ export class BpmnToDexpiTransformer {
                 }
               ]
             };
+
+            // unitUri — links unit to standard unit ontology (e.g. QUDT)
+            if (attr.unitUri) {
+              (qualifiedValueObject['Data'] as Record<string, unknown>[]).push({
+                '$': { 'property': 'UnitReference' }, 'String': attr.unitUri
+              });
+            }
+
+            // nameUri — links attribute name to quantity kind (e.g. QUDT, ISO 15926)
+            if (attr.nameUri) {
+              qualifiedValueObject['References'] = [{
+                '$': { 'property': 'QuantityKindReference', 'objects': attr.nameUri }
+              }];
+            }
 
             // Add Provenance at QualifiedValue level
             if (attr.provenance) {
@@ -1287,8 +1276,8 @@ export class BpmnToDexpiTransformer {
       return dexpiStep;
   }
 
-  private buildStreams(): any[] {
-    const streamElements: any[] = [];
+  private buildStreams(): Record<string, unknown>[] {
+    const streamElements: Record<string, unknown>[] = [];
 
     this.streams.forEach((stream) => {
       const sourcePort = this.findPortForConnection(stream.sourceRef, stream.sourcePortRef, 'Outlet');
@@ -1300,9 +1289,9 @@ export class BpmnToDexpiTransformer {
       }
 
       const streamType = stream.streamType === 'MaterialFlow' ? 'Stream' : 'EnergyFlow';
-      const dexpiStream: any = {
+      const dexpiStream: Record<string, unknown> = {
         '$': {
-          'id': stream.uid,
+          'id': this.sanitizeId(stream.uid),
           'type': `Process/Process.${streamType}`
         },
         'Data': [
@@ -1316,13 +1305,13 @@ export class BpmnToDexpiTransformer {
         'References': [
           {
             '$': {
-              'objects': `#${sourcePort}`,
+              'objects': `#${this.sanitizeId(sourcePort)}`,
               'property': 'Source'
             }
           },
           {
             '$': {
-              'objects': `#${targetPort}`,
+              'objects': `#${this.sanitizeId(targetPort)}`,
               'property': 'Target'
             }
           }
@@ -1331,14 +1320,10 @@ export class BpmnToDexpiTransformer {
 
       // Add MaterialStateReference if present
       if (stream.materialStateReference) {
-        dexpiStream.References.push({
+        (dexpiStream.References as Record<string, unknown>[]).push({
           '$': {
-            'property': 'MaterialStateReference'
-          },
-          'ObjectReference': {
-            '$': {
-              'ref': stream.materialStateReference
-            }
+            'property': 'MaterialStateReference',
+            'objects': `#${this.sanitizeId(stream.materialStateReference)}`
           }
         });
       }
@@ -1354,67 +1339,68 @@ export class BpmnToDexpiTransformer {
       }
 
       // Add all stream attributes as QualifiedValue Objects per DEXPI 2.0 schema
+      // Per XSD: Object has no 'property' attr — use Components property="attrName" containing the Object
       if (stream.attributes && stream.attributes.length > 0) {
-        stream.attributes.forEach((attr: any) => {
+        stream.attributes.forEach((attr) => {
           if (!attr.name || !attr.value) return;
           
-          // If unit is provided, this is a physical quantity - add as QualifiedValue Object
+          // If unit is provided, this is a physical quantity - add as QualifiedValue inside Components
           if (attr.unit) {
-            if (!dexpiStream.Object) {
-              dexpiStream.Object = [];
+            if (!dexpiStream.Components) {
+              dexpiStream.Components = [];
             }
 
-            const qualifiedValueObject: any = {
-              '$': {
-                'property': attr.name,
-                'type': 'Core/QualifiedValue'
+            const qualifiedValueData: Record<string, unknown>[] = [
+              {
+                '$': { 'property': 'Value' },
+                'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
+                'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined
               },
-              'Data': [
-                {
-                  '$': { 'property': 'Value' },
-                  'PhysicalQuantity': {
-                    'Data': [
-                      {
-                        '$': { 'property': 'Value' },
-                        'Number': parseFloat(attr.value) || attr.value
-                      },
-                      {
-                        '$': { 'property': 'Unit' },
-                        'String': attr.unit
-                      }
-                    ]
-                  }
-                }
-              ]
+              {
+                '$': { 'property': 'Unit' },
+                'String': attr.unit
+              }
+            ];
+
+            // unitUri — links the unit string to a standard unit ontology (e.g. QUDT)
+            if (attr.unitUri) {
+              qualifiedValueData.push({ '$': { 'property': 'UnitReference' }, 'String': attr.unitUri });
+            }
+
+            if (attr.provenance) {
+              qualifiedValueData.push({ '$': { 'property': 'Provenance' }, 'String': attr.provenance });
+            }
+            if (attr.range) {
+              qualifiedValueData.push({ '$': { 'property': 'Range' }, 'String': attr.range });
+            }
+
+            const componentEntry: Record<string, unknown> = {
+              '$': { 'property': attr.name },
+              'Object': [{
+                '$': { 'type': 'Core/QualifiedValue' },
+                'Data': qualifiedValueData
+              }]
             };
 
-            // Add Provenance at QualifiedValue level
-            if (attr.provenance) {
-              qualifiedValueObject.Data.push({
-                '$': { 'property': 'Provenance' },
-                'String': attr.provenance
-              });
+            // nameUri — links the attribute name to a standard quantity kind (e.g. QUDT, ISO 15926)
+            if (attr.nameUri) {
+              (componentEntry['Object'] as Record<string, unknown>[])[0]['References'] = [{
+                '$': { 'property': 'QuantityKindReference', 'objects': attr.nameUri }
+              }];
             }
 
-            // Add Range at QualifiedValue level
-            if (attr.range) {
-              qualifiedValueObject.Data.push({
-                '$': { 'property': 'Range' },
-                'String': attr.range
-              });
-            }
-
-            // Scope is available in DEXPI 2.0 but typically not used on stream QualifiedValues
-
-            dexpiStream.Object.push(qualifiedValueObject);
+            (dexpiStream.Components as Record<string, unknown>[]).push(componentEntry);
           } else {
             // Simple string value - add to Data
-            dexpiStream.Data.push({
-              '$': {
-                'property': attr.name
-              },
+            const dataEntry: Record<string, unknown> = {
+              '$': { 'property': attr.name },
               'String': attr.value
-            });
+            };
+            // nameUri still applicable for non-unit attributes
+            if (attr.nameUri) {
+              dataEntry['nameUri'] = attr.nameUri;
+            }
+            (dexpiStream.Data as Record<string, unknown>[]).push(dataEntry);
           }
         });
       }
@@ -1425,13 +1411,13 @@ export class BpmnToDexpiTransformer {
     return streamElements;
   }
 
-  private buildMaterialTemplates(): any[] {
-    const templates: any[] = [];
+  private buildMaterialTemplates(): Record<string, unknown>[] {
+    const templates: Record<string, unknown>[] = [];
 
     this.materialTemplates.forEach((template) => {
-      const dexpiTemplate: any = {
+      const dexpiTemplate: Record<string, unknown> = {
         '$': {
-          'id': template.uid,
+          'id': this.sanitizeId(template.uid),
           'type': 'Process/Process.MaterialTemplate'
         },
         'Data': [
@@ -1470,7 +1456,7 @@ export class BpmnToDexpiTransformer {
           '$': {
             'property': 'NumberOfMaterialComponents'
           },
-          'Number': template.numberOfComponents
+          'Integer': template.numberOfComponents
         });
       }
 
@@ -1480,7 +1466,7 @@ export class BpmnToDexpiTransformer {
           '$': {
             'property': 'NumberOfPhases'
           },
-          'Number': template.numberOfPhases
+          'Integer': template.numberOfPhases
         });
       }
 
@@ -1491,13 +1477,9 @@ export class BpmnToDexpiTransformer {
         }
         dexpiTemplate.References.push({
           '$': {
-            'property': 'ListOfMaterialComponents'
-          },
-          'ObjectReference': template.componentRefs.map((ref: string) => ({
-            '$': {
-              'ref': ref
-            }
-          }))
+            'property': 'ListOfMaterialComponents',
+            'objects': template.componentRefs.map((ref: string) => `#${this.sanitizeId(ref)}`).join(' ')
+          }
         });
       }
 
@@ -1517,13 +1499,13 @@ export class BpmnToDexpiTransformer {
     return templates;
   }
 
-  private buildMaterialComponents(): any[] {
-    const components: any[] = [];
+  private buildMaterialComponents(): Record<string, unknown>[] {
+    const components: Record<string, unknown>[] = [];
 
     this.materialComponents.forEach((component) => {
-      const dexpiComponent: any = {
+      const dexpiComponent: Record<string, unknown> = {
         '$': {
-          'id': component.uid,
+          'id': this.sanitizeId(component.uid),
           'type': component.xsiType === 'PureMaterialComponent' ? 'Process/Process.PureMaterialComponent' : 'Process/Process.MaterialComponent'
         },
         'Data': [
@@ -1582,13 +1564,13 @@ export class BpmnToDexpiTransformer {
     return components;
   }
 
-  private buildMaterialStates(): any[] {
-    const states: any[] = [];
+  private buildMaterialStates(): Record<string, unknown>[] {
+    const states: Record<string, unknown>[] = [];
 
     this.materialStates.forEach((state) => {
-      const dexpiState: any = {
+      const dexpiState: Record<string, unknown> = {
         '$': {
-          'id': state.uid,
+          'id': this.sanitizeId(state.uid),
           'type': 'Process/Process.MaterialState'
         },
         'Data': [
@@ -1628,12 +1610,8 @@ export class BpmnToDexpiTransformer {
         }
         dexpiState.References.push({
           '$': {
-            'property': 'State'
-          },
-          'ObjectReference': {
-            '$': {
-              'ref': state.stateTypeRef
-            }
+            'property': 'State',
+            'objects': `#${this.sanitizeId(state.stateTypeRef)}`
           }
         });
       }
@@ -1644,13 +1622,13 @@ export class BpmnToDexpiTransformer {
     return states;
   }
 
-  private buildMaterialStateTypes(): any[] {
-    const stateTypes: any[] = [];
+  private buildMaterialStateTypes(): Record<string, unknown>[] {
+    const stateTypes: Record<string, unknown>[] = [];
 
     this.materialStateTypes.forEach((stateType) => {
-      const dexpiStateType: any = {
+      const dexpiStateType: Record<string, unknown> = {
         '$': {
-          'id': stateType.uid,
+          'id': this.sanitizeId(stateType.uid),
           'type': 'Process/Process.MaterialStateType'
         },
         'Data': [
@@ -1690,111 +1668,57 @@ export class BpmnToDexpiTransformer {
         }
         dexpiStateType.References.push({
           '$': {
-            'property': 'MaterialTemplateReference'
-          },
-          'ObjectReference': {
-            '$': {
-              'ref': stateType.templateRef
-            }
+            'property': 'MaterialTemplateReference',
+            'objects': `#${this.sanitizeId(stateType.templateRef)}`
           }
         });
       }
 
-      // Add MoleFlow as QualifiedValue Object per DEXPI 2.0 schema
+      // Add MoleFlow as QualifiedValue — wrapped in Components per XSD (Object has no property attr)
       if (stateType.flow?.moleFlow) {
-        if (!dexpiStateType.Object) {
-          dexpiStateType.Object = [];
+        if (!dexpiStateType.Components) {
+          dexpiStateType.Components = [];
         }
-        dexpiStateType.Object.push({
-          '$': {
-            'property': 'MoleFlow',
-            'type': 'Core/QualifiedValue'
-          },
-          'Data': [
-            {
-              '$': { 'property': 'Value' },
-              'PhysicalQuantity': {
-                'Data': [
-                  {
-                    '$': { 'property': 'Value' },
-                    'Number': stateType.flow.moleFlow.value
-                  },
-                  {
-                    '$': { 'property': 'Unit' },
-                    'String': stateType.flow.moleFlow.unit
-                  }
-                ]
-              }
-            }
-          ]
-        });
-      }
-
-      // Add Composition as Object
-      if (stateType.flow?.composition) {
-        const composition = stateType.flow.composition;
-        
-        if (!dexpiStateType.Object) {
-          dexpiStateType.Object = [];
-        }
-
-        const compositionObj: any = {
-          '$': {
-            'property': 'Composition',
-            'type': 'Process/Process.Composition'
-          },
-          'Data': []
-        };
-
-        // Add Basis if present
-        if (composition.basis) {
-          compositionObj.Data.push({
-            '$': {
-              'property': 'Basis'
-            },
-            'String': composition.basis
-          });
-        }
-
-        // Add Display if present
-        if (composition.display) {
-          compositionObj.Data.push({
-            '$': {
-              'property': 'Display'
-            },
-            'String': composition.display
-          });
-        }
-
-        // Add MoleFractions as PhysicalQuantityVector Object
-        if (composition.fractions && composition.fractions.length > 0) {
-          const fractionValues = composition.fractions.map((fraction: any) => {
-            return typeof fraction === 'string' ? fraction : fraction.value;
-          });
-
-          if (!compositionObj.Object) {
-            compositionObj.Object = [];
-          }
-
-          compositionObj.Object.push({
-            '$': {
-              'property': 'MoleFractions',
-              'type': 'Core/PhysicalQuantityVector'
-            },
+        (dexpiStateType.Components as Record<string, unknown>[]).push({
+          '$': { 'property': 'MoleFlow' },
+          'Object': [{
+            '$': { 'type': 'Core/QualifiedValue' },
             'Data': [
               {
-                '$': {
-                  'property': 'Value'
-                },
-                'Array': {
-                  'Number': fractionValues
-                }
+                '$': { 'property': 'Value' },
+                'Double': parseFloat(stateType.flow.moleFlow.value) || 0
+              },
+              {
+                '$': { 'property': 'Unit' },
+                'String': stateType.flow.moleFlow.unit
               }
             ]
-          });
+          }]
+        });
+      }
+
+      // Add Composition — wrapped in Components per XSD
+      if (stateType.flow?.composition) {
+        const composition = stateType.flow.composition;
+        if (!dexpiStateType.Components) {
+          dexpiStateType.Components = [];
         }
 
-        dexpiStateType.Object.push(compositionObj);
+        const compositionData: Record<string, unknown>[] = [];
+        if (composition.basis) {
+          compositionData.push({ '$': { 'property': 'Basis' }, 'String': composition.basis });
+        }
+        if (composition.display) {
+          compositionData.push({ '$': { 'property': 'Display' }, 'String': composition.display });
+        }
+
+        (dexpiStateType.Components as Record<string, unknown>[]).push({
+          '$': { 'property': 'Composition' },
+          'Object': [{
+            '$': { 'type': 'Process/Process.Composition' },
+            'Data': compositionData
+          }]
+        });
       }
 
       stateTypes.push(dexpiStateType);
@@ -1834,7 +1758,7 @@ export class BpmnToDexpiTransformer {
     return matchingPort ? matchingPort.portId : null;
   }
 
-  private generateXml(model: any): string {
+  private generateXml(model: Record<string, unknown>): string {
     try {
       return this.buildXmlString(model);
     } catch (error) {
@@ -1843,13 +1767,13 @@ export class BpmnToDexpiTransformer {
     }
   }
 
-  private buildXmlString(obj: any, indent: string = ''): string {
+  private buildXmlString(obj: unknown, indent: string = ''): string {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += this.objectToXml(obj, indent);
     return xml;
   }
 
-  private objectToXml(obj: any, indent: string = ''): string {
+  private objectToXml(obj: unknown, indent: string = ''): string {
     let xml = '';
     
     for (const key in obj) {
@@ -1872,7 +1796,7 @@ export class BpmnToDexpiTransformer {
     return xml;
   }
 
-  private elementToXml(tagName: string, value: any, indent: string): string {
+  private elementToXml(tagName: string, value: unknown, indent: string): string {
     const nextIndent = indent + '  ';
     
     if (value === null || value === undefined) {
@@ -2100,7 +2024,18 @@ export class BpmnToDexpiTransformer {
   }
 
   private generateUid(): string {
-    return `uid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // DEXPI XSD ID pattern: [A-Za-z_][A-Za-z_0-9]* — no hyphens allowed
+    const ts = Date.now().toString(36).toUpperCase();
+    const rand = Math.random().toString(36).substr(2, 8).replace(/[^a-zA-Z0-9]/g, 'X');
+    return `u_${ts}_${rand}`;
+  }
+
+  /** Sanitize an arbitrary string for use as a DEXPI XML ID.
+   *  Replaces any character not in [A-Za-z0-9_] with '_' and
+   *  prepends 'u_' if the string starts with a digit. */
+  private sanitizeId(raw: string): string {
+    const clean = raw.replace(/[^A-Za-z0-9_]/g, '_');
+    return /^[A-Za-z_]/.test(clean) ? clean : `u_${clean}`;
   }
 }
 

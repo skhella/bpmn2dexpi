@@ -4,6 +4,10 @@ export default dexpiDescriptor;
 
 export interface DexpiElement {
   dexpiType?: string;
+  /** Optional URI referencing an external RDL (ISO 15926, OntoCAPE, company ontology).
+   *  Used when dexpiType is not a standard DEXPI 2.0 Process class.
+   *  Example: customUri="https://data.15926.org/rdl/R1234" */
+  customUri?: string;
   identifier?: string;
   uid?: string;
   hierarchyLevel?: string;

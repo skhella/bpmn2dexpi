@@ -1,22 +1,23 @@
 <img src="./src/assets/noncropped_logo.png" alt="BPMN2DEXPI Logo" width="400" />
 
-A web-based tool for creating DEXPI-compliant block flow and process flow diagrams. Model chemical processes visually and export to DEXPI XML format for interoperability with engineering tools.
+A web-based tool for creating DEXPI 2.0-compliant block flow and process flow diagrams. Model chemical processes visually using BPMN 2.0 and export to DEXPI 2.0 XML — validated against the official DEXPI XML Schema.
 
 ## Features
 
-- **Visual Modeling**: Drag-and-drop interface for process diagrams
-- **DEXPI Compliance**: Export to DEXPI 2.0 XML standard
-- **Material Library**: Define materials, compositions, and states
-- **Port System**: Connect equipment with typed ports (Material, Energy, Information)
-- **Stream Properties**: Configure flow properties and material references
-- **Neo4j Export**: Export process graphs directly to Neo4j database
-- **CLI Tool**: Batch convert BPMN files to DEXPI XML from terminal or Python
+- **Visual Modeling**: Drag-and-drop BPMN 2.0 editor with DEXPI-aware palette
+- **DEXPI 2.0 Export**: XSD-validated output against the official DEXPI XML Schema
+- **Material Library**: Define materials, compositions, and thermodynamic states
+- **Port System**: Typed ports (Material, Energy, Information) with hierarchy support
+- **Stream Properties**: Flow rates, compositions, and qualified parameters (Scope, Range, Provenance)
+- **CLI Tool**: Batch convert BPMN files to DEXPI 2.0 XML from terminal or Python
+- **Neo4j Export**: Export process graphs directly to a Neo4j graph database
+- **RDL Extension**: Steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri` — the URI is preserved in the DEXPI output as `ExternalReference`
 
 ## Prerequisites
 
 - **Node.js** 18+ (recommended: 20 LTS)
 - **npm** 9+
-
+- **xmllint** (for XSD validation in CLI/test mode — available via `libxml2-utils` on Linux, `brew install libxml2` on macOS)
 
 ## Quick Start
 
@@ -39,7 +40,7 @@ npm run transform input.bpmn output.xml
 ```bash
 npm install -g bpmn2dexpi
 
-# Convert BPMN to DEXPI XML
+# Convert BPMN to DEXPI 2.0 XML
 bpmn2dexpi input.bpmn output.xml
 ```
 
@@ -48,11 +49,11 @@ bpmn2dexpi input.bpmn output.xml
 ### Web Interface
 
 1. Open `http://localhost:5173` in your browser
-2. Drag process elements from the palette
-3. Connect elements with flows
-4. Add materials and compositions in the Material Library
-5. Configure ports and streams in the properties panel
-6. Export to DEXPI XML or Neo4j
+2. Drag process elements from the palette (ProcessStep types, Sources, Sinks)
+3. Connect elements with typed flows (Material, Energy, Information)
+4. Define materials and compositions in the Material Library panel
+5. Configure ports and stream properties in the properties panel
+6. Export to DEXPI 2.0 XML or Neo4j
 
 <img src="./examples/Web-Interface-Screenshot.png" alt="Web Interface Screenshot" width="90%" />
 
@@ -99,35 +100,120 @@ The tool can export process diagrams directly to a Neo4j graph database:
 - `MaterialStream`, `EnergyFlow`, `InformationFlow` relationships
 - `CONTAINS` relationships for subprocess hierarchy
 
-## Examples
+## DEXPI 2.0 Compliance
 
-See the [examples/](./examples/) folder for sample BPMN files
+Generated XML files are validated against the official **DEXPI XML Schema** (`dexpi-schema-files/DEXPI_XML_Schema.xsd`, sourced from the [DEXPI 2.0 Specification](https://dexpi.gitlab.io/-/Specification/-/jobs/11676485644/artifacts/src/.build/html/html/basics/metamodel_and_exchange_format.html)).
+
+The transformer enforces XSD-compliant output:
+- All element IDs follow the `[A-Za-z_][A-Za-z_0-9]*` pattern required by the schema
+- Data values use `Double`/`Integer`/`String` as specified (no generic `Number` type)
+- `References` elements use the `objects` attribute with space-separated IDREFs
+- Process types reference the official `Process/Process.*` class hierarchy from `Process.xml`
+
+In Node and CLI environments, `validateDexpiOutputXsd()` from `src/transformer/DexpiOutputValidator.ts` runs `xmllint` against the bundled XSD. A structural fallback is available for browser contexts.
+
+## Architecture
+
+The core transformer is implemented as a standalone, framework-independent TypeScript module in `src/transformer/`, independently importable from the React frontend:
+
+```
+src/transformer/
+├── BpmnToDexpiTransformer.ts      # Core BPMN → DEXPI 2.0 encoding
+├── DexpiProcessClassRegistry.ts   # Parses Process.xml → authoritative class list
+├── DexpiOutputValidator.ts        # XSD + structural validation
+├── TransformerLogger.ts           # Warning/error collection per transform()
+├── types.ts                       # Typed interfaces (zero `any`)
+└── __tests__/                     # 49 automated tests
+    ├── BpmnToDexpiTransformer.unit.test.ts
+    ├── DexpiProcessClassRegistry.test.ts
+    ├── DexpiOutputValidator.unit.test.ts
+    └── TennesseeEastman.integration.test.ts
+
+dexpi-schema-files/
+├── DEXPI_XML_Schema.xsd           # Official DEXPI 2.0 XML Schema
+└── Process.xml                    # DEXPI 2.0 Process model — source of class list
+                                   # Replace to update when DEXPI releases new version
+```
+
+## Testing
+
+```bash
+# Run all 49 tests (4 suites)
+npm test
+
+# Watch mode during development
+npm run test:watch
+
+# With coverage report
+npm run test:coverage
+```
+
+**Test suites:**
+- `BpmnToDexpiTransformer.unit.test.ts` — 15 unit tests: type resolution, heuristic fallback warnings, duplicate port detection, output structure
+- `DexpiProcessClassRegistry.test.ts` — 13 tests: Process.xml parsing, class lookup, three-mode typing (DEXPI validated / custom RDL / heuristic)
+- `DexpiOutputValidator.unit.test.ts` — 8 unit tests: structural validation of generated DEXPI 2.0 XML
+- `TennesseeEastman.integration.test.ts` — 13 end-to-end tests including XSD validation against the official schema on the Tennessee Eastman benchmark
+
+A GitHub Actions CI workflow (`.github/workflows/ci.yml`) runs all tests on every push and pull request against Node.js 18, 20, and 22.
+
+## DEXPI Encoding
+
+The tool implements the encoding methodology described in the associated publication. Key correspondences:
+
+| DEXPI Process Element | BPMN 2.0 Element | SKOS Relationship |
+|---|---|---|
+| ProcessStep (any subtype) | Task | skos:narrowMatch |
+| Source | Start Event | skos:narrowMatch |
+| Sink | End Event | skos:narrowMatch |
+| MaterialFlow / EnergyFlow | Sequence Flow | skos:narrowMatch |
+| InformationFlow | Association | skos:narrowMatch |
+| Port (inlet/outlet) | extensionElements | skos:relatedMatch |
+| MaterialTemplate | Data Object | skos:relatedMatch |
+
+All DEXPI-specific information (element type, ports, stream attributes, material states) is preserved in BPMN `extensionElements` using the `dexpi:` namespace, enabling lossless reconstruction.
+
+**Step typing — three-mode system:**
+
+| Mode | Trigger | Behaviour |
+|---|---|---|
+| **1 — DEXPI validated** | `dexpiType` annotation + class in `Process.xml` | Clean output, no warning |
+| **2 — Custom RDL** | `dexpiType` not in DEXPI registry + optional `customUri` | Custom type + URI preserved; warns with nearest DEXPI suggestion |
+| **3 — Heuristic** | No annotation | Inferred from task name; always warns |
+
+Mode 2 enables integration of non-DEXPI process ontologies (ISO 15926, OntoCAPE, company RDLs). The external URI is stored as `ExternalReference` in the DEXPI output and survives the round-trip:
+
+Stream attributes support the same RDL interoperability at the **attribute level** via two optional URI fields:
+
+| Field | Purpose | Example |
+|---|---|---|
+| **Name URI** | Links the attribute name to a standard quantity kind | `https://qudt.org/vocab/quantitykind/MassFlowRate` |
+| **Unit URI** | Links the unit string to a standard unit definition | `https://qudt.org/vocab/unit/KiloGM-PER-HR` |
+
+These are stored in the DEXPI output as `QuantityKindReference` and `UnitReference` properties, making stream data machine-interpretable by external tools (QUDT, ISO 15926, UCUM).
+
+```xml
+<dexpi:element dexpiType="ElectrolyticReduction"
+               customUri="https://data.15926.org/rdl/R1234"/>
+```
+
+**Updating the DEXPI class list:** The class registry is driven by `dexpi-schema-files/Process.xml` (sourced from the [DEXPI 2.0 specification](https://dexpi.gitlab.io/-/Specification)). When DEXPI releases a new version, replace this file — no code changes required.
 
 ## Based on Research
 
-This tool implements the BPMN-DEXPI mapping methodology described in:
+This tool implements the encoding methodology described in:
 
 > Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke.
-> *Mapping DEXPI Process to BPMN 2.0 for Graphical Modeling of Block Flow and Process Flow Diagrams* (submitted, 2026).
+> *Encoding DEXPI Process Classes in BPMN 2.0 for Graphical Instantiation of Block Flow and Process Flow Diagrams* (under review, Digital Chemical Engineering, 2026).
 
 A link to the publication will be added once available.
-
-**Core Mapping:**
-| DEXPI Concept | BPMN Element |
-|---------------|--------------|
-| ProcessStep | Task |
-| Source | Start Event |
-| Sink | End Event |
-| MaterialFlow/EnergyFlow | Sequence Flow |
-| InformationFlow | Association |
-| Ports | extensionElements |
 
 ## Technology
 
 - **Frontend**: React 19, TypeScript
 - **Diagramming**: [bpmn.io](https://bpmn.io) (bpmn-js)
 - **Build**: Vite 7
-- **Target Spec**: [DEXPI 2.0](https://dexpi.gitlab.io/-/Specification)
+- **Testing**: Vitest, jsdom
+- **Schema**: [DEXPI 2.0](https://dexpi.gitlab.io/-/Specification) (XSD validation via xmllint)
 
 ## Acknowledgments
 
@@ -139,10 +225,10 @@ This project is released under the [MIT License](./LICENSE).
 
 ### Third-Party Licenses
 
-**bpmn-js**  
+**bpmn-js**
 Licensed under the bpmn.io License (modified MIT). Free to use, including commercially, with one requirement: the bpmn.io watermark in diagrams must remain visible and unmodified.
 
-**DEXPI Specification**  
+**DEXPI Specification**
 Licensed under Creative Commons Attribution 4.0 International License (CC BY 4.0).
 
 ---
