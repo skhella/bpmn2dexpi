@@ -67,7 +67,12 @@ export class BpmnToDexpiTransformer {
 
   private parseBpmn(xml: string): Document {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(xml, 'text/xml');
+    // Strip bpmn: / bpmn2: namespace prefixes from element tags so that
+    // querySelector('process'), querySelectorAll('startEvent'), etc. work
+    // identically across jsdom, happy-dom, and other DOM implementations.
+    // Only element-name prefixes are stripped; attribute content is preserved.
+    const normalizedXml = xml.replace(/<(\/?)bpmn2?:/gi, '<$1');
+    const doc = parser.parseFromString(normalizedXml, 'text/xml');
     
     // Check for parse errors
     const parserError = doc.querySelector('parsererror');
