@@ -18,7 +18,7 @@ export interface InternalProcessStep {
   uid: string;
   hierarchyLevel?: string;
   ports: DexpiPort[];
-  attributes: Array<{ name: string; value: string; unit?: string; scope?: string; range?: string; provenance?: string }>;
+  attributes: Array<{ name: string; value: string; unit?: string; scope?: string; range?: string; provenance?: string; qualifier?: string; nameUri?: string; unitUri?: string }>;
   parentId: string | null;
   subProcessSteps: string[]; // child step IDs
 }
@@ -48,6 +48,7 @@ export interface StreamAttribute {
   scope?: string;
   range?: string;
   provenance?: string;
+  qualifier?: string;
 }
 
 export interface InternalStream {

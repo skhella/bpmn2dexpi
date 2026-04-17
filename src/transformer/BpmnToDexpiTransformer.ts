@@ -132,7 +132,7 @@ export class BpmnToDexpiTransformer {
    * Replaces the previous hardcoded class list. To update when DEXPI releases
    * a new version: replace Process.xml, no code changes needed.
    */
-  private registry: DexpiProcessClassRegistry = new DexpiProcessClassRegistry(new Map());
+  private registry: DexpiProcessClassRegistry = DexpiProcessClassRegistry['fromXml']('<ProcessModel/>');
 
   /**
    * Resolve the DEXPI type for a process step — three-mode system:
@@ -290,7 +290,7 @@ export class BpmnToDexpiTransformer {
       
       childElements.forEach(childTask => {
         this.extractProcessStep(childTask as Element, id);
-        processStep.subProcessSteps.push(childTask.getAttribute('id'));
+        processStep.subProcessSteps.push(childTask.getAttribute('id') ?? '');
       });
     }
     
@@ -757,13 +757,13 @@ export class BpmnToDexpiTransformer {
     return {
       identifier: dexpiStream.getAttribute('identifier') || dexpiStream.getAttribute('Identifier') || undefined,
       name: dexpiStream.getAttribute('name') || undefined,
-      streamType: (dexpiStream.getAttribute('streamType') ?? 'MaterialFlow') as 'MaterialFlow' | 'EnergyFlow' | 'InformationFlow',
+      streamType: (dexpiStream.getAttribute('streamType') ?? 'MaterialFlow') as 'MaterialFlow' | 'EnergyFlow',
       sourcePortRef: dexpiStream.getAttribute('sourcePortRef') || undefined,
       targetPortRef: dexpiStream.getAttribute('targetPortRef') || undefined,
       templateReference: dexpiStream.getAttribute('templateReference') || templateRef,
       materialStateReference: materialStateRef,
-      provenance: dexpiStream.getAttribute('provenance') || undefined,
-      range: dexpiStream.getAttribute('range') || undefined,
+      provenance: (dexpiStream.getAttribute('provenance') ?? undefined) as 'Measured' | 'Calculated' | 'Specified' | 'Estimated' | undefined,
+      range: (dexpiStream.getAttribute('range') ?? undefined) as 'Design' | 'Normal' | 'Maximum' | 'Minimum' | undefined,
       attributes
     };
   }
@@ -1025,7 +1025,7 @@ export class BpmnToDexpiTransformer {
       // Add Label if present
       if (step.name) {
         if (Array.isArray(dexpiStep.Data)) {
-          dexpiStep.Data.push({
+          (dexpiStep.Data as Record<string, unknown>[]).push({
             '$': {
               'property': 'Label'
             },
@@ -1096,7 +1096,7 @@ export class BpmnToDexpiTransformer {
 
           // Add Label if present
           if (port.name) {
-            portObject.Data.push({
+            (portObject.Data as Record<string, unknown>[]).push({
               '$': {
                 'property': 'Label'
               },
@@ -1109,7 +1109,7 @@ export class BpmnToDexpiTransformer {
 
         // Second pass: add port hierarchy references after all ports are created
         portObjects.forEach((portObject: Record<string, unknown>) => {
-          const portId = portObject.$.id;
+          const portId = (portObject.$ as Record<string, string>).id;
           const portData = this.ports.get(portId);
           
           // Add SuperReference if this port has a parent port
@@ -1238,7 +1238,7 @@ export class BpmnToDexpiTransformer {
 
             // Add Provenance at QualifiedValue level
             if (attr.provenance) {
-              qualifiedValueObject.Data.push({
+              (qualifiedValueObject.Data as Record<string, unknown>[]).push({
                 '$': { 'property': 'Provenance' },
                 'String': attr.provenance
               });
@@ -1246,7 +1246,7 @@ export class BpmnToDexpiTransformer {
 
             // Add Range at QualifiedValue level
             if (attr.range) {
-              qualifiedValueObject.Data.push({
+              (qualifiedValueObject.Data as Record<string, unknown>[]).push({
                 '$': { 'property': 'Range' },
                 'String': attr.range
               });
@@ -1254,10 +1254,10 @@ export class BpmnToDexpiTransformer {
 
             // Scope is available in DEXPI 2.0 but not typically used on QualifiedValue
 
-            dexpiStep.Object.push(qualifiedValueObject);
+            (dexpiStep.Object as Record<string, unknown>[]).push(qualifiedValueObject);
           } else {
             // Simple string value - add to Data
-            dexpiStep.Data.push({
+            (dexpiStep.Data as Record<string, unknown>[]).push({
               '$': {
                 'property': attr.name
               },
@@ -1269,7 +1269,7 @@ export class BpmnToDexpiTransformer {
 
       // Add HierarchyLevel if present
       if (step.hierarchyLevel) {
-        dexpiStep.Data.push({
+        (dexpiStep.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'HierarchyLevel'
           },
@@ -1334,7 +1334,7 @@ export class BpmnToDexpiTransformer {
 
       // Add Label if present
       if (stream.name) {
-        dexpiStream.Data.push({
+        (dexpiStream.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Label'
           },
@@ -1436,7 +1436,7 @@ export class BpmnToDexpiTransformer {
 
       // Add Label if present
       if (template.label) {
-        dexpiTemplate.Data.push({
+        (dexpiTemplate.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Label'
           },
@@ -1446,7 +1446,7 @@ export class BpmnToDexpiTransformer {
 
       // Add Description if present
       if (template.description) {
-        dexpiTemplate.Data.push({
+        (dexpiTemplate.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Description'
           },
@@ -1456,7 +1456,7 @@ export class BpmnToDexpiTransformer {
 
       // Add NumberOfMaterialComponents if present
       if (template.numberOfComponents) {
-        dexpiTemplate.Data.push({
+        (dexpiTemplate.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'NumberOfMaterialComponents'
           },
@@ -1466,7 +1466,7 @@ export class BpmnToDexpiTransformer {
 
       // Add NumberOfPhases if present
       if (template.numberOfPhases) {
-        dexpiTemplate.Data.push({
+        (dexpiTemplate.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'NumberOfPhases'
           },
@@ -1479,7 +1479,7 @@ export class BpmnToDexpiTransformer {
         if (!dexpiTemplate.References) {
           dexpiTemplate.References = [];
         }
-        dexpiTemplate.References.push({
+        (dexpiTemplate.References as Record<string, unknown>[]).push({
           '$': {
             'property': 'ListOfMaterialComponents',
             'objects': template.componentRefs.map((ref: string) => `#${this.sanitizeId(ref)}`).join(' ')
@@ -1489,7 +1489,7 @@ export class BpmnToDexpiTransformer {
 
       // Add ListOfPhases if present
       if (template.phases && template.phases.length > 0) {
-        dexpiTemplate.Data.push({
+        (dexpiTemplate.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'ListOfPhases'
           },
@@ -1524,7 +1524,7 @@ export class BpmnToDexpiTransformer {
 
       // Add Label if present
       if (component.label) {
-        dexpiComponent.Data.push({
+        (dexpiComponent.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Label'
           },
@@ -1534,7 +1534,7 @@ export class BpmnToDexpiTransformer {
 
       // Add Description if present
       if (component.description) {
-        dexpiComponent.Data.push({
+        (dexpiComponent.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Description'
           },
@@ -1544,7 +1544,7 @@ export class BpmnToDexpiTransformer {
 
       // Add ChEBI_identifier if present
       if (component.chebiId) {
-        dexpiComponent.Data.push({
+        (dexpiComponent.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'ChEBI_identifier'
           },
@@ -1554,7 +1554,7 @@ export class BpmnToDexpiTransformer {
 
       // Add IUPAC_identifier if present
       if (component.iupacId) {
-        dexpiComponent.Data.push({
+        (dexpiComponent.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'IUPAC_identifier'
           },
@@ -1589,7 +1589,7 @@ export class BpmnToDexpiTransformer {
 
       // Add Label if present
       if (state.label) {
-        dexpiState.Data.push({
+        (dexpiState.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Label'
           },
@@ -1599,7 +1599,7 @@ export class BpmnToDexpiTransformer {
 
       // Add Description if present
       if (state.description) {
-        dexpiState.Data.push({
+        (dexpiState.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Description'
           },
@@ -1612,7 +1612,7 @@ export class BpmnToDexpiTransformer {
         if (!dexpiState.References) {
           dexpiState.References = [];
         }
-        dexpiState.References.push({
+        (dexpiState.References as Record<string, unknown>[]).push({
           '$': {
             'property': 'State',
             'objects': `#${this.sanitizeId(state.stateTypeRef)}`
@@ -1647,7 +1647,7 @@ export class BpmnToDexpiTransformer {
 
       // Add Label if present
       if (stateType.label) {
-        dexpiStateType.Data.push({
+        (dexpiStateType.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Label'
           },
@@ -1657,7 +1657,7 @@ export class BpmnToDexpiTransformer {
 
       // Add Description if present
       if (stateType.description) {
-        dexpiStateType.Data.push({
+        (dexpiStateType.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Description'
           },
@@ -1670,7 +1670,7 @@ export class BpmnToDexpiTransformer {
         if (!dexpiStateType.References) {
           dexpiStateType.References = [];
         }
-        dexpiStateType.References.push({
+        (dexpiStateType.References as Record<string, unknown>[]).push({
           '$': {
             'property': 'MaterialTemplateReference',
             'objects': `#${this.sanitizeId(stateType.templateRef)}`
@@ -1780,8 +1780,9 @@ export class BpmnToDexpiTransformer {
   private objectToXml(obj: unknown, indent: string = ''): string {
     let xml = '';
     
-    for (const key in obj) {
-      const value = obj[key];
+    const objRec = obj as Record<string, unknown>;
+    for (const key in objRec) {
+      const value = objRec[key];
       
       if (key === '$') {
         // Skip attributes, they're handled separately
@@ -1810,9 +1811,10 @@ export class BpmnToDexpiTransformer {
     let xml = `${indent}<${tagName}`;
     
     // Add attributes
-    if (value.$ && typeof value.$ === 'object') {
-      for (const attrName in value.$) {
-        const attrValue = value.$[attrName];
+    const valRec = value as Record<string, unknown>;
+    if (valRec.$ && typeof valRec.$ === 'object') {
+      for (const attrName in valRec.$) {
+        const attrValue = (valRec.$ as Record<string, unknown>)[attrName];
         if (attrValue !== null && attrValue !== undefined) {
           xml += ` ${attrName}="${this.escapeXml(String(attrValue))}"`;
         }
