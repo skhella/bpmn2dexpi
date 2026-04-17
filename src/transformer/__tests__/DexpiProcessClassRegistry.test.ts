@@ -17,11 +17,8 @@ const PROCESS_XML_PATH = join(__dirname, '../../../dexpi-schema-files/Process.xm
 // ── Registry unit tests ────────────────────────────────────────────────────
 
 describe('DexpiProcessClassRegistry', () => {
-  let registry: DexpiProcessClassRegistry;
-
-  // Load once for all registry tests
-  const processXml = readFileSync(PROCESS_XML_PATH, 'utf-8');
-  registry = DexpiProcessClassRegistry.fromXml(processXml);
+  const registry: DexpiProcessClassRegistry =
+    DexpiProcessClassRegistry.fromXml(readFileSync(PROCESS_XML_PATH, 'utf-8'));
 
   it('loads classes from Process.xml', () => {
     expect(registry.size).toBeGreaterThan(50); // DEXPI 2.0 has 100+ classes

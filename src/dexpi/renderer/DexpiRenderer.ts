@@ -130,8 +130,10 @@ export default class DexpiRenderer extends BaseRenderer {
         
         this.drawPorts(parentNode, element, normalizedPorts);
       } else if (!dexpiElement) {
+        // No DEXPI element — nothing to draw
       }
     } else {
+        // Non-task element — no port rendering needed
     }
 
     return shape;
@@ -341,9 +343,7 @@ export default class DexpiRenderer extends BaseRenderer {
       return portName === eventName;
     });
 
-    if (hasMatchingPort) {
-    }
-
+    // hasMatchingPort check complete
     return hasMatchingPort;
   }
 
@@ -565,7 +565,7 @@ export default class DexpiRenderer extends BaseRenderer {
         });
         break;
 
-      case 'InformationPort':
+      case 'InformationPort': {
         shape = svgCreate('polygon');
         const points = `${portSize/2},0 ${portSize},${portSize/2} ${portSize/2},${portSize} 0,${portSize/2}`;
         svgAttr(shape, {
@@ -575,6 +575,7 @@ export default class DexpiRenderer extends BaseRenderer {
           'fill': port.direction === 'Inlet' ? '#9C27B0' : '#673AB7'
         });
         break;
+      }
 
       default:
         shape = svgCreate('circle');
@@ -661,8 +662,7 @@ export default class DexpiRenderer extends BaseRenderer {
       // Blue for ProcessStep
       fillColor = '#bbdefb';  // Light blue
       strokeColor = '#0d4372'; // Dark blue
-    } else {
-    }
+    } // else: non-task element uses default colours
 
     if (fillColor && strokeColor) {
       // The shape itself IS the rect element for tasks
