@@ -1,61 +1,65 @@
+interface BpmnElement {
+  type?: string;
+}
+
+interface ConnectionLike {
+  source?: BpmnElement;
+  target?: BpmnElement;
+}
+
+interface ConnectionCreateContext {
+  source: BpmnElement;
+  target: BpmnElement;
+}
+
+interface ConnectionReconnectContext {
+  connection: ConnectionLike;
+  source?: BpmnElement;
+  target?: BpmnElement;
+}
+
+interface EventBus {
+  on(event: string, priority: number, callback: (context: unknown) => unknown): void;
+}
+
+type RuleFn<T> = (context: T) => boolean | undefined;
+
 export default class DexpiRules {
-  private eventBus: any;
+  private eventBus: EventBus;
 
   static $inject = ['eventBus'];
 
-  constructor(eventBus: any) {
+  constructor(eventBus: EventBus) {
     this.eventBus = eventBus;
-
-    // Register rules
     this.init();
   }
 
   init(): void {
-    this.addRule('connection.create', (context: any) => {
-      const source = context.source;
-      const target = context.target;
-
-      // Only allow connections between elements that have ports
-      return this.canConnect(source, target);
+    this.addRule<ConnectionCreateContext>('connection.create', (context) => {
+      return this.canConnect(context.source, context.target);
     });
 
-    this.addRule('connection.reconnect', (context: any) => {
-      const connection = context.connection;
-      const source = context.source || connection.source;
-      const target = context.target || connection.target;
-
+    this.addRule<ConnectionReconnectContext>('connection.reconnect', (context) => {
+      const source = context.source ?? context.connection.source;
+      const target = context.target ?? context.connection.target;
       return this.canConnect(source, target);
     });
   }
 
-  addRule(action: string, fn: (context: any) => boolean | undefined): void {
-    this.eventBus.on(action, 1500, (context: any) => {
-      const result = fn(context);
-      if (result !== undefined) {
-        return result;
-      }
+  addRule<T>(action: string, fn: RuleFn<T>): void {
+    this.eventBus.on(action, 1500, (context: unknown) => {
+      const result = fn(context as T);
+      if (result !== undefined) return result;
+      return undefined;
     });
   }
 
-  canConnect(source: any, target: any): boolean {
-    // Check if source and target are valid DEXPI elements
-    if (!source || !target) {
-      return false;
-    }
-
-    // Don't allow connecting to self
-    if (source === target) {
-      return false;
-    }
-
-    // Check if both elements are DEXPI-compatible types
+  canConnect(source?: BpmnElement, target?: BpmnElement): boolean {
+    if (!source || !target) return false;
+    if (source === target) return false;
     const validTypes = ['bpmn:Task', 'bpmn:StartEvent', 'bpmn:EndEvent'];
-    
-    if (!validTypes.includes(source.type) || !validTypes.includes(target.type)) {
-      return false;
-    }
-
-    // Allow connections between process steps, sources, and sinks
-    return true;
+    return !!source.type && !!target.type
+      && validTypes.includes(source.type)
+      && validTypes.includes(target.type);
   }
 }

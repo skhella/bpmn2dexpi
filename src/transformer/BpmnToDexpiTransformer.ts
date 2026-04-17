@@ -12,7 +12,6 @@ import type {
   StepTypingResult,
 } from './types';
 import { TransformerLogger } from './TransformerLogger';
-import { validateDexpiOutput } from './DexpiOutputValidator';
 import { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';
 
 export type { TransformOptions } from './types';
