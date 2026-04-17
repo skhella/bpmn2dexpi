@@ -42,17 +42,6 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "vitest": {
-    "environment": "node",
-    "include": [
-      "src/**/*.test.ts",
-      "src/**/*.spec.ts"
-    ],
-    "exclude": [
-      "node_modules",
-      "dist"
-    ]
-  },
   "dependencies": {
     "bpmn-js": "^18.10.1",
     "bpmn-js-properties-panel": "^5.48.0",
@@ -79,5 +68,8 @@
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
     "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "@exodus/bytes": "1.15.0"
   }
 }
