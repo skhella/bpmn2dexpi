@@ -1218,6 +1218,20 @@ export class BpmnToDexpiTransformer {
               ]
             };
 
+            // unitUri — links unit to standard unit ontology (e.g. QUDT)
+            if (attr.unitUri) {
+              (qualifiedValueObject['Data'] as Record<string, unknown>[]).push({
+                '$': { 'property': 'UnitReference' }, 'String': attr.unitUri
+              });
+            }
+
+            // nameUri — links attribute name to quantity kind (e.g. QUDT, ISO 15926)
+            if (attr.nameUri) {
+              qualifiedValueObject['References'] = [{
+                '$': { 'property': 'QuantityKindReference', 'objects': attr.nameUri }
+              }];
+            }
+
             // Add Provenance at QualifiedValue level
             if (attr.provenance) {
               qualifiedValueObject.Data.push({
@@ -1348,6 +1362,11 @@ export class BpmnToDexpiTransformer {
               }
             ];
 
+            // unitUri — links the unit string to a standard unit ontology (e.g. QUDT)
+            if (attr.unitUri) {
+              qualifiedValueData.push({ '$': { 'property': 'UnitReference' }, 'String': attr.unitUri });
+            }
+
             if (attr.provenance) {
               qualifiedValueData.push({ '$': { 'property': 'Provenance' }, 'String': attr.provenance });
             }
@@ -1355,20 +1374,33 @@ export class BpmnToDexpiTransformer {
               qualifiedValueData.push({ '$': { 'property': 'Range' }, 'String': attr.range });
             }
 
-            // Components property="AttrName" > Object type="Core/QualifiedValue" > Data
-            (dexpiStream.Components as Record<string, unknown>[]).push({
+            const componentEntry: Record<string, unknown> = {
               '$': { 'property': attr.name },
               'Object': [{
                 '$': { 'type': 'Core/QualifiedValue' },
                 'Data': qualifiedValueData
               }]
-            });
+            };
+
+            // nameUri — links the attribute name to a standard quantity kind (e.g. QUDT, ISO 15926)
+            if (attr.nameUri) {
+              (componentEntry['Object'] as Record<string, unknown>[])[0]['References'] = [{
+                '$': { 'property': 'QuantityKindReference', 'objects': attr.nameUri }
+              }];
+            }
+
+            (dexpiStream.Components as Record<string, unknown>[]).push(componentEntry);
           } else {
             // Simple string value - add to Data
-            (dexpiStream.Data as Record<string, unknown>[]).push({
+            const dataEntry: Record<string, unknown> = {
               '$': { 'property': attr.name },
               'String': attr.value
-            });
+            };
+            // nameUri still applicable for non-unit attributes
+            if (attr.nameUri) {
+              dataEntry['nameUri'] = attr.nameUri;
+            }
+            (dexpiStream.Data as Record<string, unknown>[]).push(dataEntry);
           }
         });
       }

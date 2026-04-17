@@ -182,6 +182,15 @@ All DEXPI-specific information (element type, ports, stream attributes, material
 
 Mode 2 enables integration of non-DEXPI process ontologies (ISO 15926, OntoCAPE, company RDLs). The external URI is stored as `ExternalReference` in the DEXPI output and survives the round-trip:
 
+Stream attributes support the same RDL interoperability at the **attribute level** via two optional URI fields:
+
+| Field | Purpose | Example |
+|---|---|---|
+| **Name URI** | Links the attribute name to a standard quantity kind | `https://qudt.org/vocab/quantitykind/MassFlowRate` |
+| **Unit URI** | Links the unit string to a standard unit definition | `https://qudt.org/vocab/unit/KiloGM-PER-HR` |
+
+These are stored in the DEXPI output as `QuantityKindReference` and `UnitReference` properties, making stream data machine-interpretable by external tools (QUDT, ISO 15926, UCUM).
+
 ```xml
 <dexpi:element dexpiType="ElectrolyticReduction"
                customUri="https://data.15926.org/rdl/R1234"/>
