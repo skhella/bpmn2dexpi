@@ -1268,8 +1268,10 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       if (i === index) {
         return moddle.create('dexpi:StreamAttribute', {
           name: updates.name !== undefined ? updates.name : attr.name,
+          nameUri: updates.nameUri !== undefined ? updates.nameUri : attr.nameUri,
           value: updates.value !== undefined ? updates.value : attr.value,
           unit: updates.unit !== undefined ? updates.unit : attr.unit,
+          unitUri: updates.unitUri !== undefined ? updates.unitUri : attr.unitUri,
           scope: updates.scope !== undefined ? updates.scope : attr.scope,
           range: updates.range !== undefined ? updates.range : attr.range,
           provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
@@ -1525,6 +1527,17 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
             </label>
 
             <label>
+              Name URI:
+              <input
+                type="text"
+                value={attr.nameUri || ''}
+                onChange={(e) => updateAttribute(index, { nameUri: e.target.value })}
+                placeholder="e.g. https://qudt.org/vocab/quantitykind/MassFlowRate"
+                style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
+              />
+            </label>
+
+            <label>
               Value:
               <input 
                 type="text" 
@@ -1540,6 +1553,17 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 value={attr.unit || ''} 
                 onChange={(e) => updateAttribute(index, { unit: e.target.value })}
                 placeholder="e.g., kg/h, °C, bar"
+              />
+            </label>
+
+            <label>
+              Unit URI:
+              <input
+                type="text"
+                value={attr.unitUri || ''}
+                onChange={(e) => updateAttribute(index, { unitUri: e.target.value })}
+                placeholder="e.g. https://qudt.org/vocab/unit/KiloGM-PER-HR"
+                style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
               />
             </label>
 
