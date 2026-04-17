@@ -1,6 +1,41 @@
 import React from 'react';
 import type { DexpiElement, DexpiPort, DexpiStream } from '../dexpi/moddle';
 import { DexpiEnumerations } from '../utils/dexpiEnumerations';
+import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
+// Vite ?raw import — bundles Process.xml as a string at build time (no runtime fetch needed)
+import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
+
+// Build registry once at module load — synchronous, browser-safe
+const DEXPI_REGISTRY = DexpiProcessClassRegistry.fromXml(processXmlRaw);
+
+/** All concrete DEXPI Process step classes grouped for the dropdown. */
+const STEP_CLASSES = DEXPI_REGISTRY.concreteClasses().filter(c =>
+  // Exclude non-step classes (ports, flows, templates, etc.)
+  !['MaterialPort', 'EnergyPort', 'InformationPort', 'ThermalEnergyPort',
+    'MechanicalEnergyPort', 'ElectricalEnergyPort', 'MaterialFlow', 'EnergyFlow',
+    'ElectricalEnergyFlow', 'MechanicalEnergyFlow', 'ThermalEnergyFlow',
+    'InformationFlow', 'InformationVariant', 'MaterialTemplate', 'MaterialState',
+    'MaterialStateType', 'ListOfMaterialComponents', 'MaterialComponent',
+    'PureMaterialComponent', 'CustomMaterialComponent', 'Composition',
+    'ProcessModel', 'Stream'].includes(c)
+);
+
+/**
+ * Lightweight name-based inference for the UI — uses the registry class list
+ * so it stays in sync with Process.xml automatically.
+ * Returns undefined if no match found (caller should default to 'ProcessStep').
+ */
+function inferTypeFromName(name: string): string | undefined {
+  if (!name) return undefined;
+  const lower = name.trim().toLowerCase();
+  const classes = DEXPI_REGISTRY.allClasses();
+  // Exact match first
+  const exact = classes.find(c => c.toLowerCase() === lower);
+  if (exact) return exact;
+  // Longest substring match (avoids short matches like "Mixing" inside "MixingSimple")
+  const sorted = [...classes].sort((a, b) => b.length - a.length);
+  return sorted.find(c => lower.includes(c.toLowerCase()));
+}
 
 interface DexpiPropertiesPanelProps {
   element: any;
@@ -9,8 +44,9 @@ interface DexpiPropertiesPanelProps {
 
 export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ element, modeler }) => {
   const [dexpiType, setDexpiType] = React.useState<string>('');
-  const [_identifier, setIdentifier] = React.useState<string>('');
+  const [identifier, setIdentifier] = React.useState<string>('');
   const [uid, setUid] = React.useState<string>('');
+  const [customUri, setCustomUri] = React.useState<string>('');
   const [elementName, setElementName] = React.useState<string>('');
   const [ports, setPorts] = React.useState<DexpiPort[]>([]);
   const [hasData, setHasData] = React.useState<boolean>(false);
@@ -128,28 +164,34 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
             dtype = 'Sink';
           }
         } else if (element.type === 'bpmn:SubProcess') {
-          dtype = 'ProcessStep';
+          // Try name-based inference for subprocesses too
+          dtype = inferTypeFromName(businessObject.name || '') || 'ProcessStep';
         } else if (element.type === 'bpmn:Task' || element.type.includes('Task')) {
           const di = element.di;
-          
           let fill = '';
           if (di) {
             fill = di.fill || di.$attrs?.['bioc:fill'] || di.$attrs?.fill || '';
           }
-          
           const hasDataOutput = businessObject.dataOutputAssociations?.length > 0;
           const hasDataInput = businessObject.dataInputAssociations?.length > 0;
-          
           const isGreen = fill.toLowerCase().includes('#c8e6c9') || 
                         fill.toLowerCase().includes('c8e6c9') ||
                         (hasDataOutput && !hasDataInput);
-          dtype = isGreen ? 'InstrumentationActivity' : 'ProcessStep';
+
+          if (isGreen) {
+            dtype = 'InstrumentationActivity';
+          } else {
+            // Try to infer from task name using the registry — shows a meaningful type
+            // instead of always defaulting to ProcessStep for unannotated imports
+            dtype = inferTypeFromName(businessObject.name || '') || 'ProcessStep';
+          }
         }
       }
       
       setDexpiType(dtype);
       setIdentifier(ident);
       setUid(u);
+      setCustomUri(dexpiElement?.customUri || '');
       setElementName(businessObject.name || '');
       setPorts(Array.isArray(p) ? p : []);
     }
@@ -426,81 +468,14 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
               elementType === 'bpmn:ReceiveTask' ||
               elementType === 'bpmn:CallActivity') && (
               <>
-                <optgroup label="General">
-                  <option value="ProcessStep">ProcessStep (Generic)</option>
-                  <option value="InstrumentationActivity">InstrumentationActivity (Generic)</option>
-                </optgroup>
-                
-                <optgroup label="Instrumentation">
-                  <option value="MeasuringProcessVariable">MeasuringProcessVariable</option>
-                  <option value="ControllingProcessVariable">ControllingProcessVariable</option>
-                  <option value="ConveyingSignal">ConveyingSignal</option>
-                  <option value="CalculatingProcessVariable">CalculatingProcessVariable</option>
-                  <option value="CalculatingRatio">CalculatingRatio</option>
-                  <option value="CalculatingSplitRange">CalculatingSplitRange</option>
-                  <option value="TransformingProcessVariable">TransformingProcessVariable</option>
-                </optgroup>
-                
-                <optgroup label="Flow Generation">
-                  <option value="GeneratingFlow">GeneratingFlow</option>
-                  <option value="Compressing">Compressing</option>
-                  <option value="Pumping">Pumping</option>
-                </optgroup>
-                
-                <optgroup label="Separation">
-                  <option value="Separating">Separating</option>
-                  <option value="Absorbing">Absorbing</option>
-                  <option value="Adsorbing">Adsorbing</option>
-                  <option value="Distilling">Distilling</option>
-                  <option value="Drying">Drying</option>
-                  <option value="Evaporating">Evaporating</option>
-                  <option value="Filtering">Filtering</option>
-                  <option value="SeparatingByCentrifugalForce">SeparatingByCentrifugalForce</option>
-                  <option value="SeparatingByGravity">SeparatingByGravity</option>
-                  <option value="Sieving">Sieving</option>
-                </optgroup>
-                
-                <optgroup label="Energy Transfer">
-                  <option value="ExchangingThermalEnergy">ExchangingThermalEnergy</option>
-                  <option value="RemovingThermalEnergy">RemovingThermalEnergy</option>
-                  <option value="SupplyingThermalEnergy">SupplyingThermalEnergy</option>
-                  <option value="SupplyingElectricalEnergy">SupplyingElectricalEnergy</option>
-                  <option value="SupplyingMechanicalEnergy">SupplyingMechanicalEnergy</option>
-                </optgroup>
-                
-                <optgroup label="Particle Size">
-                  <option value="IncreasingParticleSize">IncreasingParticleSize</option>
-                  <option value="Agglomerating">Agglomerating</option>
-                  <option value="Coalescing">Coalescing</option>
-                  <option value="Crystallizing">Crystallizing</option>
-                  <option value="ReducingParticleSize">ReducingParticleSize</option>
-                  <option value="Crushing">Crushing</option>
-                  <option value="Grinding">Grinding</option>
-                  <option value="Milling">Milling</option>
-                </optgroup>
-                
-                <optgroup label="Material Processing">
-                  <option value="ReactingChemicals">ReactingChemicals</option>
-                  <option value="Mixing">Mixing</option>
-                  <option value="FormingSolidMaterial">FormingSolidMaterial</option>
-                </optgroup>
-                
-                <optgroup label="Transport">
-                  <option value="TransportingFluids">TransportingFluids</option>
-                  <option value="TransportingSolids">TransportingSolids</option>
-                  <option value="TransportingElectricalEnergy">TransportingElectricalEnergy</option>
-                </optgroup>
-                
-                <optgroup label="Supply">
-                  <option value="SupplyingFluids">SupplyingFluids</option>
-                  <option value="SupplyingSolids">SupplyingSolids</option>
-                </optgroup>
-                
-                <optgroup label="Other">
-                  <option value="Emitting">Emitting</option>
-                  <option value="Flaring">Flaring</option>
-                  <option value="Packaging">Packaging</option>
-                </optgroup>
+                {/* Populated from dexpi-schema-files/Process.xml — update the file to get new classes */}
+                {STEP_CLASSES.map(cls => (
+                  <option key={cls} value={cls}>{cls}</option>
+                ))}
+                {/* Allow custom non-DEXPI types that are already set (mode 2) */}
+                {dexpiType && !DEXPI_REGISTRY.isValidClass(dexpiType) && (
+                  <option value={dexpiType}>{dexpiType} (custom)</option>
+                )}
               </>
             )}
             {(elementType === 'bpmn:StartEvent' || elementType === 'bpmn:IntermediateCatchEvent') && (
@@ -511,6 +486,12 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
             )}
           </select>
         </label>
+        {dexpiType && !DEXPI_REGISTRY.isValidClass(dexpiType) && 
+          dexpiType !== 'Source' && dexpiType !== 'Sink' && (
+          <div style={{ fontSize: '0.8rem', color: '#e65100', marginTop: '4px' }}>
+            ⚠ "{dexpiType}" is not a standard DEXPI 2.0 class — enter an external URI below.
+          </div>
+        )}
       </div>
 
       <div className="property-group">
@@ -524,6 +505,47 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           />
         </label>
       </div>
+
+      <div className="property-group">
+        <label>
+          Identifier:
+          <input
+            type="text"
+            value={identifier}
+            onChange={(e) => {
+              const val = e.target.value;
+              setIdentifier(val);
+              updateDexpiElement({ identifier: val });
+            }}
+            placeholder="Human-readable identifier (e.g. R-101)"
+          />
+        </label>
+      </div>
+
+      {/* Custom URI — shown when dexpiType is not a standard DEXPI class (mode 2 / RDL extension) */}
+      {dexpiType && !DEXPI_REGISTRY.isValidClass(dexpiType) &&
+        dexpiType !== 'Source' && dexpiType !== 'Sink' && (
+        <div className="property-group">
+          <label>
+            External Ontology URI:
+            <input
+              type="text"
+              value={customUri}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomUri(val);
+                updateDexpiElement({ customUri: val });
+              }}
+              placeholder="e.g. https://data.15926.org/rdl/R1234"
+              style={{ fontFamily: 'monospace', fontSize: '0.88em' }}
+            />
+          </label>
+          <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
+            URI referencing the class definition in an external RDL (ISO 15926, OntoCAPE, etc.).
+            Stored as <code>ExternalReference</code> in the DEXPI output.
+          </div>
+        </div>
+      )}
 
       {/* Process Step specific properties */}
       {(dexpiType === 'ProcessStep' || elementType === 'bpmn:Task' || elementType === 'bpmn:SubProcess') && (
