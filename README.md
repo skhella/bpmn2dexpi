@@ -11,6 +11,7 @@ A web-based tool for creating DEXPI 2.0-compliant block flow and process flow di
 - **Stream Properties**: Flow rates, compositions, and qualified parameters (Scope, Range, Provenance)
 - **CLI Tool**: Batch convert BPMN files to DEXPI 2.0 XML from terminal or Python
 - **Neo4j Export**: Export process graphs directly to a Neo4j graph database
+- **RDL Extension**: Steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri` — the URI is preserved in the DEXPI output as `ExternalReference`
 
 ## Prerequisites
 
@@ -117,23 +118,27 @@ The core transformer is implemented as a standalone, framework-independent TypeS
 
 ```
 src/transformer/
-├── BpmnToDexpiTransformer.ts   # Core BPMN → DEXPI 2.0 encoding
-├── DexpiOutputValidator.ts      # XSD + structural validation
-├── TransformerLogger.ts         # Warning/error collection per transform()
-├── types.ts                     # Typed interfaces (zero `any`)
-└── __tests__/                   # 36 automated tests
+├── BpmnToDexpiTransformer.ts      # Core BPMN → DEXPI 2.0 encoding
+├── DexpiProcessClassRegistry.ts   # Parses Process.xml → authoritative class list
+├── DexpiOutputValidator.ts        # XSD + structural validation
+├── TransformerLogger.ts           # Warning/error collection per transform()
+├── types.ts                       # Typed interfaces (zero `any`)
+└── __tests__/                     # 49 automated tests
     ├── BpmnToDexpiTransformer.unit.test.ts
+    ├── DexpiProcessClassRegistry.test.ts
     ├── DexpiOutputValidator.unit.test.ts
     └── TennesseeEastman.integration.test.ts
 
 dexpi-schema-files/
-└── DEXPI_XML_Schema.xsd         # Official DEXPI 2.0 XML Schema
+├── DEXPI_XML_Schema.xsd           # Official DEXPI 2.0 XML Schema
+└── Process.xml                    # DEXPI 2.0 Process model — source of class list
+                                   # Replace to update when DEXPI releases new version
 ```
 
 ## Testing
 
 ```bash
-# Run all 36 tests (3 suites)
+# Run all 49 tests (4 suites)
 npm test
 
 # Watch mode during development
@@ -145,6 +150,7 @@ npm run test:coverage
 
 **Test suites:**
 - `BpmnToDexpiTransformer.unit.test.ts` — 15 unit tests: type resolution, heuristic fallback warnings, duplicate port detection, output structure
+- `DexpiProcessClassRegistry.test.ts` — 13 tests: Process.xml parsing, class lookup, three-mode typing (DEXPI validated / custom RDL / heuristic)
 - `DexpiOutputValidator.unit.test.ts` — 8 unit tests: structural validation of generated DEXPI 2.0 XML
 - `TennesseeEastman.integration.test.ts` — 13 end-to-end tests including XSD validation against the official schema on the Tennessee Eastman benchmark
 
@@ -166,7 +172,22 @@ The tool implements the encoding methodology described in the associated publica
 
 All DEXPI-specific information (element type, ports, stream attributes, material states) is preserved in BPMN `extensionElements` using the `dexpi:` namespace, enabling lossless reconstruction.
 
-**Annotation requirement:** The transformer reads the `dexpiType` attribute from `extensionElements` as the authoritative source for process step typing. Tasks without this annotation fall back to heuristic name-matching, which emits a warning and should not be relied upon for production use.
+**Step typing — three-mode system:**
+
+| Mode | Trigger | Behaviour |
+|---|---|---|
+| **1 — DEXPI validated** | `dexpiType` annotation + class in `Process.xml` | Clean output, no warning |
+| **2 — Custom RDL** | `dexpiType` not in DEXPI registry + optional `customUri` | Custom type + URI preserved; warns with nearest DEXPI suggestion |
+| **3 — Heuristic** | No annotation | Inferred from task name; always warns |
+
+Mode 2 enables integration of non-DEXPI process ontologies (ISO 15926, OntoCAPE, company RDLs). The external URI is stored as `ExternalReference` in the DEXPI output and survives the round-trip:
+
+```xml
+<dexpi:element dexpiType="ElectrolyticReduction"
+               customUri="https://data.15926.org/rdl/R1234"/>
+```
+
+**Updating the DEXPI class list:** The class registry is driven by `dexpi-schema-files/Process.xml` (sourced from the [DEXPI 2.0 specification](https://dexpi.gitlab.io/-/Specification)). When DEXPI releases a new version, replace this file — no code changes required.
 
 ## Based on Research
 
