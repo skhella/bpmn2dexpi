@@ -44,8 +44,9 @@ interface DexpiPropertiesPanelProps {
 
 export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ element, modeler }) => {
   const [dexpiType, setDexpiType] = React.useState<string>('');
-  const [_identifier, setIdentifier] = React.useState<string>('');
+  const [identifier, setIdentifier] = React.useState<string>('');
   const [uid, setUid] = React.useState<string>('');
+  const [customUri, setCustomUri] = React.useState<string>('');
   const [elementName, setElementName] = React.useState<string>('');
   const [ports, setPorts] = React.useState<DexpiPort[]>([]);
   const [hasData, setHasData] = React.useState<boolean>(false);
@@ -190,6 +191,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       setDexpiType(dtype);
       setIdentifier(ident);
       setUid(u);
+      setCustomUri(dexpiElement?.customUri || '');
       setElementName(businessObject.name || '');
       setPorts(Array.isArray(p) ? p : []);
     }
@@ -487,7 +489,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
         {dexpiType && !DEXPI_REGISTRY.isValidClass(dexpiType) && 
           dexpiType !== 'Source' && dexpiType !== 'Sink' && (
           <div style={{ fontSize: '0.8rem', color: '#e65100', marginTop: '4px' }}>
-            ⚠ "{dexpiType}" is not a standard DEXPI 2.0 class. Add a customUri in the BPMN extensionElements to reference your external ontology.
+            ⚠ "{dexpiType}" is not a standard DEXPI 2.0 class — enter an external URI below.
           </div>
         )}
       </div>
@@ -503,6 +505,47 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           />
         </label>
       </div>
+
+      <div className="property-group">
+        <label>
+          Identifier:
+          <input
+            type="text"
+            value={identifier}
+            onChange={(e) => {
+              const val = e.target.value;
+              setIdentifier(val);
+              updateDexpiElement({ identifier: val });
+            }}
+            placeholder="Human-readable identifier (e.g. R-101)"
+          />
+        </label>
+      </div>
+
+      {/* Custom URI — shown when dexpiType is not a standard DEXPI class (mode 2 / RDL extension) */}
+      {dexpiType && !DEXPI_REGISTRY.isValidClass(dexpiType) &&
+        dexpiType !== 'Source' && dexpiType !== 'Sink' && (
+        <div className="property-group">
+          <label>
+            External Ontology URI:
+            <input
+              type="text"
+              value={customUri}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomUri(val);
+                updateDexpiElement({ customUri: val });
+              }}
+              placeholder="e.g. https://data.15926.org/rdl/R1234"
+              style={{ fontFamily: 'monospace', fontSize: '0.88em' }}
+            />
+          </label>
+          <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
+            URI referencing the class definition in an external RDL (ISO 15926, OntoCAPE, etc.).
+            Stored as <code>ExternalReference</code> in the DEXPI output.
+          </div>
+        </div>
+      )}
 
       {/* Process Step specific properties */}
       {(dexpiType === 'ProcessStep' || elementType === 'bpmn:Task' || elementType === 'bpmn:SubProcess') && (
