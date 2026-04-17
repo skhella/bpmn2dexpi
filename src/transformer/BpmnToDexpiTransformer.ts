@@ -661,7 +661,13 @@ export class BpmnToDexpiTransformer {
     }
     
     if (dexpiElement) {
-      const ports = this.extractPortsFromElement(dexpiElement);
+      // Ports may be inline children of <dexpi:element> OR in a sibling <ports> container.
+      // The sibling format is used when dexpi:element is a self-closing annotation alongside
+      // an existing <ports> block (e.g. the TEP example file after annotation).
+      let ports = this.extractPortsFromElement(dexpiElement);
+      if (ports.length === 0) {
+        ports = this.extractPortsFromExtensionElements(extensionElements);
+      }
       const attributes = this.extractAttributesFromElement(dexpiElement);
       return {
         dexpiType: dexpiElement.getAttribute('dexpiType') || undefined,
