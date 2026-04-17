@@ -22,14 +22,7 @@ import { validateDexpiOutput, validateDexpiOutputXsd } from '../DexpiOutputValid
 const BPMN_PATH = join(__dirname, '../../../examples/Tennessee_Eastman_Process.bpmn');
 const XSD_PATH  = join(__dirname, '../../../dexpi-schema-files/DEXPI_XML_Schema.xsd');
 
-beforeEach(async () => {
-  if (typeof globalThis.DOMParser === 'undefined') {
-    // vitest jsdom env already provides DOMParser — this is only a safety net
-    const { JSDOM } = await import('jsdom');
-    const dom = new JSDOM('<r/>', { contentType: 'text/xml' });
-    globalThis.DOMParser = dom.window.DOMParser;
-  }
-});
+// DOMParser is provided globally by the happy-dom vitest environment.
 
 describe('Integration – Tennessee Eastman Process (benchmark)', () => {
   let output: string;
