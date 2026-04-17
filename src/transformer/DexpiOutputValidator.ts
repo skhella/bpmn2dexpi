@@ -33,14 +33,19 @@ export async function validateDexpiOutputXsd(
           ul(tmpFile).catch(() => {});
           resolve({ valid: true, errors: [], warnings: [] });
         })
-        .catch((err: { stderr?: string; stdout?: string }) => {
+        .catch((err: { stderr?: string; stdout?: string; message?: string; code?: string }) => {
           ul(tmpFile).catch(() => {});
-          const output = (err.stderr || err.stdout || String(err));
-          const errors = output
-            .split('\n')
-            .filter(l => l.includes('error') || l.includes('fails to validate'))
-            .map(l => l.trim())
-            .filter(Boolean);
+          const raw = err.stderr || err.stdout || err.message || String(err);
+          const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+          // Capture all non-empty lines — xmllint writes errors to stderr in various
+          // formats depending on the OS / version. Case-insensitive match for safety,
+          // but fall back to ALL lines if nothing matches so errors is never empty.
+          const matched = lines.filter(l =>
+            l.toLowerCase().includes('error') ||
+            l.toLowerCase().includes('invalid') ||
+            l.includes('fails to validate')
+          );
+          const errors = matched.length > 0 ? matched : lines.length > 0 ? lines : [`xmllint failed (exit ${err.code ?? '?'}): no output captured`];
           resolve({ valid: false, errors, warnings: [] });
         });
     });
