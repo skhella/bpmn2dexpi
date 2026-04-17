@@ -80,8 +80,10 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
   });
 
   it('logs heuristic warnings for unannotated elements (R1-C3)', () => {
-    expect(transformer.logger.warnings.length).toBeGreaterThan(0);
-    expect(transformer.logger.warnings[0]).toMatch(/heuristic|extensionElements/i);
+    // TEP example file is now fully annotated with dexpi:element, so the transformer
+    // uses Mode 1 (dexpi-validated) for all elements — no heuristic warnings expected.
+    // The warning system is exercised by the unit tests in BpmnToDexpiTransformer.unit.test.ts.
+    expect(transformer.logger.errors).toHaveLength(0);
   });
 
   it('emits no transformer errors', () => {
