@@ -22,10 +22,10 @@ import { validateDexpiOutput, validateDexpiOutputXsd } from '../DexpiOutputValid
 const BPMN_PATH = join(__dirname, '../../../examples/Tennessee_Eastman_Process.bpmn');
 const XSD_PATH  = join(__dirname, '../../../dexpi-schema-files/DEXPI_XML_Schema.xsd');
 
-beforeEach(() => {
+beforeEach(async () => {
   if (typeof globalThis.DOMParser === 'undefined') {
     // vitest jsdom env already provides DOMParser — this is only a safety net
-    const { JSDOM } = require('jsdom');
+    const { JSDOM } = await import('jsdom');
     const dom = new JSDOM('<r/>', { contentType: 'text/xml' });
     globalThis.DOMParser = dom.window.DOMParser;
   }
@@ -101,7 +101,6 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
 
   it('generated IDs comply with DEXPI XSD pattern [A-Za-z_][A-Za-z_0-9]*', () => {
     const idAttrRegex = /\bid="([^"]+)"/g;
-    const invalidId = /[^A-Za-z_0-9]/.test.bind(/[^A-Za-z_0-9]/);
     const badIds: string[] = [];
     let match: RegExpExecArray | null;
     while ((match = idAttrRegex.exec(output)) !== null) {

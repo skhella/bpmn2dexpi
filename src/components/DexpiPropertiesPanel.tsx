@@ -216,6 +216,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
     if (!dexpiElement) {
       dexpiElement = moddle.create('dexpi:Element');
       if (!extensionElements.values) {
+        // eslint-disable-next-line react-hooks/immutability
         extensionElements.values = [];
       }
       extensionElements.values.push(dexpiElement);
@@ -323,6 +324,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       if (!portsContainer) {
         const moddle = modeler.get('moddle');
         portsContainer = moddle.create('ports');
+        // eslint-disable-next-line react-hooks/immutability
         extensionElements.values = extensionElements.values || [];
         extensionElements.values.push(portsContainer);
       }
@@ -562,9 +564,11 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                 const businessObject = element.businessObject;
                 
                 if (!businessObject.extensionElements) {
+                  // eslint-disable-next-line react-hooks/immutability
                   businessObject.extensionElements = moddle.create('bpmn:ExtensionElements');
                 }
                 if (!businessObject.extensionElements.values) {
+                  // eslint-disable-next-line react-hooks/immutability
                   businessObject.extensionElements.values = [];
                 }
                 
@@ -785,6 +789,7 @@ const ProcessStepAttributesSection: React.FC<{ element: any; modeler: any }> = (
     if (!dexpiElement) {
       dexpiElement = moddle.create('dexpi:Element');
       if (!extensionElements.values) {
+        // eslint-disable-next-line react-hooks/immutability
         extensionElements.values = [];
       }
       extensionElements.values.push(dexpiElement);
@@ -1024,7 +1029,6 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 if (sourcePort) {
                   // Use unique port ID format: elementId_portName
                   sourcePortRef = `${businessObject.sourceRef.id}_${sourcePortName}`;
-                } else {
                 }
               }
               if (businessObject.targetRef) {
@@ -1032,7 +1036,6 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 if (targetPort) {
                   // Use unique port ID format: elementId_portName
                   targetPortRef = `${businessObject.targetRef.id}_${targetPortName}`;
-                } else {
                 }
               }
             } else if (parts.length === 3) {
@@ -1047,7 +1050,6 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 if (sourcePort) {
                   // Use unique port ID format: elementId_portName
                   sourcePortRef = `${businessObject.sourceRef.id}_${sourcePortName}`;
-                } else {
                 }
               }
               if (businessObject.targetRef) {
@@ -1055,7 +1057,6 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 if (targetPort) {
                   // Use unique port ID format: elementId_portName
                   targetPortRef = `${businessObject.targetRef.id}_${targetPortName}`;
-                } else {
                 }
               }
             }
@@ -1091,8 +1092,8 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 // Try to find Value and Unit children
                 let value = '';
                 let unit = '';
-                let provenance = child.Provenance || '';
-                let range = child.Range || '';
+                const provenance = child.Provenance || '';
+                const range = child.Range || '';
                 
                 if (child.$children) {
                   const valueChild = child.$children.find((c: any) => c.$type === 'Value');
@@ -1226,6 +1227,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
     if (!dexpiStream) {
       dexpiStream = moddle.create('dexpi:Stream');
       if (!extensionElements.values) {
+        // eslint-disable-next-line react-hooks/immutability
         extensionElements.values = [];
       }
       extensionElements.values.push(dexpiStream);
@@ -1378,9 +1380,11 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               const businessObject = element.businessObject;
               
               if (!businessObject.extensionElements) {
+                // eslint-disable-next-line react-hooks/immutability
                 businessObject.extensionElements = moddle.create('bpmn:ExtensionElements');
               }
               if (!businessObject.extensionElements.values) {
+                // eslint-disable-next-line react-hooks/immutability
                 businessObject.extensionElements.values = [];
               }
               
@@ -1390,11 +1394,13 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               
               if (!dexpiStream) {
                 dexpiStream = moddle.create('Stream');
+                // eslint-disable-next-line react-hooks/immutability
                 dexpiStream.$children = [];
                 businessObject.extensionElements.values.push(dexpiStream);
               }
               
               if (!dexpiStream.$children) {
+                // eslint-disable-next-line react-hooks/immutability
                 dexpiStream.$children = [];
               }
               
