@@ -11,6 +11,9 @@ export interface InternalProcessStep {
   id: string;
   name: string;
   type: string;             // DEXPI class name, e.g. "ReactingChemicals"
+  typingMode?: StepTypingMode; // how the type was determined
+  customUri?: string;          // external RDL URI (mode 2 only)
+  suggestedDexpiClass?: string; // closest DEXPI class suggestion (mode 2 only)
   identifier: string;
   uid: string;
   hierarchyLevel?: string;
@@ -176,4 +179,35 @@ export interface ValidationResult {
   valid: boolean;
   errors: string[];
   warnings: string[];
+}
+
+// ── Step typing result (three-mode classification) ────────────────────────────
+
+/**
+ * The three ways a process step type can be resolved, in priority order:
+ *
+ * 1. 'dexpi-validated'  — explicit dexpiType annotation found in extensionElements
+ *                         AND the class name exists in the DEXPI Process.xml registry.
+ *                         This is the only mode that produces clean, warning-free output.
+ *
+ * 2. 'custom-uri'       — explicit dexpiType annotation found but NOT in the DEXPI
+ *                         registry, AND a customUri was provided. The step is encoded
+ *                         with the custom type name and the URI stored as a Data property.
+ *                         A warning is emitted recommending a DEXPI class where possible.
+ *
+ * 3. 'heuristic'        — no extensionElements annotation. Type was inferred from the
+ *                         task name by substring matching. Always emits a warning.
+ *                         Output should not be considered authoritative DEXPI.
+ */
+export type StepTypingMode = 'dexpi-validated' | 'custom-uri' | 'heuristic';
+
+export interface StepTypingResult {
+  /** The resolved DEXPI class name (or heuristic guess). */
+  dexpiClass: string;
+  /** How the class was determined. */
+  mode: StepTypingMode;
+  /** Present when mode is 'custom-uri' — stored in DEXPI output as ExternalReference. */
+  customUri?: string;
+  /** Closest DEXPI class suggestion (populated for custom-uri mode when a near-match exists). */
+  suggestedDexpiClass?: string;
 }

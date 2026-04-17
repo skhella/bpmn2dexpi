@@ -9,9 +9,11 @@ import type {
   InternalMaterialStateType,
   StreamAttribute,
   TransformOptions,
+  StepTypingResult,
 } from './types';
 import { TransformerLogger } from './TransformerLogger';
 import { validateDexpiOutput } from './DexpiOutputValidator';
+import { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';
 
 export type { TransformOptions } from './types';
 export { validateDexpiOutput } from './DexpiOutputValidator';
@@ -32,6 +34,15 @@ export class BpmnToDexpiTransformer {
     
     // Clear state and log from previous transformations
     this.logger.reset();
+
+    // Load DEXPI class registry from Process.xml (fast — cached after first call)
+    this.registry = await DexpiProcessClassRegistry.load();
+    if (this.registry.size === 0) {
+      this.logger.warn(
+        'Could not load dexpi-schema-files/Process.xml — class validation disabled. ' +
+        'All dexpiType annotations will be accepted without validation.'
+      );
+    }
     this.processSteps.clear();
     this.streams.clear();
     this.ports.clear();
@@ -112,182 +123,115 @@ export class BpmnToDexpiTransformer {
   }
 
   // Valid DEXPI 2.0 ProcessStep types (from Process.xml schema - ConcreteClass definitions)
-  private static readonly VALID_PROCESS_STEP_TYPES = [
-    // Base
-    'ProcessStep',
-    // Reacting
-    'ReactingChemicals',
-    // Separating (and subtypes)
-    'Separating',
-    'SeparatingByCentrifugalForce',
-    'SeparatingByContact',
-    'SeparatingByCyclonicMotion',
-    'SeparatingByElectromagneticForce',
-    'SeparatingByElectrostaticForce',
-    'SeparatingByFlash',
-    'SeparatingByGravity',
-    'SeparatingByIonExchange',
-    'SeparatingByMagneticForce',
-    'SeparatingByPhaseSeparation',
-    'SeparatingByPhysicalProcess',
-    'SeparatingBySurfaceTension',
-    'SeparatingByThermalProcess',
-    'SeparatingMechanically',
-    'Absorbing',
-    'Adsorbing',
-    'Distilling',
-    'StrippingDistilling',
-    'StabilizingDistilling',
-    'VacuumDistilling',
-    'Drying',
-    'Evaporating',
-    'Filtering',
-    'Crystallizing',
-    'Sieving',
-    'Skimming',
-    // Thermal Energy
-    'ExchangingThermalEnergy',
-    'RemovingThermalEnergy',
-    'Cooling',
-    'SupplyingThermalEnergy',
-    'Boiling',
-    'GeneratingSteam',
-    'HeatingElectrical',
-    'HeatingInFurnace',
-    // Mechanical Energy
-    'SupplyingMechanicalEnergy',
-    'DrivingByEngine',
-    'DrivingByMotor',
-    'DrivingByTurbine',
-    // Electrical Energy
-    'SupplyingElectricalEnergy',
-    'GeneratingACPower',
-    'GeneratingDCPower',
-    'GeneratingInFuelCell',
-    'TransportingElectricalEnergy',
-    // Flow Generation
-    'GeneratingFlow',
-    'Compressing',
-    'Pumping',
-    // Steering Flow
-    'SteeringFlow',
-    'BlowingDown',
-    'Draining',
-    'FeedingMaterial',
-    'LimitingFlow',
-    'PreventingBackflow',
-    'RegulatingFlow',
-    'RelievingOverpressure',
-    'RelievingVacuum',
-    'RelievingVacuumAndOverpressure',
-    'ShuttingOffFlow',
-    // Mixing
-    'Mixing',
-    'MixingSimple',
-    'Humidifying',
-    'Kneading',
-    'RotaryMixing',
-    'StaticMixing',
-    // Splitting
-    'Splitting',
-    'SplittingEnergy',
-    'SplittingMaterial',
-    // Storing
-    'StoringEnergy',
-    'StoringElectricalEnergy',
-    'StoringInBattery',
-    'StoringThermalEnergy',
-    'StoringMaterial',
-    'StoringFluids',
-    'StoringInPressureVessel',
-    'StoringInTank',
-    'StoringSolids',
-    'StoringInSilo',
-    // Transporting
-    'TransportingFluids',
-    'TransportingFluidsInChannel',
-    'TransportingFluidsInHose',
-    'TransportingFluidsInPipe',
-    'TransportingSolids',
-    'TransportingSolidsContinuously',
-    'TransportingSolidsDiscontinuously',
-    // Supplying
-    'SupplyingFluids',
-    'SupplyingSolids',
-    // Particle Size
-    'IncreasingParticleSize',
-    'Agglomerating',
-    'Coalescing',
-    'Flocculating',
-    'ReducingParticleSize',
-    'Crushing',
-    'Cutting',
-    'Grinding',
-    'Milling',
-    // Forming Solid
-    'FormingSolidMaterial',
-    'Extruding',
-    'Pelletizing',
-    // Other Process Steps
-    'Emitting',
-    'Flaring',
-    'Packaging',
-    // Source and Sink
-    'Source',
-    'Sink',
-    // Instrumentation Activities
-    'InstrumentationActivity',
-    'CalculatingProcessVariable',
-    'CalculatingRatio',
-    'CalculatingSplitRange',
-    'TransformingProcessVariable',
-    'ControllingProcessVariable',
-    'ConveyingSignal',
-    'MeasuringProcessVariable'
-  ];
+  /**
+   * DEXPI Process class registry — loaded from dexpi-schema-files/Process.xml.
+   * Replaces the previous hardcoded class list. To update when DEXPI releases
+   * a new version: replace Process.xml, no code changes needed.
+   */
+  private registry: DexpiProcessClassRegistry = new DexpiProcessClassRegistry(new Map());
 
-  // Common aliases that map to actual DEXPI types
-  private static readonly TYPE_ALIASES: Record<string, string> = {
-    'measuring': 'MeasuringProcessVariable',
-    'controlling': 'ControllingProcessVariable',
-    'calculating': 'CalculatingProcessVariable',
-    'heating': 'SupplyingThermalEnergy',
-    'steeringflow': 'SteeringFlow',
-    'feeding': 'FeedingMaterial',
-    'storing': 'StoringMaterial',
-    'transporting': 'TransportingFluids',
-  };
+  /**
+   * Resolve the DEXPI type for a process step — three-mode system:
+   *
+   * Mode 1 'dexpi-validated':
+   *   dexpiType annotation present AND class is in the official Process.xml registry.
+   *   → Clean output, no warning.
+   *
+   * Mode 2 'custom-uri':
+   *   dexpiType annotation present but NOT in the registry.
+   *   User has provided a customUri referencing another RDL (e.g. ISO 15926, OntoCAPE).
+   *   → Output includes external reference URI; warning recommends a DEXPI class.
+   *   If no customUri is provided, the unknown type is still used but warned about.
+   *
+   * Mode 3 'heuristic':
+   *   No dexpiType annotation. Inferred from task name by substring matching.
+   *   → Always emits a warning; result is unreliable.
+   */
+  private resolveStepType(
+    annotatedType: string | undefined,
+    customUri: string | undefined,
+    taskName: string,
+    taskId: string
+  ): StepTypingResult {
 
-  private inferDexpiTypeFromName(name: string): string {
-    // Check if the name directly matches a valid DEXPI type (case-insensitive)
-    const normalized = name.trim();
-    const normalizedLower = normalized.toLowerCase();
-    
-    // First check aliases
-    if (BpmnToDexpiTransformer.TYPE_ALIASES[normalizedLower]) {
-      return BpmnToDexpiTransformer.TYPE_ALIASES[normalizedLower];
-    }
-    
-    // Then check exact match against valid types
-    const match = BpmnToDexpiTransformer.VALID_PROCESS_STEP_TYPES.find(
-      type => type.toLowerCase() === normalizedLower
-    );
-    if (match) {
-      return match;
-    }
-    
-    // Check if name contains a valid type (for names like "Pump 1" -> "Pumping")
-    // This handles partial matches - sort by length descending to match longest first
-    const sortedTypes = [...BpmnToDexpiTransformer.VALID_PROCESS_STEP_TYPES]
-      .sort((a, b) => b.length - a.length);
-    for (const type of sortedTypes) {
-      if (normalizedLower.includes(type.toLowerCase())) {
-        return type;
+    // ── Mode 1: explicit annotation, validated against registry ──────────────
+    if (annotatedType) {
+      if (this.registry.size === 0 || this.registry.isValidClass(annotatedType)) {
+        // Registry not loaded (offline/browser) OR class is known — accept it
+        return { dexpiClass: annotatedType, mode: 'dexpi-validated' };
       }
+
+      // ── Mode 2: explicit annotation but NOT in DEXPI registry ─────────────
+      // Find closest match as a suggestion
+      const suggestion = this.findClosestDexpiClass(annotatedType);
+      const uriNote = customUri
+        ? ` External reference URI stored: ${customUri}`
+        : ' No customUri provided — add one to reference your RDL.';
+
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a known ` +
+        `DEXPI 2.0 Process class. Treating as custom/non-DEXPI step.${uriNote}` +
+        (suggestion ? ` Closest DEXPI class: "${suggestion}".` : '')
+      );
+
+      return {
+        dexpiClass: annotatedType,
+        mode: 'custom-uri',
+        customUri,
+        suggestedDexpiClass: suggestion,
+      };
     }
-    
-    // Default to ProcessStep if no match found
+
+    // ── Mode 3: heuristic name-matching fallback ──────────────────────────────
+    const inferred = this.inferFromName(taskName);
+    if (inferred !== 'ProcessStep') {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}) has no dexpi:element extensionElements annotation. ` +
+        `Heuristic name-matching inferred type "${inferred}". ` +
+        `This may be incorrect (e.g. "Pump feed data to dashboard" would match "Pumping"). ` +
+        `Add a dexpiType attribute in extensionElements for unambiguous typing.`
+      );
+    } else {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}) has no dexpi:element extensionElements annotation ` +
+        `and no name match was found. Defaulting to "ProcessStep". ` +
+        `Add a dexpiType attribute in extensionElements for explicit typing.`
+      );
+    }
+    return { dexpiClass: inferred, mode: 'heuristic' };
+  }
+
+  /** Heuristic name-based inference (mode 3 only). */
+  private inferFromName(name: string): string {
+    const normalized = name.trim().toLowerCase();
+    const classes = this.registry.size > 0
+      ? this.registry.allClasses()
+      : ['ProcessStep', 'Pumping', 'Compressing', 'ReactingChemicals',
+         'Separating', 'ExchangingThermalEnergy', 'RemovingThermalEnergy',
+         'SupplyingThermalEnergy', 'MeasuringProcessVariable',
+         'ControllingProcessVariable', 'TransportingFluids', 'Source', 'Sink'];
+
+    // Exact match first
+    const exact = classes.find(c => c.toLowerCase() === normalized);
+    if (exact) return exact;
+
+    // Substring match — longest class name wins to avoid short matches like "Mixing" in "MixingSimple"
+    const sorted = [...classes].sort((a, b) => b.length - a.length);
+    for (const cls of sorted) {
+      if (normalized.includes(cls.toLowerCase())) return cls;
+    }
     return 'ProcessStep';
+  }
+
+  /** Find the closest known DEXPI class for a non-registry type (for suggestions). */
+  private findClosestDexpiClass(unknown: string): string | undefined {
+    if (this.registry.size === 0) return undefined;
+    const lower = unknown.toLowerCase();
+    // Simple prefix/substring match for suggestion
+    return this.registry.concreteClasses().find(c =>
+      c.toLowerCase().startsWith(lower.slice(0, 4)) ||
+      lower.includes(c.toLowerCase().slice(0, 5))
+    );
   }
 
   private extractProcessStep(task: Element, parentId: string | null): void {
@@ -299,36 +243,21 @@ export class BpmnToDexpiTransformer {
     // Extract DEXPI extension elements
     const dexpiData = this.extractDexpiExtension(task);
     
-    // Determine the DEXPI process step type:
-    // 1. AUTHORITATIVE: use dexpiType from extensionElements if present
-    // 2. FALLBACK (heuristic): infer from the element name — emits a warning
-    // 3. Default to "ProcessStep" if name contains no recognisable DEXPI class
-    let dexpiType: string;
-    if (dexpiData?.dexpiType) {
-      dexpiType = dexpiData.dexpiType;
-    } else {
-      const inferred = this.inferDexpiTypeFromName(name);
-      if (inferred !== 'ProcessStep') {
-        this.logger.warn(
-          `Task "${name}" (id=${id}) has no dexpi:element extensionElements annotation. ` +
-          `Heuristic name-matching inferred type "${inferred}". ` +
-          `This may be incorrect (e.g. "Pump feed data to dashboard" would match "Pumping"). ` +
-          `Add a dexpiType attribute in extensionElements for unambiguous typing.`
-        );
-      } else {
-        this.logger.warn(
-          `Task "${name}" (id=${id}) has no dexpi:element extensionElements annotation ` +
-          `and no name match was found. Defaulting to "ProcessStep". ` +
-          `Add a dexpiType attribute in extensionElements for explicit typing.`
-        );
-      }
-      dexpiType = inferred;
-    }
+    // Resolve DEXPI type — three-mode system (see resolveStepType)
+    const typing = this.resolveStepType(
+      dexpiData?.dexpiType,
+      dexpiData?.customUri,
+      name,
+      id
+    );
     
     const processStep: InternalProcessStep = {
       id,
       name,
-      type: dexpiType,
+      type: typing.dexpiClass,
+      typingMode: typing.mode,
+      customUri: typing.customUri,
+      suggestedDexpiClass: typing.suggestedDexpiClass,
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
       hierarchyLevel: dexpiData?.hierarchyLevel,
@@ -732,6 +661,10 @@ export class BpmnToDexpiTransformer {
       const attributes = this.extractAttributesFromElement(dexpiElement);
       return {
         dexpiType: dexpiElement.getAttribute('dexpiType') || undefined,
+        // customUri: optional URI referencing an external RDL (e.g. ISO 15926, OntoCAPE).
+        // Used when dexpiType is not a standard DEXPI class (mode 2 typing).
+        // Example: <dexpi:element dexpiType="MyStep" customUri="https://my-rdl.org/MyStep"/>
+        customUri: dexpiElement.getAttribute('customUri') || undefined,
         identifier: dexpiElement.getAttribute('identifier') || undefined,
         uid: dexpiElement.getAttribute('uid') || undefined,
         hierarchyLevel: dexpiElement.getAttribute('hierarchyLevel') || undefined,
@@ -1104,6 +1037,24 @@ export class BpmnToDexpiTransformer {
               'String': step.name
             }
           ];
+        }
+      }
+
+      // Add ExternalReference URI if this is a custom/non-DEXPI step (mode 2)
+      // This preserves the foreign RDL URI in the DEXPI output for downstream tools.
+      if (step.customUri) {
+        if (!Array.isArray(dexpiStep.Data)) {
+          dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
+        }
+        (dexpiStep.Data as Record<string, unknown>[]).push({
+          '$': { 'property': 'ExternalReference' },
+          'String': step.customUri
+        });
+        if (step.suggestedDexpiClass) {
+          (dexpiStep.Data as Record<string, unknown>[]).push({
+            '$': { 'property': 'SuggestedDexpiClass' },
+            'String': step.suggestedDexpiClass
+          });
         }
       }
 
