@@ -99,6 +99,28 @@ The tool can export process diagrams directly to a Neo4j graph database:
 - `MaterialStream`, `EnergyFlow`, `InformationFlow` relationships
 - `CONTAINS` relationships for subprocess hierarchy
 
+## Testing
+
+The repository includes a test suite covering the core transformer and output validator:
+
+```bash
+# Run all tests (34 tests across 3 suites)
+npm test
+
+# Watch mode during development
+npm run test:watch
+
+# With coverage report
+npm run test:coverage
+```
+
+**Test suites:**
+- `BpmnToDexpiTransformer.unit.test.ts` — 15 unit tests: type resolution, heuristic fallback warnings, duplicate port detection, output structure
+- `DexpiOutputValidator.unit.test.ts` — 8 unit tests: structural validation of generated DEXPI 2.0 XML
+- `TennesseeEastman.integration.test.ts` — end-to-end benchmark using the Tennessee Eastman process BPMN
+
+A GitHub Actions CI workflow (`.github/workflows/ci.yml`) runs all tests on every push and pull request against Node.js 18, 20, and 22.
+
 ## Examples
 
 See the [examples/](./examples/) folder for sample BPMN files
