@@ -11,6 +11,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
   const [dexpiType, setDexpiType] = React.useState<string>('');
   const [_identifier, setIdentifier] = React.useState<string>('');
   const [uid, setUid] = React.useState<string>('');
+  const [elementName, setElementName] = React.useState<string>('');
   const [ports, setPorts] = React.useState<DexpiPort[]>([]);
   const [hasData, setHasData] = React.useState<boolean>(false);
 
@@ -149,6 +150,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       setDexpiType(dtype);
       setIdentifier(ident);
       setUid(u);
+      setElementName(businessObject.name || '');
       setPorts(Array.isArray(p) ? p : []);
     }
   }, [element]);
@@ -396,10 +398,12 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           Element Name:
           <input 
             type="text" 
-            value={element.businessObject.name || ''} 
+            value={elementName} 
             onChange={(e) => {
+              const newName = e.target.value;
+              setElementName(newName);
               const modeling = modeler.get('modeling');
-              modeling.updateProperties(element, { name: e.target.value });
+              modeling.updateProperties(element, { name: newName });
             }}
             placeholder="Enter element name..."
           />
@@ -915,6 +919,7 @@ interface StreamPropertiesPanelProps {
 
 export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ element, modeler }) => {
   const [streamData, setStreamData] = React.useState<Partial<DexpiStream>>({});
+  const [streamName, setStreamName] = React.useState<string>('');
   const [attributes, setAttributes] = React.useState<any[]>([]);
   const [hasData, setHasData] = React.useState<boolean>(false);
   const [materialState, setMaterialState] = React.useState<any>(null);
@@ -1043,6 +1048,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
             provenance: provenance as any,
             range: range as any
           });
+          setStreamName(element.businessObject.name || '');
           
           // Try multiple ways to access attributes
           let attrs = dexpiStream.attributes || [];
@@ -1274,10 +1280,12 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           Stream Name:
           <input 
             type="text" 
-            value={element.businessObject.name || ''} 
+            value={streamName} 
             onChange={(e) => {
+              const newName = e.target.value;
+              setStreamName(newName);
               const modeling = modeler.get('modeling');
-              modeling.updateProperties(element, { name: e.target.value });
+              modeling.updateProperties(element, { name: newName });
             }}
           />
         </label>
