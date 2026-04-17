@@ -904,7 +904,7 @@ export class BpmnToDexpiTransformer {
     // Build ProcessModel object
     const processModelObject: Record<string, unknown> = {
       '$': {
-        'id': modelUid,
+        'id': this.sanitizeId(modelUid),
         'type': 'Process/ProcessModel'
       }
     };
@@ -1018,7 +1018,7 @@ export class BpmnToDexpiTransformer {
     const model: Record<string, unknown> = {
       'Model': {
         '$': {
-          'name': 'process-model',
+          'name': 'process_model',
           'uri': 'http://www.example.org'
         },
         'Import': [
@@ -1074,7 +1074,7 @@ export class BpmnToDexpiTransformer {
       
       const dexpiStep: Record<string, unknown> = {
         '$': {
-          'id': step.uid,
+          'id': this.sanitizeId(step.uid),
           'type': dexpiType
         },
         'Data': {
@@ -1112,9 +1112,11 @@ export class BpmnToDexpiTransformer {
         const portObjects: Record<string, unknown>[] = [];
         
         step.ports.forEach((port: DexpiPort) => {
+          // Sanitize portId for DEXPI XSD compliance (no spaces, hyphens, must start with letter)
+          const safePortId = this.sanitizeId(port.portId);
           const portObject: Record<string, unknown> = {
             '$': {
-              'id': port.portId,
+              'id': safePortId,
               'type': `Process/Process.${port.portType}`
             },
             'Data': [
@@ -1122,7 +1124,7 @@ export class BpmnToDexpiTransformer {
                 '$': {
                   'property': 'Identifier'
                 },
-                'String': port.portId
+                'String': safePortId
               },
               {
                 '$': {
@@ -1156,46 +1158,29 @@ export class BpmnToDexpiTransformer {
           const portData = this.ports.get(portId);
           
           // Add SuperReference if this port has a parent port
+          // Per DEXPI XSD: References element uses 'objects' attr (space-sep IDREFs), no child elements
           if (portData?.parentPortId) {
             if (!portObject.References) portObject.References = [];
-            portObject.References.push({
+            (portObject.References as Record<string, unknown>[]).push({
               '$': {
-                'property': 'SuperReference'
-              },
-              'ObjectReference': {
-                '$': {
-                  'ref': portData.parentPortId
-                }
+                'property': 'SuperReference',
+                'objects': `#${this.sanitizeId(portData.parentPortId)}`
               }
             });
           }
           
-          // Add SubReference if this port has child ports  
+          // Add SubReference if this port has child ports
           if (portData?.childPortIds && portData.childPortIds.length > 0) {
-            if (!portObject.Components) portObject.Components = [];
-            const subRefs = portData.childPortIds.map((childId: string) => ({
-              'ObjectReference': {
-                '$': {
-                  'ref': childId
-                }
+            if (!portObject.References) portObject.References = [];
+            const childRefs = portData.childPortIds
+              .map((childId: string) => `#${this.sanitizeId(childId)}`)
+              .join(' ');
+            (portObject.References as Record<string, unknown>[]).push({
+              '$': {
+                'property': 'SubReference',
+                'objects': childRefs
               }
-            }));
-            
-            if (Array.isArray(portObject.Components)) {
-              portObject.Components.push({
-                '$': {
-                  'property': 'SubReference'
-                },
-                'Object': subRefs
-              });
-            } else {
-              portObject.Components = [{
-                '$': {
-                  'property': 'SubReference'
-                },
-                'Object': subRefs
-              }];
-            }
+            });
           }
         });
 
@@ -1270,7 +1255,7 @@ export class BpmnToDexpiTransformer {
                     'Data': [
                       {
                         '$': { 'property': 'Value' },
-                        'Number': parseFloat(attr.value) || attr.value
+                        'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined, 'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined
                       },
                       {
                         '$': { 'property': 'Unit' },
@@ -1341,7 +1326,7 @@ export class BpmnToDexpiTransformer {
       const streamType = stream.streamType === 'MaterialFlow' ? 'Stream' : 'EnergyFlow';
       const dexpiStream: Record<string, unknown> = {
         '$': {
-          'id': stream.uid,
+          'id': this.sanitizeId(stream.uid),
           'type': `Process/Process.${streamType}`
         },
         'Data': [
@@ -1355,13 +1340,13 @@ export class BpmnToDexpiTransformer {
         'References': [
           {
             '$': {
-              'objects': `#${sourcePort}`,
+              'objects': `#${this.sanitizeId(sourcePort)}`,
               'property': 'Source'
             }
           },
           {
             '$': {
-              'objects': `#${targetPort}`,
+              'objects': `#${this.sanitizeId(targetPort)}`,
               'property': 'Target'
             }
           }
@@ -1370,14 +1355,10 @@ export class BpmnToDexpiTransformer {
 
       // Add MaterialStateReference if present
       if (stream.materialStateReference) {
-        dexpiStream.References.push({
+        (dexpiStream.References as Record<string, unknown>[]).push({
           '$': {
-            'property': 'MaterialStateReference'
-          },
-          'ObjectReference': {
-            '$': {
-              'ref': stream.materialStateReference
-            }
+            'property': 'MaterialStateReference',
+            'objects': `#${this.sanitizeId(stream.materialStateReference)}`
           }
         });
       }
@@ -1393,65 +1374,48 @@ export class BpmnToDexpiTransformer {
       }
 
       // Add all stream attributes as QualifiedValue Objects per DEXPI 2.0 schema
+      // Per XSD: Object has no 'property' attr — use Components property="attrName" containing the Object
       if (stream.attributes && stream.attributes.length > 0) {
         stream.attributes.forEach((attr) => {
           if (!attr.name || !attr.value) return;
           
-          // If unit is provided, this is a physical quantity - add as QualifiedValue Object
+          // If unit is provided, this is a physical quantity - add as QualifiedValue inside Components
           if (attr.unit) {
-            if (!dexpiStream.Object) {
-              dexpiStream.Object = [];
+            if (!dexpiStream.Components) {
+              dexpiStream.Components = [];
             }
 
-            const qualifiedValueObject: Record<string, unknown> = {
-              '$': {
-                'property': attr.name,
-                'type': 'Core/QualifiedValue'
+            const qualifiedValueData: Record<string, unknown>[] = [
+              {
+                '$': { 'property': 'Value' },
+                'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
+                'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined
               },
-              'Data': [
-                {
-                  '$': { 'property': 'Value' },
-                  'PhysicalQuantity': {
-                    'Data': [
-                      {
-                        '$': { 'property': 'Value' },
-                        'Number': parseFloat(attr.value) || attr.value
-                      },
-                      {
-                        '$': { 'property': 'Unit' },
-                        'String': attr.unit
-                      }
-                    ]
-                  }
-                }
-              ]
-            };
+              {
+                '$': { 'property': 'Unit' },
+                'String': attr.unit
+              }
+            ];
 
-            // Add Provenance at QualifiedValue level
             if (attr.provenance) {
-              qualifiedValueObject.Data.push({
-                '$': { 'property': 'Provenance' },
-                'String': attr.provenance
-              });
+              qualifiedValueData.push({ '$': { 'property': 'Provenance' }, 'String': attr.provenance });
             }
-
-            // Add Range at QualifiedValue level
             if (attr.range) {
-              qualifiedValueObject.Data.push({
-                '$': { 'property': 'Range' },
-                'String': attr.range
-              });
+              qualifiedValueData.push({ '$': { 'property': 'Range' }, 'String': attr.range });
             }
 
-            // Scope is available in DEXPI 2.0 but typically not used on stream QualifiedValues
-
-            dexpiStream.Object.push(qualifiedValueObject);
+            // Components property="AttrName" > Object type="Core/QualifiedValue" > Data
+            (dexpiStream.Components as Record<string, unknown>[]).push({
+              '$': { 'property': attr.name },
+              'Object': [{
+                '$': { 'type': 'Core/QualifiedValue' },
+                'Data': qualifiedValueData
+              }]
+            });
           } else {
             // Simple string value - add to Data
-            dexpiStream.Data.push({
-              '$': {
-                'property': attr.name
-              },
+            (dexpiStream.Data as Record<string, unknown>[]).push({
+              '$': { 'property': attr.name },
               'String': attr.value
             });
           }
@@ -1470,7 +1434,7 @@ export class BpmnToDexpiTransformer {
     this.materialTemplates.forEach((template) => {
       const dexpiTemplate: Record<string, unknown> = {
         '$': {
-          'id': template.uid,
+          'id': this.sanitizeId(template.uid),
           'type': 'Process/Process.MaterialTemplate'
         },
         'Data': [
@@ -1509,7 +1473,7 @@ export class BpmnToDexpiTransformer {
           '$': {
             'property': 'NumberOfMaterialComponents'
           },
-          'Number': template.numberOfComponents
+          'Integer': template.numberOfComponents
         });
       }
 
@@ -1519,7 +1483,7 @@ export class BpmnToDexpiTransformer {
           '$': {
             'property': 'NumberOfPhases'
           },
-          'Number': template.numberOfPhases
+          'Integer': template.numberOfPhases
         });
       }
 
@@ -1530,13 +1494,9 @@ export class BpmnToDexpiTransformer {
         }
         dexpiTemplate.References.push({
           '$': {
-            'property': 'ListOfMaterialComponents'
-          },
-          'ObjectReference': template.componentRefs.map((ref: string) => ({
-            '$': {
-              'ref': ref
-            }
-          }))
+            'property': 'ListOfMaterialComponents',
+            'objects': template.componentRefs.map((ref: string) => `#${this.sanitizeId(ref)}`).join(' ')
+          }
         });
       }
 
@@ -1562,7 +1522,7 @@ export class BpmnToDexpiTransformer {
     this.materialComponents.forEach((component) => {
       const dexpiComponent: Record<string, unknown> = {
         '$': {
-          'id': component.uid,
+          'id': this.sanitizeId(component.uid),
           'type': component.xsiType === 'PureMaterialComponent' ? 'Process/Process.PureMaterialComponent' : 'Process/Process.MaterialComponent'
         },
         'Data': [
@@ -1627,7 +1587,7 @@ export class BpmnToDexpiTransformer {
     this.materialStates.forEach((state) => {
       const dexpiState: Record<string, unknown> = {
         '$': {
-          'id': state.uid,
+          'id': this.sanitizeId(state.uid),
           'type': 'Process/Process.MaterialState'
         },
         'Data': [
@@ -1667,12 +1627,8 @@ export class BpmnToDexpiTransformer {
         }
         dexpiState.References.push({
           '$': {
-            'property': 'State'
-          },
-          'ObjectReference': {
-            '$': {
-              'ref': state.stateTypeRef
-            }
+            'property': 'State',
+            'objects': `#${this.sanitizeId(state.stateTypeRef)}`
           }
         });
       }
@@ -1689,7 +1645,7 @@ export class BpmnToDexpiTransformer {
     this.materialStateTypes.forEach((stateType) => {
       const dexpiStateType: Record<string, unknown> = {
         '$': {
-          'id': stateType.uid,
+          'id': this.sanitizeId(stateType.uid),
           'type': 'Process/Process.MaterialStateType'
         },
         'Data': [
@@ -1729,111 +1685,57 @@ export class BpmnToDexpiTransformer {
         }
         dexpiStateType.References.push({
           '$': {
-            'property': 'MaterialTemplateReference'
-          },
-          'ObjectReference': {
-            '$': {
-              'ref': stateType.templateRef
-            }
+            'property': 'MaterialTemplateReference',
+            'objects': `#${this.sanitizeId(stateType.templateRef)}`
           }
         });
       }
 
-      // Add MoleFlow as QualifiedValue Object per DEXPI 2.0 schema
+      // Add MoleFlow as QualifiedValue — wrapped in Components per XSD (Object has no property attr)
       if (stateType.flow?.moleFlow) {
-        if (!dexpiStateType.Object) {
-          dexpiStateType.Object = [];
+        if (!dexpiStateType.Components) {
+          dexpiStateType.Components = [];
         }
-        dexpiStateType.Object.push({
-          '$': {
-            'property': 'MoleFlow',
-            'type': 'Core/QualifiedValue'
-          },
-          'Data': [
-            {
-              '$': { 'property': 'Value' },
-              'PhysicalQuantity': {
-                'Data': [
-                  {
-                    '$': { 'property': 'Value' },
-                    'Number': stateType.flow.moleFlow.value
-                  },
-                  {
-                    '$': { 'property': 'Unit' },
-                    'String': stateType.flow.moleFlow.unit
-                  }
-                ]
-              }
-            }
-          ]
-        });
-      }
-
-      // Add Composition as Object
-      if (stateType.flow?.composition) {
-        const composition = stateType.flow.composition;
-        
-        if (!dexpiStateType.Object) {
-          dexpiStateType.Object = [];
-        }
-
-        const compositionObj: Record<string, unknown> = {
-          '$': {
-            'property': 'Composition',
-            'type': 'Process/Process.Composition'
-          },
-          'Data': []
-        };
-
-        // Add Basis if present
-        if (composition.basis) {
-          compositionObj.Data.push({
-            '$': {
-              'property': 'Basis'
-            },
-            'String': composition.basis
-          });
-        }
-
-        // Add Display if present
-        if (composition.display) {
-          compositionObj.Data.push({
-            '$': {
-              'property': 'Display'
-            },
-            'String': composition.display
-          });
-        }
-
-        // Add MoleFractions as PhysicalQuantityVector Object
-        if (composition.fractions && composition.fractions.length > 0) {
-          const fractionValues = composition.fractions.map((fraction) => {
-            return typeof fraction === 'string' ? fraction : fraction.value;
-          });
-
-          if (!compositionObj.Object) {
-            compositionObj.Object = [];
-          }
-
-          compositionObj.Object.push({
-            '$': {
-              'property': 'MoleFractions',
-              'type': 'Core/PhysicalQuantityVector'
-            },
+        (dexpiStateType.Components as Record<string, unknown>[]).push({
+          '$': { 'property': 'MoleFlow' },
+          'Object': [{
+            '$': { 'type': 'Core/QualifiedValue' },
             'Data': [
               {
-                '$': {
-                  'property': 'Value'
-                },
-                'Array': {
-                  'Number': fractionValues
-                }
+                '$': { 'property': 'Value' },
+                'Double': parseFloat(stateType.flow.moleFlow.value) || 0
+              },
+              {
+                '$': { 'property': 'Unit' },
+                'String': stateType.flow.moleFlow.unit
               }
             ]
-          });
+          }]
+        });
+      }
+
+      // Add Composition — wrapped in Components per XSD
+      if (stateType.flow?.composition) {
+        const composition = stateType.flow.composition;
+        if (!dexpiStateType.Components) {
+          dexpiStateType.Components = [];
         }
 
-        dexpiStateType.Object.push(compositionObj);
+        const compositionData: Record<string, unknown>[] = [];
+        if (composition.basis) {
+          compositionData.push({ '$': { 'property': 'Basis' }, 'String': composition.basis });
+        }
+        if (composition.display) {
+          compositionData.push({ '$': { 'property': 'Display' }, 'String': composition.display });
+        }
+
+        (dexpiStateType.Components as Record<string, unknown>[]).push({
+          '$': { 'property': 'Composition' },
+          'Object': [{
+            '$': { 'type': 'Process/Process.Composition' },
+            'Data': compositionData
+          }]
+        });
       }
 
       stateTypes.push(dexpiStateType);
@@ -2139,7 +2041,18 @@ export class BpmnToDexpiTransformer {
   }
 
   private generateUid(): string {
-    return `uid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // DEXPI XSD ID pattern: [A-Za-z_][A-Za-z_0-9]* — no hyphens allowed
+    const ts = Date.now().toString(36).toUpperCase();
+    const rand = Math.random().toString(36).substr(2, 8).replace(/[^a-zA-Z0-9]/g, 'X');
+    return `u_${ts}_${rand}`;
+  }
+
+  /** Sanitize an arbitrary string for use as a DEXPI XML ID.
+   *  Replaces any character not in [A-Za-z0-9_] with '_' and
+   *  prepends 'u_' if the string starts with a digit. */
+  private sanitizeId(raw: string): string {
+    const clean = raw.replace(/[^A-Za-z0-9_]/g, '_');
+    return /^[A-Za-z_]/.test(clean) ? clean : `u_${clean}`;
   }
 }
 
