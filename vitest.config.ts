@@ -2,10 +2,10 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // jsdom environment provides DOMParser/Document APIs needed by the transformer
-    // @exodus/bytes is pinned to 1.15.0 in package.json overrides to prevent
-    // the ERR_REQUIRE_ESM issue from newer ESM-only versions of that package
-    environment: 'jsdom',
+    // happy-dom provides DOMParser/querySelectorAll/Document APIs in Node.js
+    // without the ERR_REQUIRE_ESM issue that vitest's bundled jsdom causes via
+    // the @exodus/bytes → html-encoding-sniffer dependency chain.
+    environment: 'happy-dom',
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
     exclude: ['node_modules', 'dist'],
     coverage: {
