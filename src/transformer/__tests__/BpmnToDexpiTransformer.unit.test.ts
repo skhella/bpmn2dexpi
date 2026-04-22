@@ -3,7 +3,7 @@
  *
  * Covers (per rebuttal commitments):
  *  R1-C1  – automated tests exist
- *  R1-C3  – extensionElements annotation is authoritative; name-inference emits a warning
+ *  R1-C3  – extensionElements annotation is authoritative; unannotated tasks default to ProcessStep with a warning
  *  R1-C4  – duplicate port name+direction emits a warning
  *  R1-C6  – TypeScript compilation validates no `any` types remain (build-time)
  */
@@ -35,7 +35,7 @@ function annotatedTask(id: string, name: string, dexpiClass: string, ports = '')
   </task>`;
 }
 
-/** Task with NO extensionElements — relies on heuristic name matching */
+/** Task with NO extensionElements — no dexpiType annotation, defaults to ProcessStep */
 function plainTask(id: string, name: string): string {
   return `<task id="${id}" name="${name}"/>`;
 }
@@ -83,7 +83,7 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
       expect(t.logger.warnings.length).toBe(0);
     });
 
-    it('emits a warning when falling back to heuristic name inference', async () => {
+    it('emits a warning when task has no dexpiType annotation', async () => {
       const xml = bpmn(`
         ${plainTask('T1', 'ReactingChemicals')}
         ${startEvent('SE1', 'Feed')}
@@ -96,7 +96,7 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
       await t.transform(xml);
 
       expect(t.logger.warnings.length).toBeGreaterThan(0);
-      expect(t.logger.warnings[0]).toMatch(/heuristic/i);
+      expect(t.logger.warnings[0]).toMatch(/no dexpiType annotation/i);
     });
 
     it('does NOT misclassify "Pump feed data to dashboard" as Pumping when annotated', async () => {
@@ -116,9 +116,8 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
       expect(out).not.toMatch(/Process\.Pumping/);
     });
 
-    it('warns and falls back for "Pump feed data to dashboard" without annotation', async () => {
-      // Without annotation: heuristic fires, would match "Pumping" (substring match)
-      // The warning must tell the user this happened
+    it('defaults to ProcessStep for "Pump feed data to dashboard" without annotation', async () => {
+      // Without annotation: no name inference — always defaults to ProcessStep
       const xml = bpmn(`
         ${plainTask('T1', 'Pump feed data to dashboard')}
         ${startEvent('SE1', 'Feed')}
@@ -127,10 +126,14 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
         ${seqFlow('F2', 'T1', 'EE1')}
       `);
       const t = new BpmnToDexpiTransformer();
-      await t.transform(xml);
+      const out = await t.transform(xml);
 
-      expect(t.logger.warnings.length).toBeGreaterThan(0);
+      // Must warn about missing annotation
       expect(t.logger.warnings.some(w => w.includes('Pump feed data to dashboard'))).toBe(true);
+      // Must NOT classify as Pumping — no name inference
+      expect(out).not.toMatch(/Process\.Pumping/);
+      // Must default to ProcessStep
+      expect(out).toMatch(/Process\.ProcessStep/);
     });
 
     it('defaults to ProcessStep and warns when name contains no DEXPI class', async () => {
@@ -254,17 +257,18 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
     });
   });
 
-  // ── inferDexpiTypeFromName edge cases ─────────────────────────────────────
-  describe('inferDexpiTypeFromName (accessed via plain tasks)', () => {
-    const cases: [string, string | null][] = [
-      ['ReactingChemicals', 'ReactingChemicals'],  // exact match
-      ['reacting chemicals', null],                  // no match → ProcessStep (warns)
-      ['Compressing', 'Compressing'],               // exact match
-      ['StrippingDistilling', 'StrippingDistilling'], // exact match
+  // ── unannotated task behaviour ────────────────────────────────────────────
+  describe('unannotated tasks always default to ProcessStep', () => {
+    const taskNames = [
+      'ReactingChemicals',
+      'reacting chemicals',
+      'Compressing',
+      'StrippingDistilling',
+      'Widget Assembly Line 3',
     ];
 
-    cases.forEach(([taskName, expectedClass]) => {
-      it(`task name "${taskName}" → ${expectedClass ?? 'ProcessStep (with warning)'}`, async () => {
+    taskNames.forEach((taskName) => {
+      it(`plain task "${taskName}" → ProcessStep + unannotated warning`, async () => {
         const xml = bpmn(`
           ${plainTask('T1', taskName)}
           ${startEvent('SE1', 'Feed')}
@@ -275,14 +279,11 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
         const t = new BpmnToDexpiTransformer();
         const out = await t.transform(xml);
 
-        if (expectedClass) {
-          // Should be in output AND a warning should still fire (heuristic path)
-          expect(out).toContain(expectedClass);
-          expect(t.logger.warnings.length).toBeGreaterThan(0);
-        } else {
-          // Falls to ProcessStep
-          expect(out).toContain('ProcessStep');
-        }
+        // Always ProcessStep — no name inference
+        expect(out).toContain('ProcessStep');
+        // Always warns about missing annotation
+        expect(t.logger.warnings.length).toBeGreaterThan(0);
+        expect(t.logger.warnings.some(w => /no dexpiType annotation/i.test(w))).toBe(true);
       });
     });
   });

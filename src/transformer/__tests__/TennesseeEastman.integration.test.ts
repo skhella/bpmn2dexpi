@@ -79,10 +79,10 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(output).toContain('Process.Sink');
   });
 
-  it('logs heuristic warnings for unannotated elements (R1-C3)', () => {
-    // TEP example file is now fully annotated with dexpi:element, so the transformer
-    // uses Mode 1 (dexpi-validated) for all elements — no heuristic warnings expected.
-    // The warning system is exercised by the unit tests in BpmnToDexpiTransformer.unit.test.ts.
+  it('logs no unannotated warnings for fully-annotated TEP (R1-C3)', () => {
+    // TEP example file is fully annotated with dexpi:element, so the transformer
+    // uses Mode 1 (dexpi-validated) for all elements — no unannotated warnings expected.
+    // The warning system is exercised by unit tests in BpmnToDexpiTransformer.unit.test.ts.
     expect(transformer.logger.errors).toHaveLength(0);
   });
 

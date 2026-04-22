@@ -2,8 +2,8 @@
  * Tests for DexpiProcessClassRegistry and the three-mode typing system.
  *
  * Mode 1 'dexpi-validated'  — known DEXPI class, no warning
- * Mode 2 'custom-uri'       — unknown class + optional URI, warns with suggestion
- * Mode 3 'heuristic'        — no annotation, inferred from name, always warns
+ * Mode 2 'custom-type'      — unknown class + optional URI, warns with "did you mean?" suggestion
+ * Mode 3 'unannotated'      — no annotation, defaults to ProcessStep, always warns
  */
 
 import { describe, it, expect } from 'vitest';
@@ -139,9 +139,9 @@ describe('Three-mode step typing', () => {
     }
   });
 
-  // ── Mode 2: custom-uri ────────────────────────────────────────────────
+  // ── Mode 2: custom-type ───────────────────────────────────────────────
 
-  it('Mode 2: unknown class + customUri → warning + ExternalReference in output', async () => {
+  it('Mode 2: unknown class + customUri → warning with "did you mean?" + ExternalReference in output', async () => {
     const xml = bpmn(`
       <task id="T1" name="ElectrolyticReduction">
         <extensionElements>
@@ -159,7 +159,7 @@ describe('Three-mode step typing', () => {
 
     // Should warn — not a DEXPI class
     expect(t.logger.warnings.length).toBeGreaterThan(0);
-    expect(t.logger.warnings[0]).toMatch(/not a known DEXPI 2\.0 Process class/i);
+    expect(t.logger.warnings[0]).toMatch(/not a standard DEXPI 2\.0 Process class/i);
     // URI should appear in output
     expect(out).toContain('https://data.15926.org/rdl/R1234');
     expect(out).toContain('ExternalReference');
@@ -180,12 +180,12 @@ describe('Three-mode step typing', () => {
     `);
     const t = new BpmnToDexpiTransformer();
     await t.transform(xml);
-    expect(t.logger.warnings[0]).toMatch(/No customUri provided/i);
+    expect(t.logger.warnings[0]).toMatch(/Add a customUri attribute/i);
   });
 
-  // ── Mode 3: heuristic ─────────────────────────────────────────────────
+  // ── Mode 3: unannotated ───────────────────────────────────────────────
 
-  it('Mode 3: no annotation → heuristic warning fired', async () => {
+  it('Mode 3: no annotation → defaults to ProcessStep with unannotated warning', async () => {
     const xml = bpmn(`
       <task id="T1" name="ReactingChemicals"/>
       ${startEvent('SE1')}${endEvent('EE1')}
@@ -193,12 +193,15 @@ describe('Three-mode step typing', () => {
       <sequenceFlow id="F2_EE1" sourceRef="T1" targetRef="EE1"/>
     `);
     const t = new BpmnToDexpiTransformer();
-    await t.transform(xml);
+    const out = await t.transform(xml);
     expect(t.logger.warnings.length).toBeGreaterThan(0);
-    expect(t.logger.warnings[0]).toMatch(/heuristic/i);
+    expect(t.logger.warnings[0]).toMatch(/no dexpiType annotation/i);
+    // Must NOT classify as ReactingChemicals — no name inference
+    expect(out).not.toMatch(/Process\.ReactingChemicals/);
+    expect(out).toMatch(/Process\.ProcessStep/);
   });
 
-  it('Mode 3: "Pump feed data to dashboard" → heuristic warns about ambiguity', async () => {
+  it('Mode 3: "Pump feed data to dashboard" without annotation → ProcessStep, no misclassification', async () => {
     const xml = bpmn(`
       <task id="T1" name="Pump feed data to dashboard"/>
       ${startEvent('SE1')}${endEvent('EE1')}
@@ -206,8 +209,11 @@ describe('Three-mode step typing', () => {
       <sequenceFlow id="F2_EE1" sourceRef="T1" targetRef="EE1"/>
     `);
     const t = new BpmnToDexpiTransformer();
-    await t.transform(xml);
+    const out = await t.transform(xml);
     expect(t.logger.warnings.some(w => w.includes('Pump feed data to dashboard'))).toBe(true);
+    // Must NOT misclassify as Pumping
+    expect(out).not.toMatch(/Process\.Pumping/);
+    expect(out).toMatch(/Process\.ProcessStep/);
   });
 
   // ── Registry updating ─────────────────────────────────────────────────

@@ -141,15 +141,17 @@ export class BpmnToDexpiTransformer {
    *   dexpiType annotation present AND class is in the official Process.xml registry.
    *   → Clean output, no warning.
    *
-   * Mode 2 'custom-uri':
-   *   dexpiType annotation present but NOT in the registry.
-   *   User has provided a customUri referencing another RDL (e.g. ISO 15926, OntoCAPE).
-   *   → Output includes external reference URI; warning recommends a DEXPI class.
-   *   If no customUri is provided, the unknown type is still used but warned about.
+   * Mode 2 'custom-type':
+   *   dexpiType annotation present but NOT in the DEXPI registry.
+   *   The user is explicitly defining a custom process step class (e.g. from a company
+   *   RDL or another ontology such as ISO 15926 or OntoCAPE). The custom type name is
+   *   preserved in the DEXPI output; an optional customUri stores the external class URI.
+   *   A warning is emitted with a "did you mean?" suggestion for the closest DEXPI class.
    *
-   * Mode 3 'heuristic':
-   *   No dexpiType annotation. Inferred from task name by substring matching.
-   *   → Always emits a warning; result is unreliable.
+   * Mode 3 'unannotated':
+   *   No dexpiType annotation present. Defaults to 'ProcessStep' (the generic DEXPI
+   *   superclass). Always emits a warning prompting the user to add a dexpiType.
+   *   No name-based inference is attempted — the user must be explicit.
    */
   private resolveStepType(
     annotatedType: string | undefined,
@@ -165,66 +167,34 @@ export class BpmnToDexpiTransformer {
         return { dexpiClass: annotatedType, mode: 'dexpi-validated' };
       }
 
-      // ── Mode 2: explicit annotation but NOT in DEXPI registry ─────────────
-      // Find closest match as a suggestion
+      // ── Mode 2: explicit custom type, not in DEXPI registry ───────────────
       const suggestion = this.findClosestDexpiClass(annotatedType);
       const uriNote = customUri
         ? ` External reference URI stored: ${customUri}`
-        : ' No customUri provided — add one to reference your RDL.';
+        : ' Add a customUri attribute to reference your RDL class URI.';
 
       this.logger.warn(
-        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a known ` +
-        `DEXPI 2.0 Process class. Treating as custom/non-DEXPI step.${uriNote}` +
-        (suggestion ? ` Closest DEXPI class: "${suggestion}".` : '')
+        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a standard ` +
+        `DEXPI 2.0 Process class — treating as custom step type.${uriNote}` +
+        (suggestion ? ` Did you mean "${suggestion}"?` : '')
       );
 
       return {
         dexpiClass: annotatedType,
-        mode: 'custom-uri',
+        mode: 'custom-type',
         customUri,
         suggestedDexpiClass: suggestion,
       };
     }
 
-    // ── Mode 3: heuristic name-matching fallback ──────────────────────────────
-    const inferred = this.inferFromName(taskName);
-    if (inferred !== 'ProcessStep') {
-      this.logger.warn(
-        `Task "${taskName}" (id=${taskId}) has no dexpi:element extensionElements annotation. ` +
-        `Heuristic name-matching inferred type "${inferred}". ` +
-        `This may be incorrect (e.g. "Pump feed data to dashboard" would match "Pumping"). ` +
-        `Add a dexpiType attribute in extensionElements for unambiguous typing.`
-      );
-    } else {
-      this.logger.warn(
-        `Task "${taskName}" (id=${taskId}) has no dexpi:element extensionElements annotation ` +
-        `and no name match was found. Defaulting to "ProcessStep". ` +
-        `Add a dexpiType attribute in extensionElements for explicit typing.`
-      );
-    }
-    return { dexpiClass: inferred, mode: 'heuristic' };
-  }
-
-  /** Heuristic name-based inference (mode 3 only). */
-  private inferFromName(name: string): string {
-    const normalized = name.trim().toLowerCase();
-    const classes = this.registry.size > 0
-      ? this.registry.allClasses()
-      : ['ProcessStep', 'Pumping', 'Compressing', 'ReactingChemicals',
-         'Separating', 'ExchangingThermalEnergy', 'RemovingThermalEnergy',
-         'SupplyingThermalEnergy', 'MeasuringProcessVariable',
-         'ControllingProcessVariable', 'TransportingFluids', 'Source', 'Sink'];
-
-    // Exact match first
-    const exact = classes.find(c => c.toLowerCase() === normalized);
-    if (exact) return exact;
-
-    // Substring match — longest class name wins to avoid short matches like "Mixing" in "MixingSimple"
-    const sorted = [...classes].sort((a, b) => b.length - a.length);
-    for (const cls of sorted) {
-      if (normalized.includes(cls.toLowerCase())) return cls;
-    }
-    return 'ProcessStep';
+    // ── Mode 3: no annotation — default to generic ProcessStep ───────────────
+    this.logger.warn(
+      `Task "${taskName}" (id=${taskId}) has no dexpiType annotation. ` +
+      `Defaulting to "ProcessStep" (generic DEXPI superclass). ` +
+      `Add a dexpiType attribute in extensionElements to assign a specific DEXPI class ` +
+      `or a custom step type.`
+    );
+    return { dexpiClass: 'ProcessStep', mode: 'unannotated' };
   }
 
   /** Find the closest known DEXPI class for a non-registry type (for suggestions). */
