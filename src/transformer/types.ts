@@ -199,16 +199,19 @@ export interface ValidationResult {
  *                         AND the class name exists in the DEXPI Process.xml registry.
  *                         This is the only mode that produces clean, warning-free output.
  *
- * 2. 'custom-uri'       — explicit dexpiType annotation found but NOT in the DEXPI
- *                         registry, AND a customUri was provided. The step is encoded
- *                         with the custom type name and the URI stored as a Data property.
- *                         A warning is emitted recommending a DEXPI class where possible.
+ * 2. 'custom-type'      — explicit dexpiType annotation found but NOT in the DEXPI
+ *                         registry. The user is defining a custom process step class
+ *                         (e.g. from a company RDL or another ontology). The custom
+ *                         type name is preserved in the DEXPI output; an optional
+ *                         customUri stores the external class URI. A warning is emitted
+ *                         with a "did you mean?" suggestion for the closest DEXPI class.
  *
- * 3. 'heuristic'        — no extensionElements annotation. Type was inferred from the
- *                         task name by substring matching. Always emits a warning.
- *                         Output should not be considered authoritative DEXPI.
+ * 3. 'unannotated'      — no dexpiType annotation present at all. Defaults to
+ *                         'ProcessStep' (the generic DEXPI superclass). Always emits
+ *                         a warning prompting the user to add a dexpiType annotation.
+ *                         No name-based inference is attempted.
  */
-export type StepTypingMode = 'dexpi-validated' | 'custom-uri' | 'heuristic';
+export type StepTypingMode = 'dexpi-validated' | 'custom-type' | 'unannotated';
 
 export interface StepTypingResult {
   /** The resolved DEXPI class name (or heuristic guess). */
