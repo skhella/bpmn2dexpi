@@ -170,17 +170,17 @@ export class BpmnToDexpiTransformer {
       // ── Mode 2: explicit custom type, not in DEXPI registry ───────────────
       const suggestion = this.findClosestDexpiClass(annotatedType);
       const uriNote = customUri
-        ? ` External reference URI stored: ${customUri}`
+        ? ` ReferenceUri stored: ${customUri}`
         : ' Add a customUri attribute to reference your RDL class URI.';
 
       this.logger.warn(
         `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a standard ` +
-        `DEXPI 2.0 Process class — treating as custom step type.${uriNote}` +
+        `DEXPI 2.0 Process class — outputting as generic ProcessStep.${uriNote}` +
         (suggestion ? ` Did you mean "${suggestion}"?` : '')
       );
 
       return {
-        dexpiClass: annotatedType,
+        dexpiClass: 'ProcessStep',  // always generic superclass for non-DEXPI types
         mode: 'custom-type',
         customUri,
         suggestedDexpiClass: suggestion,
@@ -1020,14 +1020,16 @@ export class BpmnToDexpiTransformer {
         }
       }
 
-      // Add ExternalReference URI if this is a custom/non-DEXPI step (mode 2)
-      // This preserves the foreign RDL URI in the DEXPI output for downstream tools.
+      // Add ReferenceUri if this is a custom-type step (mode 2)
+      // The type is always ProcessStep; the URI points to the user's RDL class.
+      // Future DEXPI customization work will define a formal mechanism for custom
+      // classes; this conservative approach avoids polluting the type namespace.
       if (step.customUri) {
         if (!Array.isArray(dexpiStep.Data)) {
           dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
         }
         (dexpiStep.Data as Record<string, unknown>[]).push({
-          '$': { 'property': 'ExternalReference' },
+          '$': { 'property': 'ReferenceUri' },
           'String': step.customUri
         });
         if (step.suggestedDexpiClass) {

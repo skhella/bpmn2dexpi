@@ -113,7 +113,7 @@ describe('Three-mode step typing', () => {
     const out = await t.transform(xml);
     expect(t.logger.warnings).toHaveLength(0);
     expect(out).toContain('Process.Pumping');
-    expect(out).not.toContain('ExternalReference');
+    expect(out).not.toContain('ReferenceUri');
   });
 
   it('Mode 1: validates all 13 spot-check classes from Process.xml', async () => {
@@ -141,7 +141,7 @@ describe('Three-mode step typing', () => {
 
   // ── Mode 2: custom-type ───────────────────────────────────────────────
 
-  it('Mode 2: unknown class + customUri → warning with "did you mean?" + ExternalReference in output', async () => {
+  it('Mode 2: unknown class + customUri → warning with "did you mean?" + ReferenceUri in output', async () => {
     const xml = bpmn(`
       <task id="T1" name="ElectrolyticReduction">
         <extensionElements>
@@ -160,10 +160,14 @@ describe('Three-mode step typing', () => {
     // Should warn — not a DEXPI class
     expect(t.logger.warnings.length).toBeGreaterThan(0);
     expect(t.logger.warnings[0]).toMatch(/not a standard DEXPI 2\.0 Process class/i);
-    // URI should appear in output
+    // Must output generic ProcessStep — NOT the custom type name as DEXPI class
+    expect(out).toMatch(/Process\/Process\.ProcessStep/);
+    expect(out).not.toMatch(/Process\/Process\.ElectrolyticReduction/);
+    // URI stored as ReferenceUri (not ExternalReference)
     expect(out).toContain('https://data.15926.org/rdl/R1234');
-    expect(out).toContain('ExternalReference');
-    // The custom type name itself should appear
+    expect(out).toContain('ReferenceUri');
+    expect(out).not.toContain('ExternalReference');
+    // Custom name preserved in Label
     expect(out).toContain('ElectrolyticReduction');
   });
 
@@ -179,8 +183,11 @@ describe('Three-mode step typing', () => {
       <sequenceFlow id="F2_EE1" sourceRef="T1" targetRef="EE1"/>
     `);
     const t = new BpmnToDexpiTransformer();
-    await t.transform(xml);
+    const out = await t.transform(xml);
     expect(t.logger.warnings[0]).toMatch(/Add a customUri attribute/i);
+    // Still outputs ProcessStep
+    expect(out).toMatch(/Process\/Process\.ProcessStep/);
+    expect(out).not.toMatch(/Process\/Process\.MyProprietaryStep/);
   });
 
   // ── Mode 3: unannotated ───────────────────────────────────────────────
