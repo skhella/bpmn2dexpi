@@ -76,7 +76,7 @@ src/transformer/
 ├── DexpiOutputValidator.ts        # XSD + structural validation
 ├── TransformerLogger.ts           # Warning/error collection
 ├── types.ts                       # Typed interfaces
-└── __tests__/                     # 50 automated tests
+└── __tests__/                     # 56 automated tests
 
 dexpi-schema-files/
 ├── DEXPI_XML_Schema.xsd           # Official DEXPI 2.0 XML Schema
