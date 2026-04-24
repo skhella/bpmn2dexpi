@@ -33,7 +33,9 @@ export default class AutoTypeBehavior extends CommandInterceptor {
       console.log('Connection created:', connection);
       // Small delay to ensure connection is fully established
       setTimeout(() => {
-        if (connection.type === 'bpmn:Association') {
+        if (connection.type === 'bpmn:Association' ||
+            connection.type === 'bpmn:DataOutputAssociation' ||
+            connection.type === 'bpmn:DataInputAssociation') {
           this.autoSetInformationFlow(connection);
         } else {
           this.autoSetStreamType(connection);
