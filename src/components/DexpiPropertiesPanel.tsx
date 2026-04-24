@@ -18,6 +18,9 @@ const STEP_CLASSES = DEXPI_REGISTRY.concreteClasses().filter(c =>
     'MaterialStateType', 'ListOfMaterialComponents', 'MaterialComponent',
     'PureMaterialComponent', 'CustomMaterialComponent', 'Composition',
     'ProcessModel', 'Stream'].includes(c)
+  // Source and Sink are excluded per representation methodology:
+  // they map exclusively to StartEvent and EndEvent, never to Task elements
+  && c !== 'Source' && c !== 'Sink'
 );
 
 interface DexpiPropertiesPanelProps {
