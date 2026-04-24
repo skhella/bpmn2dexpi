@@ -60,7 +60,7 @@ export interface InternalStream {
   targetRef: string;
   sourcePortRef?: string;
   targetPortRef?: string;
-  streamType: 'MaterialFlow' | 'EnergyFlow' | 'InformationFlow';
+  streamType: 'MaterialFlow' | 'EnergyFlow' | 'ThermalEnergyFlow' | 'MechanicalEnergyFlow' | 'ElectricalEnergyFlow' | 'InformationFlow';
   templateReference?: string;
   materialStateReference?: string;
   provenance?: string;

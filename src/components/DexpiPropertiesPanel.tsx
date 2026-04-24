@@ -1349,11 +1349,14 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
         <label>
           Stream Type:
           <select 
-            value={streamData.streamType || (element.type === 'bpmn:Association' ? 'InformationFlow' : 'MaterialFlow')} 
+            value={streamData.streamType || (element.type === 'bpmn:Association' ? 'InformationFlow' : 'MaterialFlow')}
             onChange={(e) => updateStream({ streamType: e.target.value as any })}
           >
             <option value="MaterialFlow">Material Flow</option>
-            <option value="EnergyFlow">Energy Flow</option>
+            <option value="ThermalEnergyFlow">Thermal Energy Flow (TEO/TEI)</option>
+            <option value="MechanicalEnergyFlow">Mechanical Energy Flow (MEO/MEI)</option>
+            <option value="ElectricalEnergyFlow">Electrical Energy Flow (EEO/EEI)</option>
+            <option value="EnergyFlow">Energy Flow — generic (use specific type if known)</option>
             {/* InformationFlow only valid for Associations, not SequenceFlows */}
             {element.type === 'bpmn:Association' && (
               <option value="InformationFlow">Information Flow</option>

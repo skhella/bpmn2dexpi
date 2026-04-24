@@ -779,7 +779,7 @@ export class BpmnToDexpiTransformer {
     return {
       identifier: dexpiStream.getAttribute('identifier') || dexpiStream.getAttribute('Identifier') || undefined,
       name: dexpiStream.getAttribute('name') || undefined,
-      streamType: (dexpiStream.getAttribute('streamType') ?? 'MaterialFlow') as 'MaterialFlow' | 'EnergyFlow',
+      streamType: (dexpiStream.getAttribute('streamType') ?? 'MaterialFlow') as InternalStream['streamType'],
       sourcePortRef: dexpiStream.getAttribute('sourcePortRef') || undefined,
       targetPortRef: dexpiStream.getAttribute('targetPortRef') || undefined,
       templateReference: dexpiStream.getAttribute('templateReference') || templateRef,
@@ -1320,11 +1320,14 @@ export class BpmnToDexpiTransformer {
         return;
       }
 
-      const streamType = stream.streamType === 'MaterialFlow' ? 'Stream' : 'EnergyFlow';
+      // Resolve final stream type — infer from connected port type when unannotated
+      const resolvedStreamType = this.resolveStreamType(stream, sourcePort);
+      const dexpiTypeName = this.streamTypeToDexpiClass(resolvedStreamType);
+
       const dexpiStream: Record<string, unknown> = {
         '$': {
           'id': this.sanitizeId(stream.uid),
-          'type': `Process/Process.${streamType}`
+          'type': `Process/Process.${dexpiTypeName}`
         },
         'Data': [
           {
@@ -1441,6 +1444,41 @@ export class BpmnToDexpiTransformer {
     });
 
     return streamElements;
+  }
+
+  /**
+   * Resolve the final stream type — uses explicit annotation if present,
+   * otherwise infers from the connected port's portType.
+   * This allows TEP and other files without streamType annotations to export
+   * the correct DEXPI subtype based on their port type attributes.
+   */
+  private resolveStreamType(stream: InternalStream, sourcePortId: string): InternalStream['streamType'] {
+    // If explicitly annotated (not the default), trust it
+    if (stream.streamType !== 'MaterialFlow') return stream.streamType;
+
+    // Infer from source port type
+    const port = this.ports.get(sourcePortId);
+    if (!port) return 'MaterialFlow';
+
+    switch (port.portType) {
+      case 'ThermalEnergyPort':    return 'ThermalEnergyFlow';
+      case 'MechanicalEnergyPort': return 'MechanicalEnergyFlow';
+      case 'ElectricalEnergyPort': return 'ElectricalEnergyFlow';
+      case 'InformationPort':      return 'InformationFlow';
+      default:                     return 'MaterialFlow';
+    }
+  }
+
+  /** Map internal stream type to DEXPI Process class name. */
+  private streamTypeToDexpiClass(streamType: InternalStream['streamType']): string {
+    switch (streamType) {
+      case 'MaterialFlow':         return 'Stream';
+      case 'ThermalEnergyFlow':    return 'ThermalEnergyFlow';
+      case 'MechanicalEnergyFlow': return 'MechanicalEnergyFlow';
+      case 'ElectricalEnergyFlow': return 'ElectricalEnergyFlow';
+      case 'EnergyFlow':           return 'EnergyFlow';  // generic fallback
+      default:                     return 'Stream';
+    }
   }
 
   /**
