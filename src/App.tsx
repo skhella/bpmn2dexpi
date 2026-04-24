@@ -520,40 +520,42 @@ function App() {
   const reanchorPortsAfterImport = (bpmnModelerInstance?: any) => {
     const m = bpmnModelerInstance || modeler;
     if (!m) return;
-    const elementRegistry = m.get('elementRegistry') as any;
-    const modeling = m.get('modeling') as any;
+    try {
+      const elementRegistry = m.get('elementRegistry') as any;
+      const eventBus = m.get('eventBus') as any;
 
-    elementRegistry.getAll().forEach((element: any) => {
-      const bo = element.businessObject;
-      const ext = bo?.extensionElements?.values;
-      if (!ext?.length) return;
+      elementRegistry.getAll().forEach((element: any) => {
+        const bo = element.businessObject;
+        const ext = bo?.extensionElements?.values;
+        if (!ext?.length) return;
 
-      // dexpi:Element has $type 'dexpi:Element'
-      const dexpiEl = ext.find((e: any) => e.$type === 'dexpi:Element');
-      if (!dexpiEl?.ports?.length) return;
+        const dexpiEl = ext.find((e: any) => e.$type === 'dexpi:Element');
+        if (!dexpiEl?.ports?.length) return;
 
-      const inlets  = dexpiEl.ports.filter((p: any) => p.direction === 'Inlet');
-      const outlets = dexpiEl.ports.filter((p: any) => p.direction === 'Outlet');
+        const inlets  = dexpiEl.ports.filter((p: any) => p.direction === 'Inlet');
+        const outlets = dexpiEl.ports.filter((p: any) => p.direction === 'Outlet');
 
-      let changed = false;
-      dexpiEl.ports.forEach((port: any) => {
-        if (port.anchorSide) return; // already set — skip
-        const isOutlet = port.direction === 'Outlet';
-        const group = isOutlet ? outlets : inlets;
-        const idx = group.indexOf(port);
-        port.anchorSide = isOutlet ? 'right' : 'left';
-        port.anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
-        changed = true;
+        let changed = false;
+        dexpiEl.ports.forEach((port: any) => {
+          if (port.anchorSide) return;
+          const isOutlet = port.direction === 'Outlet';
+          const group = isOutlet ? outlets : inlets;
+          const idx = group.indexOf(port);
+          // Direct mutation — no command stack, no autosave trigger
+          port.anchorSide = isOutlet ? 'right' : 'left';
+          port.anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
+          changed = true;
+        });
+
+        if (changed) {
+          // Fire element-changed to trigger re-render without going through modeling API
+          eventBus.fire('element.changed', { element });
+        }
       });
-
-      if (changed) {
-        modeling.updateProperties(element, { extensionElements: bo.extensionElements });
-      }
-    });
-
-    // Force re-render of all elements
-    const eventBus = m.get('eventBus') as any;
-    eventBus.fire('elements.changed', { elements: elementRegistry.getAll() });
+    } catch (e) {
+      // Never let port anchoring break the modeler
+      console.warn('reanchorPortsAfterImport error (non-fatal):', e);
+    }
   };
 
   const handleImportBpmn = () => {
