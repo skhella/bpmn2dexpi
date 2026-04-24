@@ -128,6 +128,7 @@ export default class AutoTypeBehavior extends CommandInterceptor {
     this.eventBus.fire('element.changed', { element: connection });
 
     // Auto-generate InformationPorts on task elements (not on Data Objects)
+    // and set sourcePortRef/targetPortRef on the stream annotation
     const source = connection.source;
     const target = connection.target;
     const isTask = (el: any) => el && (
@@ -135,13 +136,28 @@ export default class AutoTypeBehavior extends CommandInterceptor {
       el.type?.includes('Task') || el.type === 'bpmn:CallActivity'
     );
 
+    let sourcePortName: string | undefined;
+    let targetPortName: string | undefined;
+
     if (isTask(source)) {
-      const portName = this.getNextPortName(source, 'IO');
-      this.createPort(source, portName, 'InformationPort', 'Outlet');
+      sourcePortName = this.getNextPortName(source, 'IO');
+      this.createPort(source, sourcePortName, 'InformationPort', 'Outlet');
     }
     if (isTask(target)) {
-      const portName = this.getNextPortName(target, 'II');
-      this.createPort(target, portName, 'InformationPort', 'Inlet');
+      targetPortName = this.getNextPortName(target, 'II');
+      this.createPort(target, targetPortName, 'InformationPort', 'Inlet');
+    }
+
+    // Update stream annotation with port references so properties panel shows them
+    if (sourcePortName || targetPortName) {
+      const streamEl = extensionElements.values.find(
+        (e: any) => e.$type === 'dexpi:Stream' || e.$type === 'Stream'
+      );
+      if (streamEl) {
+        if (sourcePortName) streamEl.sourcePortRef = sourcePortName;
+        if (targetPortName) streamEl.targetPortRef = targetPortName;
+        this.modeling.updateProperties(connection, { extensionElements });
+      }
     }
   }
 
