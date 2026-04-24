@@ -374,10 +374,18 @@ export class DexpiToBpmnTransformer {
       const elId = bpmnId(step.id);
       const name = step.label !== step.dexpiType ? step.label : step.dexpiType;
 
-      // Extension elements
+      // Extension elements — assign anchorSide based on direction and spread offset
+      const inlets  = step.ports.filter(p => p.direction === 'Inlet');
+      const outlets = step.ports.filter(p => p.direction === 'Outlet');
+
       const portsXml = step.ports.map(p => {
         const bpmnDir = p.direction === 'Outlet' ? 'Outlet' : 'Inlet';
-        return `        <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.portType}" direction="${bpmnDir}" label="${p.label}"/>`;
+        const anchorSide = bpmnDir === 'Outlet' ? 'right' : 'left';
+        // Spread multiple ports evenly along the side
+        const group = bpmnDir === 'Outlet' ? outlets : inlets;
+        const idx = group.indexOf(p);
+        const anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
+        return `        <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.portType}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchorSide}" anchorOffset="${anchorOffset.toFixed(2)}"/>`;
       }).join('\n');
 
       const extEl = `    <bpmn:extensionElements>

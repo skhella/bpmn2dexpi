@@ -249,6 +249,7 @@
         </bpmn:dataInputAssociation>
         <bpmn:dataInputAssociation id="DataInputAssociation_composition_fix">
           <bpmn:sourceRef>DataObjectReference_10911pm</bpmn:sourceRef>
+          <bpmn:targetRef>Property_0h0ehut</bpmn:targetRef>
         </bpmn:dataInputAssociation>
       </bpmn:task>
       <bpmn:sequenceFlow id="Flow_1hd54gp" name="MO1 - MO1" sourceRef="Activity_0msgfdr" targetRef="Event_062k0v7" />
