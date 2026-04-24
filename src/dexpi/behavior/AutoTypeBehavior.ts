@@ -179,14 +179,23 @@ export default class AutoTypeBehavior extends CommandInterceptor {
     }
 
     // Determine port type based on stream type
+    // Determine port type and name prefixes based on stream type
     let portType = 'MaterialPort';
     let outletPrefix = 'MO';
     let inletPrefix = 'MI';
 
-    if (streamType === 'EnergyFlow') {
-      portType = 'ThermalEnergyPort'; // Default to thermal energy
-      outletPrefix = 'TEO';
-      inletPrefix = 'TEI';
+    switch (streamType) {
+      case 'ThermalEnergyFlow':
+        portType = 'ThermalEnergyPort'; outletPrefix = 'TEO'; inletPrefix = 'TEI'; break;
+      case 'MechanicalEnergyFlow':
+        portType = 'MechanicalEnergyPort'; outletPrefix = 'MEO'; inletPrefix = 'MEI'; break;
+      case 'ElectricalEnergyFlow':
+        portType = 'ElectricalEnergyPort'; outletPrefix = 'EEO'; inletPrefix = 'EEI'; break;
+      case 'EnergyFlow':
+        portType = 'ThermalEnergyPort'; outletPrefix = 'TEO'; inletPrefix = 'TEI'; break; // generic fallback
+      case 'InformationFlow':
+        portType = 'InformationPort'; outletPrefix = 'IO'; inletPrefix = 'II'; break;
+      // MaterialFlow: defaults above
     }
 
     // Create outlet port on source

@@ -375,3 +375,40 @@ describe('InformationFlow extraction from associations', () => {
     expect(t.logger.warnings.some(w => w.includes('InformationPort'))).toBe(true);
   });
 });
+
+// ── Port-type-based stream type inference ─────────────────────────────────
+describe('stream type inferred from port type when no streamType annotation', () => {
+  const energyCases: [string, string, string, string][] = [
+    ['ThermalEnergyPort',    'ThermalEnergyFlow',    'TEO1', 'TEI1'],
+    ['MechanicalEnergyPort', 'MechanicalEnergyFlow', 'MEO1', 'MEI1'],
+    ['ElectricalEnergyPort', 'ElectricalEnergyFlow', 'EEO1', 'EEI1'],
+  ];
+
+  energyCases.forEach(([portType, expectedDexpiType, outPort, inPort]) => {
+    it(`${portType} ports → ${expectedDexpiType} in output`, async () => {
+      const xml = bpmn(`
+        <task id="T1" name="Source">
+          <extensionElements>
+            <dexpi:element dexpiType="Source" identifier="T1" uid="uid_T1">
+              <dexpi:port portId="T1_${outPort}" name="${outPort}" portType="${portType}" direction="Outlet"/>
+            </dexpi:element>
+          </extensionElements>
+        </task>
+        <task id="T2" name="Sink">
+          <extensionElements>
+            <dexpi:element dexpiType="Sink" identifier="T2" uid="uid_T2">
+              <dexpi:port portId="T2_${inPort}" name="${inPort}" portType="${portType}" direction="Inlet"/>
+            </dexpi:element>
+          </extensionElements>
+        </task>
+        ${startEvent('SE1')}${endEvent('EE1')}
+        <sequenceFlow id="F0" sourceRef="SE1" targetRef="T1"/>
+        <sequenceFlow id="F1" sourceRef="T1" targetRef="T2"/>
+        <sequenceFlow id="F2" sourceRef="T2" targetRef="EE1"/>
+      `);
+      const t = new BpmnToDexpiTransformer();
+      const out = await t.transform(xml);
+      expect(out).toContain(`Process/Process.${expectedDexpiType}`);
+    });
+  });
+});

@@ -29,7 +29,7 @@ export interface DexpiPort {
 export interface DexpiStream {
   identifier?: string;
   name?: string;
-  streamType?: 'MaterialFlow' | 'EnergyFlow';
+  streamType?: 'MaterialFlow' | 'EnergyFlow' | 'ThermalEnergyFlow' | 'MechanicalEnergyFlow' | 'ElectricalEnergyFlow' | 'InformationFlow';
   sourcePortRef?: string;
   targetPortRef?: string;
   templateReference?: string;
