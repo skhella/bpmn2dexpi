@@ -11,7 +11,7 @@ A web-based tool for creating DEXPI 2.0-compliant block flow and process flow di
 - **Stream Properties**: Flow rates, compositions, and qualified parameters (Scope, Range, Provenance)
 - **CLI Tool**: Batch convert BPMN files to DEXPI 2.0 XML from terminal or Python
 - **Neo4j Export**: Export process graphs directly to a Neo4j graph database
-- **RDL Extension**: Steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri` — the URI is preserved in the DEXPI output as `ExternalReference`
+- **RDL Extension**: Steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri` — the URI is preserved in the DEXPI output as `ReferenceUri`
 
 ## Prerequisites
 
@@ -123,7 +123,7 @@ src/transformer/
 ├── DexpiOutputValidator.ts        # XSD + structural validation
 ├── TransformerLogger.ts           # Warning/error collection per transform()
 ├── types.ts                       # Typed interfaces (zero `any`)
-└── __tests__/                     # 49 automated tests
+└── __tests__/                     # 50 automated tests
     ├── BpmnToDexpiTransformer.unit.test.ts
     ├── DexpiProcessClassRegistry.test.ts
     ├── DexpiOutputValidator.unit.test.ts
@@ -138,7 +138,7 @@ dexpi-schema-files/
 ## Testing
 
 ```bash
-# Run all 49 tests (4 suites)
+# Run all 50 tests (4 suites)
 npm test
 
 # Watch mode during development
@@ -172,19 +172,15 @@ The tool implements the encoding methodology described in the associated publica
 
 All DEXPI-specific information (element type, ports, stream attributes, material states) is preserved in BPMN `extensionElements` using the `dexpi:` namespace, enabling lossless reconstruction.
 
-**Step typing — two-mode explicit system:**
+**Step typing:**
 
 | Mode | Trigger | Behaviour |
 |---|---|---|
 | **1 — DEXPI validated** | `dexpiType` annotation + class in `Process.xml` | Clean output, no warning |
-| **2 — Custom type** | `dexpiType` not in DEXPI registry + optional `customUri` | Output as `ProcessStep` (generic superclass); optional URI stored as `ReferenceUri`; warns with nearest DEXPI suggestion |
-| **Unannotated** | No annotation at all | Defaults to `ProcessStep` with a warning — no name-based inference |
+| **2 — Custom type** | `dexpiType` not in DEXPI registry + optional `customUri` | Output as `ProcessStep`; URI stored as `ReferenceUri`; warns with nearest DEXPI suggestion |
+| **Unannotated** | No `dexpiType` annotation | Defaults to `ProcessStep` with a warning |
 
-The tool is designed for use with explicit `dexpiType` annotations — either DEXPI 2.0 class names, or standardized unit operation names from other reference data libraries or ontologies. Name-based inference from task names was deliberately removed to avoid silent misclassification (e.g. "Pump feed data to dashboard" being classified as `Pumping`).
-
-Mode 2 enables integration of non-DEXPI process ontologies (ISO 15926, OntoCAPE, company RDLs). The external URI is stored as `ReferenceUri` in the DEXPI output:
-
-Stream attributes support the same RDL interoperability at the **attribute level** via two optional URI fields:
+Stream attributes support RDL interoperability via two optional URI fields:
 
 | Field | Purpose | Example |
 |---|---|---|
@@ -204,8 +200,8 @@ These are stored in the DEXPI output as `QuantityKindReference` and `UnitReferen
 
 This tool implements the encoding methodology described in:
 
-> Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke.
-> *Encoding DEXPI Process Classes in BPMN 2.0 for Graphical Instantiation of Block Flow and Process Flow Diagrams* (under review, Digital Chemical Engineering, 2026).
+> Shady Khella, Markus Schichfeld, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke.
+> *Representing DEXPI Process in BPMN 2.0 for Graphical Modeling and Exchange of Block Flow and Process Flow Diagrams* (under review, Digital Chemical Engineering, 2026).
 
 A link to the publication will be added once available.
 
