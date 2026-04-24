@@ -1314,7 +1314,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
     updateStream({ attributes: updatedAttrs });
   };
 
-  if (!element || element.type !== 'bpmn:SequenceFlow') {
+  if (!element || (element.type !== 'bpmn:SequenceFlow' && element.type !== 'bpmn:Association')) {
     return null;
   }
 
@@ -1354,6 +1354,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           >
             <option value="MaterialFlow">Material Flow</option>
             <option value="EnergyFlow">Energy Flow</option>
+            <option value="InformationFlow">Information Flow (Association)</option>
           </select>
         </label>
       </div>

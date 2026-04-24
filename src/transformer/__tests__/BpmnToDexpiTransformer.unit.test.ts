@@ -288,3 +288,90 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
     });
   });
 });
+
+// ── InformationFlow (Association) tests ───────────────────────────────────
+describe('InformationFlow extraction from associations', () => {
+  it('extracts an annotated association as InformationFlow in DEXPI output', async () => {
+    const xml = bpmn(`
+      <task id="T1" name="MeasuringProcessVariable">
+        <extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="T1" uid="uid_T1">
+            <dexpi:port portId="T1_IO1" name="IO1" portType="InformationPort" direction="Outlet"/>
+          </dexpi:element>
+        </extensionElements>
+      </task>
+      <task id="T2" name="ReactingChemicals">
+        <extensionElements>
+          <dexpi:element dexpiType="ReactingChemicals" identifier="T2" uid="uid_T2">
+            <dexpi:port portId="T2_IO1" name="IO1" portType="InformationPort" direction="Inlet"/>
+          </dexpi:element>
+        </extensionElements>
+      </task>
+      <association id="A1" name="signal" sourceRef="T1" targetRef="T2">
+        <extensionElements>
+          <dexpi:Stream streamType="InformationFlow" uid="uid_A1" identifier="IF-001"/>
+        </extensionElements>
+      </association>
+      ${startEvent('SE1')}${endEvent('EE1')}
+      <sequenceFlow id="F1" sourceRef="SE1" targetRef="T1"/>
+      <sequenceFlow id="F2" sourceRef="T1" targetRef="T2"/>
+      <sequenceFlow id="F3" sourceRef="T2" targetRef="EE1"/>
+    `);
+
+    const t = new BpmnToDexpiTransformer();
+    const out = await t.transform(xml);
+
+    expect(out).toContain('Process/Process.InformationFlow');
+    expect(out).toContain('IF-001');
+    // The InformationFlow should be separate from MaterialFlow streams
+    expect((out.match(/Process\/Process\.InformationFlow/g) || []).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ignores plain associations without InformationFlow annotation', async () => {
+    const xml = bpmn(`
+      <task id="T1" name="Pumping">
+        <extensionElements>
+          <dexpi:element dexpiType="Pumping" identifier="T1" uid="uid_T1"/>
+        </extensionElements>
+      </task>
+      <association id="A1" sourceRef="T1" targetRef="T1"/>
+      ${startEvent('SE1')}${endEvent('EE1')}
+      <sequenceFlow id="F1" sourceRef="SE1" targetRef="T1"/>
+      <sequenceFlow id="F2" sourceRef="T1" targetRef="EE1"/>
+    `);
+
+    const t = new BpmnToDexpiTransformer();
+    const out = await t.transform(xml);
+
+    expect(out).not.toContain('InformationFlow');
+  });
+
+  it('warns when InformationFlow has no InformationPorts on source/target', async () => {
+    const xml = bpmn(`
+      <task id="T1" name="MeasuringProcessVariable">
+        <extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="T1" uid="uid_T1"/>
+        </extensionElements>
+      </task>
+      <task id="T2" name="ReactingChemicals">
+        <extensionElements>
+          <dexpi:element dexpiType="ReactingChemicals" identifier="T2" uid="uid_T2"/>
+        </extensionElements>
+      </task>
+      <association id="A1" sourceRef="T1" targetRef="T2">
+        <extensionElements>
+          <dexpi:Stream streamType="InformationFlow" uid="uid_A1" identifier="IF-001"/>
+        </extensionElements>
+      </association>
+      ${startEvent('SE1')}${endEvent('EE1')}
+      <sequenceFlow id="F1" sourceRef="SE1" targetRef="T1"/>
+      <sequenceFlow id="F2" sourceRef="T1" targetRef="T2"/>
+      <sequenceFlow id="F3" sourceRef="T2" targetRef="EE1"/>
+    `);
+
+    const t = new BpmnToDexpiTransformer();
+    await t.transform(xml);
+
+    expect(t.logger.warnings.some(w => w.includes('InformationPort'))).toBe(true);
+  });
+});
