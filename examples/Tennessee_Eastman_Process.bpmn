@@ -51,7 +51,14 @@
           <port id="MI4_port" name="MI4" type="MaterialPort" direction="Inlet" label="MI4" />
           <port id="MI5_port" name="MI5" type="MaterialPort" direction="Inlet" label="MI5" />
           <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-        </ports>
+        
+          <port id="IPI_Composition_Activity_07878z5" name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" />
+          <port id="IPI_Level_Activity_07878z5" name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" />
+          <port id="IPI_MassFlow_Activity_07878z5" name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" />
+          <port id="IPI_Pressure_Activity_07878z5" name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" />
+          <port id="IPI_RotationalFrequency_Activity_07878z5" name="IPI_RotationalFrequency" type="InformationPort" direction="Inlet" label="RotationalFrequency" />
+          <port id="IPI_Temperature_Activity_07878z5" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
+          </ports>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_109uz3k</bpmn:incoming>
       <bpmn:incoming>Flow_0jep6f0</bpmn:incoming>
@@ -64,6 +71,8 @@
           <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8"/>
         <ports>
             <port id="TEI1_port" name="TEI1" type="MaterialPort" direction="Inlet" label="TEI1" />
+          
+          <port id="IPI_Temperature_Activity_11rkrj8" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
           </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0wulh9g</bpmn:incoming>
@@ -101,6 +110,8 @@
               <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
               <port id="TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
               <port id="TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
+            
+              <port id="IPI_Temperature_Activity_0iie89x" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
             </ports>
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_04ncgwf</bpmn:incoming>
@@ -178,6 +189,7 @@
             <port id="EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
             <port id="MEO1_port" name="MEO1" type="MechanicalEnergyPort" direction="Outlet" label="MEO1" />
             <port id="IPI_RotationalFrequency" name="IPI_RotationalFrequency" type="InformationPort" direction="Inlet" label="RotationalFrequency" />
+          
           </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0gji0fb</bpmn:incoming>
@@ -211,7 +223,12 @@
             <port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <port id="TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
-          </ports>
+          
+              <port id="IPI_MassFlow_Activity_0msgfdr" name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" />
+              <port id="IPI_Temperature_Activity_0msgfdr" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
+              <port id="IPI_Level_Activity_0msgfdr" name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" />
+              <port id="IPI_Composition_Activity_0msgfdr" name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" />
+            </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_11ko4yy</bpmn:incoming>
         <bpmn:incoming>Flow_0etbhjc</bpmn:incoming>
@@ -230,9 +247,9 @@
           <bpmn:sourceRef>DataObjectReference_0yc0qz3</bpmn:sourceRef>
           <bpmn:targetRef>Property_0h0ehut</bpmn:targetRef>
         </bpmn:dataInputAssociation>
-        <bpmn:dataOutputAssociation id="DataOutputAssociation_15jm464">
-          <bpmn:targetRef>DataObjectReference_10911pm</bpmn:targetRef>
-        </bpmn:dataOutputAssociation>
+        <bpmn:dataInputAssociation id="DataInputAssociation_composition_fix">
+          <bpmn:sourceRef>DataObjectReference_10911pm</bpmn:sourceRef>
+        </bpmn:dataInputAssociation>
       </bpmn:task>
       <bpmn:sequenceFlow id="Flow_1hd54gp" name="MO1 - MO1" sourceRef="Activity_0msgfdr" targetRef="Event_062k0v7" />
       <bpmn:sequenceFlow id="Flow_0wulh9g" name="TEO1 - TEI1" sourceRef="Activity_0msgfdr" targetRef="Activity_11rkrj8" />
@@ -280,6 +297,9 @@
       <bpmn:task id="Activity_07twnf1" name="ControllingProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="ControllingProcessVariable" identifier="Activity_07twnf1" uid="uid_Activity_07twnf1"/>
+        <ports>
+          <port id="IPO_RotationalFrequency_Activity_07twnf1" name="IPO_RotationalFrequency" type="InformationPort" direction="Outlet" label="RotationalFrequency" />
+        </ports>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1nqcm2o">
           <bpmn:targetRef>DataObjectReference_1en8e3c</bpmn:targetRef>
@@ -367,7 +387,12 @@
           <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
           <port id="MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
           <port id="MO3_port" name="MO3" type="MaterialPort" direction="Outlet" label="MO3" />
-        </ports>
+        
+          <port id="IPI_Level_Activity_148nxrl" name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" />
+          <port id="IPI_MassFlow_Activity_148nxrl" name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" />
+          <port id="IPI_Pressure_Activity_148nxrl" name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" />
+          <port id="IPI_Temperature_Activity_148nxrl" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
+          </ports>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1eezxa7</bpmn:incoming>
       <bpmn:outgoing>Flow_11f0gdt</bpmn:outgoing>
@@ -380,7 +405,10 @@
             <port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <port id="MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-          </ports>
+          
+              <port id="IPI_Temperature_Activity_0x085ms" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
+              <port id="IPI_Level_Activity_0x085ms" name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" />
+            </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0kavtkx</bpmn:incoming>
         <bpmn:outgoing>Flow_09m76dx</bpmn:outgoing>
@@ -402,7 +430,10 @@
             <port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <port id="MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-          </ports>
+          
+              <port id="IPI_Pressure_Activity_1ozs40z" name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" />
+              <port id="IPI_MassFlow_Activity_1ozs40z" name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" />
+            </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_09m76dx</bpmn:incoming>
         <bpmn:outgoing>Flow_0abomlp</bpmn:outgoing>
@@ -436,7 +467,9 @@
             <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <port id="EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
             <port id="MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1" />
-          </ports>
+          
+              <port id="IPI_MassFlow_Activity_11jo3tg" name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" />
+            </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0ny5wle</bpmn:incoming>
         <bpmn:outgoing>Flow_1alxw5e</bpmn:outgoing>
@@ -575,7 +608,12 @@
           <port id="MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2" />
           <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
           <port id="MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-        </ports>
+        
+          <port id="IPI_Composition_Activity_1h23lzf" name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" />
+          <port id="IPI_Level_Activity_1h23lzf" name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" />
+          <port id="IPI_MassFlow_Activity_1h23lzf" name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" />
+          <port id="IPI_Temperature_Activity_1h23lzf" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
+          </ports>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1t9aonq</bpmn:incoming>
       <bpmn:incoming>Flow_10zldqj</bpmn:incoming>
@@ -619,7 +657,11 @@
             <port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <port id="MO1 -MI1_port" name="MO1 -MI1" type="MaterialPort" direction="Outlet" label="MO1 -MI1" />
             <port id="MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-          </ports>
+          
+              <port id="IPI_MassFlow_Activity_1kyou8x" name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" />
+              <port id="IPI_Temperature_Activity_1kyou8x" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
+              <port id="IPI_Level_Activity_1kyou8x" name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" />
+            </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0xyvyyt</bpmn:incoming>
         <bpmn:outgoing>Flow_16mvdb6</bpmn:outgoing>
@@ -830,7 +872,10 @@
         <ports>
           <port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
           <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-        </ports>
+        
+          <port id="IPI_Duty_Activity_0yezzw8" name="IPI_Duty" type="InformationPort" direction="Inlet" label="Duty" />
+          <port id="IPI_MassFlow_Activity_0yezzw8" name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" />
+          </ports>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_11f0gdt</bpmn:incoming>
       <bpmn:outgoing>Flow_09zyhyl</bpmn:outgoing>
@@ -874,7 +919,9 @@
             <port id="EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
             <port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-          </ports>
+          
+              <port id="IPI_Duty_Activity_02gkcfc" name="IPI_Duty" type="InformationPort" direction="Inlet" label="Duty" />
+            </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_1gic2ao</bpmn:incoming>
         <bpmn:incoming>Flow_0ulibbm</bpmn:incoming>
@@ -892,7 +939,9 @@
             <port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <port id="MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-          </ports>
+          
+              <port id="IPI_MassFlow_Activity_00hgxpv" name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" />
+            </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_00cotc8</bpmn:incoming>
         <bpmn:outgoing>Flow_18uagmc</bpmn:outgoing>
@@ -974,7 +1023,9 @@
         <ports>
           <port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
           <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-        </ports>
+        
+          <port id="IPI_Temperature_Activity_13e86yb" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
+          </ports>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_07wd8rg</bpmn:incoming>
       <bpmn:outgoing>Flow_1eezxa7</bpmn:outgoing>
@@ -1010,7 +1061,9 @@
             <port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <port id="TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
             <port id="TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
-          </ports>
+          
+              <port id="IPI_Temperature_Activity_1rs6esf" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" />
+            </ports>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0tv8sn4</bpmn:incoming>
         <bpmn:outgoing>Flow_1wfrjse</bpmn:outgoing>
