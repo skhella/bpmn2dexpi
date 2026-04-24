@@ -625,9 +625,9 @@ function App() {
               modeler={modeler}
               onClose={() => setSelectedMaterialItem(null)}
             />
-          ) : selectedElement && selectedElement.type !== 'bpmn:SequenceFlow' ? (
+          ) : selectedElement && selectedElement.type !== 'bpmn:SequenceFlow' && selectedElement.type !== 'bpmn:Association' ? (
             <DexpiPropertiesPanel element={selectedElement} modeler={modeler} />
-          ) : selectedElement && selectedElement.type === 'bpmn:SequenceFlow' ? (
+          ) : selectedElement && (selectedElement.type === 'bpmn:SequenceFlow' || selectedElement.type === 'bpmn:Association') ? (
             <StreamPropertiesPanel element={selectedElement} modeler={modeler} />
           ) : (
             <div className="no-selection">

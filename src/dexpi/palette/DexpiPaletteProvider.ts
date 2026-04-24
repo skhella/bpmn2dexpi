@@ -146,21 +146,6 @@ export default class DexpiPaletteProvider {
           dragstart: createShapeAction('bpmn:SubProcess', { isExpanded: false }),
           click: createShapeAction('bpmn:SubProcess', { isExpanded: false })
         }
-      },
-      'create.association-separator': {
-        group: 'connect',
-        separator: true,
-        action: {}
-      } as any,
-      'create.information-flow': {
-        group: 'connect',
-        className: 'bpmn-icon-connection',
-        title: 'Information Flow (Association) / DEXPI: InformationFlow — connects InstrumentationActivity to measured element',
-        action: {
-          click: (event: any) => {
-            globalConnect.toggle(event);
-          }
-        }
       }
     };
   }
