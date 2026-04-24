@@ -8,227 +8,114 @@ A web-based tool for creating DEXPI 2.0-compliant block flow and process flow di
 - **DEXPI 2.0 Export**: XSD-validated output against the official DEXPI XML Schema
 - **Material Library**: Define materials, compositions, and thermodynamic states
 - **Port System**: Typed ports (Material, Energy, Information) with hierarchy support
-- **Stream Properties**: Flow rates, compositions, and qualified parameters (Scope, Range, Provenance)
+- **Stream Properties**: Flow rates, compositions, and qualified parameters
 - **CLI Tool**: Batch convert BPMN files to DEXPI 2.0 XML from terminal or Python
 - **Neo4j Export**: Export process graphs directly to a Neo4j graph database
-- **RDL Extension**: Steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri` — the URI is preserved in the DEXPI output as `ReferenceUri`
+- **RDL Extension**: Steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri`
 
 ## Prerequisites
 
 - **Node.js** 18+ (recommended: 20 LTS)
 - **npm** 9+
-- **xmllint** (for XSD validation in CLI/test mode — available via `libxml2-utils` on Linux, `brew install libxml2` on macOS)
+- **xmllint** (for XSD validation — `libxml2-utils` on Linux, `brew install libxml2` on macOS)
 
 ## Quick Start
-
-### Option A: Clone and run (web interface + CLI)
 
 ```bash
 git clone https://github.com/skhella/bpmn2dexpi.git
 cd bpmn2dexpi
 npm install
-
-# Run the web app
-npm run dev
-
-# Or use CLI for batch processing
-npm run transform input.bpmn output.xml
+npm run dev        # web app at http://localhost:5173
 ```
 
-### Option B: Install via npm (CLI only)
+### CLI
 
 ```bash
-npm install -g bpmn2dexpi
+npm run transform input.bpmn output.xml
 
-# Convert BPMN to DEXPI 2.0 XML
+# or install globally
+npm install -g bpmn2dexpi
 bpmn2dexpi input.bpmn output.xml
 ```
 
-## Usage
-
-### Web Interface
-
-1. Open `http://localhost:5173` in your browser
-2. Drag process elements from the palette (ProcessStep types, Sources, Sinks)
-3. Connect elements with typed flows (Material, Energy, Information)
-4. Define materials and compositions in the Material Library panel
-5. Configure ports and stream properties in the properties panel
-6. Export to DEXPI 2.0 XML or Neo4j
-
-<img src="./examples/Web-Interface-Screenshot.png" alt="Web Interface Screenshot" width="90%" />
-
-### Command Line
-
-```bash
-# If using cloned repo
-npm run transform process.bpmn output.xml
-
-# If installed globally via npm
-bpmn2dexpi process.bpmn output.xml
-```
-
-### Python Integration
-
-The included `bpmn2dexpi.py` script wraps the CLI for use from Python:
+### Python
 
 ```python
 from bpmn2dexpi import transform
 
-# Convert and save to file
-transform('input.bpmn', 'output.xml')
-
-# Get XML as string
-xml = transform('input.bpmn')
+transform('input.bpmn', 'output.xml')   # save to file
+xml = transform('input.bpmn')           # get as string
 ```
 
 See [CLI_USAGE.md](./CLI_USAGE.md) for more examples.
 
-### Neo4j Export
+## Web Interface
 
-The tool can export process diagrams directly to a Neo4j graph database:
+1. Open `http://localhost:5173`
+2. Drag process elements from the palette
+3. Connect elements with typed flows (Material, Energy, Information)
+4. Configure ports and stream properties in the properties panel
+5. Export to DEXPI 2.0 XML or Neo4j
 
-1. Click the **"Export to Neo4j"** button in the toolbar
-2. Enter your Neo4j connection details:
-   - **Local**: `bolt://localhost:7687`
-   - **Aura**: `neo4j+s://xxx.databases.neo4j.io`
-3. Choose whether to clear existing data
-4. Click Export
+<img src="./examples/Web-Interface-Screenshot.png" alt="Web Interface Screenshot" width="90%" />
 
-**Exported graph structure:**
-- `ProcessStep` nodes with port properties
-- `Source` and `Sink` nodes for process boundaries
-- `MaterialStream`, `EnergyFlow`, `InformationFlow` relationships
-- `CONTAINS` relationships for subprocess hierarchy
+## Neo4j Export
 
-## DEXPI 2.0 Compliance
-
-Generated XML files are validated against the official **DEXPI XML Schema** (`dexpi-schema-files/DEXPI_XML_Schema.xsd`, sourced from the [DEXPI 2.0 Specification](https://dexpi.gitlab.io/-/Specification/-/jobs/11676485644/artifacts/src/.build/html/html/basics/metamodel_and_exchange_format.html)).
-
-The transformer enforces XSD-compliant output:
-- All element IDs follow the `[A-Za-z_][A-Za-z_0-9]*` pattern required by the schema
-- Data values use `Double`/`Integer`/`String` as specified (no generic `Number` type)
-- `References` elements use the `objects` attribute with space-separated IDREFs
-- Process types reference the official `Process/Process.*` class hierarchy from `Process.xml`
-
-In Node and CLI environments, `validateDexpiOutputXsd()` from `src/transformer/DexpiOutputValidator.ts` runs `xmllint` against the bundled XSD. A structural fallback is available for browser contexts.
+1. Click **Export to Neo4j** in the toolbar
+2. Enter your connection details (`bolt://localhost:7687` or Aura URI)
+3. Click Export
 
 ## Architecture
 
-The core transformer is implemented as a standalone, framework-independent TypeScript module in `src/transformer/`, independently importable from the React frontend:
+The transformer is a standalone, framework-independent TypeScript module — importable independently of the React frontend:
 
 ```
 src/transformer/
-├── BpmnToDexpiTransformer.ts      # Core BPMN → DEXPI 2.0 encoding
-├── DexpiProcessClassRegistry.ts   # Parses Process.xml → authoritative class list
+├── BpmnToDexpiTransformer.ts      # Core BPMN → DEXPI 2.0 transformation
+├── DexpiProcessClassRegistry.ts   # Loads Process.xml → authoritative class list
 ├── DexpiOutputValidator.ts        # XSD + structural validation
-├── TransformerLogger.ts           # Warning/error collection per transform()
-├── types.ts                       # Typed interfaces (zero `any`)
+├── TransformerLogger.ts           # Warning/error collection
+├── types.ts                       # Typed interfaces
 └── __tests__/                     # 50 automated tests
-    ├── BpmnToDexpiTransformer.unit.test.ts
-    ├── DexpiProcessClassRegistry.test.ts
-    ├── DexpiOutputValidator.unit.test.ts
-    └── TennesseeEastman.integration.test.ts
 
 dexpi-schema-files/
 ├── DEXPI_XML_Schema.xsd           # Official DEXPI 2.0 XML Schema
-└── Process.xml                    # DEXPI 2.0 Process model — source of class list
-                                   # Replace to update when DEXPI releases new version
+└── Process.xml                    # DEXPI 2.0 Process model (replace to update)
 ```
 
 ## Testing
 
 ```bash
-# Run all 50 tests (4 suites)
-npm test
-
-# Watch mode during development
-npm run test:watch
-
-# With coverage report
-npm run test:coverage
+npm test              # run all 50 tests
+npm run test:watch    # watch mode
+npm run test:coverage # with coverage
 ```
 
-**Test suites:**
-- `BpmnToDexpiTransformer.unit.test.ts` — 15 unit tests: type resolution, unannotated warnings, duplicate port detection, output structure
-- `DexpiProcessClassRegistry.test.ts` — 13 tests: Process.xml parsing, class lookup, two-mode typing (DEXPI validated / custom type + ReferenceUri / unannotated fallback)
-- `DexpiOutputValidator.unit.test.ts` — 8 unit tests: structural validation of generated DEXPI 2.0 XML
-- `TennesseeEastman.integration.test.ts` — 13 end-to-end tests including XSD validation against the official schema on the Tennessee Eastman benchmark
-
-A GitHub Actions CI workflow (`.github/workflows/ci.yml`) runs all tests on every push and pull request against Node.js 18, 20, and 22.
-
-## DEXPI Encoding
-
-The tool implements the encoding methodology described in the associated publication. Key correspondences:
-
-| DEXPI Process Element | BPMN 2.0 Element | SKOS Relationship |
-|---|---|---|
-| ProcessStep (any subtype) | Task | skos:narrowMatch |
-| Source | Start Event | skos:narrowMatch |
-| Sink | End Event | skos:narrowMatch |
-| MaterialFlow / EnergyFlow | Sequence Flow | skos:narrowMatch |
-| InformationFlow | Association | skos:narrowMatch |
-| Port (inlet/outlet) | extensionElements | skos:relatedMatch |
-| MaterialTemplate | Data Object | skos:relatedMatch |
-
-All DEXPI-specific information (element type, ports, stream attributes, material states) is preserved in BPMN `extensionElements` using the `dexpi:` namespace, enabling lossless reconstruction.
-
-**Step typing:**
-
-| Mode | Trigger | Behaviour |
-|---|---|---|
-| **1 — DEXPI validated** | `dexpiType` annotation + class in `Process.xml` | Clean output, no warning |
-| **2 — Custom type** | `dexpiType` not in DEXPI registry + optional `customUri` | Output as `ProcessStep`; URI stored as `ReferenceUri`; warns with nearest DEXPI suggestion |
-| **Unannotated** | No `dexpiType` annotation | Defaults to `ProcessStep` with a warning |
-
-Stream attributes support RDL interoperability via two optional URI fields:
-
-| Field | Purpose | Example |
-|---|---|---|
-| **Name URI** | Links the attribute name to a standard quantity kind | `https://qudt.org/vocab/quantitykind/MassFlowRate` |
-| **Unit URI** | Links the unit string to a standard unit definition | `https://qudt.org/vocab/unit/KiloGM-PER-HR` |
-
-These are stored in the DEXPI output as `QuantityKindReference` and `UnitReference` properties, making stream data machine-interpretable by external tools (QUDT, ISO 15926, UCUM).
-
-```xml
-<dexpi:element dexpiType="ElectrolyticReduction"
-               customUri="https://data.15926.org/rdl/R1234"/>
-```
-
-**Updating the DEXPI class list:** The class registry is driven by `dexpi-schema-files/Process.xml` (sourced from the [DEXPI 2.0 specification](https://dexpi.gitlab.io/-/Specification)). When DEXPI releases a new version, replace this file — no code changes required.
+CI runs on Node.js 18, 20, and 22 via GitHub Actions on every push.
 
 ## Based on Research
 
-This tool implements the encoding methodology described in:
+This tool implements the representation methodology described in:
 
 > Shady Khella, Markus Schichfeld, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke.
 > *Representing DEXPI Process in BPMN 2.0 for Graphical Modeling and Exchange of Block Flow and Process Flow Diagrams* (under review, Digital Chemical Engineering, 2026).
-
-A link to the publication will be added once available.
 
 ## Technology
 
 - **Frontend**: React 19, TypeScript
 - **Diagramming**: [bpmn.io](https://bpmn.io) (bpmn-js)
 - **Build**: Vite 7
-- **Testing**: Vitest, jsdom
-- **Schema**: [DEXPI 2.0](https://dexpi.gitlab.io/-/Specification) (XSD validation via xmllint)
-
-## Acknowledgments
-
-This project was developed with assistance from AI coding tools, including GitHub Copilot and Claude.
+- **Testing**: Vitest
+- **Schema**: [DEXPI 2.0](https://dexpi.gitlab.io/-/Specification)
 
 ## License
 
-This project is released under the [MIT License](./LICENSE).
+MIT — see [LICENSE](./LICENSE).
 
-### Third-Party Licenses
+**bpmn-js** is licensed under the bpmn.io License (modified MIT). The bpmn.io watermark must remain visible and unmodified.
 
-**bpmn-js**
-Licensed under the bpmn.io License (modified MIT). Free to use, including commercially, with one requirement: the bpmn.io watermark in diagrams must remain visible and unmodified.
-
-**DEXPI Specification**
-Licensed under Creative Commons Attribution 4.0 International License (CC BY 4.0).
+**DEXPI Specification** is licensed under CC BY 4.0.
 
 ---
 
-*Current version: v0.1.0*
+*v0.1.0*
