@@ -9,6 +9,7 @@ import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { transformer } from './transformer/BpmnToDexpiTransformer';
+import { DexpiToBpmnTransformer } from './transformer/DexpiToBpmnTransformer';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
 import logoImg from './assets/cropped_logo_B2P.png';
@@ -535,6 +536,34 @@ function App() {
     input.click();
   };
 
+  const handleImportDexpi = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xml';
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file || !modeler) return;
+
+      try {
+        const dexpiXml = await file.text();
+        const t = new DexpiToBpmnTransformer();
+        const bpmnXml = t.transform(dexpiXml);
+        await modeler.importXML(bpmnXml);
+        const { xml } = await modeler.saveXML({ format: true });
+        if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
+        setValidationMessage('DEXPI imported and instantiated as BPMN successfully!');
+        setPlaneStack([]);
+        setCurrentPlane(null);
+        const canvas = modeler.get('canvas') as any;
+        canvas.zoom('fit-viewport');
+      } catch (err) {
+        console.error('DEXPI import failed:', err);
+        setValidationMessage('DEXPI import failed: ' + (err as Error).message);
+      }
+    };
+    input.click();
+  };
+
   const handleNewDiagram = async () => {
     if (!modeler) return;
     if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
@@ -580,6 +609,7 @@ function App() {
           </button>
           <button onClick={handleNewDiagram} className="btn" title="Start a new empty diagram">New</button>
           <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
+          <button onClick={handleImportDexpi} className="btn">Import DEXPI XML</button>
           <button onClick={handleExportBpmn} className="btn">Export BPMN</button>
           <button onClick={handleExportSvg} className="btn">Export SVG</button>
           <button onClick={() => setShowNeo4jModal(true)} className="btn btn-neo4j" title="Export to Neo4j Graph Database">
