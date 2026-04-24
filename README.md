@@ -91,6 +91,8 @@ npm run test:watch    # watch mode
 npm run test:coverage # with coverage
 ```
 
+Covers unit tests (transformer logic, class registry, output validation) and an end-to-end integration benchmark on a real-world PFD. The integration suite requires `xmllint` — see Prerequisites.
+
 CI runs on Node.js 18, 20, and 22 via GitHub Actions on every push.
 
 ## Based on Research
