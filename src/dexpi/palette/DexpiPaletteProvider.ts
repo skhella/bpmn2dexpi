@@ -132,10 +132,19 @@ export default class DexpiPaletteProvider {
       'create.subprocess-expanded': {
         group: 'activity',
         className: 'bpmn-icon-subprocess-expanded',
-        title: 'SubProcess (expanded) / DEXPI: ProcessStep / DEXPI: InstrumentationActivity',
+        title: 'SubProcess (expanded) / DEXPI: ProcessStep hierarchy',
         action: {
           dragstart: createShapeAction('bpmn:SubProcess', { isExpanded: true }),
           click: createShapeAction('bpmn:SubProcess', { isExpanded: true })
+        }
+      },
+      'create.subprocess-collapsed': {
+        group: 'activity',
+        className: 'bpmn-icon-subprocess-collapsed',
+        title: 'SubProcess (collapsed) / DEXPI: ProcessStep (internals not yet modelled)',
+        action: {
+          dragstart: createShapeAction('bpmn:SubProcess', { isExpanded: false }),
+          click: createShapeAction('bpmn:SubProcess', { isExpanded: false })
         }
       }
     };
