@@ -544,21 +544,25 @@ function App() {
       const file = e.target.files[0];
       if (!file || !modeler) return;
 
+      setValidationMessage('⏳ Importing DEXPI XML...');
+
+      // Yield to let the UI update before heavy processing
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       try {
         const dexpiXml = await file.text();
         const t = new DexpiToBpmnTransformer();
         const bpmnXml = t.transform(dexpiXml);
+
         await modeler.importXML(bpmnXml);
-        const { xml } = await modeler.saveXML({ format: true });
-        if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
-        setValidationMessage('DEXPI imported and instantiated as BPMN successfully!');
         setPlaneStack([]);
         setCurrentPlane(null);
         const canvas = modeler.get('canvas') as any;
         canvas.zoom('fit-viewport');
+        setValidationMessage('✓ DEXPI imported successfully');
       } catch (err) {
         console.error('DEXPI import failed:', err);
-        setValidationMessage('DEXPI import failed: ' + (err as Error).message);
+        setValidationMessage('✗ DEXPI import failed: ' + (err as Error).message);
       }
     };
     input.click();
