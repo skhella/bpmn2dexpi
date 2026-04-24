@@ -28,8 +28,6 @@ npm install
 npm run dev        # web app at http://localhost:5173
 ```
 
-Open `examples/Tennessee_Eastman_Process.bpmn` to see a fully annotated model.
-
 ### CLI
 
 ```bash
@@ -92,8 +90,6 @@ npm test              # run all 50 tests
 npm run test:watch    # watch mode
 npm run test:coverage # with coverage
 ```
-
-The four suites cover: core transformer logic and type resolution; Process.xml registry parsing and class validation; structural validation of generated DEXPI XML; and an end-to-end benchmark on the Tennessee Eastman process including XSD validation against the official schema (requires `xmllint` — see Prerequisites).
 
 CI runs on Node.js 18, 20, and 22 via GitHub Actions on every push.
 
