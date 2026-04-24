@@ -122,7 +122,8 @@ export class BpmnToDexpiTransformer {
     });
 
     // Extract associations (InformationFlow — between InstrumentationActivity and measured elements)
-    const associations = Array.from(process.querySelectorAll('association'));
+    // Handles plain bpmn:Association and bpmn:DataOutput/InputAssociation (task↔dataObject)
+    const associations = Array.from(process.querySelectorAll('association, dataOutputAssociation, dataInputAssociation'));
     associations.forEach((assoc) => {
       this.extractInformationFlow(assoc);
     });

@@ -1314,7 +1314,12 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
     updateStream({ attributes: updatedAttrs });
   };
 
-  if (!element || (element.type !== 'bpmn:SequenceFlow' && element.type !== 'bpmn:Association')) {
+  if (!element || (
+    element.type !== 'bpmn:SequenceFlow' &&
+    element.type !== 'bpmn:Association' &&
+    element.type !== 'bpmn:DataOutputAssociation' &&
+    element.type !== 'bpmn:DataInputAssociation'
+  )) {
     return null;
   }
 
@@ -1349,7 +1354,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
         <label>
           Stream Type:
           <select 
-            value={streamData.streamType || (element.type === 'bpmn:Association' ? 'InformationFlow' : 'MaterialFlow')}
+            value={streamData.streamType || (['bpmn:Association','bpmn:DataOutputAssociation','bpmn:DataInputAssociation'].includes(element.type) ? 'InformationFlow' : 'MaterialFlow')}
             onChange={(e) => updateStream({ streamType: e.target.value as any })}
           >
             <option value="MaterialFlow">Material Flow</option>
@@ -1358,7 +1363,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
             <option value="ElectricalEnergyFlow">Electrical Energy Flow</option>
             <option value="EnergyFlow">Energy Flow — generic</option>
             {/* InformationFlow only valid for Associations, not SequenceFlows */}
-            {element.type === 'bpmn:Association' && (
+            {(element.type === 'bpmn:Association' || element.type === 'bpmn:DataOutputAssociation' || element.type === 'bpmn:DataInputAssociation') && (
               <option value="InformationFlow">Information Flow</option>
             )}
           </select>
