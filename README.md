@@ -99,7 +99,7 @@ CI runs on Node.js 18, 20, and 22 via GitHub Actions on every push.
 
 This tool implements the representation methodology described in:
 
-> Shady Khella, Markus Schichfeld, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke.
+> Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke.
 > *Representing DEXPI Process in BPMN 2.0 for Graphical Modeling and Exchange of Block Flow and Process Flow Diagrams* (under review, Digital Chemical Engineering, 2026).
 
 ## Technology
