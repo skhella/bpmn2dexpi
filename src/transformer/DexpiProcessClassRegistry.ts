@@ -33,6 +33,11 @@ export class DexpiProcessClassRegistry {
 
   // ── Factory ──────────────────────────────────────────────────────────────
 
+  /** Empty registry — size === 0, all lookups return undefined/false. */
+  static empty(): DexpiProcessClassRegistry {
+    return new DexpiProcessClassRegistry(new Map());
+  }
+
   /**
    * Load the registry by parsing the bundled Process.xml.
    * In Node environments, reads the file from disk.
@@ -135,6 +140,18 @@ export class DexpiProcessClassRegistry {
   /** Returns class metadata or undefined if not found. */
   getClass(name: string): DexpiClassInfo | undefined {
     return this.classes.get(name);
+  }
+
+  /**
+   * Returns true if className has ancestor somewhere in its supertype chain.
+   * Works by walking superTypes recursively.
+   * Used by the renderer to classify elements by colour without hardcoded lists.
+   */
+  hasAncestor(className: string, ancestor: string): boolean {
+    if (className === ancestor) return true;
+    const info = this.classes.get(className);
+    if (!info) return false;
+    return info.superTypes.some(st => this.hasAncestor(st, ancestor));
   }
 
   /** Number of classes loaded. 0 means Process.xml failed to load. */

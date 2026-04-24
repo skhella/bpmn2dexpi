@@ -1,12 +1,14 @@
 import BaseRenderer from 'diagram-js/lib/draw/BaseRenderer';
 import { append as svgAppend, attr as svgAttr, create as svgCreate, classes as svgClasses } from 'tiny-svg';
 import type { DexpiPort } from '../moddle';
+import { DexpiProcessClassRegistry } from '../../transformer/DexpiProcessClassRegistry';
 
 const HIGH_PRIORITY = 1500;
 
 export default class DexpiRenderer extends BaseRenderer {
   private bpmnRenderer: any;
   private elementRegistry: any;
+  private classRegistry: DexpiProcessClassRegistry;
 
   static $inject = ['eventBus', 'bpmnRenderer', 'elementRegistry'];
 
@@ -14,6 +16,13 @@ export default class DexpiRenderer extends BaseRenderer {
     super(eventBus, HIGH_PRIORITY);
     this.bpmnRenderer = bpmnRenderer;
     this.elementRegistry = elementRegistry;
+    this.classRegistry = DexpiProcessClassRegistry.empty();
+    // Load registry asynchronously — colour logic falls back gracefully if not yet loaded
+    DexpiProcessClassRegistry.load().then(registry => {
+      this.classRegistry = registry;
+    }).catch(() => {
+      // Registry unavailable — colour logic will use root-type fallback
+    });
   }
 
   canRender(element: any): boolean {
@@ -623,44 +632,24 @@ export default class DexpiRenderer extends BaseRenderer {
 
     const dexpiType = dexpiElement.dexpiType;
 
-    // InstrumentationActivity types - Green
-    const instrumentationTypes = [
-      'InstrumentationActivity',
-      'CalculatingProcessVariable',
-      'ControllingProcessVariable',
-      'ConveyingSignal',
-      'MeasuringProcessVariable',
-      'CalculatingRatio',
-      'CalculatingSplitRange',
-      'TransformingProcessVariable'
-    ];
+    // Use the registry to classify by supertype when loaded.
+    // Falls back to root-type string check if registry not yet available.
+    const isInstrumentation = this.classRegistry.size > 0
+      ? this.classRegistry.hasAncestor(dexpiType, 'InstrumentationActivity')
+      : dexpiType === 'InstrumentationActivity';
 
-    // ProcessStep types - Blue (all others)
-    const processStepTypes = [
-      'ProcessStep',
-      'Emitting', 'ExchangingThermalEnergy', 'Flaring', 'FormingSolidMaterial',
-      'GeneratingFlow', 'Compressing', 'Pumping',
-      'IncreasingParticleSize', 'Agglomerating', 'Coalescing', 'Crystallizing', 'Flocculating',
-      'Mixing', 'Packaging', 'ReactingChemicals',
-      'ReducingParticleSize', 'Crushing', 'Cutting', 'Grinding', 'Milling',
-      'RemovingThermalEnergy',
-      'Separating', 'Absorbing', 'Adsorbing', 'Distilling', 'Drying', 'Evaporating',
-      'Filtering', 'SeparatingByCentrifugalForce', 'SeparatingByGravity', 'Sieving',
-      'SupplyingElectricalEnergy', 'SupplyingFluids', 'SupplyingMechanicalEnergy',
-      'SupplyingSolids', 'SupplyingThermalEnergy',
-      'TransportingElectricalEnergy', 'TransportingFluids', 'TransportingSolids'
-    ];
+    const isProcessStep = this.classRegistry.size > 0
+      ? this.classRegistry.hasAncestor(dexpiType, 'ProcessStep')
+      : dexpiType === 'ProcessStep';
 
     let fillColor: string | null = null;
     let strokeColor: string | null = null;
 
-    if (instrumentationTypes.includes(dexpiType)) {
-      // Green for InstrumentationActivity
-      fillColor = '#c8e6c9';  // Light green
+    if (isInstrumentation) {
+      fillColor = '#c8e6c9';   // Light green
       strokeColor = '#205022'; // Dark green
-    } else if (processStepTypes.includes(dexpiType)) {
-      // Blue for ProcessStep
-      fillColor = '#bbdefb';  // Light blue
+    } else if (isProcessStep) {
+      fillColor = '#bbdefb';   // Light blue
       strokeColor = '#0d4372'; // Dark blue
     } // else: non-task element uses default colours
 
