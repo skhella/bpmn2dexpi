@@ -97,7 +97,12 @@ export class DexpiProcessClassRegistry {
         const superTypes = superTypesRaw
           .split(/\s+/)
           .filter(Boolean)
-          .map(s => s.replace(/^.*\//, '')); // strip prefix, keep class name
+          // Normalise '/Process.Foo' → 'Foo'; skip non-Process supertypes (e.g. 'Core/ConceptualObject')
+          .map(s => {
+            const match = s.match(/\/Process\.(.+)$/);
+            return match ? match[1] : null;
+          })
+          .filter((s): s is string => s !== null);
 
         const descEl = el.querySelector('Data[property="MetaData/description"] > String');
         const description = descEl?.textContent?.trim() ?? '';
