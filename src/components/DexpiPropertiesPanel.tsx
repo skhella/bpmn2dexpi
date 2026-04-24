@@ -443,48 +443,31 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
   if (!isDexpiElement) {
     if (elementType === 'bpmn:DataObjectReference' || elementType === 'bpmn:DataObject') {
       const name = element.businessObject?.name || '';
-      const isMaterialContainer = name === 'MaterialTemplates' || name === 'MaterialStates' ||
-        name === 'Base Case MaterialStates';
-      // Check if connected to tasks via associations (process variable anchor)
-      const hasAssociations = element.incoming?.length > 0 || element.outgoing?.length > 0;
+      const isConnected = (element.incoming?.length ?? 0) > 0 || (element.outgoing?.length ?? 0) > 0;
 
-      if (isMaterialContainer) {
-        return (
-          <div className="dexpi-properties-panel">
-            <h3>Material Data Object</h3>
-            <div style={{ padding: '8px', backgroundColor: '#f3e5f5', borderRadius: '4px', fontSize: '0.85rem', color: '#6a1b9a' }}>
-              📊 Edit contents via the <strong>Materials panel</strong> in the toolbar.
-            </div>
-            {name && <div className="property-group" style={{ marginTop: '12px' }}><label>Name: <strong>{name}</strong></label></div>}
-          </div>
-        );
-      }
-
-      if (hasAssociations || name) {
+      if (isConnected) {
         return (
           <div className="dexpi-properties-panel">
             <h3>Process Variable</h3>
             <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '0.85rem', color: '#2e7d32' }}>
-              🔬 BPMN anchor for a measured/controlled variable. Exported as <code>InformationVariant</code> in DEXPI InformationFlow.
+              🔬 Exported as <code>InformationVariant</code> in the DEXPI InformationFlow.
             </div>
             {name && (
               <div className="property-group" style={{ marginTop: '12px' }}>
                 <label>Variable name: <strong>{name}</strong></label>
               </div>
             )}
-            <div className="property-group" style={{ fontSize: '0.82rem', color: '#555', marginTop: '8px' }}>
-              Connects the InstrumentationActivity to its target ProcessStep in the DEXPI export — the variable name is preserved as <code>InformationVariant.Label</code>.
-            </div>
           </div>
         );
       }
 
       return (
         <div className="dexpi-properties-panel">
-          <h3>Data Object</h3>
-          <div style={{ padding: '8px', backgroundColor: '#fff8e1', borderRadius: '4px', fontSize: '0.85rem', color: '#795548' }}>
-            Connect this Data Object to a task to use it as a process variable anchor, or use the Materials panel for material data.
+          <h3>Material / Simulation Data</h3>
+          <div style={{ padding: '8px', backgroundColor: '#f3e5f5', borderRadius: '4px', fontSize: '0.85rem', color: '#6a1b9a' }}>
+            📊 MaterialTemplate or simulation case — edit via the <strong>Materials panel</strong> in the toolbar.
           </div>
+          {name && <div className="property-group" style={{ marginTop: '12px' }}><label>Name: <strong>{name}</strong></label></div>}
         </div>
       );
     }
