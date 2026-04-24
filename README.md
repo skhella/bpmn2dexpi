@@ -149,8 +149,8 @@ npm run test:coverage
 ```
 
 **Test suites:**
-- `BpmnToDexpiTransformer.unit.test.ts` — 15 unit tests: type resolution, heuristic fallback warnings, duplicate port detection, output structure
-- `DexpiProcessClassRegistry.test.ts` — 13 tests: Process.xml parsing, class lookup, three-mode typing (DEXPI validated / custom RDL / heuristic)
+- `BpmnToDexpiTransformer.unit.test.ts` — 15 unit tests: type resolution, unannotated warnings, duplicate port detection, output structure
+- `DexpiProcessClassRegistry.test.ts` — 13 tests: Process.xml parsing, class lookup, two-mode typing (DEXPI validated / custom type + ReferenceUri / unannotated fallback)
 - `DexpiOutputValidator.unit.test.ts` — 8 unit tests: structural validation of generated DEXPI 2.0 XML
 - `TennesseeEastman.integration.test.ts` — 13 end-to-end tests including XSD validation against the official schema on the Tennessee Eastman benchmark
 
@@ -172,15 +172,17 @@ The tool implements the encoding methodology described in the associated publica
 
 All DEXPI-specific information (element type, ports, stream attributes, material states) is preserved in BPMN `extensionElements` using the `dexpi:` namespace, enabling lossless reconstruction.
 
-**Step typing — three-mode system:**
+**Step typing — two-mode explicit system:**
 
 | Mode | Trigger | Behaviour |
 |---|---|---|
 | **1 — DEXPI validated** | `dexpiType` annotation + class in `Process.xml` | Clean output, no warning |
-| **2 — Custom RDL** | `dexpiType` not in DEXPI registry + optional `customUri` | Custom type + URI preserved; warns with nearest DEXPI suggestion |
-| **3 — Heuristic** | No annotation | Inferred from task name; always warns |
+| **2 — Custom type** | `dexpiType` not in DEXPI registry + optional `customUri` | Output as `ProcessStep` (generic superclass); optional URI stored as `ReferenceUri`; warns with nearest DEXPI suggestion |
+| **Unannotated** | No annotation at all | Defaults to `ProcessStep` with a warning — no name-based inference |
 
-Mode 2 enables integration of non-DEXPI process ontologies (ISO 15926, OntoCAPE, company RDLs). The external URI is stored as `ExternalReference` in the DEXPI output and survives the round-trip:
+The tool is designed for use with explicit `dexpiType` annotations — either DEXPI 2.0 class names, or standardized unit operation names from other reference data libraries or ontologies. Name-based inference from task names was deliberately removed to avoid silent misclassification (e.g. "Pump feed data to dashboard" being classified as `Pumping`).
+
+Mode 2 enables integration of non-DEXPI process ontologies (ISO 15926, OntoCAPE, company RDLs). The external URI is stored as `ReferenceUri` in the DEXPI output:
 
 Stream attributes support the same RDL interoperability at the **attribute level** via two optional URI fields:
 
