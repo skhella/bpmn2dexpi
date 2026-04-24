@@ -542,18 +542,28 @@ export class BpmnToDexpiTransformer {
       const { name, sourceTaskIds, targetTaskIds } = node;
 
       const IA_TYPES = new Set(['MeasuringProcessVariable', 'ControllingProcessVariable',
-        'ConveyingSignal', 'CalculatingProcessVariable',
-        'CalculatingRatio', 'CalculatingSplitRange', 'TransformingProcessVariable',
-        'InstrumentationActivity']);
+        'ConveyingSignal', 'CalculatingProcessVariable', 'CalculatingRatio',
+        'CalculatingSplitRange', 'TransformingProcessVariable', 'InstrumentationActivity']);
 
-      // Classify tasks by DEXPI type using registry
-      const isIA = (taskId: string) => {
+      // Classify tasks by DEXPI type — check extensionElements dexpiType attribute,
+      // falling back to task name (TEP uses name=dexpiType convention)
+      const getDexpiType = (taskId: string): string => {
         const el = process.querySelector(`[id="${taskId}"]`);
-        if (!el) return false;
-        // Try dexpiType from extensionElements (namespace-agnostic text search)
-        const extText = el.querySelector('extensionElements')?.innerHTML || '';
-        const dtMatch = extText.match(/dexpiType="([^"]+)"/);
-        const dtype = dtMatch?.[1] || el.getAttribute('name') || '';
+        if (!el) return '';
+        // Try to extract dexpiType from extensionElements children
+        const extEl = el.querySelector('extensionElements');
+        if (extEl) {
+          for (const child of Array.from(extEl.children)) {
+            const dtype = child.getAttribute('dexpiType');
+            if (dtype) return dtype;
+          }
+        }
+        // Fall back to task name attribute
+        return el.getAttribute('name') || '';
+      };
+
+      const isIA = (taskId: string) => {
+        const dtype = getDexpiType(taskId);
         return IA_TYPES.has(dtype) || this.registry.hasAncestor(dtype, 'InstrumentationActivity');
       };
 
