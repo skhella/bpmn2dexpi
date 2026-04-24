@@ -121,12 +121,16 @@ export class BpmnToDexpiTransformer {
       this.extractStream(flow);
     });
 
-    // Extract associations (InformationFlow — between InstrumentationActivity and measured elements)
-    // Handles plain bpmn:Association and bpmn:DataOutput/InputAssociation (task↔dataObject)
-    const associations = Array.from(process.querySelectorAll('association, dataOutputAssociation, dataInputAssociation'));
+    // Extract InformationFlows — two paths:
+    // 1. Plain bpmn:Association elements (direct task-to-task, annotated with streamType=InformationFlow)
+    const associations = Array.from(process.querySelectorAll('association'));
     associations.forEach((assoc) => {
       this.extractInformationFlow(assoc);
     });
+
+    // 2. DataObject-mediated flows: Task --[dataOutputAssociation]--> DataObject --[dataInputAssociation]--> Task
+    //    Build a graph through the DataObject and stitch into single InformationFlows
+    this.extractDataObjectInformationFlows(process);
 
     // Extract data objects (MaterialTemplates, MaterialComponents, MaterialStates)
     const dataObjects = Array.from(process.querySelectorAll('dataObjectReference'));
@@ -469,6 +473,101 @@ export class BpmnToDexpiTransformer {
     };
 
     this.informationFlows.set(id, flow);
+  }
+
+  /**
+   * Extract InformationFlows that pass through DataObject intermediaries.
+   * Pattern: Task --[dataOutputAssociation]--> DataObject --[dataInputAssociation]--> Task
+   *
+   * The DataObject is a BPMN visual anchor representing the measured/controlled variable.
+   * In DEXPI output: skip the DataObject, connect the two task InformationPorts directly,
+   * and encode the variable name as an InformationVariant on the InformationFlow.
+   *
+   * Also handles one-sided connections (InstrumentationActivity → DataObject only).
+   */
+  private extractDataObjectInformationFlows(process: Element): void {
+    // Build DataObject graph:
+    // dataOutputAssociation is a CHILD of the source task → DataObject
+    // dataInputAssociation  is a CHILD of the target task ← DataObject
+
+    // Map: DataObjectRef ID → { name, sourceTaskIds[], targetTaskIds[] }
+    interface DataObjNode { name: string; sourceTaskIds: string[]; targetTaskIds: string[] }
+    const graph = new Map<string, DataObjNode>();
+
+    const allTasks = Array.from(process.querySelectorAll(
+      'task, subProcess, serviceTask, userTask, callActivity'
+    ));
+
+    allTasks.forEach(task => {
+      const taskId = task.getAttribute('id') || '';
+
+      // dataOutputAssociation: this task → DataObject
+      const outputs = Array.from(task.querySelectorAll('dataOutputAssociation'));
+      outputs.forEach(doa => {
+        const targetRef = doa.querySelector('targetRef');
+        const dataObjId = targetRef?.textContent?.trim() || '';
+        if (!dataObjId) return;
+        if (!graph.has(dataObjId)) {
+          // Resolve DataObject name from the diagram
+          const dataObjEl = process.querySelector(`[id="${dataObjId}"]`) ||
+                            process.ownerDocument?.querySelector(`[id="${dataObjId}"]`);
+          const name = dataObjEl?.getAttribute('name') || dataObjId;
+          graph.set(dataObjId, { name, sourceTaskIds: [], targetTaskIds: [] });
+        }
+        graph.get(dataObjId)!.sourceTaskIds.push(taskId);
+      });
+
+      // dataInputAssociation: DataObject → this task
+      const inputs = Array.from(task.querySelectorAll('dataInputAssociation'));
+      inputs.forEach(dia => {
+        const sourceRef = dia.querySelector('sourceRef');
+        const dataObjId = sourceRef?.textContent?.trim() || '';
+        if (!dataObjId) return;
+        if (!graph.has(dataObjId)) {
+          const dataObjEl = process.querySelector(`[id="${dataObjId}"]`) ||
+                            process.ownerDocument?.querySelector(`[id="${dataObjId}"]`);
+          const name = dataObjEl?.getAttribute('name') || dataObjId;
+          graph.set(dataObjId, { name, sourceTaskIds: [], targetTaskIds: [] });
+        }
+        graph.get(dataObjId)!.targetTaskIds.push(taskId);
+      });
+    });
+
+    // Create InformationFlows from the graph
+    graph.forEach((node, dataObjId) => {
+      const { name, sourceTaskIds, targetTaskIds } = node;
+
+      // Pair sources with targets (cross-product for multiple connections)
+      const pairs: Array<{source: string, target: string | null}> = [];
+      if (sourceTaskIds.length > 0 && targetTaskIds.length > 0) {
+        sourceTaskIds.forEach(src => {
+          targetTaskIds.forEach(tgt => {
+            if (src !== tgt) pairs.push({ source: src, target: tgt });
+          });
+        });
+      } else if (sourceTaskIds.length > 0) {
+        // One-sided: InstrumentationActivity → DataObject only
+        sourceTaskIds.forEach(src => pairs.push({ source: src, target: null }));
+      }
+
+      pairs.forEach(({ source, target }) => {
+        const flowId = `IF_${dataObjId}_${source}_${target || 'solo'}`;
+        const flow: InternalStream = {
+          id: flowId,
+          name,
+          identifier: flowId,
+          uid: this.generateUid(),
+          sourceRef: source,
+          targetRef: target || source,
+          streamType: 'InformationFlow',
+          provenance: 'Calculated',
+          range: 'Design',
+          attributes: [],
+          informationVariantLabel: name,  // DataObject name → InformationVariant
+        };
+        this.informationFlows.set(flowId, flow);
+      });
+    });
   }
 
   private extractMaterialData(dataObj: Element): void {
@@ -1527,6 +1626,21 @@ export class BpmnToDexpiTransformer {
           '$': { 'property': 'Label' },
           'String': flow.name
         });
+      }
+
+      // Add InformationVariant if this flow was stitched through a DataObject
+      // (DataObject name = the measured/controlled variable)
+      if (flow.informationVariantLabel) {
+        dexpiFlow.Components = [{
+          '$': { 'property': 'InformationValue' },
+          'Object': {
+            '$': { 'type': 'Process/Process.InformationVariant' },
+            'Data': [{
+              '$': { 'property': 'Label' },
+              'String': flow.informationVariantLabel
+            }]
+          }
+        }];
       }
 
       flowElements.push(dexpiFlow);

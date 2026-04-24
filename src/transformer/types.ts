@@ -66,6 +66,7 @@ export interface InternalStream {
   provenance?: string;
   range?: string;
   attributes: StreamAttribute[];
+  informationVariantLabel?: string;  // DataObject name → DEXPI InformationVariant label
 }
 
 // ── Material data records ─────────────────────────────────────────────────────
