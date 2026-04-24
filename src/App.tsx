@@ -367,32 +367,9 @@ function App() {
       setModeler(bpmnModeler);
       if (savedXml) setValidationMessage('Restored previous session');
 
-      // Reanchor any ports that lack explicit anchor positions
-      // (handles files created before anchorSide was written by AutoTypeBehavior)
-      setTimeout(() => {
-        const elementRegistry = bpmnModeler.get('elementRegistry') as any;
-        const modeling = bpmnModeler.get('modeling') as any;
-        elementRegistry.getAll().forEach((element: any) => {
-          const bo = element.businessObject;
-          const ext = bo?.extensionElements?.values;
-          if (!ext) return;
-          const dexpiEl = ext.find((e: any) => e.$type === 'dexpi:Element' || e.$type?.includes('element'));
-          if (!dexpiEl?.ports?.length) return;
-          const inlets  = dexpiEl.ports.filter((p: any) => p.direction === 'Inlet');
-          const outlets = dexpiEl.ports.filter((p: any) => p.direction === 'Outlet');
-          let changed = false;
-          dexpiEl.ports.forEach((port: any) => {
-            if (port.anchorSide) return;
-            const isOutlet = port.direction === 'Outlet';
-            const group = isOutlet ? outlets : inlets;
-            const idx = group.indexOf(port);
-            port.anchorSide = isOutlet ? 'right' : 'left';
-            port.anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
-            changed = true;
-          });
-          if (changed) modeling.updateProperties(element, { extensionElements: bo.extensionElements });
-        });
-      }, 200);
+      // Reanchor ports that lack explicit anchor positions after a short
+      // delay to let the modeler fully settle (ports need to be in the registry)
+      setTimeout(() => reanchorPortsAfterImport(bpmnModeler), 300);
     }).catch((err: any) => {
       if (isDestroyed) return;
       console.error('Failed to import BPMN:', err);
@@ -540,17 +517,19 @@ function App() {
    * ports that lack them. Inlets → left side, Outlets → right side, spread
    * evenly. Matches AutoTypeBehavior logic for newly drawn connections.
    */
-  const reanchorPortsAfterImport = () => {
-    if (!modeler) return;
-    const elementRegistry = modeler.get('elementRegistry') as any;
-    const modeling = modeler.get('modeling') as any;
+  const reanchorPortsAfterImport = (bpmnModelerInstance?: any) => {
+    const m = bpmnModelerInstance || modeler;
+    if (!m) return;
+    const elementRegistry = m.get('elementRegistry') as any;
+    const modeling = m.get('modeling') as any;
 
     elementRegistry.getAll().forEach((element: any) => {
       const bo = element.businessObject;
       const ext = bo?.extensionElements?.values;
-      if (!ext) return;
+      if (!ext?.length) return;
 
-      const dexpiEl = ext.find((e: any) => e.$type === 'dexpi:Element' || e.$type?.includes('element'));
+      // dexpi:Element has $type 'dexpi:Element'
+      const dexpiEl = ext.find((e: any) => e.$type === 'dexpi:Element');
       if (!dexpiEl?.ports?.length) return;
 
       const inlets  = dexpiEl.ports.filter((p: any) => p.direction === 'Inlet');
@@ -558,7 +537,7 @@ function App() {
 
       let changed = false;
       dexpiEl.ports.forEach((port: any) => {
-        if (port.anchorSide) return; // already set
+        if (port.anchorSide) return; // already set — skip
         const isOutlet = port.direction === 'Outlet';
         const group = isOutlet ? outlets : inlets;
         const idx = group.indexOf(port);
@@ -572,8 +551,8 @@ function App() {
       }
     });
 
-    // Force re-render
-    const eventBus = modeler.get('eventBus') as any;
+    // Force re-render of all elements
+    const eventBus = m.get('eventBus') as any;
     eventBus.fire('elements.changed', { elements: elementRegistry.getAll() });
   };
 
