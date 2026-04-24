@@ -375,7 +375,7 @@ export default class DexpiRenderer extends BaseRenderer {
     // For InformationPorts, use anchorSide/anchorOffset if the port has them set.
     // Only fall back to waypoint-based positioning when there's a single association
     // and no explicit anchor — otherwise multiple IPI ports stack at the same waypoint.
-    if (port.portType === 'InformationPort') {
+    if (port.portType === 'InformationPort' || (port as any).type === 'InformationPort') {
       // If port has an explicit anchorSide, use it directly
       if (port.anchorSide) {
         return this.calculatePortPosition(port, width, height);
