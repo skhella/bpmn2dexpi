@@ -245,6 +245,7 @@ export class DexpiToBpmnTransformer {
 
     const queue = [...roots];
     roots.forEach(id => layer.set(id, 0));
+    const visited = new Set<string>(roots);
 
     while (queue.length > 0) {
       const cur = queue.shift()!;
@@ -253,7 +254,10 @@ export class DexpiToBpmnTransformer {
         const existing = layer.get(next) ?? -1;
         if (existing < curLayer + 1) {
           layer.set(next, curLayer + 1);
-          queue.push(next);
+          if (!visited.has(next)) {
+            visited.add(next);
+            queue.push(next);
+          }
         }
       });
     }

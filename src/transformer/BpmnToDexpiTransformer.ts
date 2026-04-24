@@ -533,39 +533,63 @@ export class BpmnToDexpiTransformer {
       });
     });
 
-    // Create InformationFlows from the graph
+    // Create InformationFlows from the graph.
+    // Key insight: only one flow per DataObject should exist.
+    // - If the DataObject has InstrumentationActivity tasks as sources and
+    //   ProcessStep tasks as targets → IA→PS (one flow per IA, skip PS→PS pairs)
+    // - If only sources (IA with no downstream PS) → one-sided flow per IA
     graph.forEach((node, dataObjId) => {
       const { name, sourceTaskIds, targetTaskIds } = node;
 
-      // Pair sources with targets (cross-product for multiple connections)
-      const pairs: Array<{source: string, target: string | null}> = [];
-      if (sourceTaskIds.length > 0 && targetTaskIds.length > 0) {
-        sourceTaskIds.forEach(src => {
-          targetTaskIds.forEach(tgt => {
-            if (src !== tgt) pairs.push({ source: src, target: tgt });
-          });
-        });
-      } else if (sourceTaskIds.length > 0) {
-        // One-sided: InstrumentationActivity → DataObject only
-        sourceTaskIds.forEach(src => pairs.push({ source: src, target: null }));
-      }
+      const IA_TYPES = new Set(['MeasuringProcessVariable', 'ControllingProcessVariable',
+        'ConveyingSignal', 'CalculatingProcessVariable',
+        'CalculatingRatio', 'CalculatingSplitRange', 'TransformingProcessVariable',
+        'InstrumentationActivity']);
 
-      pairs.forEach(({ source, target }) => {
-        const flowId = `IF_${dataObjId}_${source}_${target || 'solo'}`;
-        const flow: InternalStream = {
-          id: flowId,
-          name,
-          identifier: flowId,
-          uid: this.generateUid(),
-          sourceRef: source,
-          targetRef: target || source,
-          streamType: 'InformationFlow',
-          provenance: 'Calculated',
-          range: 'Design',
-          attributes: [],
-          informationVariantLabel: name,  // DataObject name → InformationVariant
-        };
-        this.informationFlows.set(flowId, flow);
+      // Classify tasks by DEXPI type using registry
+      const isIA = (taskId: string) => {
+        const el = process.querySelector(`[id="${taskId}"]`);
+        if (!el) return false;
+        // Try dexpiType from extensionElements (namespace-agnostic text search)
+        const extText = el.querySelector('extensionElements')?.innerHTML || '';
+        const dtMatch = extText.match(/dexpiType="([^"]+)"/);
+        const dtype = dtMatch?.[1] || el.getAttribute('name') || '';
+        return IA_TYPES.has(dtype) || this.registry.hasAncestor(dtype, 'InstrumentationActivity');
+      };
+
+      const iaSources = sourceTaskIds.filter(id => isIA(id));
+      const psTargets = targetTaskIds.filter(id => !isIA(id));
+
+      // Prefer IA→PS pairs; fall back to IA→solo if no PS target found
+      const sources = iaSources.length > 0 ? iaSources : sourceTaskIds;
+      const targets = psTargets.length > 0 ? psTargets : [];
+
+      sources.forEach(src => {
+        if (targets.length > 0) {
+          // One flow per IA→PS pair (not cross-product of all combinations)
+          targets.forEach(tgt => {
+            const flowId = `IF_${dataObjId}_${src}_${tgt}`;
+            this.informationFlows.set(flowId, {
+              id: flowId, name, identifier: flowId,
+              uid: this.generateUid(),
+              sourceRef: src, targetRef: tgt,
+              streamType: 'InformationFlow',
+              provenance: 'Calculated', range: 'Design',
+              attributes: [], informationVariantLabel: name,
+            });
+          });
+        } else {
+          // One-sided: IA → DataObject only, no downstream PS
+          const flowId = `IF_${dataObjId}_${src}_solo`;
+          this.informationFlows.set(flowId, {
+            id: flowId, name, identifier: flowId,
+            uid: this.generateUid(),
+            sourceRef: src, targetRef: src,
+            streamType: 'InformationFlow',
+            provenance: 'Calculated', range: 'Design',
+            attributes: [], informationVariantLabel: name,
+          });
+        }
       });
     });
   }
