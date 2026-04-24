@@ -20,23 +20,6 @@ const STEP_CLASSES = DEXPI_REGISTRY.concreteClasses().filter(c =>
     'ProcessModel', 'Stream'].includes(c)
 );
 
-/**
- * Lightweight name-based inference for the UI — uses the registry class list
- * so it stays in sync with Process.xml automatically.
- * Returns undefined if no match found (caller should default to 'ProcessStep').
- */
-function inferTypeFromName(name: string): string | undefined {
-  if (!name) return undefined;
-  const lower = name.trim().toLowerCase();
-  const classes = DEXPI_REGISTRY.allClasses();
-  // Exact match first
-  const exact = classes.find(c => c.toLowerCase() === lower);
-  if (exact) return exact;
-  // Longest substring match (avoids short matches like "Mixing" inside "MixingSimple")
-  const sorted = [...classes].sort((a, b) => b.length - a.length);
-  return sorted.find(c => lower.includes(c.toLowerCase()));
-}
-
 interface DexpiPropertiesPanelProps {
   element: any;
   modeler: any;
@@ -50,6 +33,8 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
   const [elementName, setElementName] = React.useState<string>('');
   const [ports, setPorts] = React.useState<DexpiPort[]>([]);
   const [hasData, setHasData] = React.useState<boolean>(false);
+  const [isCustomType, setIsCustomType] = React.useState<boolean>(false);
+  const [customTypeName, setCustomTypeName] = React.useState<string>('');
 
   React.useEffect(() => {
     if (element) {
@@ -165,7 +150,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           }
         } else if (element.type === 'bpmn:SubProcess') {
           // Try name-based inference for subprocesses too
-          dtype = inferTypeFromName(businessObject.name || '') || 'ProcessStep';
+          dtype = 'ProcessStep';
         } else if (element.type === 'bpmn:Task' || element.type.includes('Task')) {
           const di = element.di;
           let fill = '';
@@ -183,7 +168,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           } else {
             // Try to infer from task name using the registry — shows a meaningful type
             // instead of always defaulting to ProcessStep for unannotated imports
-            dtype = inferTypeFromName(businessObject.name || '') || 'ProcessStep';
+            dtype = 'ProcessStep';
           }
         }
       }
@@ -192,6 +177,10 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       setIdentifier(ident);
       setUid(u);
       setCustomUri(dexpiElement?.customUri || '');
+      // Detect if loaded type is a custom (non-DEXPI) type
+      const isCustom = !!dtype && !DEXPI_REGISTRY.isValidClass(dtype) && dtype !== 'Source' && dtype !== 'Sink';
+      setIsCustomType(isCustom);
+      setCustomTypeName(isCustom ? dtype : '');
       setElementName(businessObject.name || '');
       setPorts(Array.isArray(p) ? p : []);
     }
@@ -239,8 +228,23 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
 
   const handleDexpiTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newType = e.target.value;
-    setDexpiType(newType);
-    updateDexpiElement({ dexpiType: newType });
+    if (newType === '__custom__') {
+      setIsCustomType(true);
+      setCustomTypeName('');
+      // Don't write to element yet — wait for user to type the custom name
+    } else {
+      setIsCustomType(false);
+      setCustomTypeName('');
+      setDexpiType(newType);
+      updateDexpiElement({ dexpiType: newType, customUri: undefined });
+    }
+  };
+
+  const handleCustomTypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCustomTypeName(val);
+    setDexpiType(val);
+    updateDexpiElement({ dexpiType: val });
   };
 
   const handleUidChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -431,9 +435,20 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
     <div className="dexpi-properties-panel">
       <h3>DEXPI Properties</h3>
       
-      {hasData && (
+      {/* Status banner */}
+      {hasData && dexpiType && DEXPI_REGISTRY.isValidClass(dexpiType) && (
         <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', marginBottom: '12px', fontSize: '0.85rem' }}>
-          ✓ Element has DEXPI data
+          ✓ DEXPI type set: <strong>{dexpiType}</strong>
+        </div>
+      )}
+      {hasData && isCustomType && customTypeName && (
+        <div style={{ padding: '8px', backgroundColor: '#fff8e1', borderRadius: '4px', marginBottom: '12px', fontSize: '0.85rem', color: '#e65100' }}>
+          ⚠ Custom type — not a standard DEXPI 2.0 class
+        </div>
+      )}
+      {hasData && (!dexpiType || dexpiType === 'ProcessStep') && !isCustomType && (
+        <div style={{ padding: '8px', backgroundColor: '#fff8e1', borderRadius: '4px', marginBottom: '12px', fontSize: '0.85rem', color: '#795548' }}>
+          ⚠ No type selected — choose a DEXPI class or enter a custom type
         </div>
       )}
       
@@ -457,9 +472,12 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       <div className="property-group">
         <label>
           DEXPI Type:
-          <select value={dexpiType} onChange={handleDexpiTypeChange}>
-            <option value="">Select Type...</option>
-            {(elementType === 'bpmn:Task' || 
+          <select
+            value={isCustomType ? '__custom__' : dexpiType}
+            onChange={handleDexpiTypeChange}
+          >
+            <option value="">Select DEXPI type...</option>
+            {(elementType === 'bpmn:Task' ||
               elementType === 'bpmn:SubProcess' ||
               elementType === 'bpmn:ServiceTask' ||
               elementType === 'bpmn:UserTask' ||
@@ -470,14 +488,11 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
               elementType === 'bpmn:ReceiveTask' ||
               elementType === 'bpmn:CallActivity') && (
               <>
-                {/* Populated from dexpi-schema-files/Process.xml — update the file to get new classes */}
+                {/* Populated from dexpi-schema-files/Process.xml — replace file to update */}
                 {STEP_CLASSES.map(cls => (
                   <option key={cls} value={cls}>{cls}</option>
                 ))}
-                {/* Allow custom non-DEXPI types that are already set (mode 2) */}
-                {dexpiType && !DEXPI_REGISTRY.isValidClass(dexpiType) && (
-                  <option value={dexpiType}>{dexpiType} (custom)</option>
-                )}
+                <option value="__custom__">— Custom / external RDL type...</option>
               </>
             )}
             {(elementType === 'bpmn:StartEvent' || elementType === 'bpmn:IntermediateCatchEvent') && (
@@ -488,12 +503,6 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
             )}
           </select>
         </label>
-        {dexpiType && !DEXPI_REGISTRY.isValidClass(dexpiType) && 
-          dexpiType !== 'Source' && dexpiType !== 'Sink' && (
-          <div style={{ fontSize: '0.8rem', color: '#e65100', marginTop: '4px' }}>
-            ⚠ "{dexpiType}" is not a standard DEXPI 2.0 class — enter an external URI below.
-          </div>
-        )}
       </div>
 
       <div className="property-group">
@@ -524,28 +533,44 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
         </label>
       </div>
 
-      {/* Custom URI — shown when dexpiType is not a standard DEXPI class (mode 2 / RDL extension) */}
-      {dexpiType && !DEXPI_REGISTRY.isValidClass(dexpiType) &&
-        dexpiType !== 'Source' && dexpiType !== 'Sink' && (
+      {/* Custom type — shown when user selects "Custom / external RDL type..." */}
+      {isCustomType && (
         <div className="property-group">
           <label>
-            External Ontology URI:
+            Custom type name:
             <input
               type="text"
-              value={customUri}
-              onChange={(e) => {
-                const val = e.target.value;
-                setCustomUri(val);
-                updateDexpiElement({ customUri: val });
-              }}
-              placeholder="e.g. https://data.15926.org/rdl/R1234"
-              style={{ fontFamily: 'monospace', fontSize: '0.88em' }}
+              value={customTypeName}
+              onChange={handleCustomTypeChange}
+              placeholder="e.g. ElectrolyticReduction, MyReactor..."
+              autoFocus
             />
           </label>
           <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
-            URI referencing the class definition in an external RDL (ISO 15926, OntoCAPE, etc.).
-            Stored as <code>ExternalReference</code> in the DEXPI output.
+            Output will use <code>ProcessStep</code> as DEXPI type. Add a URI below to reference the class definition.
           </div>
+          {customTypeName && (
+            <label style={{ marginTop: '8px', display: 'block' }}>
+              Reference URI (optional):
+              <input
+                type="text"
+                value={customUri}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomUri(val);
+                  updateDexpiElement({ customUri: val });
+                }}
+                placeholder="e.g. https://data.15926.org/rdl/R1234"
+                style={{ fontFamily: 'monospace', fontSize: '0.88em' }}
+              />
+            </label>
+          )}
+          {customTypeName && (
+            <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
+              URI referencing the class in an external RDL (ISO 15926, OntoCAPE, company RDL).
+              Stored as <code>ReferenceUri</code> in the DEXPI output.
+            </div>
+          )}
         </div>
       )}
 
