@@ -296,7 +296,7 @@ export default class AutoTypeBehavior extends CommandInterceptor {
     return `${prefix}${maxNumber + 1}`;
   }
 
-  private createPort(element: any, portName: string, portType: string, direction: string): void {
+  private createPort(element: any, portName: string, type: string, direction: string): void {
     const businessObject = element.businessObject;
 
     // Ensure extension elements exist
@@ -329,7 +329,7 @@ export default class AutoTypeBehavior extends CommandInterceptor {
     const port = this.moddle.create('dexpi:Port');
     port.portId = `${businessObject.id}_${portName}_port`;
     port.name = portName;
-    port.portType = portType;
+    port.type = type;
     port.direction = direction;
 
     dexpiElement.ports.push(port);

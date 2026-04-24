@@ -112,7 +112,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                 const normalized = {
                   portId: `${businessObject.id}_${legacyPort.name || legacyPort.label}`,
                   name: legacyPort.name || legacyPort.label || 'Unnamed',
-                  portType: legacyPort.type || legacyPort.portType || 'MaterialPort',
+                  type: legacyPort.type || legacyPort.portType || 'MaterialPort',
                   direction: direction,
                   anchorSide: legacyPort.anchorSide || 'left',
                   anchorOffset: legacyPort.anchorOffset || 0.5,
@@ -271,7 +271,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
     const newPort = moddle.create('dexpi:Port', {
       portId: `port-${Date.now()}`,
       name: `Port ${ports.length + 1}`,
-      portType: 'MaterialPort',
+      type: 'MaterialPort',
       direction: 'Inlet',
       anchorSide: 'left',
       anchorOffset: 0.5
@@ -305,7 +305,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           const updatedPort = moddle.create('dexpi:Port', {
             portId: updates.portId !== undefined ? updates.portId : p.portId,
             name: updates.name !== undefined ? updates.name : p.name,
-            portType: updates.portType !== undefined ? updates.portType : p.portType,
+            type: updates.type !== undefined ? updates.type : p.type,
             direction: updates.direction !== undefined ? updates.direction : p.direction,
             anchorSide: updates.anchorSide !== undefined ? updates.anchorSide : p.anchorSide,
             anchorOffset: updates.anchorOffset !== undefined ? updates.anchorOffset : p.anchorOffset,
@@ -354,7 +354,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
             $type: 'port',
             id: p._originalId || p.portId,
             name: p.name,
-            type: p.portType,
+            type: p.type,
             direction: p.direction,
             label: p.name,
             anchorSide: p.anchorSide,
@@ -379,7 +379,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
     const elementId = businessObject.id;
     
     // Check for InformationPorts with data associations
-    if (port.portType === 'InformationPort') {
+    if (port.type === 'InformationPort') {
       if (port.direction === 'Outlet' && businessObject.dataOutputAssociations?.length > 0) {
         return true;
       }
@@ -699,8 +699,8 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
             <label>
               Type:
               <select 
-                value={port.portType} 
-                onChange={(e) => updatePort(port.portId, { portType: e.target.value as any })}
+                value={port.type} 
+                onChange={(e) => updatePort(port.portId, { type: e.target.value as any })}
               >
                 <option value="MaterialPort">Material Port</option>
                 <option value="ThermalEnergyPort">Thermal Energy Port</option>

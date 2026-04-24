@@ -26,7 +26,7 @@ interface DexpiStep {
 
 interface DexpiPort {
   id: string;
-  portType: string;       // MaterialPort, ThermalEnergyPort, etc.
+  type: string;       // MaterialPort, ThermalEnergyPort, etc.
   direction: string;      // In / Out
   label: string;
   identifier: string;
@@ -168,7 +168,7 @@ export class DexpiToBpmnTransformer {
           const dirData = dirRef?.getAttribute('data') || '';
           const direction = dirData.includes('.Out') ? 'Outlet' : 'Inlet';
 
-          ports.push({ id: portId, portType, direction, label: portLabel, identifier: portIdentifier });
+          ports.push({ id: portId, type: portType as any, direction, label: portLabel, identifier: portIdentifier });
         });
     }
 
@@ -385,7 +385,7 @@ export class DexpiToBpmnTransformer {
         const group = bpmnDir === 'Outlet' ? outlets : inlets;
         const idx = group.indexOf(p);
         const anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
-        return `        <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.portType}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchorSide}" anchorOffset="${anchorOffset.toFixed(2)}"/>`;
+        return `        <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.type}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchorSide}" anchorOffset="${anchorOffset.toFixed(2)}"/>`;
       }).join('\n');
 
       const extEl = `    <bpmn:extensionElements>

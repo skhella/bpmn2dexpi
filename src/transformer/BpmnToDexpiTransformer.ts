@@ -959,7 +959,7 @@ export class BpmnToDexpiTransformer {
         ports.push({
           portId: child.getAttribute('portId') || child.getAttribute('id') || this.generateUid(),
           name: child.getAttribute('name') || child.getAttribute('label') || 'Port',
-          portType: (child.getAttribute('portType') || child.getAttribute('type') || 'MaterialPort') as DexpiPort['portType'],
+          type: (child.getAttribute('type') || child.getAttribute('portType') || 'MaterialPort') as DexpiPort['type'],
           direction: (child.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
           anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
           anchorOffset: child.getAttribute('anchorOffset') ? parseFloat(child.getAttribute('anchorOffset')!) : undefined,
@@ -982,7 +982,7 @@ export class BpmnToDexpiTransformer {
     return ports.map((port) => ({
       portId: port.getAttribute('id') || port.getAttribute('portId') || this.generateUid(),
       name: port.getAttribute('name') || port.getAttribute('label') || 'Port',
-      portType: (port.getAttribute('type') || port.getAttribute('portType') || 'MaterialPort') as DexpiPort['portType'],
+      type: (port.getAttribute('type') || port.getAttribute('portType') || 'MaterialPort') as DexpiPort['type'],
       direction: (port.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
       anchorSide: (port.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
       anchorOffset: port.getAttribute('anchorOffset') ? parseFloat(port.getAttribute('anchorOffset')!) : undefined,
@@ -1234,7 +1234,7 @@ export class BpmnToDexpiTransformer {
           const portObject: Record<string, unknown> = {
             '$': {
               'id': safePortId,
-              'type': `Process/Process.${port.portType}`
+              'type': `Process/Process.${port.type}`
             },
             'Data': [
               {
@@ -1594,7 +1594,7 @@ export class BpmnToDexpiTransformer {
     const port = this.ports.get(sourcePortId);
     if (!port) return 'MaterialFlow';
 
-    switch (port.portType) {
+    switch (port.type) {
       case 'ThermalEnergyPort':    return 'ThermalEnergyFlow';
       case 'MechanicalEnergyPort': return 'MechanicalEnergyFlow';
       case 'ElectricalEnergyPort': return 'ElectricalEnergyFlow';
@@ -2022,7 +2022,7 @@ export class BpmnToDexpiTransformer {
     // Find first port matching direction (and portType if specified)
     const matchingPort = element.ports.find((p: DexpiPort) => {
       if (p.direction !== defaultDirection) return false;
-      if (portType && p.portType !== portType) return false;
+      if (portType && p.type !== portType) return false;
       return true;
     });
     return matchingPort ? matchingPort.portId : null;

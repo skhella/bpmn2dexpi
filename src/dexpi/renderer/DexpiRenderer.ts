@@ -125,7 +125,7 @@ export default class DexpiRenderer extends BaseRenderer {
           return {
             portId: `${element.businessObject.id}_${p.name || p.label}`,
             name: p.name || p.label,
-            portType: p.type || p.portType,
+            type: p.type || p.type,
             direction: direction,
             anchorSide: p.anchorSide || 'left',
             anchorOffset: p.anchorOffset !== undefined ? p.anchorOffset : 0.5,
@@ -375,7 +375,7 @@ export default class DexpiRenderer extends BaseRenderer {
     // For InformationPorts, use anchorSide/anchorOffset if the port has them set.
     // Only fall back to waypoint-based positioning when there's a single association
     // and no explicit anchor — otherwise multiple IPI ports stack at the same waypoint.
-    if (port.portType === 'InformationPort' || (port as any).type === 'InformationPort') {
+    if (port.type === 'InformationPort' || (port as any).type === 'InformationPort') {
       // If port has an explicit anchorSide, use it directly
       if (port.anchorSide) {
         return this.calculatePortPosition(port, width, height);
@@ -531,7 +531,7 @@ export default class DexpiRenderer extends BaseRenderer {
     let shape: SVGElement;
 
     // Different shapes for different port types
-    switch (port.portType) {
+    switch (port.type) {
       case 'MaterialPort':
         shape = svgCreate('circle');
         svgAttr(shape, {
