@@ -439,9 +439,9 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       <h3>DEXPI Properties</h3>
       
       {/* Status banner */}
-      {hasData && dexpiType && DEXPI_REGISTRY.isValidClass(dexpiType) && (
+      {hasData && dexpiType && DEXPI_REGISTRY.isValidClass(dexpiType) && !isCustomType && (
         <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', marginBottom: '12px', fontSize: '0.85rem' }}>
-          ✓ DEXPI type set: <strong>{dexpiType}</strong>
+          ✓ DEXPI type: <strong>{dexpiType}</strong>
         </div>
       )}
       {hasData && isCustomType && customTypeName && (
@@ -449,7 +449,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           ⚠ Custom type — not a standard DEXPI 2.0 class
         </div>
       )}
-      {hasData && (!dexpiType || dexpiType === 'ProcessStep') && !isCustomType && (
+      {hasData && !dexpiType && !isCustomType && (
         <div style={{ padding: '8px', backgroundColor: '#fff8e1', borderRadius: '4px', marginBottom: '12px', fontSize: '0.85rem', color: '#795548' }}>
           ⚠ No type selected — choose a DEXPI class or enter a custom type
         </div>
@@ -832,7 +832,7 @@ const ProcessStepAttributesSection: React.FC<{ element: any; modeler: any }> = (
 
   return (
     <div className="property-group">
-      <h4>ProcessStep Attributes ({attributes.length})</h4>
+      <h4>Attributes ({attributes.length})</h4>
       <button onClick={addAttribute} className="btn-add-port">Add Attribute</button>
       
       {attributes.map((attr, index) => (
