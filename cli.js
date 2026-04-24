@@ -8,6 +8,7 @@
 
 import { readFileSync, writeFileSync } from 'fs';
 import { transformer } from './src/transformer/BpmnToDexpiTransformer.ts';
+import { DexpiToBpmnTransformer } from './src/transformer/DexpiToBpmnTransformer.ts';
 import { JSDOM } from 'jsdom';
 
 // Set up DOM globals for Node.js environment
@@ -21,20 +22,21 @@ const args = process.argv.slice(2);
 
 if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
   console.log(`
-bpmn2dexpi - BPMN to DEXPI XML Transformer
+bpmn2dexpi - BPMN ↔ DEXPI Transformer
 
 Usage:
-  node cli.js <input.bpmn> [output.xml]
-  npm run transform <input.bpmn> [output.xml]
+  node cli.js <input.bpmn> [output.xml]           # BPMN → DEXPI
+  node cli.js --reverse <input.xml> [output.bpmn] # DEXPI → BPMN
 
 Arguments:
-  input.bpmn   Path to input BPMN file (required)
-  output.xml   Path to output DEXPI XML file (optional, prints to stdout if not provided)
+  --reverse    Import DEXPI XML and generate BPMN
+  input        Path to input file (required)
+  output       Path to output file (optional, prints to stdout if not provided)
 
 Examples:
-  node cli.js process.bpmn                  # Print DEXPI XML to console
-  node cli.js process.bpmn output.xml       # Save DEXPI XML to file
-  npm run transform process.bpmn output.xml # Using npm script
+  node cli.js process.bpmn output.xml             # BPMN → DEXPI XML
+  node cli.js --reverse process.xml output.bpmn   # DEXPI → BPMN
+  npm run transform process.bpmn output.xml
 
 From Python:
   import subprocess
@@ -44,34 +46,40 @@ From Python:
   process.exit(0);
 }
 
-const inputPath = args[0];
-const outputPath = args[1];
+
+const isReverse = args[0] === '--reverse';
+const inputPath2 = isReverse ? args[1] : args[0];
+const outputPath2 = isReverse ? args[2] : args[1];
 
 async function main() {
   try {
-    // Read BPMN file
-    const bpmnXml = readFileSync(inputPath, 'utf-8');
-    
-    // Transform to DEXPI
-    const dexpiXml = await transformer.transform(bpmnXml);
-    
-    if (outputPath) {
-      // Write to file
-      writeFileSync(outputPath, dexpiXml, 'utf-8');
-      console.error(`✓ Successfully transformed ${inputPath} → ${outputPath}`);
+    const inputXml = readFileSync(inputPath2, 'utf-8');
+    let outputXml;
+
+    if (isReverse) {
+      // DEXPI → BPMN
+      const t = new DexpiToBpmnTransformer();
+      outputXml = t.transform(inputXml);
     } else {
-      // Print to stdout
-      console.log(dexpiXml);
+      // BPMN → DEXPI
+      outputXml = await transformer.transform(inputXml);
     }
-    
+
+    if (outputPath2) {
+      writeFileSync(outputPath2, outputXml, 'utf-8');
+      const arrow = isReverse ? 'DEXPI → BPMN' : 'BPMN → DEXPI';
+      console.error(`✓ ${arrow}: ${inputPath2} → ${outputPath2}`);
+    } else {
+      console.log(outputXml);
+    }
+
     process.exit(0);
   } catch (error) {
     console.error(`✗ Error: ${error.message}`);
-    if (error.stack) {
-      console.error(error.stack);
-    }
+    if (error.stack) console.error(error.stack);
     process.exit(1);
   }
 }
 
 main();
+

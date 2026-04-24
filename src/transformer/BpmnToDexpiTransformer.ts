@@ -145,7 +145,7 @@ export class BpmnToDexpiTransformer {
    * Replaces the previous hardcoded class list. To update when DEXPI releases
    * a new version: replace Process.xml, no code changes needed.
    */
-  private registry: DexpiProcessClassRegistry = DexpiProcessClassRegistry['fromXml']('<ProcessModel/>');
+  private registry: DexpiProcessClassRegistry = DexpiProcessClassRegistry.empty();
 
   /**
    * Resolve the DEXPI type for a process step — three-mode system:
