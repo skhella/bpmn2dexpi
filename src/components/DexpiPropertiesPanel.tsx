@@ -234,12 +234,22 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
     if (newType === '__custom__') {
       setIsCustomType(true);
       setCustomTypeName('');
-      // Don't write to element yet — wait for user to type the custom name
     } else {
       setIsCustomType(false);
       setCustomTypeName('');
       setDexpiType(newType);
       updateDexpiElement({ dexpiType: newType, customUri: undefined });
+
+      // Auto-fill element name with the DEXPI type if name is empty or still generic
+      const isGenericName = !elementName ||
+        elementName === 'ProcessStep' ||
+        elementName === dexpiType ||  // was previously auto-filled
+        element.businessObject.name === element.businessObject.id; // BPMN default
+      if (isGenericName && newType !== 'ProcessStep') {
+        const modeling = modeler.get('modeling');
+        modeling.updateProperties(element, { name: newType });
+        setElementName(newType);
+      }
     }
   };
 
@@ -1351,10 +1361,14 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       </div>
 
       <div className="property-group">
-        <label>
-          Stream Type:
-          <select 
-            value={streamData.streamType || (['bpmn:Association','bpmn:DataOutputAssociation','bpmn:DataInputAssociation'].includes(element.type) ? 'InformationFlow' : 'MaterialFlow')}
+        <label>Stream Type:</label>
+        {['bpmn:Association','bpmn:DataOutputAssociation','bpmn:DataInputAssociation'].includes(element.type) ? (
+          <div style={{ padding: '6px 0', fontSize: '0.9rem', color: '#333' }}>
+            Information Flow
+          </div>
+        ) : (
+          <select
+            value={streamData.streamType || 'MaterialFlow'}
             onChange={(e) => updateStream({ streamType: e.target.value as any })}
           >
             <option value="MaterialFlow">Material Flow</option>
@@ -1362,12 +1376,8 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
             <option value="MechanicalEnergyFlow">Mechanical Energy Flow</option>
             <option value="ElectricalEnergyFlow">Electrical Energy Flow</option>
             <option value="EnergyFlow">Energy Flow — generic</option>
-            {/* InformationFlow only valid for Associations, not SequenceFlows */}
-            {(element.type === 'bpmn:Association' || element.type === 'bpmn:DataOutputAssociation' || element.type === 'bpmn:DataInputAssociation') && (
-              <option value="InformationFlow">Information Flow</option>
-            )}
           </select>
-        </label>
+        )}
       </div>
 
       <div className="property-group">

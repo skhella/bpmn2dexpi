@@ -126,6 +126,23 @@ export default class AutoTypeBehavior extends CommandInterceptor {
 
     this.modeling.updateProperties(connection, { extensionElements });
     this.eventBus.fire('element.changed', { element: connection });
+
+    // Auto-generate InformationPorts on task elements (not on Data Objects)
+    const source = connection.source;
+    const target = connection.target;
+    const isTask = (el: any) => el && (
+      el.type === 'bpmn:Task' || el.type === 'bpmn:SubProcess' ||
+      el.type?.includes('Task') || el.type === 'bpmn:CallActivity'
+    );
+
+    if (isTask(source)) {
+      const portName = this.getNextPortName(source, 'IO');
+      this.createPort(source, portName, 'InformationPort', 'Outlet');
+    }
+    if (isTask(target)) {
+      const portName = this.getNextPortName(target, 'II');
+      this.createPort(target, portName, 'InformationPort', 'Inlet');
+    }
   }
 
   private autoSetStreamType(connection: any): void {
