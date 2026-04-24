@@ -372,54 +372,41 @@ export default class DexpiRenderer extends BaseRenderer {
     const elementId = element.businessObject.id;
     const businessObject = element.businessObject;
     
-    // For InformationPorts, check data associations
+    // For InformationPorts, use anchorSide/anchorOffset if the port has them set.
+    // Only fall back to waypoint-based positioning when there's a single association
+    // and no explicit anchor — otherwise multiple IPI ports stack at the same waypoint.
     if (port.portType === 'InformationPort') {
-      // Check data output associations for IPO (Information Port Output)
-      // After normalization, Output becomes Outlet
-      if (port.direction === 'Outlet' && businessObject.dataOutputAssociations) {
-        const associations = businessObject.dataOutputAssociations;
-        for (let i = 0; i < associations.length; i++) {
-          // Find the rendered association element
-          const associationElement = this.elementRegistry.find((el: any) => {
-            return el.businessObject && el.businessObject.id === associations[i].id;
-          });
-          
-          if (associationElement && associationElement.waypoints && associationElement.waypoints.length > 0) {
-            // Use the first waypoint (where it connects to the task)
-            const connectionPoint = associationElement.waypoints[0];
-            const relX = connectionPoint.x - element.x;
-            const relY = connectionPoint.y - element.y;
-            return { x: relX - portSize / 2, y: relY - portSize / 2 };
-          }
+      // If port has an explicit anchorSide, use it directly
+      if (port.anchorSide) {
+        return this.calculatePortPosition(port, width, height);
+      }
+
+      // Single association and no anchorSide — try to use the waypoint
+      const outlets = businessObject.dataOutputAssociations || [];
+      const inlets  = businessObject.dataInputAssociations  || [];
+
+      if (port.direction === 'Outlet' && outlets.length === 1) {
+        const assocEl = this.elementRegistry.find((el: any) =>
+          el.businessObject?.id === outlets[0].id
+        );
+        if (assocEl?.waypoints?.length > 0) {
+          const pt = assocEl.waypoints[0];
+          return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
         }
       }
-      
-      // Check data input associations for IPI (Information Port Input)
-      // After normalization, Input becomes Inlet
-      if (port.direction === 'Inlet' && businessObject.dataInputAssociations) {
-        const associations = businessObject.dataInputAssociations;
-        for (let i = 0; i < associations.length; i++) {
-          // Find the rendered association element
-          const associationElement = this.elementRegistry.find((el: any) => {
-            return el.businessObject && el.businessObject.id === associations[i].id;
-          });
-          
-          if (associationElement && associationElement.waypoints && associationElement.waypoints.length > 0) {
-            // Use the last waypoint (where it connects to the task)
-            const connectionPoint = associationElement.waypoints[associationElement.waypoints.length - 1];
-            const relX = connectionPoint.x - element.x;
-            const relY = connectionPoint.y - element.y;
-            return { x: relX - portSize / 2, y: relY - portSize / 2 };
-          }
+
+      if (port.direction === 'Inlet' && inlets.length === 1) {
+        const assocEl = this.elementRegistry.find((el: any) =>
+          el.businessObject?.id === inlets[0].id
+        );
+        if (assocEl?.waypoints?.length > 0) {
+          const pt = assocEl.waypoints[assocEl.waypoints.length - 1];
+          return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
         }
       }
-      
-      // Fallback for InformationPorts: place on bottom for outlet, top for inlet
-      if (port.direction === 'Outlet') {
-        return { x: width / 2 - portSize / 2, y: height - portSize / 2 };
-      } else {
-        return { x: width / 2 - portSize / 2, y: -portSize / 2 };
-      }
+
+      // Multiple associations or no waypoints — fall through to anchorSide/direction fallback
+      return this.calculatePortPosition(port, width, height);
     }
     
     // For MaterialPorts, EnergyPorts, etc., use SequenceFlow connections

@@ -2137,8 +2137,8 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="DataInputAssociation_composition_fix_di" bpmnElement="DataInputAssociation_composition_fix">
-        <ns5:waypoint x="560" y="785" />
-        <ns5:waypoint x="700" y="530" />
+        <ns5:waypoint x="560" y="735" />
+        <ns5:waypoint x="700" y="511" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
