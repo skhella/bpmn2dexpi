@@ -8,7 +8,7 @@ A web-based tool for creating DEXPI 2.0-compliant block flow and process flow di
 - **DEXPI 2.0 Export**: XSD-validated output against the official DEXPI XML Schema
 - **Material Library**: Define materials, compositions, and thermodynamic states
 - **Port System**: Typed ports (Material, Energy, Information) with hierarchy support
-- **Stream Properties**: Typed streams (Material, Thermal/Mechanical/Electrical Energy, Information) with flow rates, compositions, and qualified parameters; energy subtype inferred from port type when not explicitly set
+- **Stream Properties**: Typed streams (Material, Thermal/Mechanical/Electrical Energy, Information) with flow rates, compositions, and qualified parameters
 - **CLI Tool**: Batch convert BPMN files to DEXPI 2.0 XML from terminal or Python
 - **Neo4j Export**: Export process graphs directly to a Neo4j graph database
 - **RDL Extension**: Steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri`
