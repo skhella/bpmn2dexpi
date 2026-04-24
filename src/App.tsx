@@ -366,6 +366,33 @@ function App() {
       // Now set the modeler state - the app is ready
       setModeler(bpmnModeler);
       if (savedXml) setValidationMessage('Restored previous session');
+
+      // Reanchor any ports that lack explicit anchor positions
+      // (handles files created before anchorSide was written by AutoTypeBehavior)
+      setTimeout(() => {
+        const elementRegistry = bpmnModeler.get('elementRegistry') as any;
+        const modeling = bpmnModeler.get('modeling') as any;
+        elementRegistry.getAll().forEach((element: any) => {
+          const bo = element.businessObject;
+          const ext = bo?.extensionElements?.values;
+          if (!ext) return;
+          const dexpiEl = ext.find((e: any) => e.$type === 'dexpi:Element' || e.$type?.includes('element'));
+          if (!dexpiEl?.ports?.length) return;
+          const inlets  = dexpiEl.ports.filter((p: any) => p.direction === 'Inlet');
+          const outlets = dexpiEl.ports.filter((p: any) => p.direction === 'Outlet');
+          let changed = false;
+          dexpiEl.ports.forEach((port: any) => {
+            if (port.anchorSide) return;
+            const isOutlet = port.direction === 'Outlet';
+            const group = isOutlet ? outlets : inlets;
+            const idx = group.indexOf(port);
+            port.anchorSide = isOutlet ? 'right' : 'left';
+            port.anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
+            changed = true;
+          });
+          if (changed) modeling.updateProperties(element, { extensionElements: bo.extensionElements });
+        });
+      }, 200);
     }).catch((err: any) => {
       if (isDestroyed) return;
       console.error('Failed to import BPMN:', err);
@@ -508,6 +535,48 @@ function App() {
     }
   };
 
+  /**
+   * After importing a BPMN file, assign anchorSide/anchorOffset to any DEXPI
+   * ports that lack them. Inlets → left side, Outlets → right side, spread
+   * evenly. Matches AutoTypeBehavior logic for newly drawn connections.
+   */
+  const reanchorPortsAfterImport = () => {
+    if (!modeler) return;
+    const elementRegistry = modeler.get('elementRegistry') as any;
+    const modeling = modeler.get('modeling') as any;
+
+    elementRegistry.getAll().forEach((element: any) => {
+      const bo = element.businessObject;
+      const ext = bo?.extensionElements?.values;
+      if (!ext) return;
+
+      const dexpiEl = ext.find((e: any) => e.$type === 'dexpi:Element' || e.$type?.includes('element'));
+      if (!dexpiEl?.ports?.length) return;
+
+      const inlets  = dexpiEl.ports.filter((p: any) => p.direction === 'Inlet');
+      const outlets = dexpiEl.ports.filter((p: any) => p.direction === 'Outlet');
+
+      let changed = false;
+      dexpiEl.ports.forEach((port: any) => {
+        if (port.anchorSide) return; // already set
+        const isOutlet = port.direction === 'Outlet';
+        const group = isOutlet ? outlets : inlets;
+        const idx = group.indexOf(port);
+        port.anchorSide = isOutlet ? 'right' : 'left';
+        port.anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
+        changed = true;
+      });
+
+      if (changed) {
+        modeling.updateProperties(element, { extensionElements: bo.extensionElements });
+      }
+    });
+
+    // Force re-render
+    const eventBus = modeler.get('eventBus') as any;
+    eventBus.fire('elements.changed', { elements: elementRegistry.getAll() });
+  };
+
   const handleImportBpmn = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -519,11 +588,10 @@ function App() {
       try {
         const text = await file.text();
         await modeler.importXML(text);
-        // Save imported diagram immediately
+        reanchorPortsAfterImport();
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
         setValidationMessage('BPMN imported successfully!');
-        // Reset navigation state
         setPlaneStack([]);
         setCurrentPlane(null);
         const canvas = modeler.get('canvas') as any;
@@ -555,6 +623,7 @@ function App() {
         const bpmnXml = t.transform(dexpiXml);
 
         await modeler.importXML(bpmnXml);
+        reanchorPortsAfterImport();
         setPlaneStack([]);
         setCurrentPlane(null);
         const canvas = modeler.get('canvas') as any;
