@@ -20,6 +20,7 @@ export { validateDexpiOutput } from './DexpiOutputValidator';
 export class BpmnToDexpiTransformer {
   private processSteps: Map<string, InternalProcessStep> = new Map();
   private streams: Map<string, InternalStream> = new Map();
+  private informationFlows: Map<string, InternalStream> = new Map();
   private ports: Map<string, InternalPort> = new Map();
   private materialTemplates: Map<string, InternalMaterialTemplate> = new Map();
   private materialComponents: Map<string, InternalMaterialComponent> = new Map();
@@ -44,6 +45,7 @@ export class BpmnToDexpiTransformer {
     }
     this.processSteps.clear();
     this.streams.clear();
+    this.informationFlows.clear();
     this.ports.clear();
     this.materialTemplates.clear();
     this.materialComponents.clear();
@@ -113,10 +115,16 @@ export class BpmnToDexpiTransformer {
       this.extractSink(event);
     });
 
-    // Extract sequence flows (Streams)
+    // Extract sequence flows (MaterialFlow / EnergyFlow streams)
     const sequenceFlows = Array.from(process.querySelectorAll('sequenceFlow'));
     sequenceFlows.forEach((flow) => {
       this.extractStream(flow);
+    });
+
+    // Extract associations (InformationFlow — between InstrumentationActivity and measured elements)
+    const associations = Array.from(process.querySelectorAll('association'));
+    associations.forEach((assoc) => {
+      this.extractInformationFlow(assoc);
     });
 
     // Extract data objects (MaterialTemplates, MaterialComponents, MaterialStates)
@@ -422,6 +430,44 @@ export class BpmnToDexpiTransformer {
     };
 
     this.streams.set(id, stream);
+  }
+
+  /**
+   * Extract a BPMN Association as a DEXPI InformationFlow.
+   * Per the representation methodology, Associations model non-sequential
+   * information connections (e.g. InstrumentationActivity ↔ measured variable).
+   * The BPMN association carries a dexpi:Stream extensionElement with
+   * streamType='InformationFlow'.
+   */
+  private extractInformationFlow(assoc: Element): void {
+    const id = assoc.getAttribute('id') || '';
+    const name = assoc.getAttribute('name') || id;
+    const sourceRef = assoc.getAttribute('sourceRef') || '';
+    const targetRef = assoc.getAttribute('targetRef') || '';
+
+    if (!sourceRef || !targetRef) return;
+
+    // Only extract if explicitly annotated as InformationFlow
+    // (plain BPMN associations without annotation are ignored)
+    const dexpiData = this.extractDexpiStreamExtension(assoc);
+    if (!dexpiData || (dexpiData.streamType as string) !== 'InformationFlow') return;
+
+    const flow: InternalStream = {
+      id,
+      name,
+      identifier: dexpiData.identifier || id,
+      uid: this.generateUid(),
+      sourceRef,
+      targetRef,
+      sourcePortRef: dexpiData.sourcePortRef,
+      targetPortRef: dexpiData.targetPortRef,
+      streamType: 'InformationFlow',
+      provenance: dexpiData.provenance ?? 'Calculated',
+      range: dexpiData.range ?? 'Design',
+      attributes: (dexpiData.attributes ?? []) as StreamAttribute[],
+    };
+
+    this.informationFlows.set(id, flow);
   }
 
   private extractMaterialData(dataObj: Element): void {
@@ -832,16 +878,20 @@ export class BpmnToDexpiTransformer {
       };
     }
 
-    // Add ProcessConnections (Streams) collection if there are any
-    if (this.streams.size > 0) {
+    // Add ProcessConnections (Streams + InformationFlows) collection if there are any
+    if (this.streams.size > 0 || this.informationFlows.size > 0) {
       if (!processModelObject.Components) {
         processModelObject.Components = [];
       }
+      const allConnections = [
+        ...this.buildStreams(),
+        ...this.buildInformationFlows(),
+      ];
       const streamsComponent = {
         '$': {
           'property': 'ProcessConnections'
         },
-        'Object': this.buildStreams()
+        'Object': allConnections
       };
       
       if (Array.isArray(processModelObject.Components)) {
@@ -1393,6 +1443,59 @@ export class BpmnToDexpiTransformer {
     return streamElements;
   }
 
+  /**
+   * Build DEXPI InformationFlow objects from BPMN associations.
+   * InformationFlow connects InformationPorts between process elements —
+   * typically an InstrumentationActivity port to a measured/controlled element's port.
+   */
+  private buildInformationFlows(): Record<string, unknown>[] {
+    const flowElements: Record<string, unknown>[] = [];
+
+    this.informationFlows.forEach((flow) => {
+      // Find InformationPorts on source and target elements
+      const sourcePort = this.findPortForConnection(
+        flow.sourceRef, flow.sourcePortRef, 'Outlet', 'InformationPort'
+      );
+      const targetPort = this.findPortForConnection(
+        flow.targetRef, flow.targetPortRef, 'Inlet', 'InformationPort'
+      );
+
+      if (!sourcePort || !targetPort) {
+        this.logger.warn(
+          `InformationFlow "${flow.name}" (id=${flow.id}): no matching InformationPorts found ` +
+          `on source "${flow.sourceRef}" or target "${flow.targetRef}". ` +
+          `Add InformationPort entries to both elements to produce DEXPI output.`
+        );
+        return;
+      }
+
+      const dexpiFlow: Record<string, unknown> = {
+        '$': {
+          'id': this.sanitizeId(flow.uid),
+          'type': 'Process/Process.InformationFlow'
+        },
+        'Data': [
+          { '$': { 'property': 'Identifier' }, 'String': flow.identifier }
+        ],
+        'References': [
+          { '$': { 'objects': `#${this.sanitizeId(sourcePort)}`, 'property': 'Source' } },
+          { '$': { 'objects': `#${this.sanitizeId(targetPort)}`, 'property': 'Target' } },
+        ]
+      };
+
+      if (flow.name) {
+        (dexpiFlow.Data as Record<string, unknown>[]).push({
+          '$': { 'property': 'Label' },
+          'String': flow.name
+        });
+      }
+
+      flowElements.push(dexpiFlow);
+    });
+
+    return flowElements;
+  }
+
   private buildMaterialTemplates(): Record<string, unknown>[] {
     const templates: Record<string, unknown>[] = [];
 
@@ -1709,34 +1812,32 @@ export class BpmnToDexpiTransformer {
     return stateTypes;
   }
 
-  private findPortForConnection(elementRef: string, portRef: string | undefined, defaultDirection: string): string | null {
+  private findPortForConnection(
+    elementRef: string,
+    portRef: string | undefined,
+    defaultDirection: string,
+    portType?: string
+  ): string | null {
     const element = this.processSteps.get(elementRef);
     if (!element) return null;
 
     // If specific port is referenced, find it
     if (portRef) {
-      // Port IDs are now prefixed with elementRef, so try both formats
       const prefixedPortRef = `${elementRef}_${portRef}`;
-      
-      // First try the prefixed version (new format)
-      if (this.ports.has(prefixedPortRef)) {
-        return prefixedPortRef;
-      }
-      
-      // Then try the original portRef (in case it's already prefixed)
-      if (this.ports.has(portRef)) {
-        return portRef;
-      }
-      
-      // Finally, try to find a port on this element that matches the portRef name
-      const matchingPort = element.ports.find((p: DexpiPort) => 
+      if (this.ports.has(prefixedPortRef)) return prefixedPortRef;
+      if (this.ports.has(portRef)) return portRef;
+      const matchingPort = element.ports.find((p: DexpiPort) =>
         p.name === portRef || p.portId === portRef || p.portId.endsWith(`_${portRef}`)
       );
       return matchingPort ? matchingPort.portId : null;
     }
 
-    // Otherwise, find first port with matching direction
-    const matchingPort = element.ports.find((p: DexpiPort) => p.direction === defaultDirection);
+    // Find first port matching direction (and portType if specified)
+    const matchingPort = element.ports.find((p: DexpiPort) => {
+      if (p.direction !== defaultDirection) return false;
+      if (portType && p.portType !== portType) return false;
+      return true;
+    });
     return matchingPort ? matchingPort.portId : null;
   }
 

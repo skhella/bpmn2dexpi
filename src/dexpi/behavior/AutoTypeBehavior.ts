@@ -33,7 +33,11 @@ export default class AutoTypeBehavior extends CommandInterceptor {
       console.log('Connection created:', connection);
       // Small delay to ensure connection is fully established
       setTimeout(() => {
-        this.autoSetStreamType(connection);
+        if (connection.type === 'bpmn:Association') {
+          this.autoSetInformationFlow(connection);
+        } else {
+          this.autoSetStreamType(connection);
+        }
       }, 50);
     });
   }
@@ -93,6 +97,33 @@ export default class AutoTypeBehavior extends CommandInterceptor {
 
     // Fire element.changed event to trigger renderer update
     this.eventBus.fire('element.changed', { element });
+  }
+
+  private autoSetInformationFlow(connection: any): void {
+    const businessObject = connection.businessObject;
+
+    let extensionElements = businessObject.extensionElements;
+    if (!extensionElements) {
+      extensionElements = this.moddle.create('bpmn:ExtensionElements');
+      businessObject.extensionElements = extensionElements;
+    }
+    if (!extensionElements.values) {
+      extensionElements.values = [];
+    }
+
+    const existingStream = extensionElements.values.find(
+      (e: any) => e.$type === 'dexpi:Stream' || e.$type === 'Stream'
+    );
+    if (existingStream) return;
+
+    const stream = this.moddle.create('dexpi:Stream');
+    stream.streamType = 'InformationFlow';
+    stream.uid = businessObject.id;
+    stream.identifier = businessObject.id;
+    extensionElements.values.push(stream);
+
+    this.modeling.updateProperties(connection, { extensionElements });
+    this.eventBus.fire('element.changed', { element: connection });
   }
 
   private autoSetStreamType(connection: any): void {
