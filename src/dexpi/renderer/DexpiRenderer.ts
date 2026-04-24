@@ -2,13 +2,16 @@ import BaseRenderer from 'diagram-js/lib/draw/BaseRenderer';
 import { append as svgAppend, attr as svgAttr, create as svgCreate, classes as svgClasses } from 'tiny-svg';
 import type { DexpiPort } from '../moddle';
 import { DexpiProcessClassRegistry } from '../../transformer/DexpiProcessClassRegistry';
+import processXmlRaw from '../../../dexpi-schema-files/Process.xml?raw';
+
+// Build registry once at module load — synchronous, browser-safe (same approach as DexpiPropertiesPanel)
+const RENDERER_REGISTRY = DexpiProcessClassRegistry.fromXml(processXmlRaw);
 
 const HIGH_PRIORITY = 1500;
 
 export default class DexpiRenderer extends BaseRenderer {
   private bpmnRenderer: any;
   private elementRegistry: any;
-  private classRegistry: DexpiProcessClassRegistry;
 
   static $inject = ['eventBus', 'bpmnRenderer', 'elementRegistry'];
 
@@ -16,13 +19,6 @@ export default class DexpiRenderer extends BaseRenderer {
     super(eventBus, HIGH_PRIORITY);
     this.bpmnRenderer = bpmnRenderer;
     this.elementRegistry = elementRegistry;
-    this.classRegistry = DexpiProcessClassRegistry.empty();
-    // Load registry asynchronously — colour logic falls back gracefully if not yet loaded
-    DexpiProcessClassRegistry.load().then(registry => {
-      this.classRegistry = registry;
-    }).catch(() => {
-      // Registry unavailable — colour logic will use root-type fallback
-    });
   }
 
   canRender(element: any): boolean {
@@ -632,15 +628,9 @@ export default class DexpiRenderer extends BaseRenderer {
 
     const dexpiType = dexpiElement.dexpiType;
 
-    // Use the registry to classify by supertype when loaded.
-    // Falls back to root-type string check if registry not yet available.
-    const isInstrumentation = this.classRegistry.size > 0
-      ? this.classRegistry.hasAncestor(dexpiType, 'InstrumentationActivity')
-      : dexpiType === 'InstrumentationActivity';
-
-    const isProcessStep = this.classRegistry.size > 0
-      ? this.classRegistry.hasAncestor(dexpiType, 'ProcessStep')
-      : dexpiType === 'ProcessStep';
+    // Use the registry to classify by supertype — synchronous, loaded at module init
+    const isInstrumentation = RENDERER_REGISTRY.hasAncestor(dexpiType, 'InstrumentationActivity');
+    const isProcessStep = RENDERER_REGISTRY.hasAncestor(dexpiType, 'ProcessStep');
 
     let fillColor: string | null = null;
     let strokeColor: string | null = null;
