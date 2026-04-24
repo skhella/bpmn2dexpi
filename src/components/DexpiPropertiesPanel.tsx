@@ -441,6 +441,25 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                          elementType === 'bpmn:IntermediateCatchEvent';
 
   if (!isDexpiElement) {
+    if (elementType === 'bpmn:DataObjectReference' || elementType === 'bpmn:DataObject') {
+      const name = element.businessObject?.name || '';
+      const isMaterialObj = name === 'MaterialTemplates' || name === 'MaterialStates' || name.includes('MaterialState');
+      return (
+        <div className="dexpi-properties-panel">
+          <h3>Data Object</h3>
+          <div style={{ padding: '8px', backgroundColor: '#f3e5f5', borderRadius: '4px', fontSize: '0.85rem', color: '#6a1b9a' }}>
+            {isMaterialObj
+              ? '📊 Material Data Object — edit via the Materials panel in the toolbar.'
+              : '📋 Data Object — use as MaterialTemplate or MaterialState via the Materials panel.'}
+          </div>
+          {name && (
+            <div className="property-group" style={{ marginTop: '12px' }}>
+              <label>Name: <strong>{name}</strong></label>
+            </div>
+          )}
+        </div>
+      );
+    }
     return <div className="dexpi-properties-panel">Element does not support DEXPI properties</div>;
   }
 
