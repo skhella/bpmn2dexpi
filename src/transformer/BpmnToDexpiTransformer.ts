@@ -972,7 +972,7 @@ export class BpmnToDexpiTransformer {
       ports.push({
         portId: child.getAttribute('portId') || child.getAttribute('id') || this.generateUid(),
         name: child.getAttribute('name') || child.getAttribute('label') || 'Port',
-        portType: (child.getAttribute('portType') || child.getAttribute('type') || 'MaterialPort') as DexpiPort['portType'],
+        type: (child.getAttribute('type') || child.getAttribute('portType') || 'MaterialPort') as DexpiPort['type'],
         direction: (child.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
         anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
         anchorOffset: child.getAttribute('anchorOffset') ? parseFloat(child.getAttribute('anchorOffset')!) : undefined,
