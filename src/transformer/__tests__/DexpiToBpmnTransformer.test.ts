@@ -319,6 +319,18 @@ ${step('MX1', 'Mixing', 'Mixer')}
   });
 
   describe('layout', () => {
+    const shapeBounds = (xml: string, bpmnElement: string) => {
+      const match = xml.match(new RegExp(`<bpmndi:BPMNShape[^>]*bpmnElement="${bpmnElement}"[\\s\\S]*?<dc:Bounds x="(\\d+)" y="(\\d+)"`));
+      if (!match) throw new Error(`No bounds for ${bpmnElement}`);
+      return { x: Number(match[1]), y: Number(match[2]) };
+    };
+
+    const edgeWaypoints = (xml: string, bpmnElement: string) => {
+      const edge = xml.match(new RegExp(`<bpmndi:BPMNEdge[^>]*bpmnElement="${bpmnElement}"[\\s\\S]*?</bpmndi:BPMNEdge>`))?.[0] || '';
+      return [...edge.matchAll(/<di:waypoint x="(-?\d+(?:\.\d+)?)" y="(-?\d+(?:\.\d+)?)"\/>/g)]
+        .map(match => ({ x: Number(match[1]), y: Number(match[2]) }));
+    };
+
     it('assigns distinct x/y positions to all elements', () => {
       const p1 = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const p2 = port('T1_in', 'MaterialPort', 'In', 'MI1');
@@ -335,6 +347,47 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(unique.size).toBeGreaterThan(1);
       // Source should be leftmost
       expect(Math.min(...bounds)).toBeGreaterThanOrEqual(100);
+    });
+
+    it('keeps source-adjacent tasks left of sink-adjacent tasks', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const firstPorts = port('A_in', 'MaterialPort', 'In', 'MI1') + port('A_out', 'MaterialPort', 'Out', 'MO1');
+      const middlePorts = port('B_in', 'MaterialPort', 'In', 'MI1') + port('B_out', 'MaterialPort', 'Out', 'MO1');
+      const lastPorts = port('C_in', 'MaterialPort', 'In', 'MI1') + port('C_out', 'MaterialPort', 'Out', 'MO1');
+      const sinkPort = port('EE_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('A', 'ReactingChemicals', 'A', firstPorts) +
+          step('B', 'Separating', 'B', middlePorts) +
+          step('C', 'Compressing', 'C', lastPorts) +
+          step('EE1', 'Sink', 'Product', sinkPort),
+        stream('S1', 'Stream', 'SE_out', 'A_in') +
+          stream('S2', 'Stream', 'A_out', 'B_in') +
+          stream('S3', 'Stream', 'B_out', 'C_in') +
+          stream('S4', 'Stream', 'C_out', 'EE_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(shapeBounds(out, 'bpmn_A').x).toBeLessThan(shapeBounds(out, 'bpmn_C').x);
+      expect(shapeBounds(out, 'bpmn_C').x).toBeLessThan(shapeBounds(out, 'bpmn_EE1').x);
+    });
+
+    it('routes sequence flows with orthogonal waypoints', () => {
+      const p1 = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const p2 = port('T1_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', p1) + step('T1', 'Pumping', 'Pump', p2),
+        stream('S1', 'Stream', 'SE_out', 'T1_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const waypoints = edgeWaypoints(out, 'bpmn_S1');
+
+      expect(waypoints.length).toBeGreaterThanOrEqual(4);
+      for (let i = 1; i < waypoints.length; i += 1) {
+        const prev = waypoints[i - 1];
+        const cur = waypoints[i];
+        expect(prev.x === cur.x || prev.y === cur.y).toBe(true);
+      }
     });
   });
 

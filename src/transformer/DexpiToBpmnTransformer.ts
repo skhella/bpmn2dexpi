@@ -62,8 +62,8 @@ type LayoutBox = {x: number, y: number, w: number, h: number};
 const TASK_W = 100;
 const TASK_H = 80;
 const EVENT_D = 36;      // diameter
-const H_GAP = 80;        // horizontal gap between elements
-const V_GAP = 60;        // vertical gap between elements
+const H_GAP = 200;       // horizontal gap between elements
+const V_GAP = 100;       // vertical gap between elements
 const MARGIN_X = 100;
 const MARGIN_Y = 100;
 
@@ -253,119 +253,178 @@ export class DexpiToBpmnTransformer {
   private computeLayout(parsed: ParsedDexpi): Map<string, LayoutBox> {
     const { steps, connections } = parsed;
     const visibleSteps = steps.filter(s => !s.parentId && !this.isPortProxyStep(s));
-    const visibleStepIds = new Set(visibleSteps.map(s => s.id));
+    const layout = this.computeStepLayout(visibleSteps, connections);
 
-    // Build adjacency: stepId → downstream stepIds (via connections through ports)
-    // Build port→step map
+    // Place MaterialTemplates as Data Objects below the diagram
+    let dtX = MARGIN_X;
+    const maxBottom = Math.max(
+      MARGIN_Y + TASK_H,
+      ...Array.from(layout.values()).map(pos => pos.y + pos.h)
+    );
+    const dtY = maxBottom + 120;
+    parsed.materialTemplates.forEach(tmpl => {
+      layout.set(`dt_${tmpl.id}`, { x: dtX, y: dtY, w: 36, h: 50 });
+      dtX += 120;
+    });
+
+    return layout;
+  }
+
+  private computeStepLayout(
+    steps: DexpiStep[],
+    connections: DexpiConnection[],
+    hiddenStepIds: Set<string> = new Set()
+  ): Map<string, LayoutBox> {
+    const visibleSteps = steps.filter(step => !hiddenStepIds.has(step.id));
+    const visibleStepIds = new Set(visibleSteps.map(step => step.id));
+    const stepById = new Map(visibleSteps.map(step => [step.id, step]));
+    const layout = new Map<string, LayoutBox>();
+
+    if (visibleSteps.length === 0) return layout;
+
     const portToStep = new Map<string, string>();
-    visibleSteps.forEach(s => s.ports.forEach(p => portToStep.set(p.id, s.id)));
+    visibleSteps.forEach(step => {
+      step.ports.forEach(port => portToStep.set(port.id, step.id));
+    });
 
     const downstream = new Map<string, Set<string>>();
     const upstream = new Map<string, Set<string>>();
-    visibleSteps.forEach(s => { downstream.set(s.id, new Set()); upstream.set(s.id, new Set()); });
+    visibleSteps.forEach(step => {
+      downstream.set(step.id, new Set());
+      upstream.set(step.id, new Set());
+    });
 
     connections.forEach(conn => {
-      // Skip InformationFlow for layout purposes (non-sequential)
       if (conn.dexpiType === 'InformationFlow') return;
       const src = portToStep.get(conn.sourcePortId);
       const tgt = portToStep.get(conn.targetPortId);
-      if (src && tgt && src !== tgt && visibleStepIds.has(src) && visibleStepIds.has(tgt)) {
-        downstream.get(src)?.add(tgt);
-        upstream.get(tgt)?.add(src);
-      }
+      if (!src || !tgt || src === tgt || !visibleStepIds.has(src) || !visibleStepIds.has(tgt)) return;
+      downstream.get(src)?.add(tgt);
+      upstream.get(tgt)?.add(src);
     });
 
-    // BFS from Source nodes to assign layers
-    const layer = new Map<string, number>();
-    const sourceIds = visibleSteps.filter(s => s.dexpiType === 'Source').map(s => s.id);
+    const sources = visibleSteps.filter(step => step.dexpiType === 'Source').map(step => step.id);
+    const sinks = new Set(visibleSteps.filter(step => step.dexpiType === 'Sink').map(step => step.id));
+    const sourceAdjacent = new Set<string>();
+    sources.forEach(sourceId => {
+      downstream.get(sourceId)?.forEach(targetId => {
+        if (stepById.get(targetId)?.dexpiType !== 'Sink') sourceAdjacent.add(targetId);
+      });
+    });
+    const sinkAdjacent = new Set<string>();
+    sinks.forEach(sinkId => {
+      upstream.get(sinkId)?.forEach(sourceId => {
+        if (stepById.get(sourceId)?.dexpiType !== 'Source') sinkAdjacent.add(sourceId);
+      });
+    });
 
-    // If no explicit Source, use nodes with no upstream
-    const roots = sourceIds.length > 0
-      ? sourceIds
-      : visibleSteps.filter(s => (upstream.get(s.id)?.size ?? 0) === 0).map(s => s.id);
+    const processRoots = [...sourceAdjacent].filter(id => !sinkAdjacent.has(id));
+    const fallbackRoots = visibleSteps
+      .filter(step =>
+        step.dexpiType !== 'Source' &&
+        step.dexpiType !== 'Sink' &&
+        (upstream.get(step.id)?.size ?? 0) === 0
+      )
+      .map(step => step.id);
+    const roots = sources.length > 0
+      ? [...sources, ...processRoots]
+      : (fallbackRoots.length > 0 ? fallbackRoots : [visibleSteps.find(step => step.dexpiType !== 'Sink')?.id || visibleSteps[0].id]);
+
+    const layer = new Map<string, number>();
+    sources.forEach(id => layer.set(id, 0));
+    processRoots.forEach(id => layer.set(id, 1));
+    if (sources.length === 0) roots.forEach(id => layer.set(id, 0));
 
     const queue = [...roots];
-    roots.forEach(id => layer.set(id, 0));
-    const visited = new Set<string>(roots);
 
+    const updateCount = new Map<string, number>();
+    const maxLayer = Math.max(1, visibleSteps.length);
     while (queue.length > 0) {
       const cur = queue.shift()!;
       const curLayer = layer.get(cur) ?? 0;
       downstream.get(cur)?.forEach(next => {
+        if (stepById.get(next)?.dexpiType === 'Source') return;
+        if (processRoots.includes(next) && stepById.get(cur)?.dexpiType !== 'Source') return;
+        if (stepById.get(cur)?.dexpiType === 'Source' && !processRoots.includes(next)) return;
+        const proposed = Math.min(maxLayer, curLayer + 1);
         const existing = layer.get(next) ?? -1;
-        if (existing < curLayer + 1) {
-          layer.set(next, curLayer + 1);
-          if (!visited.has(next)) {
-            visited.add(next);
-            queue.push(next);
-          }
+        const count = updateCount.get(next) ?? 0;
+        if (proposed > existing && count < visibleSteps.length) {
+          layer.set(next, proposed);
+          updateCount.set(next, count + 1);
+          queue.push(next);
         }
       });
     }
 
-    // Assign Sink nodes to last layer + 1
-    const maxLayer = Math.max(0, ...Array.from(layer.values()));
-    visibleSteps.forEach(s => {
-      if (!layer.has(s.id)) {
-        layer.set(s.id, s.dexpiType === 'Sink' ? maxLayer + 1 : maxLayer);
-      }
-      if (s.dexpiType === 'Sink') {
-        layer.set(s.id, Math.max(layer.get(s.id) ?? 0, maxLayer + 1));
+    visibleSteps.forEach(step => {
+      if (!layer.has(step.id)) {
+        const fallbackLayer = Math.max(0, ...Array.from(layer.values()));
+        layer.set(step.id, step.dexpiType === 'Sink' ? maxLayer : fallbackLayer);
       }
     });
 
-    // Group steps by layer
+    processRoots.forEach(id => layer.set(id, 1));
+    const sinkLayer = Math.max(1, ...visibleSteps
+      .filter(step => step.dexpiType !== 'Sink')
+      .map(step => layer.get(step.id) ?? 0)) + 1;
+    sinks.forEach(id => layer.set(id, sinkLayer));
+
     const byLayer = new Map<number, string[]>();
-    visibleSteps.forEach(s => {
-      const l = layer.get(s.id) ?? 0;
+    visibleSteps.forEach(step => {
+      const l = layer.get(step.id) ?? 0;
       if (!byLayer.has(l)) byLayer.set(l, []);
-      byLayer.get(l)!.push(s.id);
+      byLayer.get(l)!.push(step.id);
     });
-
-    // Assign x/y coordinates
-    const layout = new Map<string, LayoutBox>();
-    const stepById = new Map(visibleSteps.map(s => [s.id, s]));
 
     const sortedLayers = Array.from(byLayer.keys()).sort((a, b) => a - b);
-    let x = MARGIN_X;
+    const initialOrder = new Map(visibleSteps.map((step, index) => [step.id, index]));
+    const yOrder = new Map<string, number>();
 
-    sortedLayers.forEach(layerIdx => {
+    sortedLayers.forEach((layerIdx, layerPosition) => {
       const ids = byLayer.get(layerIdx)!;
-      // Sort: Sources first, Sinks last, others by id for determinism
       ids.sort((a, b) => {
         const ta = stepById.get(a)?.dexpiType || '';
         const tb = stepById.get(b)?.dexpiType || '';
-        if (ta === 'Source') return -1;
-        if (tb === 'Source') return 1;
-        if (ta === 'Sink') return 1;
-        if (tb === 'Sink') return -1;
-        return a.localeCompare(b);
+        const sourceScore = (id: string) => {
+          const targets = [...(downstream.get(id) || [])];
+          if (targets.length === 0) return initialOrder.get(id) ?? 0;
+          return targets.reduce((sum, target) => sum + (layer.get(target) ?? 0), 0) / targets.length;
+        };
+
+        if (ta === 'Source' && tb === 'Source') {
+          const delta = sourceScore(a) - sourceScore(b);
+          if (delta !== 0) return delta;
+          const labelA = stepById.get(a)?.label || a;
+          const labelB = stepById.get(b)?.label || b;
+          return labelA.localeCompare(labelB);
+        }
+        if (ta === 'Source' && tb !== 'Source') return -1;
+        if (tb === 'Source' && ta !== 'Source') return 1;
+        if (ta === 'Sink' && tb !== 'Sink') return 1;
+        if (tb === 'Sink' && ta !== 'Sink') return -1;
+
+        const barycenter = (id: string) => {
+          const refs = [...(upstream.get(id) || [])].filter(ref => yOrder.has(ref));
+          if (refs.length === 0) return initialOrder.get(id) ?? 0;
+          return refs.reduce((sum, ref) => sum + (yOrder.get(ref) ?? 0), 0) / refs.length;
+        };
+
+        const delta = barycenter(a) - barycenter(b);
+        return delta !== 0 ? delta : a.localeCompare(b);
       });
 
-      let y = MARGIN_Y;
-      let maxW = 0;
-
-      ids.forEach(id => {
+      const x = MARGIN_X + layerPosition * (TASK_W + H_GAP);
+      ids.forEach((id, index) => {
         const step = stepById.get(id)!;
         const isEvent = step.dexpiType === 'Source' || step.dexpiType === 'Sink';
         const w = isEvent ? EVENT_D : TASK_W;
         const h = isEvent ? EVENT_D : TASK_H;
-        // Center events vertically relative to tasks
         const yOffset = isEvent ? (TASK_H - EVENT_D) / 2 : 0;
-        layout.set(id, { x, y: y + yOffset, w, h });
-        y += h + V_GAP;
-        maxW = Math.max(maxW, w);
+        const y = MARGIN_Y + index * (TASK_H + V_GAP) + yOffset;
+        layout.set(id, { x, y, w, h });
+        yOrder.set(id, index);
       });
-
-      x += maxW + H_GAP;
-    });
-
-    // Place MaterialTemplates as Data Objects below the diagram
-    let dtX = MARGIN_X;
-    const dtY = MARGIN_Y + (Math.max(1, ...Array.from(byLayer.values()).map(ids => ids.length)) * (TASK_H + V_GAP)) + 80;
-    parsed.materialTemplates.forEach(tmpl => {
-      layout.set(`dt_${tmpl.id}`, { x: dtX, y: dtY, w: 36, h: 50 });
-      dtX += 120;
     });
 
     return layout;
@@ -429,22 +488,8 @@ export class DexpiToBpmnTransformer {
       if (!map.has(owner)) map.set(owner, []);
       map.get(owner)!.push(xml);
     };
-    const stepSize = (step: DexpiStep) => {
-      const isEvent = step.dexpiType === 'Source' || step.dexpiType === 'Sink';
-      return { w: isEvent ? EVENT_D : TASK_W, h: isEvent ? EVENT_D : TASK_H };
-    };
     const buildChildLayout = (owner: DexpiStep) => {
-      const childLayout = new Map<string, LayoutBox>();
-      visibleChildren(owner).forEach((child, index) => {
-        const { w, h } = stepSize(child);
-        const yOffset = child.dexpiType === 'Source' || child.dexpiType === 'Sink' ? (TASK_H - EVENT_D) / 2 : 0;
-        childLayout.set(child.id, {
-          x: MARGIN_X + index * (TASK_W + H_GAP),
-          y: MARGIN_Y + yOffset,
-          w,
-          h,
-        });
-      });
+      const childLayout = this.computeStepLayout(visibleChildren(owner), connections, hiddenStepIds);
       ownerLayouts.set(owner.id, childLayout);
       visibleChildren(owner)
         .filter(child => child.children.length > 0)
@@ -455,6 +500,41 @@ export class DexpiToBpmnTransformer {
     steps
       .filter(step => !hiddenStepIds.has(step.id) && step.children.length > 0)
       .forEach(buildChildLayout);
+
+    const routeSequenceFlow = (srcPos: LayoutBox, tgtPos: LayoutBox, lane: number) => {
+      const srcX = srcPos.x + srcPos.w;
+      const srcY = srcPos.y + srcPos.h / 2;
+      const tgtX = tgtPos.x;
+      const tgtY = tgtPos.y + tgtPos.h / 2;
+      const laneOffset = (lane % 6) * 18;
+
+      if (tgtX >= srcX + 50) {
+        const bendX = Math.max(srcX + 35, tgtX - 60 - laneOffset);
+        return [
+          { x: srcX, y: srcY },
+          { x: bendX, y: srcY },
+          { x: bendX, y: tgtY },
+          { x: tgtX, y: tgtY },
+        ];
+      }
+
+      const detourX = srcX + 60 + laneOffset;
+      const detourY = Math.min(srcPos.y, tgtPos.y) - 55 - laneOffset;
+      return [
+        { x: srcX, y: srcY },
+        { x: detourX, y: srcY },
+        { x: detourX, y: detourY },
+        { x: tgtX, y: detourY },
+        { x: tgtX, y: tgtY },
+      ];
+    };
+
+    const edgeLaneByOwner = new Map<string, number>();
+    const nextLane = (key: string) => {
+      const lane = edgeLaneByOwner.get(key) ?? 0;
+      edgeLaneByOwner.set(key, lane + 1);
+      return lane;
+    };
 
     const extensionXml = (step: DexpiStep, indent: string): string => {
       // Extension elements — assign anchorSide based on direction and spread offset
@@ -535,20 +615,17 @@ ${indent}</bpmn:task>`;
   </bpmn:extensionElements>
 </bpmn:sequenceFlow>`);
 
-      // Edge waypoints: simple straight line
       const ownerLayout = ownerLayouts.get(key) || layout;
       const srcPos = ownerLayout.get(src);
       const tgtPos = ownerLayout.get(tgt);
       if (!srcPos || !tgtPos) return;
 
-      const srcCx = srcPos.x + srcPos.w;
-      const srcCy = srcPos.y + srcPos.h / 2;
-      const tgtCx = tgtPos.x;
-      const tgtCy = tgtPos.y + tgtPos.h / 2;
+      const waypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key))
+        .map(point => `        <di:waypoint x="${point.x}" y="${point.y}"/>`)
+        .join('\n');
 
       const edgeXml = `      <bpmndi:BPMNEdge id="${connId}_di" bpmnElement="${connId}">
-        <di:waypoint x="${srcCx}" y="${srcCy}"/>
-        <di:waypoint x="${tgtCx}" y="${tgtCy}"/>
+${waypoints}
         <bpmndi:BPMNLabel/>
       </bpmndi:BPMNEdge>`;
       if (key === rootOwner) {

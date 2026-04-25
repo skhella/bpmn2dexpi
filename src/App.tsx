@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, type MouseEvent } from 'react';
 import BpmnModeler from 'bpmn-js/lib/Modeler';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css';
@@ -89,7 +89,28 @@ function App() {
   const [showNeo4jModal, setShowNeo4jModal] = useState(false);
   const [neo4jExporting, setNeo4jExporting] = useState(false);
   const [neo4jProgress, setNeo4jProgress] = useState<{ current: number; total: number; stage: string } | null>(null);
+  const [propertiesPanelWidth, setPropertiesPanelWidth] = useState<number>(350);
   const isNavigatingBack = useRef(false);
+
+  const startPropertiesPanelResize = (event: MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const resize = (moveEvent: globalThis.MouseEvent) => {
+      const nextWidth = window.innerWidth - moveEvent.clientX;
+      const clampedWidth = Math.min(720, Math.max(280, nextWidth));
+      setPropertiesPanelWidth(clampedWidth);
+    };
+
+    const stopResize = () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResize);
+      document.body.classList.remove('resizing-properties-panel');
+    };
+
+    document.body.classList.add('resizing-properties-panel');
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResize);
+  };
   
   // Update global flag for port visibility
   useEffect(() => {
@@ -756,7 +777,15 @@ function App() {
           </>
         )}
         
-        <div className="properties-panel">
+        <div
+          className="properties-panel"
+          style={{ width: propertiesPanelWidth, minWidth: propertiesPanelWidth }}
+        >
+          <div
+            className="properties-panel-resizer"
+            onMouseDown={startPropertiesPanelResize}
+            title="Resize properties panel"
+          />
           {selectedMaterialItem ? (
             <MaterialEditorPanel 
               item={selectedMaterialItem} 
