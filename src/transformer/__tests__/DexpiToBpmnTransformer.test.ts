@@ -119,6 +119,34 @@ describe('DexpiToBpmnTransformer', () => {
       expect(out).toContain('uid="uid_pump1"');
       expect(out).toContain('identifier="uid_pump1"');
     });
+
+    it('omits Source/Sink steps that are only visual port proxies', () => {
+      const realSourcePort = port('ReactantA_out', 'MaterialPort', 'Out', 'MO1');
+      const proxySourcePort = port('MI1_proxy_out', 'MaterialPort', 'Out', 'MI1');
+      const taskPorts =
+        port('Pump_in', 'MaterialPort', 'In', 'MI1') +
+        port('Pump_out', 'MaterialPort', 'Out', 'MO1');
+      const proxySinkPort = port('MO1_proxy_in', 'MaterialPort', 'In', 'MO1');
+      const xml = dexpi(
+        step('ReactantA', 'Source', 'Reactant A', realSourcePort) +
+        step('MI1Proxy', 'Source', 'MI1', proxySourcePort) +
+        step('Pump', 'Pumping', 'Pump', taskPorts) +
+        step('MO1Proxy', 'Sink', 'MO1', proxySinkPort),
+        stream('RealFeed', 'Stream', 'ReactantA_out', 'Pump_in') +
+        stream('ProxyFeed', 'Stream', 'MI1_proxy_out', 'Pump_in') +
+        stream('ProxyOut', 'Stream', 'Pump_out', 'MO1_proxy_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(out).toContain('<bpmn:startEvent id="bpmn_ReactantA"');
+      expect(out).toContain('<bpmn:sequenceFlow id="bpmn_RealFeed"');
+      expect(out).not.toContain('id="bpmn_MI1Proxy"');
+      expect(out).not.toContain('id="bpmn_MO1Proxy"');
+      expect(out).not.toContain('id="bpmn_ProxyFeed"');
+      expect(out).not.toContain('id="bpmn_ProxyOut"');
+      expect(out).toContain('portId="Pump_in"');
+      expect(out).toContain('portId="Pump_out"');
+    });
   });
 
   describe('subprocess mapping', () => {
