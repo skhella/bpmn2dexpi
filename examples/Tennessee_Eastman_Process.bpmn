@@ -116,7 +116,16 @@
         </bpmn:task>
         <bpmn:dataObjectReference id="DataObjectReference_1hkzsql" name="Temperature" dataObjectRef="DataObject_1mlaa5n" />
         <bpmn:dataObject id="DataObject_1mlaa5n" />
-      </bpmn:subProcess>
+      
+        <bpmn:dataInputAssociation id="DataInputAssociation_pressure_rc">
+          <bpmn:sourceRef>DataObjectReference_06451do</bpmn:sourceRef>
+          <bpmn:targetRef>Property_0cu82b1</bpmn:targetRef>
+        </bpmn:dataInputAssociation>
+        <bpmn:dataInputAssociation id="DataInputAssociation_composition_rc">
+          <bpmn:sourceRef>DataObjectReference_1vk8nhv</bpmn:sourceRef>
+          <bpmn:targetRef>Property_0cu82b1</bpmn:targetRef>
+        </bpmn:dataInputAssociation>
+    </bpmn:subProcess>
       <bpmn:startEvent id="Event_15gcv4n" name="MI5">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="Source" identifier="Event_15gcv4n" uid="uid_Event_15gcv4n"/>
@@ -174,11 +183,6 @@
             <port id="MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" />
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_1hd54gp</bpmn:incoming>
-        <bpmn:property id="Property_1ge2tgs" name="__targetRef_placeholder" />
-        <bpmn:dataInputAssociation id="DataInputAssociation_0pdtdvl">
-          <bpmn:sourceRef>DataObjectReference_06451do</bpmn:sourceRef>
-          <bpmn:targetRef>Property_1ge2tgs</bpmn:targetRef>
-        </bpmn:dataInputAssociation>
       </bpmn:endEvent>
       <bpmn:task id="Activity_0msgfdr" name="ReactingChemicals">
         <bpmn:extensionElements>
@@ -618,11 +622,6 @@
             <port id="MO2_port" name="MO2" type="MaterialPort" direction="Inlet" label="MO2" />
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_1queo8p</bpmn:incoming>
-        <bpmn:property id="Property_0usz9lv" name="__targetRef_placeholder" />
-        <bpmn:dataInputAssociation id="DataInputAssociation_1ry3lyg">
-          <bpmn:sourceRef>DataObjectReference_1vk8nhv</bpmn:sourceRef>
-          <bpmn:targetRef>Property_0usz9lv</bpmn:targetRef>
-        </bpmn:dataInputAssociation>
       </bpmn:endEvent>
       <bpmn:task id="Activity_0dvp1ez" name="RegulatingFlow">
         <bpmn:extensionElements>
@@ -2177,7 +2176,7 @@
           <ns4:Bounds x="771" y="217" width="58" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="DataInputAssociation_0pdtdvl_di" bpmnElement="DataInputAssociation_0pdtdvl">
+      <bpmndi:BPMNEdge id="DataInputAssociation_pressure_rc_di" bpmnElement="DataInputAssociation_pressure_rc">
         <ns5:waypoint x="1241" y="745" />
         <ns5:waypoint x="1156" y="507" />
       </bpmndi:BPMNEdge>
@@ -2525,7 +2524,7 @@
         <ns5:waypoint x="478" y="577" />
         <ns5:waypoint x="566" y="511" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="DataInputAssociation_1ry3lyg_di" bpmnElement="DataInputAssociation_1ry3lyg">
+      <bpmndi:BPMNEdge id="DataInputAssociation_composition_rc_di" bpmnElement="DataInputAssociation_composition_rc">
         <ns5:waypoint x="1387" y="565" />
         <ns5:waypoint x="1403" y="509" />
       </bpmndi:BPMNEdge>
