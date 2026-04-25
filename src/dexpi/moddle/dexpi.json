@@ -9,7 +9,9 @@
     {
       "name": "Element",
       "meta": {
-        "allowedIn": ["bpmn:ExtensionElements"]
+        "allowedIn": [
+          "bpmn:ExtensionElements"
+        ]
       },
       "properties": [
         {
@@ -83,6 +85,11 @@
       "name": "Port",
       "properties": [
         {
+          "name": "id",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
           "name": "portId",
           "isAttr": true,
           "type": "String"
@@ -94,6 +101,11 @@
         },
         {
           "name": "portType",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "type",
           "isAttr": true,
           "type": "String"
         },
@@ -131,14 +143,23 @@
           "name": "superReference",
           "isAttr": true,
           "type": "String"
+        },
+        {
+          "name": "label",
+          "isAttr": true,
+          "type": "String"
         }
       ]
     },
     {
       "name": "Stream",
-      "superClass": ["bpmn:BaseElement"],
+      "superClass": [
+        "bpmn:BaseElement"
+      ],
       "meta": {
-        "allowedIn": ["bpmn:ExtensionElements"]
+        "allowedIn": [
+          "bpmn:ExtensionElements"
+        ]
       },
       "properties": [
         {
@@ -235,9 +256,13 @@
     },
     {
       "name": "InformationFlow",
-      "superClass": ["bpmn:BaseElement"],
+      "superClass": [
+        "bpmn:BaseElement"
+      ],
       "meta": {
-        "allowedIn": ["bpmn:ExtensionElements"]
+        "allowedIn": [
+          "bpmn:ExtensionElements"
+        ]
       },
       "properties": [
         {
@@ -269,9 +294,13 @@
     },
     {
       "name": "MaterialTemplate",
-      "superClass": ["bpmn:BaseElement"],
+      "superClass": [
+        "bpmn:BaseElement"
+      ],
       "meta": {
-        "allowedIn": ["bpmn:ExtensionElements"]
+        "allowedIn": [
+          "bpmn:ExtensionElements"
+        ]
       },
       "properties": [
         {
@@ -318,9 +347,13 @@
     },
     {
       "name": "MaterialState",
-      "superClass": ["bpmn:BaseElement"],
+      "superClass": [
+        "bpmn:BaseElement"
+      ],
       "meta": {
-        "allowedIn": ["bpmn:ExtensionElements"]
+        "allowedIn": [
+          "bpmn:ExtensionElements"
+        ]
       },
       "properties": [
         {
@@ -382,9 +415,13 @@
     },
     {
       "name": "Case",
-      "superClass": ["bpmn:BaseElement"],
+      "superClass": [
+        "bpmn:BaseElement"
+      ],
       "meta": {
-        "allowedIn": ["bpmn:ExtensionElements"]
+        "allowedIn": [
+          "bpmn:ExtensionElements"
+        ]
       },
       "properties": [
         {
@@ -400,9 +437,13 @@
     },
     {
       "name": "CaseName",
-      "superClass": ["bpmn:BaseElement"],
+      "superClass": [
+        "bpmn:BaseElement"
+      ],
       "meta": {
-        "allowedIn": ["Case"]
+        "allowedIn": [
+          "Case"
+        ]
       },
       "properties": [
         {
