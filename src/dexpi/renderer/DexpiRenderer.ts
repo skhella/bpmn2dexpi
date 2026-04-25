@@ -381,6 +381,10 @@ export default class DexpiRenderer extends BaseRenderer {
     // Same logic as MaterialPort/SequenceFlow matching but using the DataObject's
     // name: an IPI_Composition port matches the association whose DataObject is "Composition".
     if (port.type === 'InformationPort' || (port as any).type === 'InformationPort') {
+      // Respect manual positioning — same as calculatePortPosition does for all ports
+      if (port.anchorX !== undefined && port.anchorY !== undefined) {
+        return { x: port.anchorX, y: port.anchorY };
+      }
       // InformationPorts only render when a visual association connection exists.
       // If no matching DataObject association is found, return null → port is not drawn.
       // This prevents export-only IPI ports from cluttering subprocess boundaries.
