@@ -365,6 +365,7 @@ function App() {
 
       // Now set the modeler state - the app is ready
       setModeler(bpmnModeler);
+      (window as any).__modeler = bpmnModeler;
       if (savedXml) setValidationMessage('Restored previous session');
 
       // Reanchor ports that lack explicit anchor positions after a short
