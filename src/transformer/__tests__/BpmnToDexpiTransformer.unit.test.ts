@@ -16,7 +16,7 @@ function bpmn(processBody: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
-             xmlns:dexpi="http://dexpi.org/bpmn-extension/1.0"
+             xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
              targetNamespace="http://example.com/bpmn">
   <process id="Process_1" isExecutable="false">
     ${processBody}

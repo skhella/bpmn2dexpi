@@ -16,6 +16,39 @@ import './App.css';
 
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
 
+/**
+ * Normalise BPMN XML before feeding it to bpmn-js so both pure Camunda BPMNs
+ * and our own annotated BPMNs import/export cleanly:
+ *
+ * - If bare <ports>/<port> elements exist (no namespace prefix), convert them
+ *   to <dexpi:ports>/<dexpi:port> so bpmn-js can match them to the known
+ *   dexpi namespace URI when serialising (avoiding the "no namespace uri for
+ *   prefix ns0" error).
+ * - If a dexpi namespace declaration is missing entirely, inject it so the
+ *   prefix stays valid after the prefix conversion above.
+ * - Pure Camunda BPMNs (no ports, no dexpi annotations) pass through unchanged.
+ */
+function preprocessBpmnXml(xml: string): string {
+  const hasBarePortElements = /<ports>|<port\b/.test(xml);
+  if (!hasBarePortElements) return xml;
+
+  let result = xml;
+
+  // Ensure xmlns:dexpi is declared so the dexpi: prefix we're about to add is valid.
+  if (!result.includes('xmlns:dexpi=')) {
+    result = result.replace(
+      /(<(?:bpmn:)?definitions\b[^>]*?)(\/?>)/,
+      `$1 xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"$2`
+    );
+  }
+
+  return result
+    .replace(/<ports>/g, '<dexpi:ports>')
+    .replace(/<\/ports>/g, '</dexpi:ports>')
+    .replace(/<port\b/g, '<dexpi:port')
+    .replace(/<\/port>/g, '</dexpi:port>');
+}
+
 const initialDiagram = '<?xml version="1.0" encoding="UTF-8"?>\n' +
   '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"\n' +
   '                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"\n' +
@@ -346,7 +379,7 @@ function App() {
     const savedXml = localStorage.getItem(AUTOSAVE_KEY);
     const diagramToLoad = savedXml || initialDiagram;
 
-    bpmnModeler.importXML(diagramToLoad).then(() => {
+    bpmnModeler.importXML(preprocessBpmnXml(diagramToLoad)).then(() => {
       if (isDestroyed) return;
       
       const canvas = bpmnModeler.get('canvas') as any;
@@ -371,7 +404,7 @@ function App() {
       // If autosaved data was corrupted, fall back to empty diagram
       if (savedXml) {
         localStorage.removeItem(AUTOSAVE_KEY);
-        bpmnModeler.importXML(initialDiagram).then(() => {
+        bpmnModeler.importXML(preprocessBpmnXml(initialDiagram)).then(() => {
           setModeler(bpmnModeler);
         });
       } else {
@@ -517,7 +550,7 @@ function App() {
 
       try {
         const text = await file.text();
-        await modeler.importXML(text);
+        await modeler.importXML(preprocessBpmnXml(text));
         // Save imported diagram immediately
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
@@ -538,7 +571,7 @@ function App() {
   const handleNewDiagram = async () => {
     if (!modeler) return;
     if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
-    await modeler.importXML(initialDiagram);
+    await modeler.importXML(preprocessBpmnXml(initialDiagram));
     localStorage.removeItem(AUTOSAVE_KEY);
     setPlaneStack([]);
     setCurrentPlane(null);

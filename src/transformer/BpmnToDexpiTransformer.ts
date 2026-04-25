@@ -939,10 +939,22 @@ export class BpmnToDexpiTransformer {
   }
 
   private extractPortsFromExtensionElements(extensionElements: Element): DexpiPort[] {
-    const portsContainer = extensionElements.querySelector('ports');
+    // Find by local name so both <ports> and <dexpi:ports> are matched.
+    let portsContainer: Element | null = null;
+    for (let i = 0; i < extensionElements.children.length; i++) {
+      const child = extensionElements.children[i];
+      const localName = child.localName || child.tagName.split(':').pop() || '';
+      if (localName === 'ports') { portsContainer = child; break; }
+    }
     if (!portsContainer) return [];
-    
-    const ports = Array.from(portsContainer.querySelectorAll('port'));
+
+    // Collect <port> / <dexpi:port> children by local name.
+    const ports: Element[] = [];
+    for (let i = 0; i < portsContainer.children.length; i++) {
+      const child = portsContainer.children[i];
+      const localName = child.localName || child.tagName.split(':').pop() || '';
+      if (localName === 'port') ports.push(child);
+    }
     if (ports.length === 0) return [];
     
     return ports.map((port) => ({
