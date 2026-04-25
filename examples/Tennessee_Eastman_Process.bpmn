@@ -44,14 +44,22 @@
           <bpmn:incoming>Flow_1b869xp</bpmn:incoming>
           <bpmn:outgoing>Flow_0wbkd91</bpmn:outgoing>
         </bpmn:task>
-        <bpmn:sequenceFlow id="Flow_0wbkd91" name="MO1 - MI1" sourceRef="Activity_1pzszmn" targetRef="Activity_03d7qhp"/>
+        <bpmn:sequenceFlow id="Flow_0wbkd91" name="MO1 - MI1" sourceRef="Activity_1pzszmn" targetRef="Activity_03d7qhp">
+          <bpmn:extensionElements>
+            <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
         <bpmn:task id="Activity_03d7qhp" name="RemovingThermalEnergy">
           <bpmn:extensionElements>
             <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_03d7qhp" uid="uid_Activity_03d7qhp"><dexpi:port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port id="TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/></dexpi:element></bpmn:extensionElements>
           <bpmn:incoming>Flow_0wbkd91</bpmn:incoming>
           <bpmn:outgoing>Flow_04ncgwf</bpmn:outgoing>
         </bpmn:task>
-        <bpmn:sequenceFlow id="Flow_04ncgwf" name="MO1 - MI1" sourceRef="Activity_03d7qhp" targetRef="Activity_0iie89x"/>
+        <bpmn:sequenceFlow id="Flow_04ncgwf" name="MO1 - MI1" sourceRef="Activity_03d7qhp" targetRef="Activity_0iie89x">
+          <bpmn:extensionElements>
+            <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
         <bpmn:task id="Activity_0iie89x" name="ExchangingThermalEnergy">
           <bpmn:extensionElements>
             <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0iie89x" uid="uid_Activity_0iie89x"><dexpi:port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port id="TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/><dexpi:port portId="IPI_Temperature_Activity_0iie89x" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5"/></dexpi:element></bpmn:extensionElements>
@@ -63,7 +71,11 @@
             <bpmn:targetRef>Property_0cu82b1</bpmn:targetRef>
           </bpmn:dataInputAssociation>
         </bpmn:task>
-        <bpmn:sequenceFlow id="Flow_1b869xp" name="MO1 - MI1" sourceRef="Activity_0iie89x" targetRef="Activity_1pzszmn"/>
+        <bpmn:sequenceFlow id="Flow_1b869xp" name="MO1 - MI1" sourceRef="Activity_0iie89x" targetRef="Activity_1pzszmn">
+          <bpmn:extensionElements>
+            <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
         <bpmn:task id="Activity_18ratv8" name="MeasuringProcessVariable">
           <bpmn:extensionElements>
             <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_18ratv8" uid="uid_Activity_18ratv8"><dexpi:port id="IPO_Temperature" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/></dexpi:element></bpmn:extensionElements>
@@ -145,9 +157,21 @@
           <bpmn:targetRef>Property_0h0ehut</bpmn:targetRef>
         </bpmn:dataInputAssociation>
       </bpmn:task>
-      <bpmn:sequenceFlow id="Flow_1hd54gp" name="MO1 - MO1" sourceRef="Activity_0msgfdr" targetRef="Event_062k0v7"/>
-      <bpmn:sequenceFlow id="Flow_0wulh9g" name="TEO1 - TEI1" sourceRef="Activity_0msgfdr" targetRef="Activity_11rkrj8"/>
-      <bpmn:sequenceFlow id="Flow_11ko4yy" name="MEO1 - MEI1" sourceRef="Activity_1d6n7np" targetRef="Activity_0msgfdr"/>
+      <bpmn:sequenceFlow id="Flow_1hd54gp" name="MO1 - MO1" sourceRef="Activity_0msgfdr" targetRef="Event_062k0v7">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MO1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0wulh9g" name="TEO1 - TEI1" sourceRef="Activity_0msgfdr" targetRef="Activity_11rkrj8">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="TEO1_port" targetPortRef="TEI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_11ko4yy" name="MEO1 - MEI1" sourceRef="Activity_1d6n7np" targetRef="Activity_0msgfdr">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MEO1_port" targetPortRef="MEI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
       <bpmn:task id="Activity_16sydhz" name="TransportingFluids">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="TransportingFluids" identifier="Activity_16sydhz" uid="uid_Activity_16sydhz"><dexpi:port id="MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2"/><dexpi:port id="MI3_port" name="MI3" type="MaterialPort" direction="Inlet" label="MI3"/><dexpi:port id="MI4_port" name="MI4" type="MaterialPort" direction="Inlet" label="MI4"/><dexpi:port id="MI5_port" name="MI5" type="MaterialPort" direction="Inlet" label="MI5"/><dexpi:port id="MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
@@ -160,6 +184,7 @@
       </bpmn:task>
       <bpmn:sequenceFlow id="Flow_0etbhjc" name="MO1 - Stream 6 - MI1" sourceRef="Activity_16sydhz" targetRef="Activity_0msgfdr">
         <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
           <Stream Identifier="6" name="Reactor feed">
             <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
             <MaterialStateReference uidRef="uuid_MS_S6"/>
@@ -174,11 +199,31 @@
           </Stream>
         </bpmn:extensionElements>
       </bpmn:sequenceFlow>
-      <bpmn:sequenceFlow id="Flow_0em311i" name="MI1 - MI1" sourceRef="Event_1npicji" targetRef="Activity_16sydhz"/>
-      <bpmn:sequenceFlow id="Flow_0lp976q" name="MI2 - MI2" sourceRef="Event_1p0vvqc" targetRef="Activity_16sydhz"/>
-      <bpmn:sequenceFlow id="Flow_0sk9xqb" name="MI3 - MI3" sourceRef="Event_17fqava" targetRef="Activity_16sydhz"/>
-      <bpmn:sequenceFlow id="Flow_0ey8rro" name="MI4 - MI4" sourceRef="Event_13mofb0" targetRef="Activity_16sydhz"/>
-      <bpmn:sequenceFlow id="Flow_1cam6h1" name="MI5 - MI5" sourceRef="Event_15gcv4n" targetRef="Activity_16sydhz"/>
+      <bpmn:sequenceFlow id="Flow_0em311i" name="MI1 - MI1" sourceRef="Event_1npicji" targetRef="Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MI1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0lp976q" name="MI2 - MI2" sourceRef="Event_1p0vvqc" targetRef="Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MI2_port" targetPortRef="MI2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0sk9xqb" name="MI3 - MI3" sourceRef="Event_17fqava" targetRef="Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MI3_port" targetPortRef="MI3_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0ey8rro" name="MI4 - MI4" sourceRef="Event_13mofb0" targetRef="Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MI4_port" targetPortRef="MI4_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_1cam6h1" name="MI5 - MI5" sourceRef="Event_15gcv4n" targetRef="Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MI5_port" targetPortRef="MI5_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
       <bpmn:task id="Activity_07twnf1" name="ControllingProcessVariable">
         <bpmn:extensionElements><dexpi:element dexpiType="ControllingProcessVariable" identifier="Activity_07twnf1" uid="uid_Activity_07twnf1"><dexpi:port portId="IPO_RotationalFrequency_Activity_07twnf1" name="IPO_RotationalFrequency" type="InformationPort" direction="Outlet" label="RotationalFrequency" anchorSide="right" anchorOffset="0.5"/></dexpi:element></bpmn:extensionElements><bpmn:dataOutputAssociation id="DataOutputAssociation_1nqcm2o">
           <bpmn:targetRef>DataObjectReference_1en8e3c</bpmn:targetRef>
@@ -317,14 +362,46 @@
           <dexpi:element dexpiType="Sink" identifier="Event_1f01vwi" uid="uid_Event_1f01vwi"><dexpi:port id="MO2_port" name="MO2" type="MaterialPort" direction="Inlet" label="MO2"/></dexpi:element></bpmn:extensionElements>
         <bpmn:incoming>Flow_0g6xxqk</bpmn:incoming>
       </bpmn:endEvent>
-      <bpmn:sequenceFlow id="Flow_0kavtkx" name="MI1 - MI1" sourceRef="Event_1f801tk" targetRef="Activity_0x085ms"/>
-      <bpmn:sequenceFlow id="Flow_09m76dx" name="MO1 - MI1" sourceRef="Activity_0x085ms" targetRef="Activity_1ozs40z"/>
-      <bpmn:sequenceFlow id="Flow_0ny5wle" name="MO2 - MI1" sourceRef="Activity_0x085ms" targetRef="Activity_11jo3tg"/>
-      <bpmn:sequenceFlow id="Flow_0abomlp" name="MO2 - MI1" sourceRef="Activity_1ozs40z" targetRef="Activity_0pq2475"/>
-      <bpmn:sequenceFlow id="Flow_1ynvptb" name="MO1 - MO3" sourceRef="Activity_1ozs40z" targetRef="Event_0rjd6py"/>
-      <bpmn:sequenceFlow id="Flow_0lglh82" name="MO1 - MO1" sourceRef="Activity_0pq2475" targetRef="Event_0ztd5pv"/>
-      <bpmn:sequenceFlow id="Flow_1alxw5e" name="MO1 - MI1" sourceRef="Activity_11jo3tg" targetRef="Activity_1g6kz8f"/>
-      <bpmn:sequenceFlow id="Flow_0g6xxqk" name="MO1 - MO2" sourceRef="Activity_1g6kz8f" targetRef="Event_1f01vwi"/>
+      <bpmn:sequenceFlow id="Flow_0kavtkx" name="MI1 - MI1" sourceRef="Event_1f801tk" targetRef="Activity_0x085ms">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MI1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_09m76dx" name="MO1 - MI1" sourceRef="Activity_0x085ms" targetRef="Activity_1ozs40z">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0ny5wle" name="MO2 - MI1" sourceRef="Activity_0x085ms" targetRef="Activity_11jo3tg">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0abomlp" name="MO2 - MI1" sourceRef="Activity_1ozs40z" targetRef="Activity_0pq2475">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_1ynvptb" name="MO1 - MO3" sourceRef="Activity_1ozs40z" targetRef="Event_0rjd6py">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MO3_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0lglh82" name="MO1 - MO1" sourceRef="Activity_0pq2475" targetRef="Event_0ztd5pv">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MO1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_1alxw5e" name="MO1 - MI1" sourceRef="Activity_11jo3tg" targetRef="Activity_1g6kz8f">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0g6xxqk" name="MO1 - MO2" sourceRef="Activity_1g6kz8f" targetRef="Event_1f01vwi">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MO2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
       <bpmn:task id="Activity_09ul91z" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_09ul91z" uid="uid_Activity_09ul91z"><dexpi:port id="IPO_Temperature" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/></dexpi:element></bpmn:extensionElements>
@@ -479,21 +556,73 @@
           <bpmn:incoming>Flow_0jts504</bpmn:incoming>
           <bpmn:outgoing>Flow_0oulgq8</bpmn:outgoing>
         </bpmn:task>
-        <bpmn:sequenceFlow id="Flow_0oulgq8" name="MO1 - MI1" sourceRef="Activity_0b0nu52" targetRef="Activity_0uicpy3"/>
-        <bpmn:sequenceFlow id="Flow_1dz905k" name="MO1 - MI1" sourceRef="Activity_0uicpy3" targetRef="Activity_1nyhzy8"/>
-        <bpmn:sequenceFlow id="Flow_0jts504" name="MO1 - MI1" sourceRef="Activity_1nyhzy8" targetRef="Activity_0b0nu52"/>
+        <bpmn:sequenceFlow id="Flow_0oulgq8" name="MO1 - MI1" sourceRef="Activity_0b0nu52" targetRef="Activity_0uicpy3">
+          <bpmn:extensionElements>
+            <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
+        <bpmn:sequenceFlow id="Flow_1dz905k" name="MO1 - MI1" sourceRef="Activity_0uicpy3" targetRef="Activity_1nyhzy8">
+          <bpmn:extensionElements>
+            <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
+        <bpmn:sequenceFlow id="Flow_0jts504" name="MO1 - MI1" sourceRef="Activity_1nyhzy8" targetRef="Activity_0b0nu52">
+          <bpmn:extensionElements>
+            <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
       </bpmn:subProcess>
-      <bpmn:sequenceFlow id="Flow_0i60ys0" name="MI2 - MI2" sourceRef="Event_0xub7hl" targetRef="Activity_0uxjdkn"/>
-      <bpmn:sequenceFlow id="Flow_17ox75z" name="MO1 - MI1" sourceRef="Activity_0dvp1ez" targetRef="Activity_0uxjdkn"/>
-      <bpmn:sequenceFlow id="Flow_0idmwg8" name="MO1 - MI3" sourceRef="Activity_1uqovub" targetRef="Activity_0uxjdkn"/>
-      <bpmn:sequenceFlow id="Flow_0xyvyyt" name="MO2 - MI1" sourceRef="Activity_0uxjdkn" targetRef="Activity_1kyou8x"/>
-      <bpmn:sequenceFlow id="Flow_1iwrfte" name="MO1 - MO1" sourceRef="Activity_0uxjdkn" targetRef="Event_1gcqtzr"/>
-      <bpmn:sequenceFlow id="Flow_16mvdb6" name="MO2 - MI1" sourceRef="Activity_1kyou8x" targetRef="Activity_1uqovub"/>
-      <bpmn:sequenceFlow id="Flow_0ii62nn" name="TEO1 -TEI1" sourceRef="Activity_0xhunfw" targetRef="Activity_1uqovub"/>
+      <bpmn:sequenceFlow id="Flow_0i60ys0" name="MI2 - MI2" sourceRef="Event_0xub7hl" targetRef="Activity_0uxjdkn">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MI2_port" targetPortRef="MI2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_17ox75z" name="MO1 - MI1" sourceRef="Activity_0dvp1ez" targetRef="Activity_0uxjdkn">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0idmwg8" name="MO1 - MI3" sourceRef="Activity_1uqovub" targetRef="Activity_0uxjdkn">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI3_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0xyvyyt" name="MO2 - MI1" sourceRef="Activity_0uxjdkn" targetRef="Activity_1kyou8x">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_1iwrfte" name="MO1 - MO1" sourceRef="Activity_0uxjdkn" targetRef="Event_1gcqtzr">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MO1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_16mvdb6" name="MO2 - MI1" sourceRef="Activity_1kyou8x" targetRef="Activity_1uqovub">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0ii62nn" name="TEO1 -TEI1" sourceRef="Activity_0xhunfw" targetRef="Activity_1uqovub">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="TEO1 -TEI1_port" targetPortRef="TEI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
       <bpmn:sequenceFlow id="Flow_1xayaxu" name="MO1 -MI1" sourceRef="Activity_1kyou8x" targetRef="Activity_1atxmzx"/>
-      <bpmn:sequenceFlow id="Flow_0y79tc9" name="MI1 - MI1" sourceRef="Event_0h1gv72" targetRef="Activity_0dvp1ez"/>
-      <bpmn:sequenceFlow id="Flow_1queo8p" name="MO1 - MO2" sourceRef="Activity_17bqtl6" targetRef="Event_1w0hjx9"/>
-      <bpmn:sequenceFlow id="Flow_0agl4n2" name="MO1 - MI1" sourceRef="Activity_1atxmzx" targetRef="Activity_17bqtl6"/>
+      <bpmn:sequenceFlow id="Flow_0y79tc9" name="MI1 - MI1" sourceRef="Event_0h1gv72" targetRef="Activity_0dvp1ez">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MI1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_1queo8p" name="MO1 - MO2" sourceRef="Activity_17bqtl6" targetRef="Event_1w0hjx9">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MO2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0agl4n2" name="MO1 - MI1" sourceRef="Activity_1atxmzx" targetRef="Activity_17bqtl6">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
       <bpmn:task id="Activity_1ggf4yj" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1ggf4yj" uid="uid_Activity_1ggf4yj"><dexpi:port id="IPO_Temperature" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/></dexpi:element></bpmn:extensionElements>
@@ -584,12 +713,36 @@
         <bpmn:incoming>Flow_1i0rl3h</bpmn:incoming>
       </bpmn:endEvent>
       <bpmn:sequenceFlow id="Flow_1gic2ao" name="EEI1 - EEI1" sourceRef="Event_1mp0d4h" targetRef="Activity_02gkcfc"/>
-      <bpmn:sequenceFlow id="Flow_18uagmc" name="MO2 - MI1" sourceRef="Activity_00hgxpv" targetRef="Activity_11ivs96"/>
-      <bpmn:sequenceFlow id="Flow_1o980ku" name="MO1 - MI2" sourceRef="Activity_11ivs96" targetRef="Activity_0avtq87"/>
-      <bpmn:sequenceFlow id="Flow_1l0luaa" name="MI1 - MI1" sourceRef="Event_1g1zmip" targetRef="Activity_0avtq87"/>
-      <bpmn:sequenceFlow id="Flow_0ulibbm" name="MO1 - MI1" sourceRef="Activity_0avtq87" targetRef="Activity_02gkcfc"/>
-      <bpmn:sequenceFlow id="Flow_00cotc8" name="MO1 - MI1" sourceRef="Activity_02gkcfc" targetRef="Activity_00hgxpv"/>
-      <bpmn:sequenceFlow id="Flow_1i0rl3h" name="MO1 - MO1" sourceRef="Activity_00hgxpv" targetRef="Event_1pcm1vz"/>
+      <bpmn:sequenceFlow id="Flow_18uagmc" name="MO2 - MI1" sourceRef="Activity_00hgxpv" targetRef="Activity_11ivs96">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_1o980ku" name="MO1 - MI2" sourceRef="Activity_11ivs96" targetRef="Activity_0avtq87">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_1l0luaa" name="MI1 - MI1" sourceRef="Event_1g1zmip" targetRef="Activity_0avtq87">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MI1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0ulibbm" name="MO1 - MI1" sourceRef="Activity_0avtq87" targetRef="Activity_02gkcfc">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_00cotc8" name="MO1 - MI1" sourceRef="Activity_02gkcfc" targetRef="Activity_00hgxpv">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_1i0rl3h" name="MO1 - MO1" sourceRef="Activity_00hgxpv" targetRef="Event_1pcm1vz">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MO1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
       <bpmn:task id="Activity_03icv4t" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_03icv4t" uid="uid_Activity_03icv4t"><dexpi:port id="IPO_Duty" name="IPO_Duty" type="InformationPort" direction="Outlet" label="Duty"/></dexpi:element></bpmn:extensionElements>
@@ -659,12 +812,25 @@
       </bpmn:task>
       <bpmn:dataObjectReference id="DataObjectReference_0gzlyr5" name="Temperature" dataObjectRef="DataObject_0wus8pw"/>
       <bpmn:dataObject id="DataObject_0wus8pw"/>
-      <bpmn:sequenceFlow id="Flow_1wfrjse" name="MO1 - MI1" sourceRef="Activity_1rs6esf" targetRef="Activity_061upw8"/>
-      <bpmn:sequenceFlow id="Flow_08kzky6" name="MO1 - MI1" sourceRef="Activity_061upw8" targetRef="Activity_0h23axj"/>
-      <bpmn:sequenceFlow id="Flow_0tv8sn4" name="MO1 - MI1" sourceRef="Activity_0h23axj" targetRef="Activity_1rs6esf"/>
+      <bpmn:sequenceFlow id="Flow_1wfrjse" name="MO1 - MI1" sourceRef="Activity_1rs6esf" targetRef="Activity_061upw8">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_08kzky6" name="MO1 - MI1" sourceRef="Activity_061upw8" targetRef="Activity_0h23axj">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_0tv8sn4" name="MO1 - MI1" sourceRef="Activity_0h23axj" targetRef="Activity_1rs6esf">
+        <bpmn:extensionElements>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
     </bpmn:subProcess>
     <bpmn:sequenceFlow id="Flow_10zldqj" name="MO1 - Stream 4 - MI1" sourceRef="StartEvent_1" targetRef="Activity_1h23lzf">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
         <Stream Identifier="4" name="C Feed">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S4" Provenance="Specified" Range="Nominal"/>
@@ -681,6 +847,7 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1j96ab6" name="MO1 - Stream 1 - MI1" sourceRef="Event_11q5mwu" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
         <Stream Identifier="1" name="A Feed">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S1" Provenance="Specified" Range="Nominal"/>
@@ -697,6 +864,7 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0jep6f0" name="MO1 - Stream 2 - MI2" sourceRef="Event_04126je" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI2_port"/>
         <Stream Identifier="2" name="D Feed">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S2" Provenance="Specified" Range="Nominal"/>
@@ -713,6 +881,7 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_109uz3k" name="MO1 - Stream 3 - MI3" sourceRef="Event_0qb64fh" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI3_port"/>
         <Stream Identifier="3" name="E Feed">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S3" Provenance="Specified" Range="Nominal"/>
@@ -729,6 +898,7 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1a07km3" name="MO1 - Stream 5 - MI4" sourceRef="Activity_1h23lzf" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI4_port"/>
         <Stream Identifier="5" name="Strp Ovhd">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S5"/>
@@ -745,6 +915,7 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_09zyhyl" name="MO1 - Stream 8 - MI5" sourceRef="Activity_0yezzw8" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI5_port"/>
         <Stream Identifier="8" name="Recycle">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S8"/>
@@ -761,6 +932,7 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_07wd8rg" name="MO1 - Stream 7 - MI1" sourceRef="Activity_07878z5" targetRef="Activity_13e86yb">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
         <Stream Identifier="7" name="Reactor Product">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S7"/>
@@ -775,9 +947,14 @@
         </Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_1eezxa7" name="MO1 - MI1" sourceRef="Activity_13e86yb" targetRef="Activity_148nxrl"/>
+    <bpmn:sequenceFlow id="Flow_1eezxa7" name="MO1 - MI1" sourceRef="Activity_13e86yb" targetRef="Activity_148nxrl">
+      <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1frta97" name="MO1 - Stream 9 - MI1" sourceRef="Activity_148nxrl" targetRef="Event_0g1h7bs">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port"/>
         <Stream Identifier="9" name="Purge" Provenance="Set" Range="Nominal">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S9"/>
@@ -792,9 +969,14 @@
         </Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_11f0gdt" name="MO3 - MI1" sourceRef="Activity_148nxrl" targetRef="Activity_0yezzw8"/>
+    <bpmn:sequenceFlow id="Flow_11f0gdt" name="MO3 - MI1" sourceRef="Activity_148nxrl" targetRef="Activity_0yezzw8">
+      <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO3_port" targetPortRef="MI1_port"/>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1t9aonq" name="MO2 - Stream 10 - MI2" sourceRef="Activity_148nxrl" targetRef="Activity_1h23lzf">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI2_port"/>
         <Stream Identifier="10" name="Separation liquid">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S10"/>
@@ -811,6 +993,7 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1781g4y" name="MO2 - Stream 11 -  MI1" sourceRef="Activity_1h23lzf" targetRef="Event_1hvcrvf">
       <bpmn:extensionElements>
+        <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI1_port"/>
         <Stream Identifier="11" name="Product">
           <TemplateReference uidRef="uuid_TEP_MaterialTemplate"/>
           <MaterialStateReference uidRef="uuid_MS_S11" Provenance="Specified" Range="Nominal"/>

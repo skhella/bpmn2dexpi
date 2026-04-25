@@ -70,6 +70,150 @@ export class BpmnToDexpiTransformer {
     return xml;
   }
 
+  /**
+   * Annotate BPMN XML with resolved port references on sequence flows.
+   *
+   * Runs the same port-resolution logic as transform() but instead of
+   * producing DEXPI XML, returns the BPMN XML enriched with
+   * <dexpi:Stream sourcePortRef="..." targetPortRef="..."/> inside
+   * <bpmn:extensionElements> of each sequence flow that has resolved ports.
+   *
+   * This makes the port-stream link explicit and stable — subsequent
+   * round-trips read the portRef directly instead of re-deriving it from
+   * the flow name convention.
+   */
+  async annotate(bpmnXml: string, options: TransformOptions = {}): Promise<string> {
+    this.logger.reset();
+    this.registry = await DexpiProcessClassRegistry.load(options.processXml);
+    this.processSteps.clear();
+    this.streams.clear();
+    this.informationFlows.clear();
+    this.ports.clear();
+    this.materialTemplates.clear();
+    this.materialComponents.clear();
+    this.materialStates.clear();
+    this.materialStateTypes.clear();
+
+    const bpmnModel = this.parseBpmn(bpmnXml);
+    this.doc = bpmnModel;
+    this.extractElements(bpmnModel);
+
+    // Resolve ports for every stream using the same logic as buildStreams()
+    const resolved: Array<{ flowId: string; sourcePortRef: string; targetPortRef: string }> = [];
+
+    this.streams.forEach((stream) => {
+      // Skip if already has explicit refs
+      if (stream.sourcePortRef && stream.targetPortRef) {
+        resolved.push({ flowId: stream.id, sourcePortRef: stream.sourcePortRef, targetPortRef: stream.targetPortRef });
+        return;
+      }
+
+      // Use flow name as port hint (bootstrapping for files without explicit refs)
+      const nameParts = stream.name ? stream.name.split(/\s*-\s*/) : [];
+      const srcHint = nameParts.length >= 1 ? nameParts[0].trim() : undefined;
+      const tgtHint = nameParts.length >= 2 ? nameParts[nameParts.length - 1].trim() : srcHint;
+
+      const srcPortId = this.findPortForConnection(stream.sourceRef, stream.sourcePortRef, 'Outlet', undefined, srcHint);
+      const tgtPortId = this.findPortForConnection(stream.targetRef, stream.targetPortRef, 'Inlet', undefined, tgtHint);
+
+      if (srcPortId && tgtPortId) {
+        // Strip the elementId_ prefix that findPortForConnection adds — store
+        // just the port's own name so it matches the port's id/name attribute
+        const stripPrefix = (portId: string, elementId: string) =>
+          portId.startsWith(`${elementId}_`) ? portId.slice(elementId.length + 1) : portId;
+
+        resolved.push({
+          flowId: stream.id,
+          sourcePortRef: stripPrefix(srcPortId, stream.sourceRef),
+          targetPortRef: stripPrefix(tgtPortId, stream.targetRef),
+        });
+      }
+    });
+
+        if (resolved.length === 0) return bpmnXml;
+
+    // Ensure xmlns:dexpi is declared
+    let result = bpmnXml;
+    if (!result.includes('xmlns:dexpi=')) {
+      result = result.replace(
+        /(<(?:bpmn:)?definitions\b[^>]*?)(\/>)/,
+        `$1 xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"$2`
+      );
+    }
+
+    // Build lookup by flowId
+    const refMap = new Map(resolved.map(r => [r.flowId, r]));
+
+    // Process line-by-line to safely inject extensionElements.
+    // Regex on the full string fails because <Stream> bodies inside
+    // extensionElements contain self-closing tags that confuse greedy patterns.
+    const lines = result.split('\n');
+    const out: string[] = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // Self-closing sequenceFlow: <bpmn:sequenceFlow ... />
+      const scMatch = line.match(/^(\s*)<bpmn:sequenceFlow\s[^>]*id="([^"]+)"[^>]*\/>/);
+      if (scMatch) {
+        const [, indent, flowId] = scMatch;
+        const ref = refMap.get(flowId);
+        if (ref) {
+          out.push(line.replace('/>', '>'));
+          out.push(`${indent}  <bpmn:extensionElements>`);
+          out.push(`${indent}    <dexpi:Stream sourcePortRef="${ref.sourcePortRef}" targetPortRef="${ref.targetPortRef}"/>`);
+          out.push(`${indent}  </bpmn:extensionElements>`);
+          out.push(`${indent}</bpmn:sequenceFlow>`);
+          i++; continue;
+        }
+      }
+
+      // Open sequenceFlow tag (not self-closing)
+      const openMatch = line.match(/^(\s*)<bpmn:sequenceFlow\s[^>]*id="([^"]+)"[^>]*[^/]>$/);
+      if (openMatch) {
+        const [, indent, flowId] = openMatch;
+        const ref = refMap.get(flowId);
+        out.push(line);
+        i++;
+        if (ref) {
+          const body: string[] = [];
+          while (i < lines.length && !lines[i].includes('</bpmn:sequenceFlow>')) {
+            body.push(lines[i++]);
+          }
+          const closeLine = lines[i] ?? `${indent}</bpmn:sequenceFlow>`;
+          const hasExt = body.some(l => l.includes('<bpmn:extensionElements>'));
+          const hasRef = body.some(l => l.includes('sourcePortRef='));
+          if (!hasRef) {
+            if (hasExt) {
+              for (const bl of body) {
+                out.push(bl);
+                if (bl.includes('<bpmn:extensionElements>')) {
+                  out.push(`${indent}    <dexpi:Stream sourcePortRef="${ref.sourcePortRef}" targetPortRef="${ref.targetPortRef}"/>`);
+                }
+              }
+            } else {
+              out.push(`${indent}  <bpmn:extensionElements>`);
+              out.push(`${indent}    <dexpi:Stream sourcePortRef="${ref.sourcePortRef}" targetPortRef="${ref.targetPortRef}"/>`);
+              out.push(`${indent}  </bpmn:extensionElements>`);
+              out.push(...body);
+            }
+          } else {
+            out.push(...body);
+          }
+          out.push(closeLine);
+          i++; continue;
+        }
+        continue;
+      }
+
+      out.push(line);
+      i++;
+    }
+
+    return out.join('\n');
+  }
+
+
   private parseBpmn(xml: string): Document {
     const parser = new DOMParser();
     // Strip bpmn: / bpmn2: namespace prefixes from element tags so that
