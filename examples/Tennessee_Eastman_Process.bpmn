@@ -373,10 +373,7 @@
       <bpmn:dataObjectReference id="DataObjectReference_06451do" name="Pressure" dataObjectRef="DataObject_0onczzy" />
       <bpmn:dataObject id="DataObject_0onczzy" />
     
-        <bpmn:dataInputAssociation id="DataInputAssociation_composition_fix">
-          <bpmn:sourceRef>DataObjectReference_10911pm</bpmn:sourceRef>
-          <bpmn:targetRef>Property_0cu82b1</bpmn:targetRef>
-        </bpmn:dataInputAssociation>
+        <bpmn:association id="Association_composition_fix" sourceRef="DataObjectReference_10911pm" targetRef="Activity_0msgfdr" associationDirection="One"/>
       </bpmn:subProcess>
     <bpmn:subProcess id="Activity_148nxrl" name="Separating">
       <bpmn:extensionElements>
@@ -2118,7 +2115,7 @@
           <ns4:Bounds x="1138" y="596" width="89" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="DataInputAssociation_composition_fix_di" bpmnElement="DataInputAssociation_composition_fix">
+      <bpmndi:BPMNEdge id="Association_composition_fix_di" bpmnElement="Association_composition_fix">
         <ns5:waypoint x="560" y="735" />
         <ns5:waypoint x="700" y="490" />
       </bpmndi:BPMNEdge>
