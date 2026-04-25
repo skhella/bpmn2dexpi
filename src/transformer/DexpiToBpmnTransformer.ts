@@ -752,6 +752,17 @@ ${commonBody}
 ${indent}</bpmn:task>`;
     };
 
+    // Build per-port share counts to sub-distribute waypoints when multiple
+    // streams share the same physical port (e.g. 5 feeds all entering MI1).
+    type PortShare = { total: number; next: number };
+    const portShareIndex = new Map<string, PortShare>();
+    seqFlows.forEach(conn => {
+      for (const portId of [conn.sourcePortId, conn.targetPortId]) {
+        if (!portShareIndex.has(portId)) portShareIndex.set(portId, { total: 0, next: 0 });
+        portShareIndex.get(portId)!.total++;
+      }
+    });
+
     // Sequence flows
     seqFlows.forEach(conn => {
       const src = portToStep.get(conn.sourcePortId);
@@ -778,7 +789,36 @@ ${indent}</bpmn:task>`;
 
       const srcAnchor = portAnchor(srcStep, conn.sourcePortId);
       const tgtAnchor = portAnchor(tgtStep, conn.targetPortId);
-      const waypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcAnchor, tgtAnchor)
+
+      // Sub-distribute waypoints: if multiple streams share a port, stagger
+      // their connection points by ±spread px so they're visually distinct.
+      const SPREAD = 12;
+      const withNudge = (portId: string, anchor: { side: 'left' | 'right'; offset: number }) => {
+        const share = portShareIndex.get(portId);
+        if (!share || share.total <= 1) return anchor;
+        const idx = share.next++;
+        const totalSpread = (share.total - 1) * SPREAD;
+        const yNudge = idx * SPREAD - totalSpread / 2;
+        return { ...anchor, yNudge };
+      };
+      const srcA = withNudge(conn.sourcePortId, srcAnchor);
+      const tgtA = withNudge(conn.targetPortId, tgtAnchor);
+
+      // Custom connection-point that applies yNudge
+      const cp = (pos: LayoutBox, a: typeof srcA) => ({
+        x: a.side === 'left' ? pos.x : pos.x + pos.w,
+        y: pos.y + pos.h * a.offset + (('yNudge' in a ? (a as any).yNudge : 0)),
+      });
+      const srcPt = cp(srcPos, srcA);
+      const tgtPt = cp(tgtPos, tgtA);
+
+      // Re-use routeSequenceFlow but override start/end points
+      const rawWaypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcA, tgtA);
+      // Splice in nudged start/end
+      rawWaypoints[0] = srcPt;
+      rawWaypoints[rawWaypoints.length - 1] = tgtPt;
+
+      const waypoints = rawWaypoints
         .map(point => `        <di:waypoint x="${point.x}" y="${point.y}"/>`)
         .join('\n');
 
@@ -790,6 +830,89 @@ ${waypoints}
         edgeElements.push(edgeXml);
       } else {
         pushOwned(edgeElementsByOwner, key, edgeXml);
+      }
+    });
+
+    // InformationFlows → DataObjectReference + bidirectional associations.
+    // One DataObject per (source-port, variable) pair; one output association
+    // source→DataObject, then one input association DataObject→target per target.
+    const dobjBySourcePort = new Map<string, { dobjId: string; srcEl: string; dobjX: number; dobjY: number; key: string }>();
+    infoFlows.forEach(conn => {
+      const src = portToStep.get(conn.sourcePortId);
+      if (!src) return;
+      const srcStep = stepById.get(src);
+      const key = ownerKey(srcStep?.parentId);
+      const varName = conn.informationVariantLabel || conn.label;
+
+      let dobjInfo = dobjBySourcePort.get(conn.sourcePortId);
+      if (!dobjInfo) {
+        const ownerLayout = ownerLayouts.get(key) || layout;
+        const srcPos = ownerLayout.get(src);
+        const dobjId = `dobj_${bpmnId(src)}_${bpmnId(varName.replace(/[^a-zA-Z0-9]/g, '_'))}`;
+        const dobjX = (srcPos?.x ?? MARGIN_X) + TASK_W + 30;
+        const dobjY = (srcPos?.y ?? MARGIN_Y) - 60;
+        dobjInfo = { dobjId, srcEl: bpmnId(src), dobjX, dobjY, key };
+        dobjBySourcePort.set(conn.sourcePortId, dobjInfo);
+
+        const assocOutId = `assocOut_${dobjId}`;
+        const dataObjectXml = `<bpmn:dataObjectReference id="${dobjId}" name="${varName}" dataObjectRef="DataObject_${dobjId}"/>
+  <bpmn:dataObject id="DataObject_${dobjId}"/>
+  <bpmn:association id="${assocOutId}" sourceRef="${bpmnId(src)}" targetRef="${dobjId}" associationDirection="One"/>`;
+        if (key === rootOwner) {
+          processElements.push(indentBlock(dataObjectXml, '  '));
+        } else {
+          pushOwned(extraProcessElementsByOwner, key, dataObjectXml);
+        }
+
+        const shapeXml = `      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
+        <dc:Bounds x="${dobjX}" y="${dobjY}" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>`;
+        if (key === rootOwner) {
+          shapeElements.push(shapeXml);
+        } else {
+          pushOwned(shapeElementsByOwner, key, shapeXml);
+        }
+
+        if (srcPos) {
+          const edgeOutXml = `      <bpmndi:BPMNEdge id="${assocOutId}_di" bpmnElement="${assocOutId}">
+        <di:waypoint x="${srcPos.x + srcPos.w / 2}" y="${srcPos.y}"/>
+        <di:waypoint x="${dobjX + 18}" y="${dobjY + 50}"/>
+      </bpmndi:BPMNEdge>`;
+          if (key === rootOwner) {
+            edgeElements.push(edgeOutXml);
+          } else {
+            pushOwned(edgeElementsByOwner, key, edgeOutXml);
+          }
+        }
+      }
+
+      // Input association: DataObject → target task
+      const tgt = portToStep.get(conn.targetPortId);
+      if (!tgt) return;
+      const tgtStep = stepById.get(tgt);
+      const tgtKey = ownerKey(tgtStep?.parentId);
+      const assocInId = `assocIn_${bpmnId(conn.id)}`;
+
+      const dataInputXml = `<bpmn:association id="${assocInId}" sourceRef="${dobjInfo.dobjId}" targetRef="${bpmnId(tgt)}" associationDirection="One"/>`;
+      if (tgtKey === rootOwner) {
+        processElements.push(indentBlock(dataInputXml, '  '));
+      } else {
+        pushOwned(extraProcessElementsByOwner, tgtKey, dataInputXml);
+      }
+
+      const ownerLayout = ownerLayouts.get(tgtKey) || layout;
+      const tgtPos = ownerLayout.get(tgt);
+      if (tgtPos) {
+        const edgeInXml = `      <bpmndi:BPMNEdge id="${assocInId}_di" bpmnElement="${assocInId}">
+        <di:waypoint x="${dobjInfo.dobjX + 18}" y="${dobjInfo.dobjY}"/>
+        <di:waypoint x="${tgtPos.x + tgtPos.w / 2}" y="${tgtPos.y}"/>
+      </bpmndi:BPMNEdge>`;
+        if (tgtKey === rootOwner) {
+          edgeElements.push(edgeInXml);
+        } else {
+          pushOwned(edgeElementsByOwner, tgtKey, edgeInXml);
+        }
       }
     });
 
