@@ -22,6 +22,8 @@ interface DexpiStep {
   label: string;
   ports: DexpiPort[];
   referenceUri?: string;
+  parentId?: string;
+  children: DexpiStep[];
 }
 
 interface DexpiPort {
@@ -83,9 +85,6 @@ export class DexpiToBpmnTransformer {
     const processModel = this.findProcessModel(doc);
     if (!processModel) throw new Error('No ProcessModel found in DEXPI XML');
 
-    // Build port → step ID index (needed to resolve connection Source/Target)
-    const portToStep = new Map<string, string>();
-
     // Parse steps
     const steps: DexpiStep[] = [];
     const stepsContainer = this.findComponents(processModel, 'ProcessSteps');
@@ -94,22 +93,21 @@ export class DexpiToBpmnTransformer {
         .filter(el => el.tagName === 'Object')
         .forEach(obj => {
           const step = this.parseStep(obj);
-          steps.push(step);
-          step.ports.forEach(p => portToStep.set(p.id, step.id));
+          this.collectStep(step, steps);
         });
     }
 
     // Parse connections
     const connections: DexpiConnection[] = [];
-    const connContainer = this.findComponents(processModel, 'ProcessConnections');
-    if (connContainer) {
-      Array.from(connContainer.children)
-        .filter(el => el.tagName === 'Object')
-        .forEach(obj => {
-          const conn = this.parseConnection(obj);
-          if (conn) connections.push(conn);
-        });
-    }
+    Array.from(processModel.querySelectorAll('Components[property="ProcessConnections"]'))
+      .forEach(connContainer => {
+        Array.from(connContainer.children)
+          .filter(el => el.tagName === 'Object')
+          .forEach(obj => {
+            const conn = this.parseConnection(obj);
+            if (conn) connections.push(conn);
+          });
+      });
 
     // Parse MaterialTemplates
     const materialTemplates: DexpiMaterialTemplate[] = [];
@@ -144,7 +142,7 @@ export class DexpiToBpmnTransformer {
       ) || null;
   }
 
-  private parseStep(obj: Element): DexpiStep {
+  private parseStep(obj: Element, parentId?: string): DexpiStep {
     const id = obj.getAttribute('id') || this.uid();
     const fullType = obj.getAttribute('type') || 'Process/Process.ProcessStep';
     const dexpiType = fullType.replace('Process/Process.', '');
@@ -172,7 +170,46 @@ export class DexpiToBpmnTransformer {
         });
     }
 
-    return { id, dexpiType, identifier, label, ports };
+    const children = this.findNestedProcessStepObjects(obj)
+      .map(childObj => this.parseStep(childObj, id));
+
+    return { id, dexpiType, identifier, label, ports, parentId, children };
+  }
+
+  private collectStep(step: DexpiStep, steps: DexpiStep[]): void {
+    steps.push(step);
+    step.children.forEach(child => this.collectStep(child, steps));
+  }
+
+  private findNestedProcessStepObjects(stepObj: Element): Element[] {
+    const childObjects: Element[] = [];
+
+    const collectFromStepsContainer = (container: Element | null) => {
+      if (!container) return;
+      Array.from(container.children)
+        .filter(el => el.tagName === 'Object')
+        .forEach(el => childObjects.push(el));
+    };
+
+    // This is the format emitted by BpmnToDexpiTransformer for BPMN subprocesses.
+    collectFromStepsContainer(this.findComponents(stepObj, 'SubProcessSteps'));
+
+    // Some DEXPI exports represent a nested procedure as a ProcessModel child.
+    Array.from(stepObj.children)
+      .filter(el =>
+        el.tagName === 'Components' &&
+        ['ProcessModel', 'ProcessModels', 'SubProcessModel', 'SubProcessModels'].includes(el.getAttribute('property') || '')
+      )
+      .forEach(container => {
+        Array.from(container.children)
+          .filter(el => el.tagName === 'Object' && el.getAttribute('type') === 'Process/ProcessModel')
+          .forEach(processModel => collectFromStepsContainer(this.findComponents(processModel, 'ProcessSteps')));
+      });
+
+    // Be liberal for hand-authored XML: ProcessSteps directly beneath the step.
+    collectFromStepsContainer(this.findComponents(stepObj, 'ProcessSteps'));
+
+    return childObjects;
   }
 
   private parseConnection(obj: Element): DexpiConnection | null {
@@ -319,6 +356,50 @@ export class DexpiToBpmnTransformer {
       x += maxW + H_GAP;
     });
 
+    const subtreeBounds = (step: DexpiStep) => {
+      const ids = [step.id, ...this.descendantIds(step)];
+      const positions = ids
+        .map(id => layout.get(id))
+        .filter((pos): pos is {x: number, y: number, w: number, h: number} => pos !== undefined);
+      const minX = Math.min(...positions.map(pos => pos.x));
+      const minY = Math.min(...positions.map(pos => pos.y));
+      const maxX = Math.max(...positions.map(pos => pos.x + pos.w));
+      const maxY = Math.max(...positions.map(pos => pos.y + pos.h));
+      return { minX, minY, maxX, maxY };
+    };
+
+    const arrangeNestedSteps = (step: DexpiStep) => {
+      if (step.children.length === 0) return;
+      const parentPos = layout.get(step.id);
+      if (!parentPos) return;
+
+      let childX = parentPos.x + 40;
+      const childY = parentPos.y + 90;
+
+      step.children.forEach(child => {
+        const isEvent = child.dexpiType === 'Source' || child.dexpiType === 'Sink';
+        const w = isEvent ? EVENT_D : TASK_W;
+        const h = isEvent ? EVENT_D : TASK_H;
+        const yOffset = isEvent ? (TASK_H - EVENT_D) / 2 : 0;
+        layout.set(child.id, { x: childX, y: childY + yOffset, w, h });
+
+        arrangeNestedSteps(child);
+
+        const bounds = subtreeBounds(child);
+        childX = bounds.maxX + H_GAP;
+      });
+
+      const bounds = subtreeBounds(step);
+      layout.set(step.id, {
+        x: parentPos.x,
+        y: parentPos.y,
+        w: Math.max(TASK_W + 80, bounds.maxX - parentPos.x + 40),
+        h: Math.max(TASK_H + 120, bounds.maxY - parentPos.y + 40),
+      });
+    };
+
+    steps.filter(step => !step.parentId).forEach(arrangeNestedSteps);
+
     // Place MaterialTemplates as Data Objects below the diagram
     let dtX = MARGIN_X;
     const dtY = MARGIN_Y + (Math.max(1, ...Array.from(byLayer.values()).map(ids => ids.length)) * (TASK_H + V_GAP)) + 80;
@@ -338,6 +419,7 @@ export class DexpiToBpmnTransformer {
     // Build port → step map for resolving connection endpoints
     const portToStep = new Map<string, string>();
     steps.forEach(s => s.ports.forEach(p => portToStep.set(p.id, s.id)));
+    const stepById = new Map(steps.map(s => [s.id, s]));
 
     const processId = 'Process_imported';
     const defId = 'Definitions_imported';
@@ -366,14 +448,13 @@ export class DexpiToBpmnTransformer {
     const processElements: string[] = [];
     const shapeElements: string[] = [];
     const edgeElements: string[] = [];
+    const sequenceFlowsByOwner = new Map<string, string[]>();
+    const rootOwner = '__root__';
+    const ownerKey = (ownerId?: string) => ownerId || rootOwner;
+    const indentBlock = (xml: string, indent: string) =>
+      xml.split('\n').map(line => line ? `${indent}${line}` : line).join('\n');
 
-    steps.forEach(step => {
-      const pos = layout.get(step.id);
-      if (!pos) return;
-
-      const elId = bpmnId(step.id);
-      const name = step.label !== step.dexpiType ? step.label : step.dexpiType;
-
+    const extensionXml = (step: DexpiStep, indent: string): string => {
       // Extension elements — assign anchorSide based on direction and spread offset
       const inlets  = step.ports.filter(p => p.direction === 'Inlet');
       const outlets = step.ports.filter(p => p.direction === 'Outlet');
@@ -385,41 +466,52 @@ export class DexpiToBpmnTransformer {
         const group = bpmnDir === 'Outlet' ? outlets : inlets;
         const idx = group.indexOf(p);
         const anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
-        return `        <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.type}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchorSide}" anchorOffset="${anchorOffset.toFixed(2)}"/>`;
+        return `${indent}    <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.type}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchorSide}" anchorOffset="${anchorOffset.toFixed(2)}"/>`;
       }).join('\n');
 
-      const extEl = `    <bpmn:extensionElements>
-      <dexpi:element dexpiType="${step.dexpiType}" identifier="${step.identifier}" uid="${step.id}"${portsXml ? '\n' + portsXml + '\n    ' : ''}>
-      </dexpi:element>
-    </bpmn:extensionElements>`;
+      return `${indent}<bpmn:extensionElements>
+${indent}  <dexpi:element dexpiType="${step.dexpiType}" identifier="${step.identifier}" uid="${step.id}"${portsXml ? '\n' + portsXml + '\n' + indent + '  ' : ''}>
+${indent}  </dexpi:element>
+${indent}</bpmn:extensionElements>`;
+    };
 
-      const inc = incoming.get(step.id)?.map(id => `    <bpmn:incoming>${bpmnId(id)}</bpmn:incoming>`).join('\n') || '';
-      const out = outgoing.get(step.id)?.map(id => `    <bpmn:outgoing>${bpmnId(id)}</bpmn:outgoing>`).join('\n') || '';
+    const renderStep = (step: DexpiStep, indent: string): string => {
+      const elId = bpmnId(step.id);
+      const name = step.label !== step.dexpiType ? step.label : step.dexpiType;
+      const childIndent = `${indent}  `;
+      const extEl = extensionXml(step, childIndent);
+      const inc = incoming.get(step.id)?.map(id => `${childIndent}<bpmn:incoming>${bpmnId(id)}</bpmn:incoming>`).join('\n') || '';
+      const out = outgoing.get(step.id)?.map(id => `${childIndent}<bpmn:outgoing>${bpmnId(id)}</bpmn:outgoing>`).join('\n') || '';
+      const flowRefs = [inc, out].filter(Boolean).join('\n');
+      const commonBody = `${extEl}${flowRefs ? '\n' + flowRefs : ''}`;
 
       if (step.dexpiType === 'Source') {
-        processElements.push(`  <bpmn:startEvent id="${elId}" name="${name}">
-${extEl}
-${out}
-  </bpmn:startEvent>`);
-      } else if (step.dexpiType === 'Sink') {
-        processElements.push(`  <bpmn:endEvent id="${elId}" name="${name}">
-${extEl}
-${inc}
-  </bpmn:endEvent>`);
-      } else {
-        processElements.push(`  <bpmn:task id="${elId}" name="${name}">
-${extEl}
-${inc}
-${out}
-  </bpmn:task>`);
+        return `${indent}<bpmn:startEvent id="${elId}" name="${name}">
+${commonBody}
+${indent}</bpmn:startEvent>`;
       }
 
-      // BPMN shape
-      shapeElements.push(`      <bpmndi:BPMNShape id="${elId}_di" bpmnElement="${elId}"${step.dexpiType === 'Source' || step.dexpiType === 'Sink' ? ' isHorizontal="false"' : ''}>
-        <dc:Bounds x="${pos.x}" y="${pos.y}" width="${pos.w}" height="${pos.h}"/>
-        <bpmndi:BPMNLabel/>
-      </bpmndi:BPMNShape>`);
-    });
+      if (step.dexpiType === 'Sink') {
+        return `${indent}<bpmn:endEvent id="${elId}" name="${name}">
+${commonBody}
+${indent}</bpmn:endEvent>`;
+      }
+
+      if (step.children.length > 0) {
+        const nestedElements = [
+          ...step.children.map(child => renderStep(child, childIndent)),
+          ...(sequenceFlowsByOwner.get(step.id) || []).map(xml => indentBlock(xml, childIndent)),
+        ].join('\n\n');
+
+        return `${indent}<bpmn:subProcess id="${elId}" name="${name}">
+${commonBody}${nestedElements ? '\n' + nestedElements : ''}
+${indent}</bpmn:subProcess>`;
+      }
+
+      return `${indent}<bpmn:task id="${elId}" name="${name}">
+${commonBody}
+${indent}</bpmn:task>`;
+    };
 
     // Sequence flows
     seqFlows.forEach(conn => {
@@ -433,12 +525,16 @@ ${out}
 
       const connId = bpmnId(conn.id);
       const streamTypeAttr = conn.dexpiType !== 'Stream' ? ` streamType="${conn.dexpiType}"` : '';
-
-      processElements.push(`  <bpmn:sequenceFlow id="${connId}" name="${conn.label}" sourceRef="${bpmnId(src)}" targetRef="${bpmnId(tgt)}">
-    <bpmn:extensionElements>
-      <dexpi:Stream uid="${conn.id}" identifier="${conn.identifier}"${streamTypeAttr}/>
-    </bpmn:extensionElements>
-  </bpmn:sequenceFlow>`);
+      const srcStep = stepById.get(src);
+      const tgtStep = stepById.get(tgt);
+      const owner = srcStep?.parentId === tgtStep?.parentId ? srcStep?.parentId : undefined;
+      const key = ownerKey(owner);
+      if (!sequenceFlowsByOwner.has(key)) sequenceFlowsByOwner.set(key, []);
+      sequenceFlowsByOwner.get(key)!.push(`<bpmn:sequenceFlow id="${connId}" name="${conn.label}" sourceRef="${bpmnId(src)}" targetRef="${bpmnId(tgt)}">
+  <bpmn:extensionElements>
+    <dexpi:Stream uid="${conn.id}" identifier="${conn.identifier}"${streamTypeAttr}/>
+  </bpmn:extensionElements>
+</bpmn:sequenceFlow>`);
 
       // Edge waypoints: simple straight line
       const srcCx = srcPos.x + srcPos.w;
@@ -451,6 +547,29 @@ ${out}
         <di:waypoint x="${tgtCx}" y="${tgtCy}"/>
         <bpmndi:BPMNLabel/>
       </bpmndi:BPMNEdge>`);
+    });
+
+    steps.filter(step => !step.parentId).forEach(step => {
+      processElements.push(renderStep(step, '  '));
+    });
+
+    (sequenceFlowsByOwner.get(rootOwner) || []).forEach(xml => {
+      processElements.push(indentBlock(xml, '  '));
+    });
+
+    steps.forEach(step => {
+      const pos = layout.get(step.id);
+      if (!pos) return;
+
+      const elId = bpmnId(step.id);
+      const isEvent = step.dexpiType === 'Source' || step.dexpiType === 'Sink';
+      const isExpandedSubProcess = step.children.length > 0;
+
+      // BPMN shape
+      shapeElements.push(`      <bpmndi:BPMNShape id="${elId}_di" bpmnElement="${elId}"${isEvent ? ' isHorizontal="false"' : ''}${isExpandedSubProcess ? ' isExpanded="true"' : ''}>
+        <dc:Bounds x="${pos.x}" y="${pos.y}" width="${pos.w}" height="${pos.h}"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>`);
     });
 
     // InformationFlows → Association + DataObjectReference
@@ -531,6 +650,10 @@ ${edgeElements.join('\n')}
   }
 
   // ── Utilities ───────────────────────────────────────────────────────────────
+
+  private descendantIds(step: DexpiStep): string[] {
+    return step.children.flatMap(child => [child.id, ...this.descendantIds(child)]);
+  }
 
   private _uidCounter = 0;
   private uid(): string {
