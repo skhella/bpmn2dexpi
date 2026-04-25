@@ -79,7 +79,7 @@ describe('DexpiToBpmnTransformer', () => {
 
       expect(out).toContain('xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"');
       expect(out).toContain('xmlns:bpmndi=');
-      expect(out).toContain('xmlns:dexpi=');
+      expect(out).toContain('xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"');
       expect(out).toContain('bpmndi:BPMNDiagram');
       expect(out).toContain('bpmndi:BPMNPlane');
     });
@@ -388,6 +388,41 @@ ${step('MX1', 'Mixing', 'Mixer')}
         const cur = waypoints[i];
         expect(prev.x === cur.x || prev.y === cur.y).toBe(true);
       }
+    });
+
+    it('places recycle loop activities above the main path between the connected layers', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const reactorPorts =
+        port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
+        port('Reactor_out', 'MaterialPort', 'Out', 'MO1') +
+        port('Reactor_recycle_in', 'MaterialPort', 'In', 'MI2');
+      const coolerPorts = port('Cooler_in', 'MaterialPort', 'In', 'MI1') + port('Cooler_out', 'MaterialPort', 'Out', 'MO1');
+      const separatorPorts = port('Separator_in', 'MaterialPort', 'In', 'MI1') + port('Separator_out', 'MaterialPort', 'Out', 'MO1');
+      const recyclePorts = port('Recycle_in', 'MaterialPort', 'In', 'MI1') + port('Recycle_out', 'MaterialPort', 'Out', 'MO1');
+      const sinkPort = port('EE_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('Reactor', 'ReactingChemicals', 'Reactor', reactorPorts) +
+          step('Cooler', 'RemovingThermalEnergy', 'Cooler', coolerPorts) +
+          step('Separator', 'Separating', 'Separator', separatorPorts) +
+          step('Recycle', 'Compressing', 'Recycle compressor', recyclePorts) +
+          step('EE1', 'Sink', 'Product', sinkPort),
+        stream('S1', 'Stream', 'SE_out', 'Reactor_in') +
+          stream('S2', 'Stream', 'Reactor_out', 'Cooler_in') +
+          stream('S3', 'Stream', 'Cooler_out', 'Separator_in') +
+          stream('S4', 'Stream', 'Separator_out', 'Recycle_in') +
+          stream('S5', 'Stream', 'Recycle_out', 'Reactor_recycle_in') +
+          stream('S6', 'Stream', 'Separator_out', 'EE_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const reactor = shapeBounds(out, 'bpmn_Reactor');
+      const separator = shapeBounds(out, 'bpmn_Separator');
+      const recycle = shapeBounds(out, 'bpmn_Recycle');
+      const cooler = shapeBounds(out, 'bpmn_Cooler');
+
+      expect(recycle.x).toBeGreaterThan(reactor.x);
+      expect(recycle.x).toBeLessThan(separator.x);
+      expect(recycle.y).toBeLessThan(cooler.y);
     });
   });
 
