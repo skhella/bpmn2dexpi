@@ -972,6 +972,7 @@ export class BpmnToDexpiTransformer {
       ports.push({
         portId: child.getAttribute('portId') || child.getAttribute('id') || this.generateUid(),
         name: child.getAttribute('name') || child.getAttribute('label') || 'Port',
+        label: child.getAttribute('label') || undefined,
         type: (child.getAttribute('type') || child.getAttribute('portType') || 'MaterialPort') as DexpiPort['type'],
         direction: (child.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
         anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
@@ -1006,6 +1007,7 @@ export class BpmnToDexpiTransformer {
     return ports.map((port) => ({
       portId: port.getAttribute('id') || port.getAttribute('portId') || this.generateUid(),
       name: port.getAttribute('name') || port.getAttribute('label') || 'Port',
+      label: port.getAttribute('label') || undefined,
       type: (port.getAttribute('type') || port.getAttribute('portType') || 'MaterialPort') as DexpiPort['type'],
       direction: (port.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
       anchorSide: (port.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
@@ -1651,12 +1653,13 @@ export class BpmnToDexpiTransformer {
     const flowElements: Record<string, unknown>[] = [];
 
     this.informationFlows.forEach((flow) => {
-      // Find InformationPorts on source and target elements
+      // Match ports by the variable identity (DataObject name carried in flow.name).
+      // Element with port labelled "Temperature" wins for a Temperature flow.
       const sourcePort = this.findPortForConnection(
-        flow.sourceRef, flow.sourcePortRef, 'Outlet', 'InformationPort'
+        flow.sourceRef, flow.sourcePortRef, 'Outlet', 'InformationPort', flow.name
       );
       const targetPort = this.findPortForConnection(
-        flow.targetRef, flow.targetPortRef, 'Inlet', 'InformationPort'
+        flow.targetRef, flow.targetPortRef, 'Inlet', 'InformationPort', flow.name
       );
 
       if (!sourcePort || !targetPort) {
@@ -2030,7 +2033,14 @@ export class BpmnToDexpiTransformer {
     elementRef: string,
     portRef: string | undefined,
     defaultDirection: string,
-    portType?: string
+    portType?: string,
+    /**
+     * Variable name from the connecting object (e.g. DataObject.name for an
+     * InformationFlow, SequenceFlow.name for a MaterialPort connection).
+     * Matched against port.label (or port.name as a fallback) to disambiguate
+     * when an element has multiple ports of the same direction & portType.
+     */
+    variableName?: string
   ): string | null {
     const element = this.processSteps.get(elementRef);
     if (!element) return null;
@@ -2046,12 +2056,31 @@ export class BpmnToDexpiTransformer {
       return matchingPort ? matchingPort.portId : null;
     }
 
-    // Find first port matching direction (and portType if specified)
-    const matchingPort = element.ports.find((p: DexpiPort) => {
-      if (p.direction !== defaultDirection) return false;
-      if (portType && p.type !== portType) return false;
-      return true;
-    });
+    const sameSlot = (p: DexpiPort) =>
+      p.direction === defaultDirection && (!portType || p.type === portType);
+
+    // Match by variable name against port.label (preferred) or port.name.
+    // The label carries the semantic identity the connecting object refers to,
+    // so a "Temperature" DataObject finds the port labeled "Temperature".
+    if (variableName) {
+      const labeled = element.ports.find((p: DexpiPort) => {
+        if (!sameSlot(p)) return false;
+        return p.label === variableName || p.name === variableName;
+      });
+      if (labeled) return labeled.portId;
+
+      // No labelled match: if the element has exactly one port in this slot,
+      // it's unambiguous. Otherwise return null — better to skip the flow than
+      // pick the wrong port silently.
+      const sameSlotPorts = element.ports.filter(sameSlot);
+      if (sameSlotPorts.length === 1) return sameSlotPorts[0].portId;
+      return null;
+    }
+
+    // No variableName provided (e.g. material flow with implicit single port):
+    // fall back to first matching port. Used by paths that don't carry semantic
+    // disambiguation context.
+    const matchingPort = element.ports.find(sameSlot);
     return matchingPort ? matchingPort.portId : null;
   }
 
