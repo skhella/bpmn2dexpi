@@ -247,10 +247,7 @@
           <bpmn:sourceRef>DataObjectReference_0yc0qz3</bpmn:sourceRef>
           <bpmn:targetRef>Property_0h0ehut</bpmn:targetRef>
         </bpmn:dataInputAssociation>
-        <bpmn:dataInputAssociation id="DataInputAssociation_composition_fix">
-          <bpmn:sourceRef>DataObjectReference_10911pm</bpmn:sourceRef>
-          <bpmn:targetRef>Property_0h0ehut</bpmn:targetRef>
-        </bpmn:dataInputAssociation>
+
       </bpmn:task>
       <bpmn:sequenceFlow id="Flow_1hd54gp" name="MO1 - MO1" sourceRef="Activity_0msgfdr" targetRef="Event_062k0v7" />
       <bpmn:sequenceFlow id="Flow_0wulh9g" name="TEO1 - TEI1" sourceRef="Activity_0msgfdr" targetRef="Activity_11rkrj8" />
@@ -379,7 +376,13 @@
       <bpmn:dataObject id="DataObject_004040c" />
       <bpmn:dataObjectReference id="DataObjectReference_06451do" name="Pressure" dataObjectRef="DataObject_0onczzy" />
       <bpmn:dataObject id="DataObject_0onczzy" />
-    </bpmn:subProcess>
+    
+        <bpmn:association id="Association_composition_fix" sourceRef="DataObjectReference_10911pm" targetRef="Activity_0msgfdr" associationDirection="One">
+          <bpmn:extensionElements>
+            <dexpi:Stream streamType="InformationFlow" uid="composition_fix" identifier="IF_composition" />
+          </bpmn:extensionElements>
+        </bpmn:association>
+      </bpmn:subProcess>
     <bpmn:subProcess id="Activity_148nxrl" name="Separating">
       <bpmn:extensionElements>
         <dexpi:element dexpiType="Separating" identifier="Activity_148nxrl" uid="uid_Activity_148nxrl"/>
@@ -2136,9 +2139,9 @@
           <ns4:Bounds x="1138" y="596" width="89" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="DataInputAssociation_composition_fix_di" bpmnElement="DataInputAssociation_composition_fix">
+      <bpmndi:BPMNEdge id="Association_composition_fix_di" bpmnElement="Association_composition_fix">
         <ns5:waypoint x="560" y="735" />
-        <ns5:waypoint x="700" y="511" />
+        <ns5:waypoint x="700" y="490" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
