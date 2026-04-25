@@ -9,6 +9,7 @@ import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { transformer } from './transformer/BpmnToDexpiTransformer';
+import { DexpiToBpmnTransformer } from './transformer/DexpiToBpmnTransformer';
 import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
