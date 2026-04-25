@@ -22,6 +22,7 @@ export class BpmnToDexpiTransformer {
   private streams: Map<string, InternalStream> = new Map();
   private informationFlows: Map<string, InternalStream> = new Map();
   private ports: Map<string, InternalPort> = new Map();
+  private doc: Document | null = null;
   private materialTemplates: Map<string, InternalMaterialTemplate> = new Map();
   private materialComponents: Map<string, InternalMaterialComponent> = new Map();
   private materialStates: Map<string, InternalMaterialState> = new Map();
@@ -55,6 +56,7 @@ export class BpmnToDexpiTransformer {
     
     // Parse BPMN XML
     const bpmnModel = this.parseBpmn(bpmnXml);
+    this.doc = bpmnModel;
     
     // Extract DEXPI elements
     this.extractElements(bpmnModel);
@@ -1438,18 +1440,23 @@ export class BpmnToDexpiTransformer {
     const streamElements: Record<string, unknown>[] = [];
 
     this.streams.forEach((stream) => {
-      // Warn if source or target isn't a registered process step at all
-      // (e.g. pool participants, data stores, or missing extensionElements)
-      if (!this.processSteps.has(stream.sourceRef)) {
+      // Warn if source or target isn't a registered process step at all.
+      // Exception: gateways are valid BPMN but intentionally have no DEXPI
+      // equivalent — flows through them are silently skipped, not warned.
+      if (!this.processSteps.has(stream.sourceRef) && !this.isGateway(stream.sourceRef)) {
         this.logger.warn(
           `Stream "${stream.name}" (id=${stream.id}): source "${stream.sourceRef}" is not a recognised process step — stream skipped.`
         );
         return;
       }
-      if (!this.processSteps.has(stream.targetRef)) {
+      if (!this.processSteps.has(stream.targetRef) && !this.isGateway(stream.targetRef)) {
         this.logger.warn(
           `Stream "${stream.name}" (id=${stream.id}): target "${stream.targetRef}" is not a recognised process step — stream skipped.`
         );
+        return;
+      }
+      if (!this.processSteps.has(stream.sourceRef) || !this.processSteps.has(stream.targetRef)) {
+        // Gateway case — silently skip
         return;
       }
 
@@ -2149,6 +2156,20 @@ export class BpmnToDexpiTransformer {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
+  }
+
+  /**
+  /**
+   * Returns true if the element ID refers to a BPMN gateway element.
+   * Gateways are intentionally not mapped to DEXPI process steps; flows
+   * through them are silently skipped without warning.
+   */
+  private isGateway(elementId: string): boolean {
+    if (!this.doc) return false;
+    const el = this.doc.querySelector(`[id="${elementId}"]`);
+    if (!el) return false;
+    const tag = (el.localName || el.tagName.split(':').pop() || '').toLowerCase();
+    return tag.includes('gateway');
   }
 
   /**
