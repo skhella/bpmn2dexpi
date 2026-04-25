@@ -261,7 +261,7 @@ export class DexpiToBpmnTransformer {
       ...Array.from(layout.values()).map(pos => pos.x + pos.w)
     );
     let dtX = Math.max(MARGIN_X, maxRight - parsed.materialTemplates.length * 120 - 60);
-    const dtY = MARGIN_Y;
+    const dtY = Math.max(20, MARGIN_Y - 80);
     parsed.materialTemplates.forEach(tmpl => {
       layout.set(`dt_${tmpl.id}`, { x: dtX, y: dtY, w: 36, h: 50 });
       dtX += 120;
