@@ -47,6 +47,10 @@ export default class DexpiRenderer extends BaseRenderer {
     // Apply color based on DEXPI type
     this.applyDexpiTypeColor(shape, element);
 
+    // Remove any existing port overlays before redrawing (handles toggle off→on→off)
+    const existingPorts = parentNode.querySelectorAll('.dexpi-port');
+    existingPorts.forEach((p: any) => p.parentNode?.removeChild(p));
+
     // Check if ports should be rendered (can be controlled via config or global flag)
     // For now, ports are disabled by default - they exist in XML but aren't displayed
     const shouldRenderPorts = (window as any).__dexpi_show_ports__ || false;
@@ -125,7 +129,7 @@ export default class DexpiRenderer extends BaseRenderer {
           return {
             portId: `${element.businessObject.id}_${p.name || p.label}`,
             name: p.name || p.label,
-            portType: p.type || p.portType,
+            type: p.type || p.type,
             direction: direction,
             anchorSide: p.anchorSide || 'left',
             anchorOffset: p.anchorOffset !== undefined ? p.anchorOffset : 0.5,
@@ -356,8 +360,9 @@ export default class DexpiRenderer extends BaseRenderer {
     const { width, height } = element;
 
     ports.forEach((port: DexpiPort) => {
-      // Calculate position from stream connections
       const position = this.calculatePortPositionFromConnection(element, port, width, height);
+      // null means "no visual connection found — don't render"
+      if (position === null) return;
       this.drawPort(parentNode, port, position.x, position.y);
     });
   }
@@ -367,59 +372,80 @@ export default class DexpiRenderer extends BaseRenderer {
     port: DexpiPort,
     width: number,
     height: number
-  ): { x: number; y: number } {
+  ): { x: number; y: number } | null {
     const portSize = 8;
     const elementId = element.businessObject.id;
     const businessObject = element.businessObject;
     
-    // For InformationPorts, check data associations
-    if (port.portType === 'InformationPort') {
-      // Check data output associations for IPO (Information Port Output)
-      // After normalization, Output becomes Outlet
-      if (port.direction === 'Outlet' && businessObject.dataOutputAssociations) {
-        const associations = businessObject.dataOutputAssociations;
-        for (let i = 0; i < associations.length; i++) {
-          // Find the rendered association element
-          const associationElement = this.elementRegistry.find((el: any) => {
-            return el.businessObject && el.businessObject.id === associations[i].id;
-          });
-          
-          if (associationElement && associationElement.waypoints && associationElement.waypoints.length > 0) {
-            // Use the first waypoint (where it connects to the task)
-            const connectionPoint = associationElement.waypoints[0];
-            const relX = connectionPoint.x - element.x;
-            const relY = connectionPoint.y - element.y;
-            return { x: relX - portSize / 2, y: relY - portSize / 2 };
-          }
+    // For InformationPorts, match each port to its specific association by name.
+    // Same logic as MaterialPort/SequenceFlow matching but using the DataObject's
+    // name: an IPI_Composition port matches the association whose DataObject is "Composition".
+    if (port.portType === 'InformationPort' || (port as any).type === 'InformationPort') {
+      // Respect manual positioning — same as calculatePortPosition does for all ports
+      if (port.anchorX !== undefined && port.anchorY !== undefined) {
+        return { x: port.anchorX, y: port.anchorY };
+      }
+      // InformationPorts only render when a visual association connection exists.
+      // If no matching DataObject association is found, return null → port is not drawn.
+      // This prevents export-only IPI ports from cluttering subprocess boundaries.
+      const isOutlet = port.direction === 'Outlet';
+      const associations = isOutlet
+        ? (businessObject.dataOutputAssociations || [])
+        : (businessObject.dataInputAssociations || []);
+
+      // Strip IPI_/IPO_ prefix from name OR label to get the variable name
+      const rawName = port.name || (port as any).label || '';
+      const portVarName = rawName.replace(/^IP[IO]_/, '');
+
+      for (const assoc of associations) {
+        // sourceRef on dataInputAssociation is an ARRAY (isMany:true in BPMN spec)
+        // dataOutputAssociation targetRef is a single reference
+        const dataObjId = isOutlet
+          ? assoc.targetRef?.id
+          : (Array.isArray(assoc.sourceRef) ? assoc.sourceRef[0]?.id : assoc.sourceRef?.id);
+        if (!dataObjId) continue;
+
+        const dataObjEl = this.elementRegistry.get(dataObjId) as any;
+        const dataObjName = dataObjEl?.businessObject?.name || '';
+
+        if (dataObjName !== portVarName) continue;
+
+        // Find the rendered association element to get its waypoints
+        const assocEl = this.elementRegistry.find((el: any) =>
+          el.businessObject?.id === assoc.id
+        );
+        if (!assocEl?.waypoints?.length) continue;
+
+        // Task-side waypoint: outlets use first waypoint (where line leaves the task),
+        // inlets use last waypoint (where line enters the task)
+        const pt = isOutlet
+          ? assocEl.waypoints[0]
+          : assocEl.waypoints[assocEl.waypoints.length - 1];
+
+        return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
+      }
+
+      // Also handle plain bpmn:association elements (like our Composition fix)
+      const plainAssocs = this.elementRegistry.filter((el: any) =>
+        el.type === 'bpmn:Association' &&
+        (el.businessObject?.sourceRef?.id === elementId ||
+         el.businessObject?.targetRef?.id === elementId)
+      );
+      for (const assocEl of plainAssocs) {
+        const bo = assocEl.businessObject;
+        const otherEnd = bo.sourceRef?.id === elementId ? bo.targetRef : bo.sourceRef;
+        const otherEl = this.elementRegistry.get(otherEnd?.id) as any;
+        const otherName = otherEl?.businessObject?.name || '';
+        if (otherName === portVarName && assocEl.waypoints?.length > 0) {
+          const portSide = bo.sourceRef?.id === elementId
+            ? assocEl.waypoints[0]
+            : assocEl.waypoints[assocEl.waypoints.length - 1];
+          return { x: portSide.x - element.x - 4, y: portSide.y - element.y - 4 };
         }
       }
-      
-      // Check data input associations for IPI (Information Port Input)
-      // After normalization, Input becomes Inlet
-      if (port.direction === 'Inlet' && businessObject.dataInputAssociations) {
-        const associations = businessObject.dataInputAssociations;
-        for (let i = 0; i < associations.length; i++) {
-          // Find the rendered association element
-          const associationElement = this.elementRegistry.find((el: any) => {
-            return el.businessObject && el.businessObject.id === associations[i].id;
-          });
-          
-          if (associationElement && associationElement.waypoints && associationElement.waypoints.length > 0) {
-            // Use the last waypoint (where it connects to the task)
-            const connectionPoint = associationElement.waypoints[associationElement.waypoints.length - 1];
-            const relX = connectionPoint.x - element.x;
-            const relY = connectionPoint.y - element.y;
-            return { x: relX - portSize / 2, y: relY - portSize / 2 };
-          }
-        }
-      }
-      
-      // Fallback for InformationPorts: place on bottom for outlet, top for inlet
-      if (port.direction === 'Outlet') {
-        return { x: width / 2 - portSize / 2, y: height - portSize / 2 };
-      } else {
-        return { x: width / 2 - portSize / 2, y: -portSize / 2 };
-      }
+
+      // No matching association found — don't render this port
+      return null;
     }
     
     // For MaterialPorts, EnergyPorts, etc., use SequenceFlow connections
