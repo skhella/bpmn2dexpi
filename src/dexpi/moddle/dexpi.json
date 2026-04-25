@@ -2,9 +2,6 @@
   "name": "DEXPI",
   "uri": "http://dexpi.org/schema/bpmn-extension",
   "prefix": "dexpi",
-  "xml": {
-    "tagAlias": "lowerCase"
-  },
   "types": [
     {
       "name": "Element",
@@ -44,7 +41,10 @@
           "isAttr": true,
           "type": "String"
         }
-      ]
+      ],
+      "xml": {
+        "tagAlias": "element"
+      }
     },
     {
       "name": "Attribute",

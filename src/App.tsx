@@ -70,6 +70,8 @@ function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [modeler, setModeler] = useState<BpmnModeler | null>(null);
   const [selectedElement, setSelectedElement] = useState<any>(null);
+  // Raw XML as last imported — used for DEXPI export to bypass bpmn-js moddle round-trip
+  const rawBpmnXmlRef = useRef<string>('');
   const [validationMessage, setValidationMessage] = useState<string>('');
   const [_currentPlane, setCurrentPlane] = useState<string | null>(null);
   const [planeStack, setPlaneStack] = useState<string[]>([]);
@@ -381,7 +383,9 @@ function App() {
     const savedXml = localStorage.getItem(AUTOSAVE_KEY);
     const diagramToLoad = savedXml || initialDiagram;
 
-    bpmnModeler.importXML(preprocessBpmnXml(diagramToLoad)).then(() => {
+    const preprocessedToLoad = preprocessBpmnXml(diagramToLoad);
+    rawBpmnXmlRef.current = preprocessedToLoad;
+    bpmnModeler.importXML(preprocessedToLoad).then(() => {
       if (isDestroyed) return;
       
       const canvas = bpmnModeler.get('canvas') as any;
@@ -459,12 +463,13 @@ function App() {
       // Step 2: Transform BPMN to DEXPI XML
       // preprocessBpmnXml ensures xmlns:dexpi is declared and bare <port> elements
       // are converted — needed because saveXML output may vary
-      const preprocessed = preprocessBpmnXml(bpmnXml);
+      // Use raw XML stored at import time — bpmn-js saveXML() loses dexpi:element
+      // content because the moddle descriptor doesn't fully support round-tripping.
+      const xmlForTransform = rawBpmnXmlRef.current || preprocessBpmnXml(bpmnXml);
+      console.debug('[bpmn2dexpi] Export DEXPI — using raw XML, first 200 chars:', xmlForTransform.slice(0, 200));
+      console.debug('[bpmn2dexpi] Has dexpi:element:', xmlForTransform.includes('dexpi:element'));
       
-      // Debug: log first 500 chars of preprocessed XML to verify dexpi content
-      console.debug('[bpmn2dexpi] Export DEXPI — saveXML output (first 800 chars):', preprocessed.slice(0, 800));
-      
-      const dexpiXml = await transformer.transform(preprocessed, {
+      const dexpiXml = await transformer.transform(xmlForTransform, {
         projectName: 'DEXPI Process Model',
         projectDescription: 'Generated from BPMN.io',
         author: 'bpmn2dexpi'
@@ -559,7 +564,9 @@ function App() {
 
       try {
         const text = await file.text();
-        await modeler.importXML(preprocessBpmnXml(text));
+        const preprocessedText = preprocessBpmnXml(text);
+        rawBpmnXmlRef.current = preprocessedText;
+        await modeler.importXML(preprocessedText);
         // Save imported diagram immediately
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
