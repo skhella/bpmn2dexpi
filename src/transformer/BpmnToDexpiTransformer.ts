@@ -1014,24 +1014,27 @@ export class BpmnToDexpiTransformer {
 
     // Add ProcessConnections (Streams + InformationFlows) collection if there are any
     if (this.streams.size > 0 || this.informationFlows.size > 0) {
-      if (!processModelObject.Components) {
-        processModelObject.Components = [];
-      }
       const allConnections = [
         ...this.buildStreams(),
         ...this.buildInformationFlows(),
       ];
-      const streamsComponent = {
-        '$': {
-          'property': 'ProcessConnections'
-        },
-        'Object': allConnections
-      };
-      
-      if (Array.isArray(processModelObject.Components)) {
-        processModelObject.Components.push(streamsComponent);
-      } else {
-        processModelObject.Components = [processModelObject.Components, streamsComponent];
+      // Only add the wrapper if there are actual connections to output
+      // (buildInformationFlows may return empty if all flows lack ports)
+      if (allConnections.length > 0) {
+        if (!processModelObject.Components) {
+          processModelObject.Components = [];
+        }
+        const streamsComponent = {
+          '$': {
+            'property': 'ProcessConnections'
+          },
+          'Object': allConnections
+        };
+        if (Array.isArray(processModelObject.Components)) {
+          processModelObject.Components.push(streamsComponent);
+        } else {
+          processModelObject.Components = [processModelObject.Components, streamsComponent];
+        }
       }
     }
 
