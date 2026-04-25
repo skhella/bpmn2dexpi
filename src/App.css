@@ -112,6 +112,26 @@
   z-index: 10;
 }
 
+.properties-panel-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 11;
+}
+
+.properties-panel-resizer:hover,
+.resizing-properties-panel .properties-panel-resizer {
+  background-color: rgba(52, 152, 219, 0.25);
+}
+
+.resizing-properties-panel {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .no-selection {
   text-align: center;
   color: #999;
@@ -770,5 +790,3 @@
   resize: vertical;
   min-height: 60px;
 }
-
-
