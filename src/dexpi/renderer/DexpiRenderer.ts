@@ -380,7 +380,7 @@ export default class DexpiRenderer extends BaseRenderer {
     // For InformationPorts, match each port to its specific association by name.
     // Same logic as MaterialPort/SequenceFlow matching but using the DataObject's
     // name: an IPI_Composition port matches the association whose DataObject is "Composition".
-    if (port.type === 'InformationPort' || (port as any).type === 'InformationPort') {
+    if (port.portType === 'InformationPort' || (port as any).type === 'InformationPort') {
       // Respect manual positioning — same as calculatePortPosition does for all ports
       if (port.anchorX !== undefined && port.anchorY !== undefined) {
         return { x: port.anchorX, y: port.anchorY };

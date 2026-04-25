@@ -1,444 +1,158 @@
 {
-  "name": "DEXPI",
+  "name": "dexpi",
   "uri": "http://dexpi.org/schema/bpmn-extension",
   "prefix": "dexpi",
-  "xml": {
-    "tagAlias": "lowerCase"
-  },
+  "xml": { "tagAlias": "lowerCase" },
+  "associations": [],
   "types": [
     {
       "name": "Element",
+      "superClass": ["Element"],
       "meta": {
-        "allowedIn": [
-          "bpmn:ExtensionElements"
-        ]
+        "allowedIn": ["bpmn:Task", "bpmn:SubProcess", "bpmn:StartEvent", "bpmn:EndEvent", "bpmn:IntermediateCatchEvent", "bpmn:IntermediateThrowEvent", "bpmn:DataObjectReference", "bpmn:SequenceFlow", "bpmn:Process", "bpmn:Collaboration"]
       },
       "properties": [
-        {
-          "name": "dexpiType",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "identifier",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "uid",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "ports",
-          "type": "Port",
-          "isMany": true
-        },
-        {
-          "name": "attributes",
-          "type": "Attribute",
-          "isMany": true
-        },
-        {
-          "name": "hierarchyLevel",
-          "isAttr": true,
-          "type": "String"
-        }
-      ]
-    },
-    {
-      "name": "Attribute",
-      "properties": [
-        {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "value",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "unit",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "scope",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "range",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "provenance",
-          "isAttr": true,
-          "type": "String"
-        }
+        { "name": "dexpiType", "isAttr": true, "type": "String" },
+        { "name": "customUri", "isAttr": true, "type": "String" },
+        { "name": "identifier", "isAttr": true, "type": "String" },
+        { "name": "uid", "isAttr": true, "type": "String" },
+        { "name": "hierarchyLevel", "isAttr": true, "type": "String" },
+        { "name": "ports", "type": "Port", "isMany": true },
+        { "name": "attributes", "type": "Attribute", "isMany": true }
       ]
     },
     {
       "name": "Port",
+      "superClass": ["Element"],
       "properties": [
-        {
-          "name": "portId",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "type",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "direction",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "anchorSide",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "anchorOffset",
-          "isAttr": true,
-          "type": "Number"
-        },
-        {
-          "name": "anchorX",
-          "isAttr": true,
-          "type": "Number"
-        },
-        {
-          "name": "anchorY",
-          "isAttr": true,
-          "type": "Number"
-        },
-        {
-          "name": "subReference",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "superReference",
-          "isAttr": true,
-          "type": "String"
-        }
+        { "name": "id", "isAttr": true, "type": "String" },
+        { "name": "portId", "isAttr": true, "type": "String" },
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "type", "isAttr": true, "type": "String" },
+        { "name": "portType", "isAttr": true, "type": "String" },
+        { "name": "direction", "isAttr": true, "type": "String" },
+        { "name": "label", "isAttr": true, "type": "String" },
+        { "name": "anchorSide", "isAttr": true, "type": "String" },
+        { "name": "anchorOffset", "isAttr": true, "type": "Number" },
+        { "name": "anchorX", "isAttr": true, "type": "Number" },
+        { "name": "anchorY", "isAttr": true, "type": "Number" },
+        { "name": "subReference", "isAttr": true, "type": "String" },
+        { "name": "superReference", "isAttr": true, "type": "String" }
+      ]
+    },
+    {
+      "name": "Attribute",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "value", "isAttr": true, "type": "String" },
+        { "name": "unit", "isAttr": true, "type": "String" },
+        { "name": "scope", "isAttr": true, "type": "String" },
+        { "name": "range", "isAttr": true, "type": "String" },
+        { "name": "provenance", "isAttr": true, "type": "String" }
       ]
     },
     {
       "name": "Stream",
-      "superClass": [
-        "bpmn:BaseElement"
-      ],
-      "meta": {
-        "allowedIn": [
-          "bpmn:ExtensionElements"
-        ]
-      },
+      "superClass": ["Element"],
+      "meta": { "allowedIn": ["bpmn:SequenceFlow", "bpmn:MessageFlow"] },
       "properties": [
-        {
-          "name": "identifier",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "streamType",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "sourcePortRef",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "targetPortRef",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "templateReference",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "materialStateReference",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "provenance",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "range",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "attributes",
-          "type": "StreamAttribute",
-          "isMany": true
-        }
+        { "name": "identifier", "isAttr": true, "type": "String" },
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "streamType", "isAttr": true, "type": "String" },
+        { "name": "sourcePortRef", "isAttr": true, "type": "String" },
+        { "name": "targetPortRef", "isAttr": true, "type": "String" },
+        { "name": "templateReference", "isAttr": true, "type": "String" },
+        { "name": "materialStateReference", "isAttr": true, "type": "String" },
+        { "name": "provenance", "isAttr": true, "type": "String" },
+        { "name": "range", "isAttr": true, "type": "String" },
+        { "name": "attributes", "type": "StreamAttribute", "isMany": true }
       ]
     },
     {
       "name": "StreamAttribute",
+      "superClass": ["Element"],
       "properties": [
-        {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "value",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "unit",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "scope",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "range",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "provenance",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "qualifier",
-          "isAttr": true,
-          "type": "String"
-        }
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "value", "isAttr": true, "type": "String" },
+        { "name": "unit", "isAttr": true, "type": "String" },
+        { "name": "scope", "isAttr": true, "type": "String" },
+        { "name": "range", "isAttr": true, "type": "String" },
+        { "name": "provenance", "isAttr": true, "type": "String" },
+        { "name": "qualifier", "isAttr": true, "type": "String" }
       ]
     },
     {
       "name": "InformationFlow",
-      "superClass": [
-        "bpmn:BaseElement"
-      ],
-      "meta": {
-        "allowedIn": [
-          "bpmn:ExtensionElements"
-        ]
-      },
+      "superClass": ["Element"],
+      "meta": { "allowedIn": ["bpmn:Association", "bpmn:DataInputAssociation", "bpmn:DataOutputAssociation"] },
       "properties": [
-        {
-          "name": "identifier",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "dataObjectRef",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "sourceRef",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "targetRef",
-          "isAttr": true,
-          "type": "String"
-        }
+        { "name": "identifier", "isAttr": true, "type": "String" },
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "dataObjectRef", "isAttr": true, "type": "String" },
+        { "name": "sourceRef", "isAttr": true, "type": "String" },
+        { "name": "targetRef", "isAttr": true, "type": "String" }
       ]
     },
     {
       "name": "MaterialTemplate",
-      "superClass": [
-        "bpmn:BaseElement"
-      ],
-      "meta": {
-        "allowedIn": [
-          "bpmn:ExtensionElements"
-        ]
-      },
+      "superClass": ["Element"],
+      "meta": { "allowedIn": ["bpmn:Process", "bpmn:Collaboration"] },
       "properties": [
-        {
-          "name": "identifier",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "uid",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "componentList",
-          "type": "Component",
-          "isMany": true
-        }
+        { "name": "identifier", "isAttr": true, "type": "String" },
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "uid", "isAttr": true, "type": "String" },
+        { "name": "componentList", "type": "Component", "isMany": true }
       ]
     },
     {
       "name": "Component",
+      "superClass": ["Element"],
       "properties": [
-        {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "casNumber",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "fraction",
-          "isAttr": true,
-          "type": "Number"
-        }
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "casNumber", "isAttr": true, "type": "String" },
+        { "name": "fraction", "isAttr": true, "type": "Number" }
       ]
     },
     {
       "name": "MaterialState",
-      "superClass": [
-        "bpmn:BaseElement"
-      ],
-      "meta": {
-        "allowedIn": [
-          "bpmn:ExtensionElements"
-        ]
-      },
+      "superClass": ["Element"],
+      "meta": { "allowedIn": ["bpmn:Process", "bpmn:Collaboration"] },
       "properties": [
-        {
-          "name": "identifier",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "uid",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "templateRef",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "provenance",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "range",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "properties",
-          "type": "StateProperty",
-          "isMany": true
-        }
+        { "name": "identifier", "isAttr": true, "type": "String" },
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "uid", "isAttr": true, "type": "String" },
+        { "name": "templateRef", "isAttr": true, "type": "String" },
+        { "name": "provenance", "isAttr": true, "type": "String" },
+        { "name": "range", "isAttr": true, "type": "String" },
+        { "name": "properties", "type": "StateProperty", "isMany": true }
       ]
     },
     {
       "name": "StateProperty",
+      "superClass": ["Element"],
       "properties": [
-        {
-          "name": "name",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "value",
-          "isAttr": true,
-          "type": "String"
-        },
-        {
-          "name": "unit",
-          "isAttr": true,
-          "type": "String"
-        }
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "value", "isAttr": true, "type": "String" },
+        { "name": "unit", "isAttr": true, "type": "String" }
       ]
     },
     {
       "name": "Case",
-      "superClass": [
-        "bpmn:BaseElement"
-      ],
-      "meta": {
-        "allowedIn": [
-          "bpmn:ExtensionElements"
-        ]
-      },
+      "superClass": ["Element"],
+      "meta": { "allowedIn": ["bpmn:Process"] },
       "properties": [
-        {
-          "name": "caseName",
-          "type": "CaseName"
-        },
-        {
-          "name": "materialStates",
-          "isMany": true,
-          "type": "MaterialState"
-        }
+        { "name": "caseName", "type": "CaseName" },
+        { "name": "materialStates", "type": "MaterialState", "isMany": true }
       ]
     },
     {
       "name": "CaseName",
-      "superClass": [
-        "bpmn:BaseElement"
-      ],
-      "meta": {
-        "allowedIn": [
-          "Case"
-        ]
-      },
+      "superClass": ["Element"],
       "properties": [
-        {
-          "name": "body",
-          "isBody": true,
-          "type": "String"
-        }
+        { "name": "body", "type": "String", "isBody": true }
       ]
     }
   ],
-  "enumerations": [],
-  "associations": []
+  "enumerations": []
 }

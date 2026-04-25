@@ -9,7 +9,7 @@ import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { transformer } from './transformer/BpmnToDexpiTransformer';
-import { DexpiToBpmnTransformer } from './transformer/DexpiToBpmnTransformer';
+import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
 import logoImg from './assets/cropped_logo_B2P.png';
@@ -24,24 +24,23 @@ const normalizeBpmnXml = (xml: string): string =>
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
 
 /**
- * Normalise BPMN XML before feeding it to bpmn-js so both pure Camunda BPMNs
- * and our own annotated BPMNs import/export cleanly:
+ * Normalise BPMN XML before feeding it to bpmn-js so files from any source
+ * (our UI, Camunda Modeler, hand-edited, legacy TEP) parse identically:
  *
- * - If bare <ports>/<port> elements exist (no namespace prefix), convert them
- *   to <dexpi:ports>/<dexpi:port> so bpmn-js can match them to the known
- *   dexpi namespace URI when serialising (avoiding the "no namespace uri for
- *   prefix ns0" error).
- * - If a dexpi namespace declaration is missing entirely, inject it so the
- *   prefix stays valid after the prefix conversion above.
- * - Pure Camunda BPMNs (no ports, no dexpi annotations) pass through unchanged.
+ * 1. Inject xmlns:dexpi if missing — bpmn-js silently drops dexpi:* elements
+ *    whose namespace URI isn't declared on the root, even if they look correct.
+ * 2. Strip <dexpi:ports> wrappers — moddle descriptor expects port elements
+ *    as direct children of <dexpi:element>. Kept as a backward-compat fallback
+ *    for older files that used the wrapper; current canonical TEP is flat.
+ * 3. Convert bare <port> elements (Camunda export of our annotations without
+ *    a namespace prefix) to <dexpi:port> so they match the dexpi moddle type.
+ *
+ * Pure Camunda BPMNs (no ports, no dexpi content) pass through unchanged.
  */
 function preprocessBpmnXml(xml: string): string {
-  const hasBarePortElements = /<ports>|<port\b/.test(xml);
-  if (!hasBarePortElements) return xml;
-
   let result = xml;
 
-  // Ensure xmlns:dexpi is declared so the dexpi: prefix we're about to add is valid.
+  // 1. Ensure xmlns:dexpi is declared
   if (!result.includes('xmlns:dexpi=')) {
     result = result.replace(
       /(<(?:bpmn:)?definitions\b[^>]*?)(\/?>)/,
@@ -49,11 +48,21 @@ function preprocessBpmnXml(xml: string): string {
     );
   }
 
-  return result
-    .replace(/<ports>/g, '<dexpi:ports>')
-    .replace(/<\/ports>/g, '</dexpi:ports>')
-    .replace(/<port\b/g, '<dexpi:port')
-    .replace(/<\/port>/g, '</dexpi:port>');
+  // 2. Strip <dexpi:ports> / <ports> wrappers (legacy / Camunda formats)
+  result = result
+    .replace(/<dexpi:ports>/g, '')
+    .replace(/<\/dexpi:ports>/g, '')
+    .replace(/<ports>/g, '')
+    .replace(/<\/ports>/g, '');
+
+  // 3. Convert bare <port> → <dexpi:port>
+  if (/<port\b/.test(result)) {
+    result = result
+      .replace(/<port\b/g, '<dexpi:port')
+      .replace(/<\/port>/g, '</dexpi:port>');
+  }
+
+  return result;
 }
 
 const initialDiagram = '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -386,7 +395,8 @@ function App() {
     const savedXml = localStorage.getItem(AUTOSAVE_KEY);
     const diagramToLoad = savedXml || initialDiagram;
 
-    bpmnModeler.importXML(preprocessBpmnXml(diagramToLoad)).then(() => {
+    const preprocessedToLoad = preprocessBpmnXml(diagramToLoad);
+    bpmnModeler.importXML(preprocessedToLoad).then(() => {
       if (isDestroyed) return;
       
       const canvas = bpmnModeler.get('canvas') as any;
@@ -469,10 +479,19 @@ function App() {
 
 
       // Step 2: Transform BPMN to DEXPI XML
-      const dexpiXml = await transformer.transform(bpmnXml, {
+      // preprocessBpmnXml ensures xmlns:dexpi is declared and bare <port> elements
+      // are converted — needed because saveXML output may vary
+      // Step 2: Transform BPMN to DEXPI XML
+      // saveXML() output is now reliable — moddle descriptor properly preserves
+      // dexpi:element content on round-trip. preprocessBpmnXml normalizes any
+      // legacy port wrappers to flat ports.
+      const xmlForTransform = preprocessBpmnXml(bpmnXml);
+      
+      const dexpiXml = await transformer.transform(xmlForTransform, {
         projectName: 'DEXPI Process Model',
         projectDescription: 'Generated from BPMN.io',
-        author: 'bpmn2dexpi'
+        author: 'bpmn2dexpi',
+        processXml: processXmlRaw
       });
       
       
@@ -533,7 +552,7 @@ function App() {
       }
 
       // Transform to DEXPI XML
-      const dexpiXml = await transformer.transform(bpmnXml);
+      const dexpiXml = await transformer.transform(bpmnXml, { processXml: processXmlRaw });
       
       // Export to Neo4j
       const exportResult = await exportToNeo4j(dexpiXml, config, (current: number, total: number) => {
@@ -611,8 +630,9 @@ function App() {
 
       try {
         const text = await file.text();
-        await modeler.importXML(preprocessBpmnXml(text));
-        reanchorPortsAfterImport();
+        const preprocessedText = preprocessBpmnXml(text);
+        await modeler.importXML(preprocessedText);
+        // Save imported diagram immediately
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
         setValidationMessage('BPMN imported successfully!');
