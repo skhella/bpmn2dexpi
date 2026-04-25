@@ -29,18 +29,20 @@ const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
  * - Pure Camunda BPMNs (no ports, no dexpi annotations) pass through unchanged.
  */
 function preprocessBpmnXml(xml: string): string {
-  const hasBarePortElements = /<ports>|<port\b/.test(xml);
-  if (!hasBarePortElements) return xml;
-
   let result = xml;
 
-  // Ensure xmlns:dexpi is declared so the dexpi: prefix we're about to add is valid.
+  // Always ensure xmlns:dexpi is declared — bpmn-js silently drops any
+  // dexpi:* elements whose namespace URI isn't declared on the root element.
   if (!result.includes('xmlns:dexpi=')) {
     result = result.replace(
       /(<(?:bpmn:)?definitions\b[^>]*?)(\/?>)/,
       `$1 xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"$2`
     );
   }
+
+  // Convert bare <ports>/<port> (Camunda-without-namespace format) → <dexpi:ports>/<dexpi:port>
+  const hasBarePortElements = /<ports>|<port\b/.test(result);
+  if (!hasBarePortElements) return result;
 
   return result
     .replace(/<ports>/g, '<dexpi:ports>')
