@@ -356,8 +356,9 @@ export default class DexpiRenderer extends BaseRenderer {
     const { width, height } = element;
 
     ports.forEach((port: DexpiPort) => {
-      // Calculate position from stream connections
       const position = this.calculatePortPositionFromConnection(element, port, width, height);
+      // null means "no visual connection found — don't render"
+      if (position === null) return;
       this.drawPort(parentNode, port, position.x, position.y);
     });
   }
@@ -367,7 +368,7 @@ export default class DexpiRenderer extends BaseRenderer {
     port: DexpiPort,
     width: number,
     height: number
-  ): { x: number; y: number } {
+  ): { x: number; y: number } | null {
     const portSize = 8;
     const elementId = element.businessObject.id;
     const businessObject = element.businessObject;
@@ -376,12 +377,9 @@ export default class DexpiRenderer extends BaseRenderer {
     // Same logic as MaterialPort/SequenceFlow matching but using the DataObject's
     // name: an IPI_Composition port matches the association whose DataObject is "Composition".
     if (port.type === 'InformationPort' || (port as any).type === 'InformationPort') {
-      // InformationPorts on expanded subprocesses are DEXPI export metadata only —
-      // don't render them visually on the subprocess boundary
-      if (element.type === 'bpmn:SubProcess' && element.collapsed === false) {
-        return { x: -100, y: -100 };
-      }
-
+      // InformationPorts only render when a visual association connection exists.
+      // If no matching DataObject association is found, return null → port is not drawn.
+      // This prevents export-only IPI ports from cluttering subprocess boundaries.
       const isOutlet = port.direction === 'Outlet';
       const associations = isOutlet
         ? (businessObject.dataOutputAssociations || [])
@@ -438,8 +436,8 @@ export default class DexpiRenderer extends BaseRenderer {
         }
       }
 
-      // No matching association — fall back to anchorSide/direction default
-      return this.calculatePortPosition(port, width, height);
+      // No matching association found — don't render this port
+      return null;
     }
     
     // For MaterialPorts, EnergyPorts, etc., use SequenceFlow connections
