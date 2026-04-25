@@ -372,40 +372,36 @@ export default class DexpiRenderer extends BaseRenderer {
     const elementId = element.businessObject.id;
     const businessObject = element.businessObject;
     
-    // For InformationPorts, use anchorSide/anchorOffset if the port has them set.
-    // Only fall back to waypoint-based positioning when there's a single association
-    // and no explicit anchor — otherwise multiple IPI ports stack at the same waypoint.
+    // For InformationPorts, match each port with its specific association by index.
+    // The Nth IPI port corresponds to the Nth dataInputAssociation, and Nth IPO
+    // port to the Nth dataOutputAssociation — XML order is preserved by Camunda.
     if (port.type === 'InformationPort' || (port as any).type === 'InformationPort') {
-      // If port has an explicit anchorSide, use it directly
-      if (port.anchorSide) {
-        return this.calculatePortPosition(port, width, height);
-      }
+      const isOutlet = port.direction === 'Outlet';
+      const allPorts = (businessObject.extensionElements?.values || [])
+        .find((e: any) => e.$type === 'dexpi:Element')?.ports || [];
+      const sameDirPorts = allPorts.filter((p: any) =>
+        (p.type === 'InformationPort' || p.portType === 'InformationPort') &&
+        p.direction === port.direction
+      );
+      const portIdx = sameDirPorts.indexOf(port);
 
-      // Single association and no anchorSide — try to use the waypoint
-      const outlets = businessObject.dataOutputAssociations || [];
-      const inlets  = businessObject.dataInputAssociations  || [];
+      const associations = isOutlet
+        ? (businessObject.dataOutputAssociations || [])
+        : (businessObject.dataInputAssociations || []);
 
-      if (port.direction === 'Outlet' && outlets.length === 1) {
+      if (portIdx >= 0 && portIdx < associations.length) {
         const assocEl = this.elementRegistry.find((el: any) =>
-          el.businessObject?.id === outlets[0].id
+          el.businessObject?.id === associations[portIdx].id
         );
         if (assocEl?.waypoints?.length > 0) {
-          const pt = assocEl.waypoints[0];
+          const pt = isOutlet
+            ? assocEl.waypoints[0]
+            : assocEl.waypoints[assocEl.waypoints.length - 1];
           return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
         }
       }
 
-      if (port.direction === 'Inlet' && inlets.length === 1) {
-        const assocEl = this.elementRegistry.find((el: any) =>
-          el.businessObject?.id === inlets[0].id
-        );
-        if (assocEl?.waypoints?.length > 0) {
-          const pt = assocEl.waypoints[assocEl.waypoints.length - 1];
-          return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
-        }
-      }
-
-      // Multiple associations or no waypoints — fall through to anchorSide/direction fallback
+      // No matching association waypoint — fall back to anchorSide/direction default
       return this.calculatePortPosition(port, width, height);
     }
     
