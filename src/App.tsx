@@ -15,6 +15,12 @@ import type { Neo4jConfig } from './utils/neo4jExporter';
 import logoImg from './assets/cropped_logo_B2P.png';
 import './App.css';
 
+// Normalize BPMN XML: fix ns0:ports ↔ ports round-trip issue.
+// bpmn-js assigns ns0: prefix to unknown <ports> elements; we strip it back.
+const normalizeBpmnXml = (xml: string): string =>
+  xml.replace(/<(\/?)ns\d+:ports/g, '<$1ports')
+     .replace(/xmlns:ns\d+=""/g, '');
+
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
 
 const initialDiagram = '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -347,7 +353,7 @@ function App() {
     const savedXml = localStorage.getItem(AUTOSAVE_KEY);
     const diagramToLoad = savedXml || initialDiagram;
 
-    bpmnModeler.importXML(diagramToLoad).then(() => {
+    bpmnModeler.importXML(normalizeBpmnXml(diagramToLoad)).then(() => {
       if (isDestroyed) return;
       
       const canvas = bpmnModeler.get('canvas') as any;
@@ -359,7 +365,7 @@ function App() {
       // Auto-save on every diagram change
       eventBus.on('commandStack.changed', () => {
         bpmnModeler.saveXML({ format: true }).then(({ xml }) => {
-          if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
+          if (xml) localStorage.setItem(AUTOSAVE_KEY, normalizeBpmnXml(xml));
         });
       });
 
@@ -377,7 +383,7 @@ function App() {
       // If autosaved data was corrupted, fall back to empty diagram
       if (savedXml) {
         localStorage.removeItem(AUTOSAVE_KEY);
-        bpmnModeler.importXML(initialDiagram).then(() => {
+        bpmnModeler.importXML(normalizeBpmnXml(initialDiagram)).then(() => {
           setModeler(bpmnModeler);
         });
       } else {
@@ -395,7 +401,8 @@ function App() {
     if (!modeler) return;
 
     try {
-      const result = await modeler.saveXML({ format: true });
+      const rawResult = await modeler.saveXML({ format: true });
+      const result = { ...rawResult, xml: rawResult.xml ? normalizeBpmnXml(rawResult.xml) : rawResult.xml };
       const xml = result.xml;
       
       const blob = new Blob([xml || ''], { type: 'application/xml' });
@@ -418,7 +425,8 @@ function App() {
 
     try {
       // Step 1: Generate BPMN XML with DEXPI extensions
-      const result = await modeler.saveXML({ format: true });
+      const rawResult = await modeler.saveXML({ format: true });
+      const result = { ...rawResult, xml: rawResult.xml ? normalizeBpmnXml(rawResult.xml) : rawResult.xml };
       const bpmnXml = result.xml;
       
       if (!bpmnXml) {
@@ -481,7 +489,8 @@ function App() {
 
     try {
       // Generate BPMN XML then transform to DEXPI
-      const result = await modeler.saveXML({ format: true });
+      const rawResult = await modeler.saveXML({ format: true });
+      const result = { ...rawResult, xml: rawResult.xml ? normalizeBpmnXml(rawResult.xml) : rawResult.xml };
       const bpmnXml = result.xml;
       
       if (!bpmnXml) {
@@ -569,7 +578,7 @@ function App() {
 
       try {
         const text = await file.text();
-        await modeler.importXML(text);
+        await modeler.importXML(normalizeBpmnXml(text));
         reanchorPortsAfterImport();
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
@@ -604,7 +613,7 @@ function App() {
         const t = new DexpiToBpmnTransformer();
         const bpmnXml = t.transform(dexpiXml);
 
-        await modeler.importXML(bpmnXml);
+        await modeler.importXML(normalizeBpmnXml(bpmnXml));
         reanchorPortsAfterImport();
         setPlaneStack([]);
         setCurrentPlane(null);
@@ -622,7 +631,7 @@ function App() {
   const handleNewDiagram = async () => {
     if (!modeler) return;
     if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
-    await modeler.importXML(initialDiagram);
+    await modeler.importXML(normalizeBpmnXml(initialDiagram));
     localStorage.removeItem(AUTOSAVE_KEY);
     setPlaneStack([]);
     setCurrentPlane(null);
