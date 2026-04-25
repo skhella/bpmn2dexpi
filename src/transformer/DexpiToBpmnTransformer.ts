@@ -250,7 +250,7 @@ export class DexpiToBpmnTransformer {
 
   private computeLayout(parsed: ParsedDexpi): Map<string, {x: number, y: number, w: number, h: number}> {
     const { steps, connections } = parsed;
-    const visibleSteps = steps.filter(s => !s.parentId);
+    const visibleSteps = steps.filter(s => !s.parentId && !this.isPortProxyStep(s));
     const visibleStepIds = new Set(visibleSteps.map(s => s.id));
 
     // Build adjacency: stepId → downstream stepIds (via connections through ports)
@@ -378,14 +378,21 @@ export class DexpiToBpmnTransformer {
     const portToStep = new Map<string, string>();
     steps.forEach(s => s.ports.forEach(p => portToStep.set(p.id, s.id)));
     const stepById = new Map(steps.map(s => [s.id, s]));
+    const hiddenStepIds = new Set(steps.filter(step => this.isPortProxyStep(step)).map(step => step.id));
 
     const processId = 'Process_imported';
     const defId = 'Definitions_imported';
     const planeId = 'BPMNPlane_imported';
 
     // Classify connections
-    const seqFlows = connections.filter(c => c.dexpiType !== 'InformationFlow');
-    const infoFlows = connections.filter(c => c.dexpiType === 'InformationFlow');
+    const isHiddenConnection = (conn: DexpiConnection) => {
+      const src = portToStep.get(conn.sourcePortId);
+      const tgt = portToStep.get(conn.targetPortId);
+      return (src !== undefined && hiddenStepIds.has(src)) ||
+             (tgt !== undefined && hiddenStepIds.has(tgt));
+    };
+    const seqFlows = connections.filter(c => c.dexpiType !== 'InformationFlow' && !isHiddenConnection(c));
+    const infoFlows = connections.filter(c => c.dexpiType === 'InformationFlow' && !isHiddenConnection(c));
 
     // Build incoming/outgoing maps for steps
     const incoming = new Map<string, string[]>();
@@ -457,7 +464,7 @@ ${indent}</bpmn:endEvent>`;
 
       if (step.children.length > 0) {
         const nestedElements = [
-          ...step.children.map(child => renderStep(child, childIndent)),
+          ...step.children.filter(child => !hiddenStepIds.has(child.id)).map(child => renderStep(child, childIndent)),
           ...(sequenceFlowsByOwner.get(step.id) || []).map(xml => indentBlock(xml, childIndent)),
         ].join('\n\n');
 
@@ -509,7 +516,7 @@ ${indent}</bpmn:task>`;
       </bpmndi:BPMNEdge>`);
     });
 
-    steps.filter(step => !step.parentId).forEach(step => {
+    steps.filter(step => !step.parentId && !hiddenStepIds.has(step.id)).forEach(step => {
       processElements.push(renderStep(step, '  '));
     });
 
@@ -517,7 +524,7 @@ ${indent}</bpmn:task>`;
       processElements.push(indentBlock(xml, '  '));
     });
 
-    steps.filter(step => !step.parentId).forEach(step => {
+    steps.filter(step => !step.parentId && !hiddenStepIds.has(step.id)).forEach(step => {
       const pos = layout.get(step.id);
       if (!pos) return;
 
@@ -610,6 +617,19 @@ ${edgeElements.join('\n')}
   }
 
   // ── Utilities ───────────────────────────────────────────────────────────────
+
+  private isPortProxyStep(step: DexpiStep): boolean {
+    if (step.dexpiType !== 'Source' && step.dexpiType !== 'Sink') return false;
+
+    const label = step.label.trim();
+    if (!label) return false;
+
+    const isPortLikeLabel = /^(MI|MO|TEI|TEO|MEI|MEO|EEI|EEO)\d+$/i.test(label) ||
+      /^IP[IO]_/i.test(label);
+    if (isPortLikeLabel) return true;
+
+    return step.ports.length > 0 && step.ports.every(port => port.label === label);
+  }
 
   private _uidCounter = 0;
   private uid(): string {
