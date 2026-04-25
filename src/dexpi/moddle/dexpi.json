@@ -32,10 +32,7 @@
         {
           "name": "ports",
           "type": "Port",
-          "isMany": true,
-          "xml": {
-            "serialize": "unwrapped"
-          }
+          "isMany": true
         },
         {
           "name": "attributes",
