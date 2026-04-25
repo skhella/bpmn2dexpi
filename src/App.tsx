@@ -16,12 +16,6 @@ import type { Neo4jConfig } from './utils/neo4jExporter';
 import logoImg from './assets/cropped_logo_B2P.png';
 import './App.css';
 
-// Normalize BPMN XML: fix ns0:ports ↔ ports round-trip issue.
-// bpmn-js assigns ns0: prefix to unknown <ports> elements; we strip it back.
-const normalizeBpmnXml = (xml: string): string =>
-  xml.replace(/<(\/?)ns\d+:ports/g, '<$1ports')
-     .replace(/xmlns:ns\d+=""/g, '');
-
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
 
 /**
@@ -409,13 +403,12 @@ function App() {
       // Auto-save on every diagram change
       eventBus.on('commandStack.changed', () => {
         bpmnModeler.saveXML({ format: true }).then(({ xml }) => {
-          if (xml) localStorage.setItem(AUTOSAVE_KEY, normalizeBpmnXml(xml));
+          if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
         });
       });
 
       // Now set the modeler state - the app is ready
       setModeler(bpmnModeler);
-      (window as any).__modeler = bpmnModeler;
       if (savedXml) setValidationMessage('Restored previous session');
 
       // Reanchor ports that lack explicit anchor positions after a short
@@ -446,8 +439,7 @@ function App() {
 
     try {
       const rawResult = await modeler.saveXML({ format: true });
-      const result = { ...rawResult, xml: rawResult.xml ? normalizeBpmnXml(rawResult.xml) : rawResult.xml };
-      const xml = result.xml;
+      const xml = rawResult.xml;
       
       const blob = new Blob([xml || ''], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
@@ -470,8 +462,7 @@ function App() {
     try {
       // Step 1: Generate BPMN XML with DEXPI extensions
       const rawResult = await modeler.saveXML({ format: true });
-      const result = { ...rawResult, xml: rawResult.xml ? normalizeBpmnXml(rawResult.xml) : rawResult.xml };
-      const bpmnXml = result.xml;
+      const bpmnXml = rawResult.xml;
       
       if (!bpmnXml) {
         setValidationMessage('No BPMN XML to transform');
@@ -543,8 +534,7 @@ function App() {
     try {
       // Generate BPMN XML then transform to DEXPI
       const rawResult = await modeler.saveXML({ format: true });
-      const result = { ...rawResult, xml: rawResult.xml ? normalizeBpmnXml(rawResult.xml) : rawResult.xml };
-      const bpmnXml = result.xml;
+      const bpmnXml = rawResult.xml;
       
       if (!bpmnXml) {
         setValidationMessage('No BPMN XML to export');
@@ -667,7 +657,7 @@ function App() {
         const t = new DexpiToBpmnTransformer();
         const bpmnXml = t.transform(dexpiXml);
 
-        await modeler.importXML(normalizeBpmnXml(bpmnXml));
+        await modeler.importXML(bpmnXml);
         reanchorPortsAfterImport();
         setPlaneStack([]);
         setCurrentPlane(null);
