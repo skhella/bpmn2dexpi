@@ -427,9 +427,12 @@ ${step('MX1', 'Mixing', 'Mixer')}
       const recycleIncoming = edgeWaypoints(out, 'bpmn_S4');
       const recycleOutgoing = edgeWaypoints(out, 'bpmn_S5');
       expect(recycleIncoming.at(-1)?.x).toBe(recycle.x + recycle.w);
+      expect(recycleIncoming.at(-1)?.y).toBe(recycle.y + recycle.h * 0.65);
       expect(recycleOutgoing[0].x).toBe(recycle.x);
-      expect(out).toMatch(/portId="Recycle_in"[^>]*direction="Inlet"[^>]*anchorSide="right"/);
-      expect(out).toMatch(/portId="Recycle_out"[^>]*direction="Outlet"[^>]*anchorSide="left"/);
+      expect(recycleOutgoing[0].y).toBe(recycle.y + recycle.h * 0.35);
+      expect(recycleOutgoing[1].x).toBeLessThan(recycleOutgoing[0].x);
+      expect(out).toMatch(/portId="Recycle_in"[^>]*direction="Inlet"[^>]*anchorSide="right"[^>]*anchorOffset="0.65"/);
+      expect(out).toMatch(/portId="Recycle_out"[^>]*direction="Outlet"[^>]*anchorSide="left"[^>]*anchorOffset="0.35"/);
     });
   });
 

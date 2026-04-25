@@ -620,27 +620,52 @@ export class DexpiToBpmnTransformer {
         }
       });
 
-    const connectionPoint = (pos: LayoutBox, side: 'left' | 'right') => ({
-      x: side === 'left' ? pos.x : pos.x + pos.w,
-      y: pos.y + pos.h / 2,
+    const portAnchor = (step: DexpiStep | undefined, portId: string) => {
+      if (!step) return { side: 'left' as const, offset: 0.5 };
+
+      const port = step.ports.find(p => p.id === portId);
+      const bpmnDir = port?.direction === 'Outlet' ? 'Outlet' : 'Inlet';
+      const isRecycleStep = recycleStepIds.has(step.id);
+      const side: 'left' | 'right' = isRecycleStep
+        ? (bpmnDir === 'Outlet' ? 'left' : 'right')
+        : (bpmnDir === 'Outlet' ? 'right' : 'left');
+      const isInfoPort = port?.type === 'InformationPort';
+      const group = step.ports.filter(p =>
+        (p.direction === 'Outlet' ? 'Outlet' : 'Inlet') === bpmnDir &&
+        (isInfoPort ? p.type === 'InformationPort' : p.type !== 'InformationPort')
+      );
+      const idx = Math.max(0, group.findIndex(p => p.id === portId));
+
+      let offset = group.length <= 1 ? 0.5 : (idx + 1) / (group.length + 1);
+      if (isRecycleStep && group.length <= 1) {
+        // Separate the single recycle inlet and outlet so return lines do not read as one continuous stroke.
+        offset = bpmnDir === 'Outlet' ? 0.35 : 0.65;
+      }
+
+      return { side, offset };
+    };
+
+    const connectionPoint = (pos: LayoutBox, anchor: { side: 'left' | 'right'; offset: number }) => ({
+      x: anchor.side === 'left' ? pos.x : pos.x + pos.w,
+      y: pos.y + pos.h * anchor.offset,
     });
 
     const routeSequenceFlow = (
       srcPos: LayoutBox,
       tgtPos: LayoutBox,
       lane: number,
-      srcSide: 'left' | 'right',
-      tgtSide: 'left' | 'right'
+      srcAnchor: { side: 'left' | 'right'; offset: number },
+      tgtAnchor: { side: 'left' | 'right'; offset: number }
     ) => {
-      const srcPoint = connectionPoint(srcPos, srcSide);
-      const tgtPoint = connectionPoint(tgtPos, tgtSide);
+      const srcPoint = connectionPoint(srcPos, srcAnchor);
+      const tgtPoint = connectionPoint(tgtPos, tgtAnchor);
       const srcX = srcPoint.x;
       const srcY = srcPoint.y;
       const tgtX = tgtPoint.x;
       const tgtY = tgtPoint.y;
       const laneOffset = (lane % 6) * 18;
 
-      if (tgtX >= srcX + 50) {
+      if (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && tgtX >= srcX + 50) {
         const bendX = Math.max(srcX + 35, tgtX - 60 - laneOffset);
         return [
           { x: srcX, y: srcY },
@@ -650,13 +675,19 @@ export class DexpiToBpmnTransformer {
         ];
       }
 
-      const detourX = srcX + 60 + laneOffset;
-      const detourY = Math.min(srcPos.y, tgtPos.y) - 55 - laneOffset;
+      const srcDetourX = srcAnchor.side === 'right'
+        ? srcX + 60 + laneOffset
+        : srcX - 60 - laneOffset;
+      const tgtDetourX = tgtAnchor.side === 'right'
+        ? tgtX + 60 + laneOffset
+        : tgtX - 60 - laneOffset;
+      const detourY = Math.min(srcPos.y, tgtPos.y, srcY, tgtY) - 55 - laneOffset;
       return [
         { x: srcX, y: srcY },
-        { x: detourX, y: srcY },
-        { x: detourX, y: detourY },
-        { x: tgtX, y: detourY },
+        { x: srcDetourX, y: srcY },
+        { x: srcDetourX, y: detourY },
+        { x: tgtDetourX, y: detourY },
+        { x: tgtDetourX, y: tgtY },
         { x: tgtX, y: tgtY },
       ];
     };
@@ -670,20 +701,10 @@ export class DexpiToBpmnTransformer {
 
     const extensionXml = (step: DexpiStep, indent: string): string => {
       // Extension elements — assign anchorSide based on direction and spread offset
-      const isRecycleStep = recycleStepIds.has(step.id);
-      const inlets  = step.ports.filter(p => p.direction === 'Inlet');
-      const outlets = step.ports.filter(p => p.direction === 'Outlet');
-
       const portsXml = step.ports.map(p => {
         const bpmnDir = p.direction === 'Outlet' ? 'Outlet' : 'Inlet';
-        const anchorSide = isRecycleStep
-          ? (bpmnDir === 'Outlet' ? 'left' : 'right')
-          : (bpmnDir === 'Outlet' ? 'right' : 'left');
-        // Spread multiple ports evenly along the side
-        const group = bpmnDir === 'Outlet' ? outlets : inlets;
-        const idx = group.indexOf(p);
-        const anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
-        return `${indent}    <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.type}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchorSide}" anchorOffset="${anchorOffset.toFixed(2)}"/>`;
+        const anchor = portAnchor(step, p.id);
+        return `${indent}    <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.type}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchor.side}" anchorOffset="${anchor.offset.toFixed(2)}"/>`;
       }).join('\n');
 
       return `${indent}<bpmn:extensionElements>
@@ -755,9 +776,9 @@ ${indent}</bpmn:task>`;
       const tgtPos = ownerLayout.get(tgt);
       if (!srcPos || !tgtPos) return;
 
-      const srcSide = recycleStepIds.has(src) ? 'left' : 'right';
-      const tgtSide = recycleStepIds.has(tgt) ? 'right' : 'left';
-      const waypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcSide, tgtSide)
+      const srcAnchor = portAnchor(srcStep, conn.sourcePortId);
+      const tgtAnchor = portAnchor(tgtStep, conn.targetPortId);
+      const waypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcAnchor, tgtAnchor)
         .map(point => `        <di:waypoint x="${point.x}" y="${point.y}"/>`)
         .join('\n');
 
