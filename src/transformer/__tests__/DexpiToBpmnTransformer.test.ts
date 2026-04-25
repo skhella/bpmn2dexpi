@@ -64,6 +64,11 @@ function stream(id: string, type: string, srcPort: string, tgtPort: string, labe
         </Object>`;
 }
 
+function expectWellFormedXml(xml: string): void {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  expect(doc.querySelector('parsererror')?.textContent || '').toBe('');
+}
+
 describe('DexpiToBpmnTransformer', () => {
 
   describe('basic structure', () => {
@@ -190,6 +195,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       const ports = port('p1', 'MaterialPort', 'In', 'MI1') + port('p2', 'MaterialPort', 'Out', 'MO1');
       const xml = dexpi(step('T1', 'Pumping', 'Pump', ports));
       const out = new DexpiToBpmnTransformer().transform(xml);
+      expectWellFormedXml(out);
       expect(out).toContain('portType="MaterialPort"');
       expect(out).toContain('direction="Inlet"');
       expect(out).toContain('direction="Outlet"');

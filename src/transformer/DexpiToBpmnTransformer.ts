@@ -470,8 +470,8 @@ export class DexpiToBpmnTransformer {
       }).join('\n');
 
       return `${indent}<bpmn:extensionElements>
-${indent}  <dexpi:element dexpiType="${step.dexpiType}" identifier="${step.identifier}" uid="${step.id}"${portsXml ? '\n' + portsXml + '\n' + indent + '  ' : ''}>
-${indent}  </dexpi:element>
+${indent}  <dexpi:element dexpiType="${step.dexpiType}" identifier="${step.identifier}" uid="${step.id}">
+${portsXml ? portsXml + '\n' : ''}${indent}  </dexpi:element>
 ${indent}</bpmn:extensionElements>`;
     };
 
