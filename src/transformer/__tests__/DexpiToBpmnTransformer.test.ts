@@ -320,9 +320,9 @@ ${step('MX1', 'Mixing', 'Mixer')}
 
   describe('layout', () => {
     const shapeBounds = (xml: string, bpmnElement: string) => {
-      const match = xml.match(new RegExp(`<bpmndi:BPMNShape[^>]*bpmnElement="${bpmnElement}"[\\s\\S]*?<dc:Bounds x="(\\d+)" y="(\\d+)"`));
+      const match = xml.match(new RegExp(`<bpmndi:BPMNShape[^>]*bpmnElement="${bpmnElement}"[\\s\\S]*?<dc:Bounds x="(-?\\d+(?:\\.\\d+)?)" y="(-?\\d+(?:\\.\\d+)?)" width="(-?\\d+(?:\\.\\d+)?)" height="(-?\\d+(?:\\.\\d+)?)"`));
       if (!match) throw new Error(`No bounds for ${bpmnElement}`);
-      return { x: Number(match[1]), y: Number(match[2]) };
+      return { x: Number(match[1]), y: Number(match[2]), w: Number(match[3]), h: Number(match[4]) };
     };
 
     const edgeWaypoints = (xml: string, bpmnElement: string) => {
@@ -423,6 +423,13 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(recycle.x).toBeGreaterThan(reactor.x);
       expect(recycle.x).toBeLessThan(separator.x);
       expect(recycle.y).toBeLessThan(cooler.y);
+
+      const recycleIncoming = edgeWaypoints(out, 'bpmn_S4');
+      const recycleOutgoing = edgeWaypoints(out, 'bpmn_S5');
+      expect(recycleIncoming.at(-1)?.x).toBe(recycle.x + recycle.w);
+      expect(recycleOutgoing[0].x).toBe(recycle.x);
+      expect(out).toMatch(/portId="Recycle_in"[^>]*direction="Inlet"[^>]*anchorSide="right"/);
+      expect(out).toMatch(/portId="Recycle_out"[^>]*direction="Outlet"[^>]*anchorSide="left"/);
     });
   });
 

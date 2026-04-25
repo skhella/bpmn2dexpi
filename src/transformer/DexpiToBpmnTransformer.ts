@@ -581,11 +581,63 @@ export class DexpiToBpmnTransformer {
       .filter(step => !hiddenStepIds.has(step.id) && step.children.length > 0)
       .forEach(buildChildLayout);
 
-    const routeSequenceFlow = (srcPos: LayoutBox, tgtPos: LayoutBox, lane: number) => {
-      const srcX = srcPos.x + srcPos.w;
-      const srcY = srcPos.y + srcPos.h / 2;
-      const tgtX = tgtPos.x;
-      const tgtY = tgtPos.y + tgtPos.h / 2;
+    const stepOwnerKey = (stepId: string) => ownerKey(stepById.get(stepId)?.parentId);
+    const visibleSeqFlowsForStep = (stepId: string, direction: 'incoming' | 'outgoing') =>
+      seqFlows.filter(conn => {
+        const src = portToStep.get(conn.sourcePortId);
+        const tgt = portToStep.get(conn.targetPortId);
+        return direction === 'incoming' ? tgt === stepId : src === stepId;
+      });
+
+    const recycleStepIds = new Set<string>();
+    steps
+      .filter(step => !hiddenStepIds.has(step.id) && step.dexpiType !== 'Source' && step.dexpiType !== 'Sink')
+      .forEach(step => {
+        const owner = stepOwnerKey(step.id);
+        const ownerLayout = ownerLayouts.get(owner) || layout;
+        const stepPos = ownerLayout.get(step.id);
+        if (!stepPos) return;
+
+        const incomingFromRight = visibleSeqFlowsForStep(step.id, 'incoming').some(conn => {
+          const src = portToStep.get(conn.sourcePortId);
+          if (!src || stepOwnerKey(src) !== owner) return false;
+          const srcPos = ownerLayout.get(src);
+          return srcPos ? srcPos.x > stepPos.x : false;
+        });
+        const outgoingToLeft = visibleSeqFlowsForStep(step.id, 'outgoing').some(conn => {
+          const tgt = portToStep.get(conn.targetPortId);
+          if (!tgt || stepOwnerKey(tgt) !== owner) return false;
+          const tgtPos = ownerLayout.get(tgt);
+          return tgtPos ? tgtPos.x < stepPos.x : false;
+        });
+        const outgoingToSink = visibleSeqFlowsForStep(step.id, 'outgoing').some(conn => {
+          const tgt = portToStep.get(conn.targetPortId);
+          return tgt ? stepById.get(tgt)?.dexpiType === 'Sink' : false;
+        });
+
+        if (incomingFromRight && outgoingToLeft && !outgoingToSink) {
+          recycleStepIds.add(step.id);
+        }
+      });
+
+    const connectionPoint = (pos: LayoutBox, side: 'left' | 'right') => ({
+      x: side === 'left' ? pos.x : pos.x + pos.w,
+      y: pos.y + pos.h / 2,
+    });
+
+    const routeSequenceFlow = (
+      srcPos: LayoutBox,
+      tgtPos: LayoutBox,
+      lane: number,
+      srcSide: 'left' | 'right',
+      tgtSide: 'left' | 'right'
+    ) => {
+      const srcPoint = connectionPoint(srcPos, srcSide);
+      const tgtPoint = connectionPoint(tgtPos, tgtSide);
+      const srcX = srcPoint.x;
+      const srcY = srcPoint.y;
+      const tgtX = tgtPoint.x;
+      const tgtY = tgtPoint.y;
       const laneOffset = (lane % 6) * 18;
 
       if (tgtX >= srcX + 50) {
@@ -618,12 +670,15 @@ export class DexpiToBpmnTransformer {
 
     const extensionXml = (step: DexpiStep, indent: string): string => {
       // Extension elements — assign anchorSide based on direction and spread offset
+      const isRecycleStep = recycleStepIds.has(step.id);
       const inlets  = step.ports.filter(p => p.direction === 'Inlet');
       const outlets = step.ports.filter(p => p.direction === 'Outlet');
 
       const portsXml = step.ports.map(p => {
         const bpmnDir = p.direction === 'Outlet' ? 'Outlet' : 'Inlet';
-        const anchorSide = bpmnDir === 'Outlet' ? 'right' : 'left';
+        const anchorSide = isRecycleStep
+          ? (bpmnDir === 'Outlet' ? 'left' : 'right')
+          : (bpmnDir === 'Outlet' ? 'right' : 'left');
         // Spread multiple ports evenly along the side
         const group = bpmnDir === 'Outlet' ? outlets : inlets;
         const idx = group.indexOf(p);
@@ -700,7 +755,9 @@ ${indent}</bpmn:task>`;
       const tgtPos = ownerLayout.get(tgt);
       if (!srcPos || !tgtPos) return;
 
-      const waypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key))
+      const srcSide = recycleStepIds.has(src) ? 'left' : 'right';
+      const tgtSide = recycleStepIds.has(tgt) ? 'right' : 'left';
+      const waypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcSide, tgtSide)
         .map(point => `        <di:waypoint x="${point.x}" y="${point.y}"/>`)
         .join('\n');
 
