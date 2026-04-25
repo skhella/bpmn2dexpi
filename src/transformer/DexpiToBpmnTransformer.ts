@@ -250,22 +250,24 @@ export class DexpiToBpmnTransformer {
 
   private computeLayout(parsed: ParsedDexpi): Map<string, {x: number, y: number, w: number, h: number}> {
     const { steps, connections } = parsed;
+    const visibleSteps = steps.filter(s => !s.parentId);
+    const visibleStepIds = new Set(visibleSteps.map(s => s.id));
 
     // Build adjacency: stepId → downstream stepIds (via connections through ports)
     // Build port→step map
     const portToStep = new Map<string, string>();
-    steps.forEach(s => s.ports.forEach(p => portToStep.set(p.id, s.id)));
+    visibleSteps.forEach(s => s.ports.forEach(p => portToStep.set(p.id, s.id)));
 
     const downstream = new Map<string, Set<string>>();
     const upstream = new Map<string, Set<string>>();
-    steps.forEach(s => { downstream.set(s.id, new Set()); upstream.set(s.id, new Set()); });
+    visibleSteps.forEach(s => { downstream.set(s.id, new Set()); upstream.set(s.id, new Set()); });
 
     connections.forEach(conn => {
       // Skip InformationFlow for layout purposes (non-sequential)
       if (conn.dexpiType === 'InformationFlow') return;
       const src = portToStep.get(conn.sourcePortId);
       const tgt = portToStep.get(conn.targetPortId);
-      if (src && tgt && src !== tgt) {
+      if (src && tgt && src !== tgt && visibleStepIds.has(src) && visibleStepIds.has(tgt)) {
         downstream.get(src)?.add(tgt);
         upstream.get(tgt)?.add(src);
       }
@@ -273,12 +275,12 @@ export class DexpiToBpmnTransformer {
 
     // BFS from Source nodes to assign layers
     const layer = new Map<string, number>();
-    const sourceIds = steps.filter(s => s.dexpiType === 'Source').map(s => s.id);
+    const sourceIds = visibleSteps.filter(s => s.dexpiType === 'Source').map(s => s.id);
 
     // If no explicit Source, use nodes with no upstream
     const roots = sourceIds.length > 0
       ? sourceIds
-      : steps.filter(s => (upstream.get(s.id)?.size ?? 0) === 0).map(s => s.id);
+      : visibleSteps.filter(s => (upstream.get(s.id)?.size ?? 0) === 0).map(s => s.id);
 
     const queue = [...roots];
     roots.forEach(id => layer.set(id, 0));
@@ -301,7 +303,7 @@ export class DexpiToBpmnTransformer {
 
     // Assign Sink nodes to last layer + 1
     const maxLayer = Math.max(0, ...Array.from(layer.values()));
-    steps.forEach(s => {
+    visibleSteps.forEach(s => {
       if (!layer.has(s.id)) {
         layer.set(s.id, s.dexpiType === 'Sink' ? maxLayer + 1 : maxLayer);
       }
@@ -312,7 +314,7 @@ export class DexpiToBpmnTransformer {
 
     // Group steps by layer
     const byLayer = new Map<number, string[]>();
-    steps.forEach(s => {
+    visibleSteps.forEach(s => {
       const l = layer.get(s.id) ?? 0;
       if (!byLayer.has(l)) byLayer.set(l, []);
       byLayer.get(l)!.push(s.id);
@@ -320,7 +322,7 @@ export class DexpiToBpmnTransformer {
 
     // Assign x/y coordinates
     const layout = new Map<string, {x: number, y: number, w: number, h: number}>();
-    const stepById = new Map(steps.map(s => [s.id, s]));
+    const stepById = new Map(visibleSteps.map(s => [s.id, s]));
 
     const sortedLayers = Array.from(byLayer.keys()).sort((a, b) => a - b);
     let x = MARGIN_X;
@@ -355,50 +357,6 @@ export class DexpiToBpmnTransformer {
 
       x += maxW + H_GAP;
     });
-
-    const subtreeBounds = (step: DexpiStep) => {
-      const ids = [step.id, ...this.descendantIds(step)];
-      const positions = ids
-        .map(id => layout.get(id))
-        .filter((pos): pos is {x: number, y: number, w: number, h: number} => pos !== undefined);
-      const minX = Math.min(...positions.map(pos => pos.x));
-      const minY = Math.min(...positions.map(pos => pos.y));
-      const maxX = Math.max(...positions.map(pos => pos.x + pos.w));
-      const maxY = Math.max(...positions.map(pos => pos.y + pos.h));
-      return { minX, minY, maxX, maxY };
-    };
-
-    const arrangeNestedSteps = (step: DexpiStep) => {
-      if (step.children.length === 0) return;
-      const parentPos = layout.get(step.id);
-      if (!parentPos) return;
-
-      let childX = parentPos.x + 40;
-      const childY = parentPos.y + 90;
-
-      step.children.forEach(child => {
-        const isEvent = child.dexpiType === 'Source' || child.dexpiType === 'Sink';
-        const w = isEvent ? EVENT_D : TASK_W;
-        const h = isEvent ? EVENT_D : TASK_H;
-        const yOffset = isEvent ? (TASK_H - EVENT_D) / 2 : 0;
-        layout.set(child.id, { x: childX, y: childY + yOffset, w, h });
-
-        arrangeNestedSteps(child);
-
-        const bounds = subtreeBounds(child);
-        childX = bounds.maxX + H_GAP;
-      });
-
-      const bounds = subtreeBounds(step);
-      layout.set(step.id, {
-        x: parentPos.x,
-        y: parentPos.y,
-        w: Math.max(TASK_W + 80, bounds.maxX - parentPos.x + 40),
-        h: Math.max(TASK_H + 120, bounds.maxY - parentPos.y + 40),
-      });
-    };
-
-    steps.filter(step => !step.parentId).forEach(arrangeNestedSteps);
 
     // Place MaterialTemplates as Data Objects below the diagram
     let dtX = MARGIN_X;
@@ -519,10 +477,6 @@ ${indent}</bpmn:task>`;
       const tgt = portToStep.get(conn.targetPortId);
       if (!src || !tgt) return;
 
-      const srcPos = layout.get(src);
-      const tgtPos = layout.get(tgt);
-      if (!srcPos || !tgtPos) return;
-
       const connId = bpmnId(conn.id);
       const streamTypeAttr = conn.dexpiType !== 'Stream' ? ` streamType="${conn.dexpiType}"` : '';
       const srcStep = stepById.get(src);
@@ -537,10 +491,16 @@ ${indent}</bpmn:task>`;
 </bpmn:sequenceFlow>`);
 
       // Edge waypoints: simple straight line
+      const srcPos = layout.get(src);
+      const tgtPos = layout.get(tgt);
+      if (!srcPos || !tgtPos) return;
+
       const srcCx = srcPos.x + srcPos.w;
       const srcCy = srcPos.y + srcPos.h / 2;
       const tgtCx = tgtPos.x;
       const tgtCy = tgtPos.y + tgtPos.h / 2;
+
+      if (key !== rootOwner) return;
 
       edgeElements.push(`      <bpmndi:BPMNEdge id="${connId}_di" bpmnElement="${connId}">
         <di:waypoint x="${srcCx}" y="${srcCy}"/>
@@ -557,7 +517,7 @@ ${indent}</bpmn:task>`;
       processElements.push(indentBlock(xml, '  '));
     });
 
-    steps.forEach(step => {
+    steps.filter(step => !step.parentId).forEach(step => {
       const pos = layout.get(step.id);
       if (!pos) return;
 
@@ -566,7 +526,7 @@ ${indent}</bpmn:task>`;
       const isExpandedSubProcess = step.children.length > 0;
 
       // BPMN shape
-      shapeElements.push(`      <bpmndi:BPMNShape id="${elId}_di" bpmnElement="${elId}"${isEvent ? ' isHorizontal="false"' : ''}${isExpandedSubProcess ? ' isExpanded="true"' : ''}>
+      shapeElements.push(`      <bpmndi:BPMNShape id="${elId}_di" bpmnElement="${elId}"${isEvent ? ' isHorizontal="false"' : ''}${isExpandedSubProcess ? ' isExpanded="false"' : ''}>
         <dc:Bounds x="${pos.x}" y="${pos.y}" width="${pos.w}" height="${pos.h}"/>
         <bpmndi:BPMNLabel/>
       </bpmndi:BPMNShape>`);
@@ -650,10 +610,6 @@ ${edgeElements.join('\n')}
   }
 
   // ── Utilities ───────────────────────────────────────────────────────────────
-
-  private descendantIds(step: DexpiStep): string[] {
-    return step.children.flatMap(child => [child.id, ...this.descendantIds(child)]);
-  }
 
   private _uidCounter = 0;
   private uid(): string {
