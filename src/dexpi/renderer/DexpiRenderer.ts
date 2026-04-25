@@ -47,6 +47,10 @@ export default class DexpiRenderer extends BaseRenderer {
     // Apply color based on DEXPI type
     this.applyDexpiTypeColor(shape, element);
 
+    // Remove any existing port overlays before redrawing (handles toggle off→on→off)
+    const existingPorts = parentNode.querySelectorAll('.dexpi-port');
+    existingPorts.forEach((p: any) => p.parentNode?.removeChild(p));
+
     // Check if ports should be rendered (can be controlled via config or global flag)
     // For now, ports are disabled by default - they exist in XML but aren't displayed
     const shouldRenderPorts = (window as any).__dexpi_show_ports__ || false;
