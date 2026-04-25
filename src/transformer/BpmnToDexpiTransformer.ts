@@ -1438,6 +1438,21 @@ export class BpmnToDexpiTransformer {
     const streamElements: Record<string, unknown>[] = [];
 
     this.streams.forEach((stream) => {
+      // Warn if source or target isn't a registered process step at all
+      // (e.g. pool participants, data stores, or missing extensionElements)
+      if (!this.processSteps.has(stream.sourceRef)) {
+        this.logger.warn(
+          `Stream "${stream.name}" (id=${stream.id}): source "${stream.sourceRef}" is not a recognised process step — stream skipped.`
+        );
+        return;
+      }
+      if (!this.processSteps.has(stream.targetRef)) {
+        this.logger.warn(
+          `Stream "${stream.name}" (id=${stream.id}): target "${stream.targetRef}" is not a recognised process step — stream skipped.`
+        );
+        return;
+      }
+
       const sourcePort = this.findPortForConnection(stream.sourceRef, stream.sourcePortRef, 'Outlet');
       const targetPort = this.findPortForConnection(stream.targetRef, stream.targetPortRef, 'Inlet');
 
