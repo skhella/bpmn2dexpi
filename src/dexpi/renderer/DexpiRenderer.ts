@@ -376,6 +376,12 @@ export default class DexpiRenderer extends BaseRenderer {
     // Same logic as MaterialPort/SequenceFlow matching but using the DataObject's
     // name: an IPI_Composition port matches the association whose DataObject is "Composition".
     if (port.type === 'InformationPort' || (port as any).type === 'InformationPort') {
+      // InformationPorts on expanded subprocesses are DEXPI export metadata only —
+      // don't render them visually on the subprocess boundary
+      if (element.type === 'bpmn:SubProcess' && element.collapsed === false) {
+        return { x: -100, y: -100 };
+      }
+
       const isOutlet = port.direction === 'Outlet';
       const associations = isOutlet
         ? (businessObject.dataOutputAssociations || [])
@@ -386,11 +392,11 @@ export default class DexpiRenderer extends BaseRenderer {
       const portVarName = rawName.replace(/^IP[IO]_/, '');
 
       for (const assoc of associations) {
-        // For dataOutputAssociation: source is the task (port side), target is DataObject
-        // For dataInputAssociation:  source is DataObject, target is Property on task
+        // sourceRef on dataInputAssociation is an ARRAY (isMany:true in BPMN spec)
+        // dataOutputAssociation targetRef is a single reference
         const dataObjId = isOutlet
           ? assoc.targetRef?.id
-          : assoc.sourceRef?.id;
+          : (Array.isArray(assoc.sourceRef) ? assoc.sourceRef[0]?.id : assoc.sourceRef?.id);
         if (!dataObjId) continue;
 
         const dataObjEl = this.elementRegistry.get(dataObjId) as any;
