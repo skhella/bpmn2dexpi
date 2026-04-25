@@ -122,7 +122,7 @@ describe('DexpiToBpmnTransformer', () => {
   });
 
   describe('subprocess mapping', () => {
-    it('maps nested SubProcessSteps to an expanded bpmn:subProcess', () => {
+    it('maps nested SubProcessSteps to a collapsed bpmn:subProcess', () => {
       const xml = dexpi(
         subProcessStep(
           'RC1',
@@ -138,9 +138,10 @@ describe('DexpiToBpmnTransformer', () => {
       const parentEnd = out.indexOf('</bpmn:subProcess>', parentStart);
 
       expect(parentStart).toBeGreaterThan(-1);
-      expect(out).toContain('isExpanded="true"');
+      expect(out).toContain('isExpanded="false"');
       expect(childTask).toBeGreaterThan(parentStart);
       expect(childTask).toBeLessThan(parentEnd);
+      expect(out).not.toContain('id="bpmn_MX1_di"');
       expect(out).toContain('dexpiType="ReactingChemicals"');
       expect(out).toContain('dexpiType="Mixing"');
     });
@@ -165,6 +166,7 @@ describe('DexpiToBpmnTransformer', () => {
 
       expect(internalFlow).toBeGreaterThan(parentStart);
       expect(internalFlow).toBeLessThan(parentEnd);
+      expect(out).not.toContain('id="bpmn_S_internal_di"');
       expect(out).toContain('<bpmn:outgoing>bpmn_S_internal</bpmn:outgoing>');
       expect(out).toContain('<bpmn:incoming>bpmn_S_internal</bpmn:incoming>');
     });
