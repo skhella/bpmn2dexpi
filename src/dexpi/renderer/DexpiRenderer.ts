@@ -381,11 +381,13 @@ export default class DexpiRenderer extends BaseRenderer {
         ? (businessObject.dataOutputAssociations || [])
         : (businessObject.dataInputAssociations || []);
 
-      // Strip IPI_ / IPO_ prefix to get the variable name (e.g. "IPI_Composition" → "Composition")
-      const portVarName = (port.name || '').replace(/^IP[IO]_/, '');
+      // Strip IPI_/IPO_ prefix from name OR label to get the variable name
+      const rawName = port.name || (port as any).label || '';
+      const portVarName = rawName.replace(/^IP[IO]_/, '');
 
       for (const assoc of associations) {
-        // Resolve the DataObject this association connects to
+        // For dataOutputAssociation: source is the task (port side), target is DataObject
+        // For dataInputAssociation:  source is DataObject, target is Property on task
         const dataObjId = isOutlet
           ? assoc.targetRef?.id
           : assoc.sourceRef?.id;
@@ -394,22 +396,24 @@ export default class DexpiRenderer extends BaseRenderer {
         const dataObjEl = this.elementRegistry.get(dataObjId) as any;
         const dataObjName = dataObjEl?.businessObject?.name || '';
 
-        // Match port variable name to DataObject name
-        if (dataObjName === portVarName) {
-          const assocEl = this.elementRegistry.find((el: any) =>
-            el.businessObject?.id === assoc.id
-          );
-          if (assocEl?.waypoints?.length > 0) {
-            const pt = isOutlet
-              ? assocEl.waypoints[0]
-              : assocEl.waypoints[assocEl.waypoints.length - 1];
-            return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
-          }
-        }
+        if (dataObjName !== portVarName) continue;
+
+        // Find the rendered association element to get its waypoints
+        const assocEl = this.elementRegistry.find((el: any) =>
+          el.businessObject?.id === assoc.id
+        );
+        if (!assocEl?.waypoints?.length) continue;
+
+        // Task-side waypoint: outlets use first waypoint (where line leaves the task),
+        // inlets use last waypoint (where line enters the task)
+        const pt = isOutlet
+          ? assocEl.waypoints[0]
+          : assocEl.waypoints[assocEl.waypoints.length - 1];
+
+        return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
       }
 
-      // Also handle plain bpmn:association elements (DataObject ↔ task)
-      // These don't appear in dataInput/OutputAssociations — find them in elementRegistry
+      // Also handle plain bpmn:association elements (like our Composition fix)
       const plainAssocs = this.elementRegistry.filter((el: any) =>
         el.type === 'bpmn:Association' &&
         (el.businessObject?.sourceRef?.id === elementId ||
@@ -421,7 +425,6 @@ export default class DexpiRenderer extends BaseRenderer {
         const otherEl = this.elementRegistry.get(otherEnd?.id) as any;
         const otherName = otherEl?.businessObject?.name || '';
         if (otherName === portVarName && assocEl.waypoints?.length > 0) {
-          // Port-side waypoint: this element is whichever end has its id
           const portSide = bo.sourceRef?.id === elementId
             ? assocEl.waypoints[0]
             : assocEl.waypoints[assocEl.waypoints.length - 1];
