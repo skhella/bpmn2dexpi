@@ -916,23 +916,34 @@ export class BpmnToDexpiTransformer {
   private extractPortsFromElement(dexpiElement: Element): DexpiPort[] {
     const ports: DexpiPort[] = [];
     
-    // Iterate through children to find port elements
+    // Collect port elements — they may be direct children OR inside a <dexpi:ports> wrapper
+    const portElements: Element[] = [];
     for (let i = 0; i < dexpiElement.children.length; i++) {
       const child = dexpiElement.children[i];
       const localName = child.localName || child.tagName.split(':').pop() || '';
-      
       if (localName.toLowerCase() === 'port') {
-        ports.push({
-          portId: child.getAttribute('portId') || child.getAttribute('id') || this.generateUid(),
-          name: child.getAttribute('name') || child.getAttribute('label') || 'Port',
-          portType: (child.getAttribute('portType') || child.getAttribute('type') || 'MaterialPort') as DexpiPort['portType'],
-          direction: (child.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
-          anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
-          anchorOffset: child.getAttribute('anchorOffset') ? parseFloat(child.getAttribute('anchorOffset')!) : undefined,
-          anchorX: child.getAttribute('anchorX') ? parseFloat(child.getAttribute('anchorX')!) : undefined,
-          anchorY: child.getAttribute('anchorY') ? parseFloat(child.getAttribute('anchorY')!) : undefined
-        });
+        portElements.push(child);
+      } else if (localName.toLowerCase() === 'ports') {
+        // Ports wrapper — collect its port children
+        for (let j = 0; j < child.children.length; j++) {
+          const grandchild = child.children[j];
+          const gln = grandchild.localName || grandchild.tagName.split(':').pop() || '';
+          if (gln.toLowerCase() === 'port') portElements.push(grandchild);
+        }
       }
+    }
+    
+    for (const child of portElements) {
+      ports.push({
+        portId: child.getAttribute('portId') || child.getAttribute('id') || this.generateUid(),
+        name: child.getAttribute('name') || child.getAttribute('label') || 'Port',
+        portType: (child.getAttribute('portType') || child.getAttribute('type') || 'MaterialPort') as DexpiPort['portType'],
+        direction: (child.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
+        anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
+        anchorOffset: child.getAttribute('anchorOffset') ? parseFloat(child.getAttribute('anchorOffset')!) : undefined,
+        anchorX: child.getAttribute('anchorX') ? parseFloat(child.getAttribute('anchorX')!) : undefined,
+        anchorY: child.getAttribute('anchorY') ? parseFloat(child.getAttribute('anchorY')!) : undefined
+      });
     }
     
     return ports;
