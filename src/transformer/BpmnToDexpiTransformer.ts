@@ -938,6 +938,7 @@ export class BpmnToDexpiTransformer {
       ports.push({
         portId: child.getAttribute('portId') || child.getAttribute('id') || this.generateUid(),
         name: child.getAttribute('name') || child.getAttribute('label') || 'Port',
+        label: child.getAttribute('label') || undefined,
         portType: (child.getAttribute('portType') || child.getAttribute('type') || 'MaterialPort') as DexpiPort['portType'],
         direction: (child.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
         anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
@@ -972,6 +973,7 @@ export class BpmnToDexpiTransformer {
     return ports.map((port) => ({
       portId: port.getAttribute('id') || port.getAttribute('portId') || this.generateUid(),
       name: port.getAttribute('name') || port.getAttribute('label') || 'Port',
+      label: port.getAttribute('label') || undefined,
       portType: (port.getAttribute('type') || port.getAttribute('portType') || 'MaterialPort') as DexpiPort['portType'],
       direction: (port.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
       anchorSide: (port.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
@@ -2026,8 +2028,7 @@ export class BpmnToDexpiTransformer {
     if (variableName) {
       const labeled = element.ports.find((p: DexpiPort) => {
         if (!sameSlot(p)) return false;
-        const label = (p as unknown as { label?: string }).label;
-        return label === variableName || p.name === variableName;
+        return p.label === variableName || p.name === variableName;
       });
       if (labeled) return labeled.portId;
 

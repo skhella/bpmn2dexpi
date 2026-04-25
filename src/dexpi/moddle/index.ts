@@ -18,6 +18,13 @@ export interface DexpiElement {
 export interface DexpiPort {
   portId: string;
   name: string;
+  /**
+   * Human-readable label for the port. Carries the semantic identity of what
+   * flows through the port (e.g. "Temperature" for an IPO_Temperature port).
+   * Used by the transformer to match ports to InformationFlows / SequenceFlows
+   * by name when multiple same-direction ports exist.
+   */
+  label?: string;
   portType: 'MaterialPort' | 'InformationPort' | 'ThermalEnergyPort' | 'MechanicalEnergyPort' | 'ElectricalEnergyPort';
   direction: 'Inlet' | 'Outlet';
   anchorSide?: 'top' | 'right' | 'bottom' | 'left';
