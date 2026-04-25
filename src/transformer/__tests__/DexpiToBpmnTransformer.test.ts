@@ -31,6 +31,18 @@ function step(id: string, type: string, label: string, ports = ''): string {
         </Object>`;
 }
 
+function subProcessStep(id: string, type: string, label: string, children: string, ports = ''): string {
+  return `
+        <Object id="${id}" type="Process/Process.${type}">
+          <Data property="Identifier"><String>${id}</String></Data>
+          <Data property="Label"><String>${label}</String></Data>
+          ${ports ? `<Components property="Ports">${ports}</Components>` : ''}
+          <Components property="SubProcessSteps">
+${children}
+          </Components>
+        </Object>`;
+}
+
 function port(id: string, type: string, direction: 'In' | 'Out', label: string): string {
   return `
             <Object id="${id}" type="Process/Process.${type}">
@@ -101,6 +113,75 @@ describe('DexpiToBpmnTransformer', () => {
       const out = new DexpiToBpmnTransformer().transform(xml);
       expect(out).toContain('uid="uid_pump1"');
       expect(out).toContain('identifier="uid_pump1"');
+    });
+  });
+
+  describe('subprocess mapping', () => {
+    it('maps nested SubProcessSteps to an expanded bpmn:subProcess', () => {
+      const xml = dexpi(
+        subProcessStep(
+          'RC1',
+          'ReactingChemicals',
+          'Reactor section',
+          step('MX1', 'Mixing', 'Mixer') + step('RX1', 'ReactingChemicals', 'Reactor')
+        )
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const parentStart = out.indexOf('<bpmn:subProcess id="bpmn_RC1"');
+      const childTask = out.indexOf('<bpmn:task id="bpmn_MX1"');
+      const parentEnd = out.indexOf('</bpmn:subProcess>', parentStart);
+
+      expect(parentStart).toBeGreaterThan(-1);
+      expect(out).toContain('isExpanded="true"');
+      expect(childTask).toBeGreaterThan(parentStart);
+      expect(childTask).toBeLessThan(parentEnd);
+      expect(out).toContain('dexpiType="ReactingChemicals"');
+      expect(out).toContain('dexpiType="Mixing"');
+    });
+
+    it('places sequence flows between sibling subprocess children inside the subprocess', () => {
+      const c1Ports = port('MX_out', 'MaterialPort', 'Out', 'MO1');
+      const c2Ports = port('RX_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        subProcessStep(
+          'RC1',
+          'ReactingChemicals',
+          'Reactor section',
+          step('MX1', 'Mixing', 'Mixer', c1Ports) + step('RX1', 'ReactingChemicals', 'Reactor', c2Ports)
+        ),
+        stream('S_internal', 'Stream', 'MX_out', 'RX_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const parentStart = out.indexOf('<bpmn:subProcess id="bpmn_RC1"');
+      const internalFlow = out.indexOf('<bpmn:sequenceFlow id="bpmn_S_internal"');
+      const parentEnd = out.indexOf('</bpmn:subProcess>', parentStart);
+
+      expect(internalFlow).toBeGreaterThan(parentStart);
+      expect(internalFlow).toBeLessThan(parentEnd);
+      expect(out).toContain('<bpmn:outgoing>bpmn_S_internal</bpmn:outgoing>');
+      expect(out).toContain('<bpmn:incoming>bpmn_S_internal</bpmn:incoming>');
+    });
+
+    it('also recognizes nested ProcessModel containers as subprocess children', () => {
+      const nestedProcessModelStep = `
+        <Object id="RC1" type="Process/Process.ReactingChemicals">
+          <Data property="Identifier"><String>RC1</String></Data>
+          <Data property="Label"><String>Reactor section</String></Data>
+          <Components property="ProcessModel">
+            <Object id="PM_child" type="Process/ProcessModel">
+              <Components property="ProcessSteps">
+${step('MX1', 'Mixing', 'Mixer')}
+              </Components>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(nestedProcessModelStep);
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(out).toContain('<bpmn:subProcess id="bpmn_RC1"');
+      expect(out).toContain('<bpmn:task id="bpmn_MX1"');
     });
   });
 
