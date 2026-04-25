@@ -379,56 +379,52 @@ export default class DexpiRenderer extends BaseRenderer {
     
     // For InformationPorts, match each port to its specific association by name.
     if (port.type === 'InformationPort' || (port as any).type === 'InformationPort') {
-      // If manually positioned (anchorX/Y set by user drag), use that directly
+      // If manually positioned (user dragged the port), respect that position
       if (port.anchorX !== undefined && port.anchorY !== undefined) {
         return { x: port.anchorX, y: port.anchorY };
       }
 
-      try {
-        const isOutlet = port.direction === 'Outlet';
-        const associations = isOutlet
-          ? (businessObject.dataOutputAssociations || [])
-          : (businessObject.dataInputAssociations || []);
+      const isOutlet = port.direction === 'Outlet';
+      const associations = isOutlet
+        ? (businessObject.dataOutputAssociations || [])
+        : (businessObject.dataInputAssociations || []);
 
-        const rawName = port.name || (port as any).label || '';
-        const portVarName = rawName.replace(/^IP[IO]_/, '');
+      const rawName = port.name || (port as any).label || '';
+      const portVarName = rawName.replace(/^IP[IO]_/, '');
 
-        for (const assoc of associations) {
-          const dataObjId = isOutlet ? assoc.targetRef?.id : assoc.sourceRef?.id;
-          if (!dataObjId) continue;
-          const dataObjEl = this.elementRegistry.get(dataObjId) as any;
-          const dataObjName = dataObjEl?.businessObject?.name || '';
-          if (dataObjName !== portVarName) continue;
-          const assocEl = this.elementRegistry.find((el: any) =>
-            el.businessObject?.id === assoc.id
-          );
-          if (!assocEl?.waypoints?.length) continue;
-          const pt = isOutlet
+      for (const assoc of associations) {
+        const dataObjId = isOutlet ? assoc.targetRef?.id : assoc.sourceRef?.id;
+        if (!dataObjId) continue;
+        const dataObjEl = this.elementRegistry.get(dataObjId) as any;
+        const dataObjName = dataObjEl?.businessObject?.name || '';
+        if (dataObjName !== portVarName) continue;
+        const assocEl = this.elementRegistry.find((el: any) =>
+          el.businessObject?.id === assoc.id
+        );
+        if (!assocEl?.waypoints?.length) continue;
+        const pt = isOutlet
+          ? assocEl.waypoints[0]
+          : assocEl.waypoints[assocEl.waypoints.length - 1];
+        return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
+      }
+
+      // Plain bpmn:association fallback
+      const plainAssocs = this.elementRegistry.filter((el: any) =>
+        el.type === 'bpmn:Association' &&
+        (el.businessObject?.sourceRef?.id === elementId ||
+         el.businessObject?.targetRef?.id === elementId)
+      );
+      for (const assocEl of plainAssocs) {
+        const bo = assocEl.businessObject;
+        const otherEnd = bo.sourceRef?.id === elementId ? bo.targetRef : bo.sourceRef;
+        const otherEl = this.elementRegistry.get(otherEnd?.id) as any;
+        const otherName = otherEl?.businessObject?.name || '';
+        if (otherName === portVarName && assocEl.waypoints?.length > 0) {
+          const portSide = bo.sourceRef?.id === elementId
             ? assocEl.waypoints[0]
             : assocEl.waypoints[assocEl.waypoints.length - 1];
-          return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
+          return { x: portSide.x - element.x - 4, y: portSide.y - element.y - 4 };
         }
-
-        // Plain bpmn:association fallback
-        const plainAssocs = this.elementRegistry.filter((el: any) =>
-          el.type === 'bpmn:Association' &&
-          (el.businessObject?.sourceRef?.id === elementId ||
-           el.businessObject?.targetRef?.id === elementId)
-        );
-        for (const assocEl of plainAssocs) {
-          const bo = assocEl.businessObject;
-          const otherEnd = bo.sourceRef?.id === elementId ? bo.targetRef : bo.sourceRef;
-          const otherEl = this.elementRegistry.get(otherEnd?.id) as any;
-          const otherName = otherEl?.businessObject?.name || '';
-          if (otherName === portVarName && assocEl.waypoints?.length > 0) {
-            const portSide = bo.sourceRef?.id === elementId
-              ? assocEl.waypoints[0]
-              : assocEl.waypoints[assocEl.waypoints.length - 1];
-            return { x: portSide.x - element.x - 4, y: portSide.y - element.y - 4 };
-          }
-        }
-      } catch (e) {
-        console.warn('InformationPort position lookup failed (non-fatal):', e);
       }
 
       return this.calculatePortPosition(port, width, height);
