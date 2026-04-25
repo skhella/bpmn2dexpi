@@ -181,6 +181,12 @@ export interface TransformOptions {
   projectName?: string;
   projectDescription?: string;
   author?: string;
+  /**
+   * Optional raw Process.xml content. Required in browser environments where
+   * the transformer cannot read from the filesystem; in Node it falls back to
+   * reading dexpi-schema-files/Process.xml from disk if omitted.
+   */
+  processXml?: string;
 }
 
 // ── Validation result ─────────────────────────────────────────────────────────

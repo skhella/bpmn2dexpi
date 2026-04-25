@@ -36,7 +36,8 @@ export class BpmnToDexpiTransformer {
     this.logger.reset();
 
     // Load DEXPI class registry from Process.xml (fast — cached after first call)
-    this.registry = await DexpiProcessClassRegistry.load();
+    // In browser: caller passes options.processXml. In Node: reads from disk.
+    this.registry = await DexpiProcessClassRegistry.load(options.processXml);
     if (this.registry.size === 0) {
       this.logger.warn(
         'Could not load dexpi-schema-files/Process.xml — class validation disabled. ' +

@@ -9,6 +9,7 @@ import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { transformer } from './transformer/BpmnToDexpiTransformer';
+import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
 import logoImg from './assets/cropped_logo_B2P.png';
@@ -476,7 +477,8 @@ function App() {
       const dexpiXml = await transformer.transform(xmlForTransform, {
         projectName: 'DEXPI Process Model',
         projectDescription: 'Generated from BPMN.io',
-        author: 'bpmn2dexpi'
+        author: 'bpmn2dexpi',
+        processXml: processXmlRaw
       });
       
       
@@ -536,7 +538,7 @@ function App() {
       }
 
       // Transform to DEXPI XML
-      const dexpiXml = await transformer.transform(bpmnXml);
+      const dexpiXml = await transformer.transform(bpmnXml, { processXml: processXmlRaw });
       
       // Export to Neo4j
       const exportResult = await exportToNeo4j(dexpiXml, config, (current: number, total: number) => {
