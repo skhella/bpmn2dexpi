@@ -59,9 +59,9 @@ interface ParsedDexpi {
 type LayoutBox = {x: number, y: number, w: number, h: number};
 
 // Layout constants
-const TASK_W = 100;
-const TASK_H = 80;
-const EVENT_D = 36;      // diameter
+const TASK_W = 130;
+const TASK_H = 90;
+const EVENT_D = 52;      // diameter
 const H_GAP = 200;       // horizontal gap between elements
 const V_GAP = 100;       // vertical gap between elements
 const MARGIN_X = 100;
@@ -255,13 +255,13 @@ export class DexpiToBpmnTransformer {
     const visibleSteps = steps.filter(s => !s.parentId && !this.isPortProxyStep(s));
     const layout = this.computeStepLayout(visibleSteps, connections);
 
-    // Place MaterialTemplates as Data Objects below the diagram
-    let dtX = MARGIN_X;
-    const maxBottom = Math.max(
-      MARGIN_Y + TASK_H,
-      ...Array.from(layout.values()).map(pos => pos.y + pos.h)
+    // Place MaterialTemplates as reference data near the upper-right of the process.
+    const maxRight = Math.max(
+      MARGIN_X + TASK_W,
+      ...Array.from(layout.values()).map(pos => pos.x + pos.w)
     );
-    const dtY = maxBottom + 120;
+    let dtX = Math.max(MARGIN_X, maxRight - parsed.materialTemplates.length * 120 - 60);
+    const dtY = MARGIN_Y;
     parsed.materialTemplates.forEach(tmpl => {
       layout.set(`dt_${tmpl.id}`, { x: dtX, y: dtY, w: 36, h: 50 });
       dtX += 120;
@@ -319,6 +319,7 @@ export class DexpiToBpmnTransformer {
     });
 
     const processRoots = [...sourceAdjacent].filter(id => !sinkAdjacent.has(id));
+    const processRootSet = new Set(processRoots);
     const fallbackRoots = visibleSteps
       .filter(step =>
         step.dexpiType !== 'Source' &&
@@ -344,8 +345,8 @@ export class DexpiToBpmnTransformer {
       const curLayer = layer.get(cur) ?? 0;
       downstream.get(cur)?.forEach(next => {
         if (stepById.get(next)?.dexpiType === 'Source') return;
-        if (processRoots.includes(next) && stepById.get(cur)?.dexpiType !== 'Source') return;
-        if (stepById.get(cur)?.dexpiType === 'Source' && !processRoots.includes(next)) return;
+        if (processRootSet.has(next) && stepById.get(cur)?.dexpiType !== 'Source') return;
+        if (stepById.get(cur)?.dexpiType === 'Source' && !processRootSet.has(next)) return;
         const proposed = Math.min(maxLayer, curLayer + 1);
         const existing = layer.get(next) ?? -1;
         const count = updateCount.get(next) ?? 0;
@@ -364,6 +365,34 @@ export class DexpiToBpmnTransformer {
       }
     });
 
+    const recycleStepIds = new Set<string>();
+    visibleSteps.forEach(step => {
+      if (step.dexpiType === 'Source' || step.dexpiType === 'Sink') return;
+
+      const hasSinkOutput = [...(downstream.get(step.id) || [])]
+        .some(targetId => stepById.get(targetId)?.dexpiType === 'Sink');
+      if (hasSinkOutput) return;
+
+      const currentLayer = layer.get(step.id) ?? 0;
+      const returnTargets = [...(downstream.get(step.id) || [])]
+        .filter(targetId => {
+          const target = stepById.get(targetId);
+          return target && target.dexpiType !== 'Sink' && (layer.get(targetId) ?? 0) < currentLayer;
+        });
+
+      if (returnTargets.length === 0) return;
+
+      recycleStepIds.add(step.id);
+      const returnLayer = Math.min(...returnTargets.map(targetId => layer.get(targetId) ?? currentLayer));
+      const upstreamLayers = [...(upstream.get(step.id) || [])]
+        .map(sourceId => layer.get(sourceId))
+        .filter((value): value is number => value !== undefined);
+      const feedLayer = upstreamLayers.length > 0 ? Math.max(...upstreamLayers) : currentLayer;
+      const midpointLayer = Math.round((returnLayer + feedLayer) / 2);
+      const branchLayer = Math.max(returnLayer + 1, Math.min(feedLayer - 1, midpointLayer));
+      layer.set(step.id, branchLayer);
+    });
+
     processRoots.forEach(id => layer.set(id, 1));
     const sinkLayer = Math.max(1, ...visibleSteps
       .filter(step => step.dexpiType !== 'Sink')
@@ -380,6 +409,39 @@ export class DexpiToBpmnTransformer {
     const sortedLayers = Array.from(byLayer.keys()).sort((a, b) => a - b);
     const initialOrder = new Map(visibleSteps.map((step, index) => [step.id, index]));
     const yOrder = new Map<string, number>();
+
+    const activityLane = (id: string) => {
+      const step = stepById.get(id);
+      if (!step || step.dexpiType === 'Source' || step.dexpiType === 'Sink') return 1;
+      if (recycleStepIds.has(id)) return 0;
+
+      const nonSinkOutputs = [...(downstream.get(id) || [])]
+        .filter(targetId => stepById.get(targetId)?.dexpiType !== 'Sink');
+      const hasForwardNonSinkOutput = nonSinkOutputs
+        .some(targetId => (layer.get(targetId) ?? 0) > (layer.get(id) ?? 0));
+      if (sinkAdjacent.has(id) && !hasForwardNonSinkOutput) return 2;
+
+      return 1;
+    };
+
+    const branchLane = (id: string) => {
+      const step = stepById.get(id);
+      if (!step) return 1;
+
+      if (step.dexpiType === 'Source') {
+        const targets = [...(downstream.get(id) || [])];
+        if (targets.length === 0) return 1;
+        return Math.round(targets.reduce((sum, targetId) => sum + activityLane(targetId), 0) / targets.length);
+      }
+
+      if (step.dexpiType === 'Sink') {
+        const sourcesForSink = [...(upstream.get(id) || [])];
+        if (sourcesForSink.length === 0) return 1;
+        return Math.round(sourcesForSink.reduce((sum, sourceId) => sum + activityLane(sourceId), 0) / sourcesForSink.length);
+      }
+
+      return activityLane(id);
+    };
 
     sortedLayers.forEach((layerIdx, layerPosition) => {
       const ids = byLayer.get(layerIdx)!;
@@ -404,6 +466,9 @@ export class DexpiToBpmnTransformer {
         if (ta === 'Sink' && tb !== 'Sink') return 1;
         if (tb === 'Sink' && ta !== 'Sink') return -1;
 
+        const laneDelta = branchLane(a) - branchLane(b);
+        if (laneDelta !== 0) return laneDelta;
+
         const barycenter = (id: string) => {
           const refs = [...(upstream.get(id) || [])].filter(ref => yOrder.has(ref));
           if (refs.length === 0) return initialOrder.get(id) ?? 0;
@@ -415,15 +480,30 @@ export class DexpiToBpmnTransformer {
       });
 
       const x = MARGIN_X + layerPosition * (TASK_W + H_GAP);
-      ids.forEach((id, index) => {
+      const laneTotals = new Map<number, number>();
+      ids.forEach(id => {
+        const lane = branchLane(id);
+        laneTotals.set(lane, (laneTotals.get(lane) ?? 0) + 1);
+      });
+      const laneCounts = new Map<number, number>();
+
+      ids.forEach(id => {
         const step = stepById.get(id)!;
         const isEvent = step.dexpiType === 'Source' || step.dexpiType === 'Sink';
         const w = isEvent ? EVENT_D : TASK_W;
         const h = isEvent ? EVENT_D : TASK_H;
+        const lane = branchLane(id);
+        const laneIndex = laneCounts.get(lane) ?? 0;
+        const laneTotal = laneTotals.get(lane) ?? 1;
+        laneCounts.set(lane, laneIndex + 1);
+
+        const laneGap = TASK_H + V_GAP;
+        const stackGap = isEvent ? EVENT_D + 70 : TASK_H + 55;
+        const stackOffset = (laneIndex - (laneTotal - 1) / 2) * stackGap;
         const yOffset = isEvent ? (TASK_H - EVENT_D) / 2 : 0;
-        const y = MARGIN_Y + index * (TASK_H + V_GAP) + yOffset;
+        const y = MARGIN_Y + lane * laneGap + stackOffset + yOffset;
         layout.set(id, { x, y, w, h });
-        yOrder.set(id, index);
+        yOrder.set(id, y);
       });
     });
 
@@ -756,7 +836,7 @@ ${(edgeElementsByOwner.get(owner) || []).join('\n')}
   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-  xmlns:dexpi="http://dexpi.org/bpmn-extension/1.0"
+  xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   id="${defId}"
   targetNamespace="http://bpmn.io/schema/bpmn"
