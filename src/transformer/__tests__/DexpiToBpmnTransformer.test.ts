@@ -169,7 +169,8 @@ describe('DexpiToBpmnTransformer', () => {
       expect(out).toContain('isExpanded="false"');
       expect(childTask).toBeGreaterThan(parentStart);
       expect(childTask).toBeLessThan(parentEnd);
-      expect(out).not.toContain('id="bpmn_MX1_di"');
+      expect(out).toContain('<bpmndi:BPMNPlane id="bpmn_RC1_plane" bpmnElement="bpmn_RC1">');
+      expect(out).toContain('id="bpmn_MX1_di"');
       expect(out).toContain('dexpiType="ReactingChemicals"');
       expect(out).toContain('dexpiType="Mixing"');
     });
@@ -194,9 +195,45 @@ describe('DexpiToBpmnTransformer', () => {
 
       expect(internalFlow).toBeGreaterThan(parentStart);
       expect(internalFlow).toBeLessThan(parentEnd);
-      expect(out).not.toContain('id="bpmn_S_internal_di"');
+      expect(out).toContain('id="bpmn_S_internal_di"');
       expect(out).toContain('<bpmn:outgoing>bpmn_S_internal</bpmn:outgoing>');
       expect(out).toContain('<bpmn:incoming>bpmn_S_internal</bpmn:incoming>');
+    });
+
+    it('places InformationFlow data objects in the owning subprocess plane', () => {
+      const infoOut = port('Sensor_out', 'InformationPort', 'Out', 'IPO_Temperature');
+      const infoIn = port('Reactor_in', 'InformationPort', 'In', 'IPI_Temperature');
+      const infoStream = `
+        <Object id="IF_internal" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_internal</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#Reactor_in"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        subProcessStep(
+          'RC1',
+          'ReactingChemicals',
+          'Reactor section',
+          step('Sensor', 'MeasuringProcessVariable', 'TI-101', infoOut) +
+            step('Reactor', 'ReactingChemicals', 'Reactor', infoIn)
+        ),
+        infoStream
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const subprocessEnd = out.indexOf('</bpmn:subProcess>', out.indexOf('<bpmn:subProcess id="bpmn_RC1"'));
+      const dataObject = out.indexOf('name="Temperature"');
+      const subprocessPlane = out.indexOf('<bpmndi:BPMNPlane id="bpmn_RC1_plane"');
+      const dataObjectShape = out.indexOf('bpmnElement="dobj_bpmn_IF_internal"');
+
+      expect(dataObject).toBeGreaterThan(-1);
+      expect(dataObject).toBeLessThan(subprocessEnd);
+      expect(dataObjectShape).toBeGreaterThan(subprocessPlane);
     });
 
     it('also recognizes nested ProcessModel containers as subprocess children', () => {

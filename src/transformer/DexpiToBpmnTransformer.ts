@@ -56,6 +56,8 @@ interface ParsedDexpi {
   materialTemplates: DexpiMaterialTemplate[];
 }
 
+type LayoutBox = {x: number, y: number, w: number, h: number};
+
 // Layout constants
 const TASK_W = 100;
 const TASK_H = 80;
@@ -248,7 +250,7 @@ export class DexpiToBpmnTransformer {
 
   // ── Layout engine ───────────────────────────────────────────────────────────
 
-  private computeLayout(parsed: ParsedDexpi): Map<string, {x: number, y: number, w: number, h: number}> {
+  private computeLayout(parsed: ParsedDexpi): Map<string, LayoutBox> {
     const { steps, connections } = parsed;
     const visibleSteps = steps.filter(s => !s.parentId && !this.isPortProxyStep(s));
     const visibleStepIds = new Set(visibleSteps.map(s => s.id));
@@ -321,7 +323,7 @@ export class DexpiToBpmnTransformer {
     });
 
     // Assign x/y coordinates
-    const layout = new Map<string, {x: number, y: number, w: number, h: number}>();
+    const layout = new Map<string, LayoutBox>();
     const stepById = new Map(visibleSteps.map(s => [s.id, s]));
 
     const sortedLayers = Array.from(byLayer.keys()).sort((a, b) => a - b);
@@ -371,7 +373,7 @@ export class DexpiToBpmnTransformer {
 
   // ── BPMN builder ────────────────────────────────────────────────────────────
 
-  private buildBpmn(parsed: ParsedDexpi, layout: Map<string, {x: number, y: number, w: number, h: number}>): string {
+  private buildBpmn(parsed: ParsedDexpi, layout: Map<string, LayoutBox>): string {
     const { steps, connections, materialTemplates } = parsed;
 
     // Build port → step map for resolving connection endpoints
@@ -414,10 +416,45 @@ export class DexpiToBpmnTransformer {
     const shapeElements: string[] = [];
     const edgeElements: string[] = [];
     const sequenceFlowsByOwner = new Map<string, string[]>();
+    const extraProcessElementsByOwner = new Map<string, string[]>();
+    const shapeElementsByOwner = new Map<string, string[]>();
+    const edgeElementsByOwner = new Map<string, string[]>();
+    const ownerLayouts = new Map<string, Map<string, LayoutBox>>();
     const rootOwner = '__root__';
     const ownerKey = (ownerId?: string) => ownerId || rootOwner;
     const indentBlock = (xml: string, indent: string) =>
       xml.split('\n').map(line => line ? `${indent}${line}` : line).join('\n');
+    const visibleChildren = (step: DexpiStep) => step.children.filter(child => !hiddenStepIds.has(child.id));
+    const pushOwned = (map: Map<string, string[]>, owner: string, xml: string) => {
+      if (!map.has(owner)) map.set(owner, []);
+      map.get(owner)!.push(xml);
+    };
+    const stepSize = (step: DexpiStep) => {
+      const isEvent = step.dexpiType === 'Source' || step.dexpiType === 'Sink';
+      return { w: isEvent ? EVENT_D : TASK_W, h: isEvent ? EVENT_D : TASK_H };
+    };
+    const buildChildLayout = (owner: DexpiStep) => {
+      const childLayout = new Map<string, LayoutBox>();
+      visibleChildren(owner).forEach((child, index) => {
+        const { w, h } = stepSize(child);
+        const yOffset = child.dexpiType === 'Source' || child.dexpiType === 'Sink' ? (TASK_H - EVENT_D) / 2 : 0;
+        childLayout.set(child.id, {
+          x: MARGIN_X + index * (TASK_W + H_GAP),
+          y: MARGIN_Y + yOffset,
+          w,
+          h,
+        });
+      });
+      ownerLayouts.set(owner.id, childLayout);
+      visibleChildren(owner)
+        .filter(child => child.children.length > 0)
+        .forEach(buildChildLayout);
+    };
+
+    ownerLayouts.set(rootOwner, layout);
+    steps
+      .filter(step => !hiddenStepIds.has(step.id) && step.children.length > 0)
+      .forEach(buildChildLayout);
 
     const extensionXml = (step: DexpiStep, indent: string): string => {
       // Extension elements — assign anchorSide based on direction and spread offset
@@ -464,8 +501,9 @@ ${indent}</bpmn:endEvent>`;
 
       if (step.children.length > 0) {
         const nestedElements = [
-          ...step.children.filter(child => !hiddenStepIds.has(child.id)).map(child => renderStep(child, childIndent)),
+          ...visibleChildren(step).map(child => renderStep(child, childIndent)),
           ...(sequenceFlowsByOwner.get(step.id) || []).map(xml => indentBlock(xml, childIndent)),
+          ...(extraProcessElementsByOwner.get(step.id) || []).map(xml => indentBlock(xml, childIndent)),
         ].join('\n\n');
 
         return `${indent}<bpmn:subProcess id="${elId}" name="${name}">
@@ -498,8 +536,9 @@ ${indent}</bpmn:task>`;
 </bpmn:sequenceFlow>`);
 
       // Edge waypoints: simple straight line
-      const srcPos = layout.get(src);
-      const tgtPos = layout.get(tgt);
+      const ownerLayout = ownerLayouts.get(key) || layout;
+      const srcPos = ownerLayout.get(src);
+      const tgtPos = ownerLayout.get(tgt);
       if (!srcPos || !tgtPos) return;
 
       const srcCx = srcPos.x + srcPos.w;
@@ -507,13 +546,96 @@ ${indent}</bpmn:task>`;
       const tgtCx = tgtPos.x;
       const tgtCy = tgtPos.y + tgtPos.h / 2;
 
-      if (key !== rootOwner) return;
-
-      edgeElements.push(`      <bpmndi:BPMNEdge id="${connId}_di" bpmnElement="${connId}">
+      const edgeXml = `      <bpmndi:BPMNEdge id="${connId}_di" bpmnElement="${connId}">
         <di:waypoint x="${srcCx}" y="${srcCy}"/>
         <di:waypoint x="${tgtCx}" y="${tgtCy}"/>
         <bpmndi:BPMNLabel/>
-      </bpmndi:BPMNEdge>`);
+      </bpmndi:BPMNEdge>`;
+      if (key === rootOwner) {
+        edgeElements.push(edgeXml);
+      } else {
+        pushOwned(edgeElementsByOwner, key, edgeXml);
+      }
+    });
+
+    const shapeForStep = (step: DexpiStep, pos: LayoutBox) => {
+      const elId = bpmnId(step.id);
+      const isEvent = step.dexpiType === 'Source' || step.dexpiType === 'Sink';
+      const isExpandedSubProcess = step.children.length > 0;
+
+      return `      <bpmndi:BPMNShape id="${elId}_di" bpmnElement="${elId}"${isEvent ? ' isHorizontal="false"' : ''}${isExpandedSubProcess ? ' isExpanded="false"' : ''}>
+        <dc:Bounds x="${pos.x}" y="${pos.y}" width="${pos.w}" height="${pos.h}"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>`;
+    };
+
+    steps.filter(step => !step.parentId && !hiddenStepIds.has(step.id)).forEach(step => {
+      const pos = layout.get(step.id);
+      if (!pos) return;
+      shapeElements.push(shapeForStep(step, pos));
+    });
+
+    steps.filter(step => step.parentId && !hiddenStepIds.has(step.id)).forEach(step => {
+      const owner = step.parentId;
+      if (!owner) return;
+      const ownerLayout = ownerLayouts.get(owner);
+      const pos = ownerLayout?.get(step.id);
+      if (!pos) return;
+      pushOwned(shapeElementsByOwner, owner, shapeForStep(step, pos));
+    });
+
+    // InformationFlows → Association + DataObjectReference
+    infoFlows.forEach(conn => {
+      const src = portToStep.get(conn.sourcePortId);
+      if (!src) return;
+      const srcStep = stepById.get(src);
+      const key = ownerKey(srcStep?.parentId);
+
+      const varName = conn.informationVariantLabel || conn.label;
+      const dobjId = `dobj_${bpmnId(conn.id)}`;
+      const assocId = `assoc_${bpmnId(conn.id)}`;
+      const srcEl = bpmnId(src);
+
+      // Place DataObject between source and target
+      const ownerLayout = ownerLayouts.get(key) || layout;
+      const srcPos = ownerLayout.get(src);
+      const dobjX = (srcPos?.x ?? MARGIN_X) + TASK_W + 30;
+      const dobjY = (srcPos?.y ?? MARGIN_Y) - 60;
+
+      const dataObjectXml = `<bpmn:dataObjectReference id="${dobjId}" name="${varName}" dataObjectRef="DataObject_${dobjId}"/>
+  <bpmn:dataObject id="DataObject_${dobjId}"/>
+  <bpmn:association id="${assocId}" sourceRef="${srcEl}" targetRef="${dobjId}" associationDirection="One">
+    <bpmn:extensionElements>
+      <dexpi:Stream streamType="InformationFlow" uid="${conn.id}" identifier="${conn.identifier}"/>
+    </bpmn:extensionElements>
+  </bpmn:association>`;
+      if (key === rootOwner) {
+        processElements.push(indentBlock(dataObjectXml, '  '));
+      } else {
+        pushOwned(extraProcessElementsByOwner, key, dataObjectXml);
+      }
+
+      const shapeXml = `      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
+        <dc:Bounds x="${dobjX}" y="${dobjY}" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>`;
+      if (key === rootOwner) {
+        shapeElements.push(shapeXml);
+      } else {
+        pushOwned(shapeElementsByOwner, key, shapeXml);
+      }
+
+      if (srcPos) {
+        const edgeXml = `      <bpmndi:BPMNEdge id="${assocId}_di" bpmnElement="${assocId}">
+        <di:waypoint x="${srcPos.x + srcPos.w / 2}" y="${srcPos.y}"/>
+        <di:waypoint x="${dobjX + 18}" y="${dobjY + 50}"/>
+      </bpmndi:BPMNEdge>`;
+        if (key === rootOwner) {
+          edgeElements.push(edgeXml);
+        } else {
+          pushOwned(edgeElementsByOwner, key, edgeXml);
+        }
+      }
     });
 
     steps.filter(step => !step.parentId && !hiddenStepIds.has(step.id)).forEach(step => {
@@ -522,57 +644,6 @@ ${indent}</bpmn:task>`;
 
     (sequenceFlowsByOwner.get(rootOwner) || []).forEach(xml => {
       processElements.push(indentBlock(xml, '  '));
-    });
-
-    steps.filter(step => !step.parentId && !hiddenStepIds.has(step.id)).forEach(step => {
-      const pos = layout.get(step.id);
-      if (!pos) return;
-
-      const elId = bpmnId(step.id);
-      const isEvent = step.dexpiType === 'Source' || step.dexpiType === 'Sink';
-      const isExpandedSubProcess = step.children.length > 0;
-
-      // BPMN shape
-      shapeElements.push(`      <bpmndi:BPMNShape id="${elId}_di" bpmnElement="${elId}"${isEvent ? ' isHorizontal="false"' : ''}${isExpandedSubProcess ? ' isExpanded="false"' : ''}>
-        <dc:Bounds x="${pos.x}" y="${pos.y}" width="${pos.w}" height="${pos.h}"/>
-        <bpmndi:BPMNLabel/>
-      </bpmndi:BPMNShape>`);
-    });
-
-    // InformationFlows → Association + DataObjectReference
-    infoFlows.forEach(conn => {
-      const src = portToStep.get(conn.sourcePortId);
-      if (!src) return;
-
-      const varName = conn.informationVariantLabel || conn.label;
-      const dobjId = `dobj_${bpmnId(conn.id)}`;
-      const assocId = `assoc_${bpmnId(conn.id)}`;
-      const srcEl = bpmnId(src);
-
-      // Place DataObject between source and target
-      const srcPos = layout.get(src);
-      const dobjX = (srcPos?.x ?? MARGIN_X) + TASK_W + 30;
-      const dobjY = (srcPos?.y ?? MARGIN_Y) - 60;
-
-      processElements.push(`  <bpmn:dataObjectReference id="${dobjId}" name="${varName}" dataObjectRef="DataObject_${dobjId}"/>
-  <bpmn:dataObject id="DataObject_${dobjId}"/>
-  <bpmn:association id="${assocId}" sourceRef="${srcEl}" targetRef="${dobjId}" associationDirection="One">
-    <bpmn:extensionElements>
-      <dexpi:Stream streamType="InformationFlow" uid="${conn.id}" identifier="${conn.identifier}"/>
-    </bpmn:extensionElements>
-  </bpmn:association>`);
-
-      shapeElements.push(`      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
-        <dc:Bounds x="${dobjX}" y="${dobjY}" width="36" height="50"/>
-        <bpmndi:BPMNLabel/>
-      </bpmndi:BPMNShape>`);
-
-      if (srcPos) {
-        edgeElements.push(`      <bpmndi:BPMNEdge id="${assocId}_di" bpmnElement="${assocId}">
-        <di:waypoint x="${srcPos.x + srcPos.w / 2}" y="${srcPos.y}"/>
-        <di:waypoint x="${dobjX + 18}" y="${dobjY + 50}"/>
-      </bpmndi:BPMNEdge>`);
-      }
     });
 
     // MaterialTemplates as standalone DataObjectReferences
@@ -587,6 +658,19 @@ ${indent}</bpmn:task>`;
         <bpmndi:BPMNLabel/>
       </bpmndi:BPMNShape>`);
     });
+
+    const subprocessDiagrams = steps
+      .filter(step => !hiddenStepIds.has(step.id) && step.children.length > 0)
+      .map(step => {
+        const owner = step.id;
+        return `  <bpmndi:BPMNDiagram id="${bpmnId(owner)}_diagram">
+    <bpmndi:BPMNPlane id="${bpmnId(owner)}_plane" bpmnElement="${bpmnId(owner)}">
+${(shapeElementsByOwner.get(owner) || []).join('\n')}
+${(edgeElementsByOwner.get(owner) || []).join('\n')}
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>`;
+      })
+      .join('\n\n');
 
     // ── Assemble full BPMN XML ─────────────────────────────────────────────
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -612,6 +696,7 @@ ${shapeElements.join('\n')}
 ${edgeElements.join('\n')}
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
+${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
 
 </bpmn:definitions>`;
   }
