@@ -17,22 +17,23 @@ import './App.css';
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
 
 /**
- * Normalise BPMN XML before feeding it to bpmn-js so both pure Camunda BPMNs
- * and our own annotated BPMNs import/export cleanly:
+ * Normalise BPMN XML before feeding it to bpmn-js so files from any source
+ * (our UI, Camunda Modeler, hand-edited, legacy TEP) parse identically:
  *
- * - If bare <ports>/<port> elements exist (no namespace prefix), convert them
- *   to <dexpi:ports>/<dexpi:port> so bpmn-js can match them to the known
- *   dexpi namespace URI when serialising (avoiding the "no namespace uri for
- *   prefix ns0" error).
- * - If a dexpi namespace declaration is missing entirely, inject it so the
- *   prefix stays valid after the prefix conversion above.
- * - Pure Camunda BPMNs (no ports, no dexpi annotations) pass through unchanged.
+ * 1. Inject xmlns:dexpi if missing — bpmn-js silently drops dexpi:* elements
+ *    whose namespace URI isn't declared on the root, even if they look correct.
+ * 2. Strip <dexpi:ports> wrappers — moddle descriptor expects port elements
+ *    as direct children of <dexpi:element>. Kept as a backward-compat fallback
+ *    for older files that used the wrapper; current canonical TEP is flat.
+ * 3. Convert bare <port> elements (Camunda export of our annotations without
+ *    a namespace prefix) to <dexpi:port> so they match the dexpi moddle type.
+ *
+ * Pure Camunda BPMNs (no ports, no dexpi content) pass through unchanged.
  */
 function preprocessBpmnXml(xml: string): string {
   let result = xml;
 
-  // Always ensure xmlns:dexpi is declared — bpmn-js silently drops any
-  // dexpi:* elements whose namespace URI isn't declared on the root element.
+  // 1. Ensure xmlns:dexpi is declared
   if (!result.includes('xmlns:dexpi=')) {
     result = result.replace(
       /(<(?:bpmn:)?definitions\b[^>]*?)(\/?>)/,
@@ -40,20 +41,21 @@ function preprocessBpmnXml(xml: string): string {
     );
   }
 
-  // Strip <dexpi:ports> wrappers — our moddle descriptor expects ports as
-  // direct children of <dexpi:element>, not wrapped. Files using the wrapper
-  // format (legacy TEP, manual annotations) are normalized here.
-  result = result.replace(/<dexpi:ports>/g, '').replace(/<\/dexpi:ports>/g, '');
-
-  // Convert bare <ports>/<port> (Camunda format without namespace) → <dexpi:port>
-  const hasBarePortElements = /<ports>|<port\b/.test(result);
-  if (!hasBarePortElements) return result;
-
-  return result
+  // 2. Strip <dexpi:ports> / <ports> wrappers (legacy / Camunda formats)
+  result = result
+    .replace(/<dexpi:ports>/g, '')
+    .replace(/<\/dexpi:ports>/g, '')
     .replace(/<ports>/g, '')
-    .replace(/<\/ports>/g, '')
-    .replace(/<port\b/g, '<dexpi:port')
-    .replace(/<\/port>/g, '</dexpi:port>');
+    .replace(/<\/ports>/g, '');
+
+  // 3. Convert bare <port> → <dexpi:port>
+  if (/<port\b/.test(result)) {
+    result = result
+      .replace(/<port\b/g, '<dexpi:port')
+      .replace(/<\/port>/g, '</dexpi:port>');
+  }
+
+  return result;
 }
 
 const initialDiagram = '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -75,8 +77,6 @@ function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [modeler, setModeler] = useState<BpmnModeler | null>(null);
   const [selectedElement, setSelectedElement] = useState<any>(null);
-  // Raw XML as last imported — used for DEXPI export to bypass bpmn-js moddle round-trip
-  const rawBpmnXmlRef = useRef<string>('');
   const [validationMessage, setValidationMessage] = useState<string>('');
   const [_currentPlane, setCurrentPlane] = useState<string | null>(null);
   const [planeStack, setPlaneStack] = useState<string[]>([]);
@@ -389,7 +389,6 @@ function App() {
     const diagramToLoad = savedXml || initialDiagram;
 
     const preprocessedToLoad = preprocessBpmnXml(diagramToLoad);
-    rawBpmnXmlRef.current = preprocessedToLoad;
     bpmnModeler.importXML(preprocessedToLoad).then(() => {
       if (isDestroyed) return;
       
@@ -570,7 +569,6 @@ function App() {
       try {
         const text = await file.text();
         const preprocessedText = preprocessBpmnXml(text);
-        rawBpmnXmlRef.current = preprocessedText;
         await modeler.importXML(preprocessedText);
         // Save imported diagram immediately
         const { xml } = await modeler.saveXML({ format: true });
