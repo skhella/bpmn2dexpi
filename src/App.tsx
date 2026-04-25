@@ -457,7 +457,14 @@ function App() {
 
 
       // Step 2: Transform BPMN to DEXPI XML
-      const dexpiXml = await transformer.transform(bpmnXml, {
+      // preprocessBpmnXml ensures xmlns:dexpi is declared and bare <port> elements
+      // are converted — needed because saveXML output may vary
+      const preprocessed = preprocessBpmnXml(bpmnXml);
+      
+      // Debug: log first 500 chars of preprocessed XML to verify dexpi content
+      console.debug('[bpmn2dexpi] Export DEXPI — saveXML output (first 800 chars):', preprocessed.slice(0, 800));
+      
+      const dexpiXml = await transformer.transform(preprocessed, {
         projectName: 'DEXPI Process Model',
         projectDescription: 'Generated from BPMN.io',
         author: 'bpmn2dexpi'
