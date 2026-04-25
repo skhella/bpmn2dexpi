@@ -372,36 +372,64 @@ export default class DexpiRenderer extends BaseRenderer {
     const elementId = element.businessObject.id;
     const businessObject = element.businessObject;
     
-    // For InformationPorts, match each port with its specific association by index.
-    // The Nth IPI port corresponds to the Nth dataInputAssociation, and Nth IPO
-    // port to the Nth dataOutputAssociation — XML order is preserved by Camunda.
+    // For InformationPorts, match each port to its specific association by name.
+    // Same logic as MaterialPort/SequenceFlow matching but using the DataObject's
+    // name: an IPI_Composition port matches the association whose DataObject is "Composition".
     if (port.type === 'InformationPort' || (port as any).type === 'InformationPort') {
       const isOutlet = port.direction === 'Outlet';
-      const allPorts = (businessObject.extensionElements?.values || [])
-        .find((e: any) => e.$type === 'dexpi:Element')?.ports || [];
-      const sameDirPorts = allPorts.filter((p: any) =>
-        (p.type === 'InformationPort' || p.portType === 'InformationPort') &&
-        p.direction === port.direction
-      );
-      const portIdx = sameDirPorts.indexOf(port);
-
       const associations = isOutlet
         ? (businessObject.dataOutputAssociations || [])
         : (businessObject.dataInputAssociations || []);
 
-      if (portIdx >= 0 && portIdx < associations.length) {
-        const assocEl = this.elementRegistry.find((el: any) =>
-          el.businessObject?.id === associations[portIdx].id
-        );
-        if (assocEl?.waypoints?.length > 0) {
-          const pt = isOutlet
-            ? assocEl.waypoints[0]
-            : assocEl.waypoints[assocEl.waypoints.length - 1];
-          return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
+      // Strip IPI_ / IPO_ prefix to get the variable name (e.g. "IPI_Composition" → "Composition")
+      const portVarName = (port.name || '').replace(/^IP[IO]_/, '');
+
+      for (const assoc of associations) {
+        // Resolve the DataObject this association connects to
+        const dataObjId = isOutlet
+          ? assoc.targetRef?.id
+          : assoc.sourceRef?.id;
+        if (!dataObjId) continue;
+
+        const dataObjEl = this.elementRegistry.get(dataObjId) as any;
+        const dataObjName = dataObjEl?.businessObject?.name || '';
+
+        // Match port variable name to DataObject name
+        if (dataObjName === portVarName) {
+          const assocEl = this.elementRegistry.find((el: any) =>
+            el.businessObject?.id === assoc.id
+          );
+          if (assocEl?.waypoints?.length > 0) {
+            const pt = isOutlet
+              ? assocEl.waypoints[0]
+              : assocEl.waypoints[assocEl.waypoints.length - 1];
+            return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
+          }
         }
       }
 
-      // No matching association waypoint — fall back to anchorSide/direction default
+      // Also handle plain bpmn:association elements (DataObject ↔ task)
+      // These don't appear in dataInput/OutputAssociations — find them in elementRegistry
+      const plainAssocs = this.elementRegistry.filter((el: any) =>
+        el.type === 'bpmn:Association' &&
+        (el.businessObject?.sourceRef?.id === elementId ||
+         el.businessObject?.targetRef?.id === elementId)
+      );
+      for (const assocEl of plainAssocs) {
+        const bo = assocEl.businessObject;
+        const otherEnd = bo.sourceRef?.id === elementId ? bo.targetRef : bo.sourceRef;
+        const otherEl = this.elementRegistry.get(otherEnd?.id) as any;
+        const otherName = otherEl?.businessObject?.name || '';
+        if (otherName === portVarName && assocEl.waypoints?.length > 0) {
+          // Port-side waypoint: this element is whichever end has its id
+          const portSide = bo.sourceRef?.id === elementId
+            ? assocEl.waypoints[0]
+            : assocEl.waypoints[assocEl.waypoints.length - 1];
+          return { x: portSide.x - element.x - 4, y: portSide.y - element.y - 4 };
+        }
+      }
+
+      // No matching association — fall back to anchorSide/direction default
       return this.calculatePortPosition(port, width, height);
     }
     
