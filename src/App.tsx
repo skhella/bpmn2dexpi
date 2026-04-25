@@ -40,13 +40,18 @@ function preprocessBpmnXml(xml: string): string {
     );
   }
 
-  // Convert bare <ports>/<port> (Camunda-without-namespace format) → <dexpi:ports>/<dexpi:port>
+  // Strip <dexpi:ports> wrappers — our moddle descriptor expects ports as
+  // direct children of <dexpi:element>, not wrapped. Files using the wrapper
+  // format (legacy TEP, manual annotations) are normalized here.
+  result = result.replace(/<dexpi:ports>/g, '').replace(/<\/dexpi:ports>/g, '');
+
+  // Convert bare <ports>/<port> (Camunda format without namespace) → <dexpi:port>
   const hasBarePortElements = /<ports>|<port\b/.test(result);
   if (!hasBarePortElements) return result;
 
   return result
-    .replace(/<ports>/g, '<dexpi:ports>')
-    .replace(/<\/ports>/g, '</dexpi:ports>')
+    .replace(/<ports>/g, '')
+    .replace(/<\/ports>/g, '')
     .replace(/<port\b/g, '<dexpi:port')
     .replace(/<\/port>/g, '</dexpi:port>');
 }
@@ -463,11 +468,11 @@ function App() {
       // Step 2: Transform BPMN to DEXPI XML
       // preprocessBpmnXml ensures xmlns:dexpi is declared and bare <port> elements
       // are converted — needed because saveXML output may vary
-      // Use raw XML stored at import time — bpmn-js saveXML() loses dexpi:element
-      // content because the moddle descriptor doesn't fully support round-tripping.
-      const xmlForTransform = rawBpmnXmlRef.current || preprocessBpmnXml(bpmnXml);
-      console.debug('[bpmn2dexpi] Export DEXPI — using raw XML, first 200 chars:', xmlForTransform.slice(0, 200));
-      console.debug('[bpmn2dexpi] Has dexpi:element:', xmlForTransform.includes('dexpi:element'));
+      // Step 2: Transform BPMN to DEXPI XML
+      // saveXML() output is now reliable — moddle descriptor properly preserves
+      // dexpi:element content on round-trip. preprocessBpmnXml normalizes any
+      // legacy port wrappers to flat ports.
+      const xmlForTransform = preprocessBpmnXml(bpmnXml);
       
       const dexpiXml = await transformer.transform(xmlForTransform, {
         projectName: 'DEXPI Process Model',
