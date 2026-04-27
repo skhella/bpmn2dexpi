@@ -312,21 +312,31 @@ export class BpmnToDexpiTransformer {
     // If this is a subprocess, map parent ports to child ports using explicit
     // subReference annotations only. Resolved in post-extraction pass in
     // extractElements after all ports are registered. No name-based heuristics.
-    // Ports without subReference emit a warning — SubReference is omitted from
-    // DEXPI output rather than guessing, which could produce incorrect links.
+    // Warn only when a child step has a port of the same type as the parent
+    // boundary port — meaning the hierarchy IS refineable at that port type
+    // and a subReference annotation is missing. If no child has a matching
+    // port type, the abstraction levels differ and no warning is needed.
     if (isSubProcess && processStep.subProcessSteps.length > 0) {
+      // Collect all port types present in child steps
+      const childPortTypes = new Set<string>();
+      for (const childId of processStep.subProcessSteps) {
+        const childStep = this.processSteps.get(childId);
+        if (childStep) {
+          childStep.ports.forEach((p: DexpiPort) => childPortTypes.add(p.portType));
+        }
+      }
+
       processStep.ports.forEach((parentPort: DexpiPort) => {
         if (parentPort.subReference) return; // resolved in post-pass
-        // Only warn for material ports — InformationPorts and energy ports on
-        // subprocess boundaries represent different abstraction levels and don't
-        // require SubReference to a child-level counterpart.
-        const needsRef = parentPort.portType === 'MaterialPort';
-        if (needsRef) {
+        // Only warn if a child step has a port of the same type — otherwise
+        // the parent port operates at a different abstraction level and
+        // SubReference is not applicable.
+        if (childPortTypes.has(parentPort.portType)) {
           this.logger.warn(
             `Subprocess "${name}" (id=${id}): boundary port "${parentPort.name}" ` +
-            `has no subReference annotation — SubReference omitted from DEXPI output. ` +
-            `Add a subReference attribute to the dexpi:port element to formally link ` +
-            `this port to its child-level counterpart.`
+            `(${parentPort.portType}) has no subReference annotation — SubReference ` +
+            `omitted from DEXPI output. Add a subReference attribute to the dexpi:port ` +
+            `element to formally link this port to its child-level counterpart.`
           );
         }
       });
