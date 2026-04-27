@@ -328,10 +328,11 @@ export class BpmnToDexpiTransformer {
 
       processStep.ports.forEach((parentPort: DexpiPort) => {
         if (parentPort.subReference) return; // resolved in post-pass
-        // Only warn if a child step has a port of the same type — otherwise
-        // the parent port operates at a different abstraction level and
-        // SubReference is not applicable.
-        if (childPortTypes.has(parentPort.portType)) {
+        // Only warn for MaterialPorts — material streams are the primary
+        // hierarchically refineable connections in DEXPI Process. Energy and
+        // information ports at subprocess boundaries represent different
+        // abstraction levels and don't require SubReference to a child counterpart.
+        if (parentPort.portType === 'MaterialPort' && childPortTypes.has('MaterialPort')) {
           this.logger.warn(
             `Subprocess "${name}" (id=${id}): boundary port "${parentPort.name}" ` +
             `(${parentPort.portType}) has no subReference annotation — SubReference ` +
