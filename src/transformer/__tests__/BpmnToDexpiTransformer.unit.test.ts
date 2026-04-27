@@ -146,7 +146,7 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
       `);
       const t = new BpmnToDexpiTransformer();
       await t.transform(xml);
-      expect(t.logger.warnings.some(w => /defaulting to.*ProcessStep/i.test(w))).toBe(true);
+      expect(t.logger.warnings.some(w => /Exporting as generic ProcessStep/i.test(w))).toBe(true);
     });
   });
 
@@ -258,7 +258,7 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
   });
 
   // ── unannotated task behaviour ────────────────────────────────────────────
-  describe('unannotated tasks always default to ProcessStep', () => {
+  describe('unvalidated tasks default to ProcessStep', () => {
     const taskNames = [
       'ReactingChemicals',
       'reacting chemicals',
@@ -268,7 +268,7 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
     ];
 
     taskNames.forEach((taskName) => {
-      it(`plain task "${taskName}" → ProcessStep + unannotated warning`, async () => {
+      it(`plain task "${taskName}" → ProcessStep + unvalidated warning`, async () => {
         const xml = bpmn(`
           ${plainTask('T1', taskName)}
           ${startEvent('SE1', 'Feed')}
