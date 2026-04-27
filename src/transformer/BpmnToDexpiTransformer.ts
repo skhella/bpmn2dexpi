@@ -248,10 +248,12 @@ export class BpmnToDexpiTransformer {
     };
 
 
-    // Make port IDs unique by prefixing with step ID
+    // Make port IDs globally unique by prefixing with step ID.
+    // Skip if the port ID already contains the step ID as a prefix
+    // (happens when port IDs were pre-normalized to include the task prefix).
     processStep.ports = processStep.ports.map((port: DexpiPort) => ({
       ...port,
-      portId: `${id}_${port.portId}`
+      portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
     }));
 
     this.processSteps.set(id, processStep);
@@ -291,24 +293,36 @@ export class BpmnToDexpiTransformer {
       });
     });
     
-    // If this is a subprocess, map parent ports to child ports with same name/direction
-    // Only map to the FIRST matching child port (not all children with same name)
+    // If this is a subprocess, map parent ports to child ports.
+    // Priority: explicit subReference annotation on the port (formal, unambiguous).
+    // Fallback: name + direction matching (heuristic — warns if multiple ambiguous matches).
     if (isSubProcess && processStep.subProcessSteps.length > 0) {
       processStep.ports.forEach((parentPort: DexpiPort) => {
+        const parentPortData = this.ports.get(parentPort.portId);
+        if (!parentPortData) return;
+
+        // ── Path 1: explicit subReference annotation ─────────────────────────
+        const subRef = (parentPort as any).subReference as string | undefined;
+        if (subRef) {
+          const childPortData = this.ports.get(subRef);
+          if (childPortData) {
+            if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
+            parentPortData.childPortIds.push(subRef);
+            childPortData.parentPortId = parentPort.portId;
+            return;
+          }
+        }
+
+        // ── Path 2: name + direction match (heuristic fallback) ───────────────
         let foundMatch = false;
-        // Find the first matching port in child process steps
         for (const childId of processStep.subProcessSteps) {
           if (foundMatch) break;
           const childStep = this.processSteps.get(childId);
           if (childStep) {
             for (const childPort of childStep.ports) {
-              // Match by port name and direction - only first match
-              if (childPort.name === parentPort.name && 
+              if (childPort.name === parentPort.name &&
                   childPort.direction === parentPort.direction) {
-                // Create parent-child port relationship
-                const parentPortData = this.ports.get(parentPort.portId);
                 const childPortData = this.ports.get(childPort.portId);
-                
                 if (parentPortData && childPortData) {
                   if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
                   parentPortData.childPortIds.push(childPort.portId);
@@ -323,7 +337,6 @@ export class BpmnToDexpiTransformer {
       });
     }
   }
-
   private extractSource(event: Element): void {
     const id = event.getAttribute('id') || '';
     const name = event.getAttribute('name') || id;
@@ -349,7 +362,7 @@ export class BpmnToDexpiTransformer {
       uid: dexpiData?.uid || this.generateUid(),
       ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
         ...port,
-        portId: `${id}_${port.portId}`
+        portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
       })),
       attributes: [],
       parentId: null,
@@ -388,7 +401,7 @@ export class BpmnToDexpiTransformer {
       uid: dexpiData?.uid || this.generateUid(),
       ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
         ...port,
-        portId: `${id}_${port.portId}`
+        portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
       })),
       attributes: [],
       parentId: null,
