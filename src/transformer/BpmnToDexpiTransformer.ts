@@ -513,13 +513,16 @@ export class BpmnToDexpiTransformer {
       const taskId = task.getAttribute('id') || '';
 
       // dataOutputAssociation: this task → DataObject
-      const outputs = Array.from(task.querySelectorAll('dataOutputAssociation'));
+      // Use only DIRECT children — querySelectorAll would also find associations
+      // inside nested subProcess children, incorrectly attributing them to the parent.
+      const outputs = Array.from(task.children).filter(
+        c => (c.localName || c.tagName.split(':').pop()) === 'dataOutputAssociation'
+      );
       outputs.forEach(doa => {
         const targetRef = doa.querySelector('targetRef');
         const dataObjId = targetRef?.textContent?.trim() || '';
         if (!dataObjId) return;
         if (!graph.has(dataObjId)) {
-          // Resolve DataObject name from the diagram
           const dataObjEl = process.querySelector(`[id="${dataObjId}"]`) ||
                             process.ownerDocument?.querySelector(`[id="${dataObjId}"]`);
           const name = dataObjEl?.getAttribute('name') || dataObjId;
@@ -529,7 +532,9 @@ export class BpmnToDexpiTransformer {
       });
 
       // dataInputAssociation: DataObject → this task
-      const inputs = Array.from(task.querySelectorAll('dataInputAssociation'));
+      const inputs = Array.from(task.children).filter(
+        c => (c.localName || c.tagName.split(':').pop()) === 'dataInputAssociation'
+      );
       inputs.forEach(dia => {
         const sourceRef = dia.querySelector('sourceRef');
         const dataObjId = sourceRef?.textContent?.trim() || '';
