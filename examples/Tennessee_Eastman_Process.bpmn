@@ -7,27 +7,59 @@
   <bpmn:process id="Process_eiodpdw" name="Tennesse Eastman Process" isExecutable="false">
     <bpmn:startEvent id="StartEvent_1" name="Reactant C">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="Source" identifier="StartEvent_1" uid="uid_StartEvent_1"><dexpi:port id="StartEvent_1_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="StartEvent_1" uid="uid_StartEvent_1">
+          <dexpi:port id="StartEvent_1_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_10zldqj</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:startEvent id="Event_11q5mwu" name="Reactant A">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="Source" identifier="Event_11q5mwu" uid="uid_Event_11q5mwu"><dexpi:port id="Event_11q5mwu_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="Event_11q5mwu" uid="uid_Event_11q5mwu">
+          <dexpi:port id="Event_11q5mwu_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_1j96ab6</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:startEvent id="Event_04126je" name="Reactant D">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="Source" identifier="Event_04126je" uid="uid_Event_04126je"><dexpi:port id="Event_04126je_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="Event_04126je" uid="uid_Event_04126je">
+          <dexpi:port id="Event_04126je_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_0jep6f0</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:startEvent id="Event_0qb64fh" name="Reactant E">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="Source" identifier="Event_0qb64fh" uid="uid_Event_0qb64fh"><dexpi:port id="Event_0qb64fh_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="Event_0qb64fh" uid="uid_Event_0qb64fh">
+          <dexpi:port id="Event_0qb64fh_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_109uz3k</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:subProcess id="Activity_07878z5" name="ReactingChemicals">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="ReactingChemicals" identifier="Activity_07878z5" uid="uid_Activity_07878z5"><dexpi:port id="Activity_07878z5_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_1npicji_MI1_port"/><dexpi:port id="Activity_07878z5_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2" subReference="Event_1p0vvqc_MI2_port"/><dexpi:port id="Activity_07878z5_MI3_port" name="MI3" type="MaterialPort" direction="Inlet" label="MI3" subReference="Event_17fqava_MI3_port"/><dexpi:port id="Activity_07878z5_MI4_port" name="MI4" type="MaterialPort" direction="Inlet" label="MI4" subReference="Event_13mofb0_MI4_port"/><dexpi:port id="Activity_07878z5_MI5_port" name="MI5" type="MaterialPort" direction="Inlet" label="MI5" subReference="Event_15gcv4n_MI5_port"/><dexpi:port id="Activity_07878z5_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_062k0v7_MO1_port"/><dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.14" id="Activity_07878z5_IPI_Composition_port"/><dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.29" id="Activity_07878z5_IPI_Level_port"/><dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.43" id="Activity_07878z5_IPI_MassFlow_port"/><dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.57" id="Activity_07878z5_IPI_Pressure_port"/><dexpi:port name="IPI_RotationalFrequency" type="InformationPort" direction="Inlet" label="RotationalFrequency" anchorSide="left" anchorOffset="0.71" id="Activity_07878z5_IPI_RotationalFrequency_port"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.86" id="Activity_07878z5_IPI_Temperature_port"/><dexpi:port name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition" anchorSide="right" anchorOffset="0.14" id="Activity_07878z5_IPO_Composition_port"/><dexpi:port name="IPO_Level" type="InformationPort" direction="Outlet" label="Level" anchorSide="right" anchorOffset="0.29" id="Activity_07878z5_IPO_Level_port"/><dexpi:port name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" anchorSide="right" anchorOffset="0.43" id="Activity_07878z5_IPO_MassFlow_port"/><dexpi:port name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure" anchorSide="right" anchorOffset="0.57" id="Activity_07878z5_IPO_Pressure_port"/><dexpi:port name="IPO_RotationalFrequency" type="InformationPort" direction="Outlet" label="RotationalFrequency" anchorSide="right" anchorOffset="0.71" id="Activity_07878z5_IPO_RotationalFrequency_port"/><dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.86" id="Activity_07878z5_IPO_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="ReactingChemicals" identifier="Activity_07878z5" uid="uid_Activity_07878z5">
+          <dexpi:port id="Activity_07878z5_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_1npicji_MI1_port"/>
+          <dexpi:port id="Activity_07878z5_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2" subReference="Event_1p0vvqc_MI2_port"/>
+          <dexpi:port id="Activity_07878z5_MI3_port" name="MI3" type="MaterialPort" direction="Inlet" label="MI3" subReference="Event_17fqava_MI3_port"/>
+          <dexpi:port id="Activity_07878z5_MI4_port" name="MI4" type="MaterialPort" direction="Inlet" label="MI4" subReference="Event_13mofb0_MI4_port"/>
+          <dexpi:port id="Activity_07878z5_MI5_port" name="MI5" type="MaterialPort" direction="Inlet" label="MI5" subReference="Event_15gcv4n_MI5_port"/>
+          <dexpi:port id="Activity_07878z5_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_062k0v7_MO1_port"/>
+          <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.14" id="Activity_07878z5_IPI_Composition_port"/>
+          <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.29" id="Activity_07878z5_IPI_Level_port"/>
+          <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.43" id="Activity_07878z5_IPI_MassFlow_port"/>
+          <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.57" id="Activity_07878z5_IPI_Pressure_port"/>
+          <dexpi:port name="IPI_RotationalFrequency" type="InformationPort" direction="Inlet" label="RotationalFrequency" anchorSide="left" anchorOffset="0.71" id="Activity_07878z5_IPI_RotationalFrequency_port"/>
+          <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.86" id="Activity_07878z5_IPI_Temperature_port"/>
+          <dexpi:port name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition" anchorSide="right" anchorOffset="0.14" id="Activity_07878z5_IPO_Composition_port"/>
+          <dexpi:port name="IPO_Level" type="InformationPort" direction="Outlet" label="Level" anchorSide="right" anchorOffset="0.29" id="Activity_07878z5_IPO_Level_port"/>
+          <dexpi:port name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" anchorSide="right" anchorOffset="0.43" id="Activity_07878z5_IPO_MassFlow_port"/>
+          <dexpi:port name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure" anchorSide="right" anchorOffset="0.57" id="Activity_07878z5_IPO_Pressure_port"/>
+          <dexpi:port name="IPO_RotationalFrequency" type="InformationPort" direction="Outlet" label="RotationalFrequency" anchorSide="right" anchorOffset="0.71" id="Activity_07878z5_IPO_RotationalFrequency_port"/>
+          <dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.86" id="Activity_07878z5_IPO_Temperature_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_109uz3k</bpmn:incoming>
       <bpmn:incoming>Flow_0jep6f0</bpmn:incoming>
       <bpmn:incoming>Flow_1j96ab6</bpmn:incoming>
@@ -36,25 +68,47 @@
       <bpmn:outgoing>Flow_07wd8rg</bpmn:outgoing>
       <bpmn:subProcess id="Activity_11rkrj8" name="RemovingThermalEnergy">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8"><dexpi:port id="Activity_11rkrj8_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_11rkrj8_IPI_Temperature_port"/><dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.5" id="Activity_11rkrj8_IPO_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8">
+            <dexpi:port id="Activity_11rkrj8_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/>
+            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_11rkrj8_IPI_Temperature_port"/>
+            <dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.5" id="Activity_11rkrj8_IPO_Temperature_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0wulh9g</bpmn:incoming>
         <bpmn:task id="Activity_1pzszmn" name="RegulatingFlow">
           <bpmn:extensionElements>
-            <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_1pzszmn" uid="uid_Activity_1pzszmn"><dexpi:port id="Activity_1pzszmn_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_1pzszmn_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+            <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_1pzszmn" uid="uid_Activity_1pzszmn">
+              <dexpi:port id="Activity_1pzszmn_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+              <dexpi:port id="Activity_1pzszmn_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
           <bpmn:incoming>Flow_1b869xp</bpmn:incoming>
           <bpmn:outgoing>Flow_0wbkd91</bpmn:outgoing>
         </bpmn:task>
         <bpmn:sequenceFlow id="Flow_0wbkd91" name="MO1 - MI1" sourceRef="Activity_1pzszmn" targetRef="Activity_03d7qhp"/>
         <bpmn:task id="Activity_03d7qhp" name="RemovingThermalEnergy">
           <bpmn:extensionElements>
-            <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_03d7qhp" uid="uid_Activity_03d7qhp"><dexpi:port id="Activity_03d7qhp_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_03d7qhp_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_03d7qhp_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port id="Activity_03d7qhp_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/></dexpi:element></bpmn:extensionElements>
+            <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_03d7qhp" uid="uid_Activity_03d7qhp">
+              <dexpi:port id="Activity_03d7qhp_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+              <dexpi:port id="Activity_03d7qhp_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+              <dexpi:port id="Activity_03d7qhp_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/>
+              <dexpi:port id="Activity_03d7qhp_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
           <bpmn:incoming>Flow_0wbkd91</bpmn:incoming>
           <bpmn:outgoing>Flow_04ncgwf</bpmn:outgoing>
         </bpmn:task>
         <bpmn:sequenceFlow id="Flow_04ncgwf" name="MO1 - MI1" sourceRef="Activity_03d7qhp" targetRef="Activity_0iie89x"/>
         <bpmn:task id="Activity_0iie89x" name="ExchangingThermalEnergy">
           <bpmn:extensionElements>
-            <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0iie89x" uid="uid_Activity_0iie89x"><dexpi:port id="Activity_0iie89x_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0iie89x_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_0iie89x_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port id="Activity_0iie89x_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_0iie89x_IPI_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+            <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0iie89x" uid="uid_Activity_0iie89x">
+              <dexpi:port id="Activity_0iie89x_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+              <dexpi:port id="Activity_0iie89x_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+              <dexpi:port id="Activity_0iie89x_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/>
+              <dexpi:port id="Activity_0iie89x_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/>
+              <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_0iie89x_IPI_Temperature_port"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
           <bpmn:incoming>Flow_04ncgwf</bpmn:incoming>
           <bpmn:outgoing>Flow_1b869xp</bpmn:outgoing>
           <bpmn:property id="Property_0cu82b1" name="__targetRef_placeholder"/>
@@ -66,7 +120,10 @@
         <bpmn:sequenceFlow id="Flow_1b869xp" name="MO1 - MI1" sourceRef="Activity_0iie89x" targetRef="Activity_1pzszmn"/>
         <bpmn:task id="Activity_18ratv8" name="MeasuringProcessVariable">
           <bpmn:extensionElements>
-            <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_18ratv8" uid="uid_Activity_18ratv8"><dexpi:port id="Activity_18ratv8_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/></dexpi:element></bpmn:extensionElements>
+            <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_18ratv8" uid="uid_Activity_18ratv8">
+              <dexpi:port id="Activity_18ratv8_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
           <bpmn:dataOutputAssociation id="DataOutputAssociation_167r9am">
             <bpmn:targetRef>DataObjectReference_1hkzsql</bpmn:targetRef>
           </bpmn:dataOutputAssociation>
@@ -76,32 +133,52 @@
       </bpmn:subProcess>
       <bpmn:startEvent id="Event_15gcv4n" name="MI5">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Source" identifier="Event_15gcv4n" uid="uid_Event_15gcv4n"><dexpi:port id="Event_15gcv4n_MI5_port" name="MI5" type="MaterialPort" direction="Outlet" label="MI5" superReference="Activity_07878z5_MI5_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_15gcv4n" uid="uid_Event_15gcv4n">
+            <dexpi:port id="Event_15gcv4n_MI5_port" name="MI5" type="MaterialPort" direction="Outlet" label="MI5" superReference="Activity_07878z5_MI5_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_1cam6h1</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:startEvent id="Event_13mofb0" name="MI4">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Source" identifier="Event_13mofb0" uid="uid_Event_13mofb0"><dexpi:port id="Event_13mofb0_MI4_port" name="MI4" type="MaterialPort" direction="Outlet" label="MI4" superReference="Activity_07878z5_MI4_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_13mofb0" uid="uid_Event_13mofb0">
+            <dexpi:port id="Event_13mofb0_MI4_port" name="MI4" type="MaterialPort" direction="Outlet" label="MI4" superReference="Activity_07878z5_MI4_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_0ey8rro</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:startEvent id="Event_17fqava" name="MI3">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Source" identifier="Event_17fqava" uid="uid_Event_17fqava"><dexpi:port id="Event_17fqava_MI3_port" name="MI3" type="MaterialPort" direction="Outlet" label="MI3" superReference="Activity_07878z5_MI3_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_17fqava" uid="uid_Event_17fqava">
+            <dexpi:port id="Event_17fqava_MI3_port" name="MI3" type="MaterialPort" direction="Outlet" label="MI3" superReference="Activity_07878z5_MI3_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_0sk9xqb</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:startEvent id="Event_1p0vvqc" name="MI2">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Source" identifier="Event_1p0vvqc" uid="uid_Event_1p0vvqc"><dexpi:port id="Event_1p0vvqc_MI2_port" name="MI2" type="MaterialPort" direction="Outlet" label="MI2" superReference="Activity_07878z5_MI2_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1p0vvqc" uid="uid_Event_1p0vvqc">
+            <dexpi:port id="Event_1p0vvqc_MI2_port" name="MI2" type="MaterialPort" direction="Outlet" label="MI2" superReference="Activity_07878z5_MI2_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_0lp976q</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:startEvent id="Event_1npicji" name="MI1">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Source" identifier="Event_1npicji" uid="uid_Event_1npicji"><dexpi:port id="Event_1npicji_MI1_port" name="MI1" type="MaterialPort" direction="Outlet" label="MI1" superReference="Activity_07878z5_MI1_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1npicji" uid="uid_Event_1npicji">
+            <dexpi:port id="Event_1npicji_MI1_port" name="MI1" type="MaterialPort" direction="Outlet" label="MI1" superReference="Activity_07878z5_MI1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_0em311i</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:task id="Activity_1d6n7np" name="DrivingByMotor">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="DrivingByMotor" identifier="Activity_1d6n7np" uid="uid_Activity_1d6n7np"><dexpi:port id="Activity_1d6n7np_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1"/><dexpi:port id="Activity_1d6n7np_MEO1_port" name="MEO1" type="MechanicalEnergyPort" direction="Outlet" label="MEO1"/><dexpi:port id="Activity_1d6n7np_IPI_RotationalFrequency_port" name="IPI_RotationalFrequency" type="InformationPort" direction="Inlet" label="RotationalFrequency"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="DrivingByMotor" identifier="Activity_1d6n7np" uid="uid_Activity_1d6n7np">
+            <dexpi:port id="Activity_1d6n7np_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1"/>
+            <dexpi:port id="Activity_1d6n7np_MEO1_port" name="MEO1" type="MechanicalEnergyPort" direction="Outlet" label="MEO1"/>
+            <dexpi:port id="Activity_1d6n7np_IPI_RotationalFrequency_port" name="IPI_RotationalFrequency" type="InformationPort" direction="Inlet" label="RotationalFrequency"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0gji0fb</bpmn:incoming>
         <bpmn:outgoing>Flow_11ko4yy</bpmn:outgoing>
         <bpmn:property id="Property_160vl9t" name="__targetRef_placeholder"/>
@@ -113,12 +190,26 @@
       <bpmn:sequenceFlow id="Flow_0gji0fb" name="EEI1 - EEI1" sourceRef="Event_01fem2h" targetRef="Activity_1d6n7np"/>
       <bpmn:endEvent id="Event_062k0v7" name="MO1">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Sink" identifier="Event_062k0v7" uid="uid_Event_062k0v7"><dexpi:port id="Event_062k0v7_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_07878z5_MO1_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_062k0v7" uid="uid_Event_062k0v7">
+            <dexpi:port id="Event_062k0v7_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_07878z5_MO1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1hd54gp</bpmn:incoming>
       </bpmn:endEvent>
       <bpmn:task id="Activity_0msgfdr" name="ReactingChemicals">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="ReactingChemicals" identifier="Activity_0msgfdr" uid="uid_Activity_0msgfdr"><dexpi:port id="Activity_0msgfdr_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1"/><dexpi:port id="Activity_0msgfdr_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0msgfdr_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_0msgfdr_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/><dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.17" id="Activity_0msgfdr_IPI_Composition_port"/><dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.33" id="Activity_0msgfdr_IPI_Level_port"/><dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_0msgfdr_IPI_MassFlow_port"/><dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.67" id="Activity_0msgfdr_IPI_Pressure_port"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.83" id="Activity_0msgfdr_IPI_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="ReactingChemicals" identifier="Activity_0msgfdr" uid="uid_Activity_0msgfdr">
+            <dexpi:port id="Activity_0msgfdr_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1"/>
+            <dexpi:port id="Activity_0msgfdr_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_0msgfdr_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_0msgfdr_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/>
+            <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.17" id="Activity_0msgfdr_IPI_Composition_port"/>
+            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.33" id="Activity_0msgfdr_IPI_Level_port"/>
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_0msgfdr_IPI_MassFlow_port"/>
+            <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.67" id="Activity_0msgfdr_IPI_Pressure_port"/>
+            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.83" id="Activity_0msgfdr_IPI_Temperature_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_11ko4yy</bpmn:incoming>
         <bpmn:incoming>Flow_0etbhjc</bpmn:incoming>
         <bpmn:outgoing>Flow_1hd54gp</bpmn:outgoing>
@@ -150,7 +241,15 @@
       <bpmn:sequenceFlow id="Flow_11ko4yy" name="MEO1 - MEI1" sourceRef="Activity_1d6n7np" targetRef="Activity_0msgfdr"/>
       <bpmn:task id="Activity_16sydhz" name="TransportingFluids">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="TransportingFluids" identifier="Activity_16sydhz" uid="uid_Activity_16sydhz"><dexpi:port id="Activity_16sydhz_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_16sydhz_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2"/><dexpi:port id="Activity_16sydhz_MI3_port" name="MI3" type="MaterialPort" direction="Inlet" label="MI3"/><dexpi:port id="Activity_16sydhz_MI4_port" name="MI4" type="MaterialPort" direction="Inlet" label="MI4"/><dexpi:port id="Activity_16sydhz_MI5_port" name="MI5" type="MaterialPort" direction="Inlet" label="MI5"/><dexpi:port id="Activity_16sydhz_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="TransportingFluids" identifier="Activity_16sydhz" uid="uid_Activity_16sydhz">
+            <dexpi:port id="Activity_16sydhz_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_16sydhz_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2"/>
+            <dexpi:port id="Activity_16sydhz_MI3_port" name="MI3" type="MaterialPort" direction="Inlet" label="MI3"/>
+            <dexpi:port id="Activity_16sydhz_MI4_port" name="MI4" type="MaterialPort" direction="Inlet" label="MI4"/>
+            <dexpi:port id="Activity_16sydhz_MI5_port" name="MI5" type="MaterialPort" direction="Inlet" label="MI5"/>
+            <dexpi:port id="Activity_16sydhz_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0em311i</bpmn:incoming>
         <bpmn:incoming>Flow_0lp976q</bpmn:incoming>
         <bpmn:incoming>Flow_0sk9xqb</bpmn:incoming>
@@ -180,46 +279,69 @@
       <bpmn:sequenceFlow id="Flow_0ey8rro" name="MI4 - MI4" sourceRef="Event_13mofb0" targetRef="Activity_16sydhz"/>
       <bpmn:sequenceFlow id="Flow_1cam6h1" name="MI5 - MI5" sourceRef="Event_15gcv4n" targetRef="Activity_16sydhz"/>
       <bpmn:task id="Activity_07twnf1" name="ControllingProcessVariable">
-        <bpmn:extensionElements><dexpi:element dexpiType="ControllingProcessVariable" identifier="Activity_07twnf1" uid="uid_Activity_07twnf1"><dexpi:port name="IPO_RotationalFrequency" type="InformationPort" direction="Outlet" label="RotationalFrequency" anchorSide="right" anchorOffset="0.5" id="Activity_07twnf1_IPO_RotationalFrequency_port"/></dexpi:element></bpmn:extensionElements><bpmn:dataOutputAssociation id="DataOutputAssociation_1nqcm2o">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="ControllingProcessVariable" identifier="Activity_07twnf1" uid="uid_Activity_07twnf1">
+            <dexpi:port name="IPO_RotationalFrequency" type="InformationPort" direction="Outlet" label="RotationalFrequency" anchorSide="right" anchorOffset="0.5" id="Activity_07twnf1_IPO_RotationalFrequency_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:dataOutputAssociation id="DataOutputAssociation_1nqcm2o">
           <bpmn:targetRef>DataObjectReference_1en8e3c</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:dataObjectReference id="DataObjectReference_1en8e3c" name="RotationalFrequency" dataObjectRef="DataObject_1g16uwy"/>
       <bpmn:dataObject id="DataObject_1g16uwy"/>
       <bpmn:startEvent id="Event_01fem2h" name="EEI1">
-        <bpmn:extensionElements><dexpi:element dexpiType="Source" identifier="Event_01fem2h" uid="uid_Event_01fem2h"/></bpmn:extensionElements><bpmn:outgoing>Flow_0gji0fb</bpmn:outgoing>
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_01fem2h" uid="uid_Event_01fem2h"/>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>Flow_0gji0fb</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:task id="Activity_1qz2q4q" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1qz2q4q" uid="uid_Activity_1qz2q4q"><dexpi:port id="Activity_1qz2q4q_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1qz2q4q" uid="uid_Activity_1qz2q4q">
+            <dexpi:port id="Activity_1qz2q4q_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1j8ae8a">
           <bpmn:targetRef>DataObjectReference_0nl1j2n</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_0tg7cm0" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0tg7cm0" uid="uid_Activity_0tg7cm0"><dexpi:port id="Activity_0tg7cm0_IPO_Composition_port" name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0tg7cm0" uid="uid_Activity_0tg7cm0">
+            <dexpi:port id="Activity_0tg7cm0_IPO_Composition_port" name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1f2u15l">
           <bpmn:targetRef>DataObjectReference_10911pm</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_15ct9gk" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_15ct9gk" uid="uid_Activity_15ct9gk"><dexpi:port id="Activity_15ct9gk_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_15ct9gk" uid="uid_Activity_15ct9gk">
+            <dexpi:port id="Activity_15ct9gk_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0lpy7bs">
           <bpmn:targetRef>DataObjectReference_1tuga5x</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_101s6y2" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_101s6y2" uid="uid_Activity_101s6y2"><dexpi:port id="Activity_101s6y2_IPO_Level_port" name="IPO_Level" type="InformationPort" direction="Outlet" label="Level"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_101s6y2" uid="uid_Activity_101s6y2">
+            <dexpi:port id="Activity_101s6y2_IPO_Level_port" name="IPO_Level" type="InformationPort" direction="Outlet" label="Level"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_00wu1ze">
           <bpmn:targetRef>DataObjectReference_0yc0qz3</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_072h89n" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_072h89n" uid="uid_Activity_072h89n"><dexpi:port id="Activity_072h89n_IPO_Pressure_port" name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_072h89n" uid="uid_Activity_072h89n">
+            <dexpi:port id="Activity_072h89n_IPO_Pressure_port" name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_09660uw">
           <bpmn:targetRef>DataObjectReference_06451do</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
@@ -237,14 +359,35 @@
     </bpmn:subProcess>
     <bpmn:subProcess id="Activity_148nxrl" name="Separating">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="Separating" identifier="Activity_148nxrl" uid="uid_Activity_148nxrl"><dexpi:port id="Activity_148nxrl_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_1f801tk_MI1_port"/><dexpi:port id="Activity_148nxrl_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_0ztd5pv_MO1_port"/><dexpi:port id="Activity_148nxrl_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" subReference="Event_1f01vwi_MO2_port"/><dexpi:port id="Activity_148nxrl_MO3_port" name="MO3" type="MaterialPort" direction="Outlet" label="MO3" subReference="Event_0rjd6py_MO3_port"/><dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.2" id="Activity_148nxrl_IPI_Level_port"/><dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.4" id="Activity_148nxrl_IPI_MassFlow_port"/><dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.6" id="Activity_148nxrl_IPI_Pressure_port"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.8" id="Activity_148nxrl_IPI_Temperature_port"/><dexpi:port name="IPO_Level" type="InformationPort" direction="Outlet" label="Level" anchorSide="right" anchorOffset="0.2" id="Activity_148nxrl_IPO_Level_port"/><dexpi:port name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" anchorSide="right" anchorOffset="0.4" id="Activity_148nxrl_IPO_MassFlow_port"/><dexpi:port name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure" anchorSide="right" anchorOffset="0.6" id="Activity_148nxrl_IPO_Pressure_port"/><dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.8" id="Activity_148nxrl_IPO_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="Separating" identifier="Activity_148nxrl" uid="uid_Activity_148nxrl">
+          <dexpi:port id="Activity_148nxrl_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_1f801tk_MI1_port"/>
+          <dexpi:port id="Activity_148nxrl_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_0ztd5pv_MO1_port"/>
+          <dexpi:port id="Activity_148nxrl_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" subReference="Event_1f01vwi_MO2_port"/>
+          <dexpi:port id="Activity_148nxrl_MO3_port" name="MO3" type="MaterialPort" direction="Outlet" label="MO3" subReference="Event_0rjd6py_MO3_port"/>
+          <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.2" id="Activity_148nxrl_IPI_Level_port"/>
+          <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.4" id="Activity_148nxrl_IPI_MassFlow_port"/>
+          <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.6" id="Activity_148nxrl_IPI_Pressure_port"/>
+          <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.8" id="Activity_148nxrl_IPI_Temperature_port"/>
+          <dexpi:port name="IPO_Level" type="InformationPort" direction="Outlet" label="Level" anchorSide="right" anchorOffset="0.2" id="Activity_148nxrl_IPO_Level_port"/>
+          <dexpi:port name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" anchorSide="right" anchorOffset="0.4" id="Activity_148nxrl_IPO_MassFlow_port"/>
+          <dexpi:port name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure" anchorSide="right" anchorOffset="0.6" id="Activity_148nxrl_IPO_Pressure_port"/>
+          <dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.8" id="Activity_148nxrl_IPO_Temperature_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_1eezxa7</bpmn:incoming>
       <bpmn:outgoing>Flow_11f0gdt</bpmn:outgoing>
       <bpmn:outgoing>Flow_1t9aonq</bpmn:outgoing>
       <bpmn:outgoing>Flow_1frta97</bpmn:outgoing>
       <bpmn:task id="Activity_0x085ms" name="SeparatingByPhaseSeparation">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="SeparatingByPhaseSeparation" identifier="Activity_0x085ms" uid="uid_Activity_0x085ms"><dexpi:port id="Activity_0x085ms_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0x085ms_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_0x085ms_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/><dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.33" id="Activity_0x085ms_IPI_Level_port"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.67" id="Activity_0x085ms_IPI_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="SeparatingByPhaseSeparation" identifier="Activity_0x085ms" uid="uid_Activity_0x085ms">
+            <dexpi:port id="Activity_0x085ms_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_0x085ms_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_0x085ms_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/>
+            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.33" id="Activity_0x085ms_IPI_Level_port"/>
+            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.67" id="Activity_0x085ms_IPI_Temperature_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0kavtkx</bpmn:incoming>
         <bpmn:outgoing>Flow_09m76dx</bpmn:outgoing>
         <bpmn:outgoing>Flow_0ny5wle</bpmn:outgoing>
@@ -260,7 +403,14 @@
       </bpmn:task>
       <bpmn:task id="Activity_1ozs40z" name="SplittingMaterial">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="SplittingMaterial" identifier="Activity_1ozs40z" uid="uid_Activity_1ozs40z"><dexpi:port id="Activity_1ozs40z_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_1ozs40z_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_1ozs40z_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/><dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.33" id="Activity_1ozs40z_IPI_MassFlow_port"/><dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.67" id="Activity_1ozs40z_IPI_Pressure_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="SplittingMaterial" identifier="Activity_1ozs40z" uid="uid_Activity_1ozs40z">
+            <dexpi:port id="Activity_1ozs40z_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_1ozs40z_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_1ozs40z_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/>
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.33" id="Activity_1ozs40z_IPI_MassFlow_port"/>
+            <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.67" id="Activity_1ozs40z_IPI_Pressure_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_09m76dx</bpmn:incoming>
         <bpmn:outgoing>Flow_0abomlp</bpmn:outgoing>
         <bpmn:outgoing>Flow_1ynvptb</bpmn:outgoing>
@@ -276,13 +426,24 @@
       </bpmn:task>
       <bpmn:task id="Activity_0pq2475" name="RegulatingFlow">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_0pq2475" uid="uid_Activity_0pq2475"><dexpi:port id="Activity_0pq2475_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0pq2475_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_0pq2475" uid="uid_Activity_0pq2475">
+            <dexpi:port id="Activity_0pq2475_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_0pq2475_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0abomlp</bpmn:incoming>
         <bpmn:outgoing>Flow_0lglh82</bpmn:outgoing>
       </bpmn:task>
       <bpmn:task id="Activity_11jo3tg" name="Pumping">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Pumping" identifier="Activity_11jo3tg" uid="uid_Activity_11jo3tg"><dexpi:port id="Activity_11jo3tg_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_11jo3tg_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_11jo3tg_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1"/><dexpi:port id="Activity_11jo3tg_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1"/><dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_11jo3tg_IPI_MassFlow_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Pumping" identifier="Activity_11jo3tg" uid="uid_Activity_11jo3tg">
+            <dexpi:port id="Activity_11jo3tg_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_11jo3tg_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_11jo3tg_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1"/>
+            <dexpi:port id="Activity_11jo3tg_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1"/>
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_11jo3tg_IPI_MassFlow_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0ny5wle</bpmn:incoming>
         <bpmn:outgoing>Flow_1alxw5e</bpmn:outgoing>
         <bpmn:property id="Property_08nwurn" name="__targetRef_placeholder"/>
@@ -293,28 +454,44 @@
       </bpmn:task>
       <bpmn:task id="Activity_1g6kz8f" name="RegulatingFlow">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_1g6kz8f" uid="uid_Activity_1g6kz8f"><dexpi:port id="Activity_1g6kz8f_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_1g6kz8f_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_1g6kz8f" uid="uid_Activity_1g6kz8f">
+            <dexpi:port id="Activity_1g6kz8f_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_1g6kz8f_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1alxw5e</bpmn:incoming>
         <bpmn:outgoing>Flow_0g6xxqk</bpmn:outgoing>
       </bpmn:task>
       <bpmn:startEvent id="Event_1f801tk" name="MI1">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Source" identifier="Event_1f801tk" uid="uid_Event_1f801tk"><dexpi:port id="Event_1f801tk_MI1_port" name="MI1" type="MaterialPort" direction="Outlet" label="MI1" superReference="Activity_148nxrl_MI1_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1f801tk" uid="uid_Event_1f801tk">
+            <dexpi:port id="Event_1f801tk_MI1_port" name="MI1" type="MaterialPort" direction="Outlet" label="MI1" superReference="Activity_148nxrl_MI1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_0kavtkx</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:endEvent id="Event_0rjd6py" name="MO3">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Sink" identifier="Event_0rjd6py" uid="uid_Event_0rjd6py"><dexpi:port id="Event_0rjd6py_MO3_port" name="MO3" type="MaterialPort" direction="Inlet" label="MO3" superReference="Activity_148nxrl_MO3_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_0rjd6py" uid="uid_Event_0rjd6py">
+            <dexpi:port id="Event_0rjd6py_MO3_port" name="MO3" type="MaterialPort" direction="Inlet" label="MO3" superReference="Activity_148nxrl_MO3_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1ynvptb</bpmn:incoming>
       </bpmn:endEvent>
       <bpmn:endEvent id="Event_0ztd5pv" name="MO1">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Sink" identifier="Event_0ztd5pv" uid="uid_Event_0ztd5pv"><dexpi:port id="Event_0ztd5pv_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_148nxrl_MO1_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_0ztd5pv" uid="uid_Event_0ztd5pv">
+            <dexpi:port id="Event_0ztd5pv_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_148nxrl_MO1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0lglh82</bpmn:incoming>
       </bpmn:endEvent>
       <bpmn:endEvent id="Event_1f01vwi" name="MO2">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Sink" identifier="Event_1f01vwi" uid="uid_Event_1f01vwi"><dexpi:port id="Event_1f01vwi_MO2_port" name="MO2" type="MaterialPort" direction="Inlet" label="MO2" superReference="Activity_148nxrl_MO2_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_1f01vwi" uid="uid_Event_1f01vwi">
+            <dexpi:port id="Event_1f01vwi_MO2_port" name="MO2" type="MaterialPort" direction="Inlet" label="MO2" superReference="Activity_148nxrl_MO2_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0g6xxqk</bpmn:incoming>
       </bpmn:endEvent>
       <bpmn:sequenceFlow id="Flow_0kavtkx" name="MI1 - MI1" sourceRef="Event_1f801tk" targetRef="Activity_0x085ms"/>
@@ -327,28 +504,40 @@
       <bpmn:sequenceFlow id="Flow_0g6xxqk" name="MO1 - MO2" sourceRef="Activity_1g6kz8f" targetRef="Event_1f01vwi"/>
       <bpmn:task id="Activity_09ul91z" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_09ul91z" uid="uid_Activity_09ul91z"><dexpi:port id="Activity_09ul91z_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_09ul91z" uid="uid_Activity_09ul91z">
+            <dexpi:port id="Activity_09ul91z_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1jyfssp">
           <bpmn:targetRef>DataObjectReference_17j9mpn</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_09g9kks" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_09g9kks" uid="uid_Activity_09g9kks"><dexpi:port id="Activity_09g9kks_IPO_Level_port" name="IPO_Level" type="InformationPort" direction="Outlet" label="Level"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_09g9kks" uid="uid_Activity_09g9kks">
+            <dexpi:port id="Activity_09g9kks_IPO_Level_port" name="IPO_Level" type="InformationPort" direction="Outlet" label="Level"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_03w45lc">
           <bpmn:targetRef>DataObjectReference_1hdlnkz</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_0zpct04" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0zpct04" uid="uid_Activity_0zpct04"><dexpi:port id="Activity_0zpct04_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0zpct04" uid="uid_Activity_0zpct04">
+            <dexpi:port id="Activity_0zpct04_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0vtalp3">
           <bpmn:targetRef>DataObjectReference_0bgjkij</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_1jl445f" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1jl445f" uid="uid_Activity_1jl445f"><dexpi:port id="Activity_1jl445f_IPO_Pressure_port" name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1jl445f" uid="uid_Activity_1jl445f">
+            <dexpi:port id="Activity_1jl445f_IPO_Pressure_port" name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_02aq8dq">
           <bpmn:targetRef>DataObjectReference_062zdx6</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
@@ -363,7 +552,10 @@
       <bpmn:dataObject id="DataObject_1kedu24"/>
       <bpmn:task id="Activity_0o7v7ax" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0o7v7ax" uid="uid_Activity_0o7v7ax"><dexpi:port id="Activity_0o7v7ax_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0o7v7ax" uid="uid_Activity_0o7v7ax">
+            <dexpi:port id="Activity_0o7v7ax_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0p6j82j">
           <bpmn:targetRef>DataObjectReference_1tv2egy</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
@@ -373,14 +565,35 @@
     </bpmn:subProcess>
     <bpmn:subProcess id="Activity_1h23lzf" name="StrippingDistilling">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="StrippingDistilling" identifier="Activity_1h23lzf" uid="uid_Activity_1h23lzf"><dexpi:port id="Activity_1h23lzf_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_0h1gv72_MI1_port"/><dexpi:port id="Activity_1h23lzf_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2" subReference="Event_0xub7hl_MI2_port"/><dexpi:port id="Activity_1h23lzf_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_1gcqtzr_MO1_port"/><dexpi:port id="Activity_1h23lzf_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" subReference="Event_1w0hjx9_MO2_port"/><dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.2" id="Activity_1h23lzf_IPI_Composition_port"/><dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.4" id="Activity_1h23lzf_IPI_Level_port"/><dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.6" id="Activity_1h23lzf_IPI_MassFlow_port"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.8" id="Activity_1h23lzf_IPI_Temperature_port"/><dexpi:port name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition" anchorSide="right" anchorOffset="0.2" id="Activity_1h23lzf_IPO_Composition_port"/><dexpi:port name="IPO_Level" type="InformationPort" direction="Outlet" label="Level" anchorSide="right" anchorOffset="0.4" id="Activity_1h23lzf_IPO_Level_port"/><dexpi:port name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" anchorSide="right" anchorOffset="0.6" id="Activity_1h23lzf_IPO_MassFlow_port"/><dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.8" id="Activity_1h23lzf_IPO_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="StrippingDistilling" identifier="Activity_1h23lzf" uid="uid_Activity_1h23lzf">
+          <dexpi:port id="Activity_1h23lzf_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_0h1gv72_MI1_port"/>
+          <dexpi:port id="Activity_1h23lzf_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2" subReference="Event_0xub7hl_MI2_port"/>
+          <dexpi:port id="Activity_1h23lzf_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_1gcqtzr_MO1_port"/>
+          <dexpi:port id="Activity_1h23lzf_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" subReference="Event_1w0hjx9_MO2_port"/>
+          <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.2" id="Activity_1h23lzf_IPI_Composition_port"/>
+          <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.4" id="Activity_1h23lzf_IPI_Level_port"/>
+          <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.6" id="Activity_1h23lzf_IPI_MassFlow_port"/>
+          <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.8" id="Activity_1h23lzf_IPI_Temperature_port"/>
+          <dexpi:port name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition" anchorSide="right" anchorOffset="0.2" id="Activity_1h23lzf_IPO_Composition_port"/>
+          <dexpi:port name="IPO_Level" type="InformationPort" direction="Outlet" label="Level" anchorSide="right" anchorOffset="0.4" id="Activity_1h23lzf_IPO_Level_port"/>
+          <dexpi:port name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" anchorSide="right" anchorOffset="0.6" id="Activity_1h23lzf_IPO_MassFlow_port"/>
+          <dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.8" id="Activity_1h23lzf_IPO_Temperature_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_1t9aonq</bpmn:incoming>
       <bpmn:incoming>Flow_10zldqj</bpmn:incoming>
       <bpmn:outgoing>Flow_1781g4y</bpmn:outgoing>
       <bpmn:outgoing>Flow_1a07km3</bpmn:outgoing>
       <bpmn:task id="Activity_0uxjdkn" name="StrippingDistilling">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="StrippingDistilling" identifier="Activity_0uxjdkn" uid="uid_Activity_0uxjdkn"><dexpi:port id="Activity_0uxjdkn_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0uxjdkn_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2"/><dexpi:port id="Activity_0uxjdkn_MI3_port" name="MI3" type="MaterialPort" direction="Inlet" label="MI3"/><dexpi:port id="Activity_0uxjdkn_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_0uxjdkn_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="StrippingDistilling" identifier="Activity_0uxjdkn" uid="uid_Activity_0uxjdkn">
+            <dexpi:port id="Activity_0uxjdkn_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_0uxjdkn_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2"/>
+            <dexpi:port id="Activity_0uxjdkn_MI3_port" name="MI3" type="MaterialPort" direction="Inlet" label="MI3"/>
+            <dexpi:port id="Activity_0uxjdkn_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_0uxjdkn_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0i60ys0</bpmn:incoming>
         <bpmn:incoming>Flow_17ox75z</bpmn:incoming>
         <bpmn:incoming>Flow_0idmwg8</bpmn:incoming>
@@ -389,14 +602,28 @@
       </bpmn:task>
       <bpmn:task id="Activity_1uqovub" name="ExchangingThermalEnergy">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_1uqovub" uid="uid_Activity_1uqovub"><dexpi:port id="Activity_1uqovub_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_1uqovub_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_1uqovub_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port id="Activity_1uqovub_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_1uqovub" uid="uid_Activity_1uqovub">
+            <dexpi:port id="Activity_1uqovub_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_1uqovub_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_1uqovub_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/>
+            <dexpi:port id="Activity_1uqovub_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_16mvdb6</bpmn:incoming>
         <bpmn:incoming>Flow_0ii62nn</bpmn:incoming>
         <bpmn:outgoing>Flow_0idmwg8</bpmn:outgoing>
       </bpmn:task>
       <bpmn:task id="Activity_1kyou8x" name="SplittingMaterial">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="SplittingMaterial" identifier="Activity_1kyou8x" uid="uid_Activity_1kyou8x"><dexpi:port id="Activity_1kyou8x_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_1kyou8x_MO1 -MI1_port" name="MO1 -MI1" type="MaterialPort" direction="Outlet" label="MO1 -MI1"/><dexpi:port id="Activity_1kyou8x_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/><dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.25" id="Activity_1kyou8x_IPI_Level_port"/><dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_1kyou8x_IPI_MassFlow_port"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.75" id="Activity_1kyou8x_IPI_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="SplittingMaterial" identifier="Activity_1kyou8x" uid="uid_Activity_1kyou8x">
+            <dexpi:port id="Activity_1kyou8x_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_1kyou8x_MO1 -MI1_port" name="MO1 -MI1" type="MaterialPort" direction="Outlet" label="MO1 -MI1"/>
+            <dexpi:port id="Activity_1kyou8x_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/>
+            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.25" id="Activity_1kyou8x_IPI_Level_port"/>
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_1kyou8x_IPI_MassFlow_port"/>
+            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.75" id="Activity_1kyou8x_IPI_Temperature_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0xyvyyt</bpmn:incoming>
         <bpmn:outgoing>Flow_16mvdb6</bpmn:outgoing>
         <bpmn:outgoing>Flow_1xayaxu</bpmn:outgoing>
@@ -416,39 +643,65 @@
       </bpmn:task>
       <bpmn:startEvent id="Event_0h1gv72" name="MI1">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Source" identifier="Event_0h1gv72" uid="uid_Event_0h1gv72"><dexpi:port id="Event_0h1gv72_MI1_port" name="MI1" type="MaterialPort" direction="Outlet" label="MI1" superReference="Activity_1h23lzf_MI1_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_0h1gv72" uid="uid_Event_0h1gv72">
+            <dexpi:port id="Event_0h1gv72_MI1_port" name="MI1" type="MaterialPort" direction="Outlet" label="MI1" superReference="Activity_1h23lzf_MI1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_0y79tc9</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:startEvent id="Event_0xub7hl" name="MI2">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Source" identifier="Event_0xub7hl" uid="uid_Event_0xub7hl"><dexpi:port id="Event_0xub7hl_MI2_port" name="MI2" type="MaterialPort" direction="Outlet" label="MI2" superReference="Activity_1h23lzf_MI2_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_0xub7hl" uid="uid_Event_0xub7hl">
+            <dexpi:port id="Event_0xub7hl_MI2_port" name="MI2" type="MaterialPort" direction="Outlet" label="MI2" superReference="Activity_1h23lzf_MI2_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_0i60ys0</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:endEvent id="Event_1gcqtzr" name="MO1">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Sink" identifier="Event_1gcqtzr" uid="uid_Event_1gcqtzr"><dexpi:port id="Event_1gcqtzr_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_1h23lzf_MO1_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_1gcqtzr" uid="uid_Event_1gcqtzr">
+            <dexpi:port id="Event_1gcqtzr_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_1h23lzf_MO1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1iwrfte</bpmn:incoming>
       </bpmn:endEvent>
       <bpmn:endEvent id="Event_1w0hjx9" name="MO2">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Sink" identifier="Event_1w0hjx9" uid="uid_Event_1w0hjx9"><dexpi:port id="Event_1w0hjx9_MO2_port" name="MO2" type="MaterialPort" direction="Inlet" label="MO2" superReference="Activity_1h23lzf_MO2_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_1w0hjx9" uid="uid_Event_1w0hjx9">
+            <dexpi:port id="Event_1w0hjx9_MO2_port" name="MO2" type="MaterialPort" direction="Inlet" label="MO2" superReference="Activity_1h23lzf_MO2_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1queo8p</bpmn:incoming>
       </bpmn:endEvent>
       <bpmn:task id="Activity_0dvp1ez" name="RegulatingFlow">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_0dvp1ez" uid="uid_Activity_0dvp1ez"><dexpi:port id="Activity_0dvp1ez_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0dvp1ez_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_0dvp1ez" uid="uid_Activity_0dvp1ez">
+            <dexpi:port id="Activity_0dvp1ez_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_0dvp1ez_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0y79tc9</bpmn:incoming>
         <bpmn:outgoing>Flow_17ox75z</bpmn:outgoing>
       </bpmn:task>
       <bpmn:task id="Activity_1atxmzx" name="Pumping">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Pumping" identifier="Activity_1atxmzx" uid="uid_Activity_1atxmzx"><dexpi:port id="Activity_1atxmzx_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_1atxmzx_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1"/><dexpi:port id="Activity_1atxmzx_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Pumping" identifier="Activity_1atxmzx" uid="uid_Activity_1atxmzx">
+            <dexpi:port id="Activity_1atxmzx_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_1atxmzx_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1"/>
+            <dexpi:port id="Activity_1atxmzx_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1xayaxu</bpmn:incoming>
         <bpmn:outgoing>Flow_0agl4n2</bpmn:outgoing>
       </bpmn:task>
       <bpmn:task id="Activity_17bqtl6" name="RegulatingFlow">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_17bqtl6" uid="uid_Activity_17bqtl6"><dexpi:port id="Activity_17bqtl6_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_17bqtl6_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.5" id="Activity_17bqtl6_IPI_Composition_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_17bqtl6" uid="uid_Activity_17bqtl6">
+            <dexpi:port id="Activity_17bqtl6_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_17bqtl6_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.5" id="Activity_17bqtl6_IPI_Composition_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0agl4n2</bpmn:incoming>
         <bpmn:outgoing>Flow_1queo8p</bpmn:outgoing>
         <bpmn:property id="Property_01hr6d5" name="__targetRef_placeholder"/>
@@ -459,23 +712,40 @@
       </bpmn:task>
       <bpmn:subProcess id="Activity_0xhunfw" name="SupplyingThermalEnergy">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_0xhunfw" uid="uid_Activity_0xhunfw"><dexpi:port id="Activity_0xhunfw_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_0xhunfw" uid="uid_Activity_0xhunfw">
+            <dexpi:port id="Activity_0xhunfw_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_0ii62nn</bpmn:outgoing>
         <bpmn:task id="Activity_0uicpy3" name="ExchangingThermalEnergy">
           <bpmn:extensionElements>
-            <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0uicpy3" uid="uid_Activity_0uicpy3"><dexpi:port id="Activity_0uicpy3_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0uicpy3_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_0uicpy3_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port id="Activity_0uicpy3_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/></dexpi:element></bpmn:extensionElements>
+            <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0uicpy3" uid="uid_Activity_0uicpy3">
+              <dexpi:port id="Activity_0uicpy3_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+              <dexpi:port id="Activity_0uicpy3_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+              <dexpi:port id="Activity_0uicpy3_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/>
+              <dexpi:port id="Activity_0uicpy3_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
           <bpmn:incoming>Flow_0oulgq8</bpmn:incoming>
           <bpmn:outgoing>Flow_1dz905k</bpmn:outgoing>
         </bpmn:task>
         <bpmn:task id="Activity_1nyhzy8" name="SupplyingThermalEnergy">
           <bpmn:extensionElements>
-            <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_1nyhzy8" uid="uid_Activity_1nyhzy8"><dexpi:port id="Activity_1nyhzy8_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_1nyhzy8_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+            <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_1nyhzy8" uid="uid_Activity_1nyhzy8">
+              <dexpi:port id="Activity_1nyhzy8_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+              <dexpi:port id="Activity_1nyhzy8_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
           <bpmn:incoming>Flow_1dz905k</bpmn:incoming>
           <bpmn:outgoing>Flow_0jts504</bpmn:outgoing>
         </bpmn:task>
         <bpmn:task id="Activity_0b0nu52" name="RegulatingFlow">
           <bpmn:extensionElements>
-            <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_0b0nu52" uid="uid_Activity_0b0nu52"><dexpi:port id="Activity_0b0nu52_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0b0nu52_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+            <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_0b0nu52" uid="uid_Activity_0b0nu52">
+              <dexpi:port id="Activity_0b0nu52_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+              <dexpi:port id="Activity_0b0nu52_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
           <bpmn:incoming>Flow_0jts504</bpmn:incoming>
           <bpmn:outgoing>Flow_0oulgq8</bpmn:outgoing>
         </bpmn:task>
@@ -496,28 +766,40 @@
       <bpmn:sequenceFlow id="Flow_0agl4n2" name="MO1 - MI1" sourceRef="Activity_1atxmzx" targetRef="Activity_17bqtl6"/>
       <bpmn:task id="Activity_1ggf4yj" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1ggf4yj" uid="uid_Activity_1ggf4yj"><dexpi:port id="Activity_1ggf4yj_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1ggf4yj" uid="uid_Activity_1ggf4yj">
+            <dexpi:port id="Activity_1ggf4yj_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1d0arma">
           <bpmn:targetRef>DataObjectReference_0mlmmqg</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_0r3bi8v" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0r3bi8v" uid="uid_Activity_0r3bi8v"><dexpi:port id="Activity_0r3bi8v_IPO_Level_port" name="IPO_Level" type="InformationPort" direction="Outlet" label="Level"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0r3bi8v" uid="uid_Activity_0r3bi8v">
+            <dexpi:port id="Activity_0r3bi8v_IPO_Level_port" name="IPO_Level" type="InformationPort" direction="Outlet" label="Level"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0e29xbo">
           <bpmn:targetRef>DataObjectReference_1kiv6wz</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_1h809d1" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1h809d1" uid="uid_Activity_1h809d1"><dexpi:port id="Activity_1h809d1_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1h809d1" uid="uid_Activity_1h809d1">
+            <dexpi:port id="Activity_1h809d1_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0fm288d">
           <bpmn:targetRef>DataObjectReference_0yrw4gr</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_1ah3e15" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1ah3e15" uid="uid_Activity_1ah3e15"><dexpi:port id="Activity_1ah3e15_IPO_Composition_port" name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1ah3e15" uid="uid_Activity_1ah3e15">
+            <dexpi:port id="Activity_1ah3e15_IPO_Composition_port" name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1vfdbvu">
           <bpmn:targetRef>DataObjectReference_1vk8nhv</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
@@ -533,30 +815,56 @@
     </bpmn:subProcess>
     <bpmn:subProcess id="Activity_0yezzw8" name="Compressing">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="Compressing" identifier="Activity_0yezzw8" uid="uid_Activity_0yezzw8"><dexpi:port id="Activity_0yezzw8_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_1g1zmip_MI1_port"/><dexpi:port id="Activity_0yezzw8_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_1pcm1vz_MO1_port"/><dexpi:port name="IPI_Duty" type="InformationPort" direction="Inlet" label="Duty" anchorSide="left" anchorOffset="0.33" id="Activity_0yezzw8_IPI_Duty_port"/><dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.67" id="Activity_0yezzw8_IPI_MassFlow_port"/><dexpi:port name="IPO_Duty" type="InformationPort" direction="Outlet" label="Duty" anchorSide="right" anchorOffset="0.33" id="Activity_0yezzw8_IPO_Duty_port"/><dexpi:port name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" anchorSide="right" anchorOffset="0.67" id="Activity_0yezzw8_IPO_MassFlow_port"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="Compressing" identifier="Activity_0yezzw8" uid="uid_Activity_0yezzw8">
+          <dexpi:port id="Activity_0yezzw8_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_1g1zmip_MI1_port"/>
+          <dexpi:port id="Activity_0yezzw8_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_1pcm1vz_MO1_port"/>
+          <dexpi:port name="IPI_Duty" type="InformationPort" direction="Inlet" label="Duty" anchorSide="left" anchorOffset="0.33" id="Activity_0yezzw8_IPI_Duty_port"/>
+          <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.67" id="Activity_0yezzw8_IPI_MassFlow_port"/>
+          <dexpi:port name="IPO_Duty" type="InformationPort" direction="Outlet" label="Duty" anchorSide="right" anchorOffset="0.33" id="Activity_0yezzw8_IPO_Duty_port"/>
+          <dexpi:port name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" anchorSide="right" anchorOffset="0.67" id="Activity_0yezzw8_IPO_MassFlow_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_11f0gdt</bpmn:incoming>
       <bpmn:outgoing>Flow_09zyhyl</bpmn:outgoing>
       <bpmn:task id="Activity_11ivs96" name="RegulatingFlow">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_11ivs96" uid="uid_Activity_11ivs96"><dexpi:port id="Activity_11ivs96_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_11ivs96_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_11ivs96" uid="uid_Activity_11ivs96">
+            <dexpi:port id="Activity_11ivs96_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_11ivs96_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_18uagmc</bpmn:incoming>
         <bpmn:outgoing>Flow_1o980ku</bpmn:outgoing>
       </bpmn:task>
       <bpmn:task id="Activity_0avtq87" name="MixingSimple">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MixingSimple" identifier="Activity_0avtq87" uid="uid_Activity_0avtq87"><dexpi:port id="Activity_0avtq87_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0avtq87_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2"/><dexpi:port id="Activity_0avtq87_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MixingSimple" identifier="Activity_0avtq87" uid="uid_Activity_0avtq87">
+            <dexpi:port id="Activity_0avtq87_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_0avtq87_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI2"/>
+            <dexpi:port id="Activity_0avtq87_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1o980ku</bpmn:incoming>
         <bpmn:incoming>Flow_1l0luaa</bpmn:incoming>
         <bpmn:outgoing>Flow_0ulibbm</bpmn:outgoing>
       </bpmn:task>
       <bpmn:startEvent id="Event_1g1zmip" name="MI1">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Source" identifier="Event_1g1zmip" uid="uid_Event_1g1zmip"><dexpi:port id="Event_1g1zmip_MI1_port" name="MI1" type="MaterialPort" direction="Outlet" label="MI1" superReference="Activity_0yezzw8_MI1_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1g1zmip" uid="uid_Event_1g1zmip">
+            <dexpi:port id="Event_1g1zmip_MI1_port" name="MI1" type="MaterialPort" direction="Outlet" label="MI1" superReference="Activity_0yezzw8_MI1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:outgoing>Flow_1l0luaa</bpmn:outgoing>
       </bpmn:startEvent>
       <bpmn:task id="Activity_02gkcfc" name="Compressing">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Compressing" identifier="Activity_02gkcfc" uid="uid_Activity_02gkcfc"><dexpi:port id="Activity_02gkcfc_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1"/><dexpi:port id="Activity_02gkcfc_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_02gkcfc_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port name="IPI_Duty" type="InformationPort" direction="Inlet" label="Duty" anchorSide="left" anchorOffset="0.5" id="Activity_02gkcfc_IPI_Duty_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Compressing" identifier="Activity_02gkcfc" uid="uid_Activity_02gkcfc">
+            <dexpi:port id="Activity_02gkcfc_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1"/>
+            <dexpi:port id="Activity_02gkcfc_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_02gkcfc_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port name="IPI_Duty" type="InformationPort" direction="Inlet" label="Duty" anchorSide="left" anchorOffset="0.5" id="Activity_02gkcfc_IPI_Duty_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1gic2ao</bpmn:incoming>
         <bpmn:incoming>Flow_0ulibbm</bpmn:incoming>
         <bpmn:outgoing>Flow_00cotc8</bpmn:outgoing>
@@ -568,7 +876,13 @@
       </bpmn:task>
       <bpmn:task id="Activity_00hgxpv" name="SplittingMaterial">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="SplittingMaterial" identifier="Activity_00hgxpv" uid="uid_Activity_00hgxpv"><dexpi:port id="Activity_00hgxpv_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_00hgxpv_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_00hgxpv_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/><dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_00hgxpv_IPI_MassFlow_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="SplittingMaterial" identifier="Activity_00hgxpv" uid="uid_Activity_00hgxpv">
+            <dexpi:port id="Activity_00hgxpv_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_00hgxpv_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_00hgxpv_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2"/>
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_00hgxpv_IPI_MassFlow_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_00cotc8</bpmn:incoming>
         <bpmn:outgoing>Flow_18uagmc</bpmn:outgoing>
         <bpmn:outgoing>Flow_1i0rl3h</bpmn:outgoing>
@@ -580,7 +894,10 @@
       </bpmn:task>
       <bpmn:endEvent id="Event_1pcm1vz" name="MO1">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="Sink" identifier="Event_1pcm1vz" uid="uid_Event_1pcm1vz"><dexpi:port id="Event_1pcm1vz_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_0yezzw8_MO1_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_1pcm1vz" uid="uid_Event_1pcm1vz">
+            <dexpi:port id="Event_1pcm1vz_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_0yezzw8_MO1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1i0rl3h</bpmn:incoming>
       </bpmn:endEvent>
       <bpmn:sequenceFlow id="Flow_1gic2ao" name="EEI1 - EEI1" sourceRef="Event_1mp0d4h" targetRef="Activity_02gkcfc"/>
@@ -592,14 +909,20 @@
       <bpmn:sequenceFlow id="Flow_1i0rl3h" name="MO1 - MO1" sourceRef="Activity_00hgxpv" targetRef="Event_1pcm1vz"/>
       <bpmn:task id="Activity_03icv4t" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_03icv4t" uid="uid_Activity_03icv4t"><dexpi:port id="Activity_03icv4t_IPO_Duty_port" name="IPO_Duty" type="InformationPort" direction="Outlet" label="Duty"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_03icv4t" uid="uid_Activity_03icv4t">
+            <dexpi:port id="Activity_03icv4t_IPO_Duty_port" name="IPO_Duty" type="InformationPort" direction="Outlet" label="Duty"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1b71iwc">
           <bpmn:targetRef>DataObjectReference_1423urb</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:task id="Activity_1u8l6hb" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1u8l6hb" uid="uid_Activity_1u8l6hb"><dexpi:port id="Activity_1u8l6hb_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1u8l6hb" uid="uid_Activity_1u8l6hb">
+            <dexpi:port id="Activity_1u8l6hb_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1ugtlhy">
           <bpmn:targetRef>DataObjectReference_07pbeoh</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
@@ -609,41 +932,75 @@
       <bpmn:dataObjectReference id="DataObjectReference_07pbeoh" name="MassFlow" dataObjectRef="DataObject_0jroxws"/>
       <bpmn:dataObject id="DataObject_0jroxws"/>
       <bpmn:startEvent id="Event_1mp0d4h" name="EEI1">
-        <bpmn:extensionElements><dexpi:element dexpiType="Source" identifier="Event_1mp0d4h" uid="uid_Event_1mp0d4h"/></bpmn:extensionElements><bpmn:outgoing>Flow_1gic2ao</bpmn:outgoing>
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1mp0d4h" uid="uid_Event_1mp0d4h"/>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>Flow_1gic2ao</bpmn:outgoing>
       </bpmn:startEvent>
     </bpmn:subProcess>
     <bpmn:endEvent id="Event_1hvcrvf" name="Product">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="Sink" identifier="Event_1hvcrvf" uid="uid_Event_1hvcrvf"><dexpi:port id="Event_1hvcrvf_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="Sink" identifier="Event_1hvcrvf" uid="uid_Event_1hvcrvf">
+          <dexpi:port id="Event_1hvcrvf_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_1781g4y</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:endEvent id="Event_0g1h7bs" name="Purge">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="Sink" identifier="Event_0g1h7bs" uid="uid_Event_0g1h7bs"><dexpi:port id="Event_0g1h7bs_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="Sink" identifier="Event_0g1h7bs" uid="uid_Event_0g1h7bs">
+          <dexpi:port id="Event_0g1h7bs_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_1frta97</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:subProcess id="Activity_13e86yb" name="Cooling">
       <bpmn:extensionElements>
-        <dexpi:element dexpiType="Cooling" identifier="Activity_13e86yb" uid="uid_Activity_13e86yb"><dexpi:port id="Activity_13e86yb_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_13e86yb_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_13e86yb_IPI_Temperature_port"/><dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.5" id="Activity_13e86yb_IPO_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+        <dexpi:element dexpiType="Cooling" identifier="Activity_13e86yb" uid="uid_Activity_13e86yb">
+          <dexpi:port id="Activity_13e86yb_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_0wtdvnz_MI1_port"/>
+          <dexpi:port id="Activity_13e86yb_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_0rcr9aw_MO1_port"/>
+          <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_13e86yb_IPI_Temperature_port"/>
+          <dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.5" id="Activity_13e86yb_IPO_Temperature_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_07wd8rg</bpmn:incoming>
       <bpmn:outgoing>Flow_1eezxa7</bpmn:outgoing>
       <bpmn:task id="Activity_061upw8" name="RegulatingFlow">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_061upw8" uid="uid_Activity_061upw8"><dexpi:port id="Activity_061upw8_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_061upw8_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_061upw8" uid="uid_Activity_061upw8">
+            <dexpi:port id="Activity_061upw8_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_061upw8_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_1wfrjse</bpmn:incoming>
         <bpmn:outgoing>Flow_08kzky6</bpmn:outgoing>
       </bpmn:task>
       <bpmn:task id="Activity_0h23axj" name="RemovingThermalEnergy">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_0h23axj" uid="uid_Activity_0h23axj"><dexpi:port id="Activity_0h23axj_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_0h23axj_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_0h23axj_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port id="Activity_0h23axj_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_0h23axj" uid="uid_Activity_0h23axj">
+            <dexpi:port id="Activity_0h23axj_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_0h23axj_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_0h23axj_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/>
+            <dexpi:port id="Activity_0h23axj_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_08kzky6</bpmn:incoming>
         <bpmn:outgoing>Flow_0tv8sn4</bpmn:outgoing>
       </bpmn:task>
       <bpmn:task id="Activity_1rs6esf" name="ExchangingThermalEnergy">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_1rs6esf" uid="uid_Activity_1rs6esf"><dexpi:port id="Activity_1rs6esf_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/><dexpi:port id="Activity_1rs6esf_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/><dexpi:port id="Activity_1rs6esf_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port id="Activity_1rs6esf_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_1rs6esf_IPI_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_1rs6esf" uid="uid_Activity_1rs6esf">
+            <dexpi:port id="Activity_1rs6esf_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1"/>
+            <dexpi:port id="Activity_1rs6esf_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1"/>
+            <dexpi:port id="Activity_1rs6esf_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/>
+            <dexpi:port id="Activity_1rs6esf_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/>
+            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_1rs6esf_IPI_Temperature_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:incoming>Flow_0tv8sn4</bpmn:incoming>
+        <bpmn:incoming>Flow_0jgdd3h</bpmn:incoming>
         <bpmn:outgoing>Flow_1wfrjse</bpmn:outgoing>
+        <bpmn:outgoing>Flow_1egvrih</bpmn:outgoing>
         <bpmn:property id="Property_0s10e30" name="__targetRef_placeholder"/>
         <bpmn:dataInputAssociation id="DataInputAssociation_0xjj5m2">
           <bpmn:sourceRef>DataObjectReference_0gzlyr5</bpmn:sourceRef>
@@ -652,7 +1009,10 @@
       </bpmn:task>
       <bpmn:task id="Activity_0gc2qjt" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0gc2qjt" uid="uid_Activity_0gc2qjt"><dexpi:port id="Activity_0gc2qjt_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0gc2qjt" uid="uid_Activity_0gc2qjt">
+            <dexpi:port id="Activity_0gc2qjt_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0bco7ur">
           <bpmn:targetRef>DataObjectReference_0gzlyr5</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
@@ -662,6 +1022,20 @@
       <bpmn:sequenceFlow id="Flow_1wfrjse" name="MO1 - MI1" sourceRef="Activity_1rs6esf" targetRef="Activity_061upw8"/>
       <bpmn:sequenceFlow id="Flow_08kzky6" name="MO1 - MI1" sourceRef="Activity_061upw8" targetRef="Activity_0h23axj"/>
       <bpmn:sequenceFlow id="Flow_0tv8sn4" name="MO1 - MI1" sourceRef="Activity_0h23axj" targetRef="Activity_1rs6esf"/>
+      <bpmn:startEvent id="Event_0wtdvnz" name="MI1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_0wtdvnz" uid="uid_Event_0wtdvnz"><dexpi:port id="Event_0wtdvnz_MI1_port" name="MI1" type="MaterialPort" direction="Outlet" label="MI1" superReference="Activity_13e86yb_MI1_port"/></dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>Flow_0jgdd3h</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:sequenceFlow id="Flow_0jgdd3h" sourceRef="Event_0wtdvnz" targetRef="Activity_1rs6esf"/>
+      <bpmn:endEvent id="Event_0rcr9aw" name="MO1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_0rcr9aw" uid="uid_Event_0rcr9aw"><dexpi:port id="Event_0rcr9aw_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_13e86yb_MO1_port"/></dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_1egvrih</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Flow_1egvrih" sourceRef="Activity_1rs6esf" targetRef="Event_0rcr9aw"/>
     </bpmn:subProcess>
     <bpmn:sequenceFlow id="Flow_10zldqj" name="MO1 - Stream 4 - MI1" sourceRef="StartEvent_1" targetRef="Activity_1h23lzf">
       <bpmn:extensionElements>
@@ -1897,10 +2271,6 @@
           <ns4:Bounds x="771" y="217" width="58" height="14"/>
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="DataInputAssociation_0pdtdvl_di" bpmnElement="DataInputAssociation_0pdtdvl">
-        <ns5:waypoint x="1232" y="759"/>
-        <ns5:waypoint x="800" y="502"/>
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="DataInputAssociation_1g7sns2_di" bpmnElement="DataInputAssociation_1g7sns2">
         <ns5:waypoint x="428" y="735"/>
         <ns5:waypoint x="700" y="511"/>
@@ -1912,6 +2282,14 @@
       <bpmndi:BPMNEdge id="DataInputAssociation_06cyedv_di" bpmnElement="DataInputAssociation_06cyedv">
         <ns5:waypoint x="1062" y="735"/>
         <ns5:waypoint x="800" y="518"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DataInputAssociation_16faofj_di" bpmnElement="DataInputAssociation_16faofj">
+        <ns5:waypoint x="577" y="735"/>
+        <ns5:waypoint x="713" y="530"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DataInputAssociation_0pdtdvl_di" bpmnElement="DataInputAssociation_0pdtdvl">
+        <ns5:waypoint x="1232" y="759"/>
+        <ns5:waypoint x="800" y="502"/>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_1hd54gp_di" bpmnElement="Flow_1hd54gp">
         <ns5:waypoint x="800" y="490"/>
@@ -2007,10 +2385,6 @@
       <bpmndi:BPMNEdge id="DataOutputAssociation_09660uw_di" bpmnElement="DataOutputAssociation_09660uw" ns6:stroke="#205022" ns7:border-color="#205022">
         <ns5:waypoint x="1256" y="840"/>
         <ns5:waypoint x="1251" y="795"/>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="DataInputAssociation_16faofj_di" bpmnElement="DataInputAssociation_16faofj">
-        <ns5:waypoint x="577" y="735"/>
-        <ns5:waypoint x="713" y="530"/>
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
@@ -2189,12 +2563,6 @@
         <ns4:Bounds x="1148" y="452" width="100" height="80"/>
         <bpmndi:BPMNLabel/>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="DataObjectReference_1vk8nhv_di" bpmnElement="DataObjectReference_1vk8nhv" ns6:stroke="#205022" ns6:fill="#c8e6c9" ns7:background-color="#c8e6c9" ns7:border-color="#205022">
-        <ns4:Bounds x="1272" y="555" width="36" height="50"/>
-        <bpmndi:BPMNLabel>
-          <ns4:Bounds x="1259" y="531" width="62" height="14"/>
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BPMNShape_1cw40lu" bpmnElement="Activity_0xhunfw" ns6:stroke="#0d4372" ns6:fill="#bbdefb" ns7:background-color="#bbdefb" ns7:border-color="#0d4372">
         <ns4:Bounds x="1018" y="282" width="100" height="80"/>
         <bpmndi:BPMNLabel/>
@@ -2231,6 +2599,12 @@
         <ns4:Bounds x="672" y="565" width="36" height="50"/>
         <bpmndi:BPMNLabel>
           <ns4:Bounds x="665" y="622" width="50" height="14"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DataObjectReference_1vk8nhv_di" bpmnElement="DataObjectReference_1vk8nhv" ns6:stroke="#205022" ns6:fill="#c8e6c9" ns7:background-color="#c8e6c9" ns7:border-color="#205022">
+        <ns4:Bounds x="1272" y="555" width="36" height="50"/>
+        <bpmndi:BPMNLabel>
+          <ns4:Bounds x="1259" y="531" width="62" height="14"/>
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="DataInputAssociation_0j3rfkp_di" bpmnElement="DataInputAssociation_0j3rfkp">
@@ -2604,6 +2978,18 @@
           <ns4:Bounds x="589" y="332" width="63" height="14"/>
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0wtdvnz_di" bpmnElement="Event_0wtdvnz">
+        <ns4:Bounds x="752" y="162" width="36" height="36"/>
+        <bpmndi:BPMNLabel>
+          <ns4:Bounds x="761" y="132" width="19" height="14"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0rcr9aw_di" bpmnElement="Event_0rcr9aw">
+        <ns4:Bounds x="812" y="162" width="36" height="36"/>
+        <bpmndi:BPMNLabel>
+          <ns4:Bounds x="818" y="132" width="24" height="14"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="BPMNEdge_04e6ikt" bpmnElement="DataInputAssociation_0xjj5m2">
         <ns5:waypoint x="638" y="300"/>
         <ns5:waypoint x="750" y="300"/>
@@ -2634,6 +3020,14 @@
         <bpmndi:BPMNLabel>
           <ns4:Bounds x="744" y="392" width="52" height="14"/>
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0jgdd3h_di" bpmnElement="Flow_0jgdd3h">
+        <ns5:waypoint x="770" y="198"/>
+        <ns5:waypoint x="770" y="260"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1egvrih_di" bpmnElement="Flow_1egvrih">
+        <ns5:waypoint x="830" y="260"/>
+        <ns5:waypoint x="830" y="198"/>
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
