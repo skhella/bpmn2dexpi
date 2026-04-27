@@ -153,21 +153,16 @@ export class BpmnToDexpiTransformer {
   /**
    * Resolve the DEXPI type for a process step — three-mode system:
    *
+   * Resolve the DEXPI type for a process step — two-mode system:
+   *
    * Mode 1 'dexpi-validated':
    *   dexpiType annotation present AND class is in the official Process.xml registry.
-   *   → Clean output, no warning.
+   *   Clean output, no warning.
    *
-   * Mode 2 'custom-type':
-   *   dexpiType annotation present but NOT in the DEXPI registry.
-   *   The user is explicitly defining a custom process step class (e.g. from a company
-   *   RDL or another ontology such as ISO 15926 or OntoCAPE). The custom type name is
-   *   preserved in the DEXPI output; an optional customUri stores the external class URI.
-   *   A warning is emitted with a "did you mean?" suggestion for the closest DEXPI class.
-   *
-   * Mode 3 'unannotated':
-   *   No dexpiType annotation present. Defaults to 'ProcessStep' (the generic DEXPI
-   *   superclass). Always emits a warning prompting the user to add a dexpiType.
-   *   No name-based inference is attempted — the user must be explicit.
+   * Mode 2 'unvalidated':
+   *   Either no dexpiType annotation, OR annotation not found in the registry.
+   *   Both cases export as generic 'ProcessStep'. customUri stored if provided.
+   *   A "did you mean?" hint is emitted when the annotation is a near-miss.
    */
   private resolveStepType(
     annotatedType: string | undefined,
@@ -179,40 +174,35 @@ export class BpmnToDexpiTransformer {
     // ── Mode 1: explicit annotation, validated against registry ──────────────
     if (annotatedType) {
       if (this.registry.size === 0 || this.registry.isValidClass(annotatedType)) {
-        // Registry not loaded (offline/browser) OR class is known — accept it
         return { dexpiClass: annotatedType, mode: 'dexpi-validated' };
       }
-
-      // ── Mode 2: explicit custom type, not in DEXPI registry ───────────────
-      const suggestion = this.findClosestDexpiClass(annotatedType);
-      const uriNote = customUri
-        ? ` ReferenceUri stored: ${customUri}`
-        : ' Add a customUri attribute to reference your RDL class URI.';
-
-      this.logger.warn(
-        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a standard ` +
-        `DEXPI 2.0 Process class — outputting as generic ProcessStep.${uriNote}` +
-        (suggestion ? ` Did you mean "${suggestion}"?` : '')
-      );
-
-      return {
-        dexpiClass: 'ProcessStep',  // always generic superclass for non-DEXPI types
-        mode: 'custom-type',
-        customUri,
-        suggestedDexpiClass: suggestion,
-      };
     }
 
-    // ── Mode 3: no annotation — default to generic ProcessStep ───────────────
-    this.logger.warn(
-      `Task "${taskName}" (id=${taskId}) has no dexpiType annotation. ` +
-      `Defaulting to "ProcessStep" (generic DEXPI superclass). ` +
-      `Add a dexpiType attribute in extensionElements to assign a specific DEXPI class ` +
-      `or a custom step type.`
-    );
-    return { dexpiClass: 'ProcessStep', mode: 'unannotated' };
-  }
+    // ── Mode 2: unvalidated — no annotation OR unrecognised type ─────────────
+    // Both cases are treated identically: generic ProcessStep output.
+    const suggestion = annotatedType ? this.findClosestDexpiClass(annotatedType) : undefined;
 
+    if (annotatedType) {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a recognised ` +
+        `DEXPI 2.0 Process class — exporting as generic ProcessStep.` +
+        (suggestion ? ` Did you mean "${suggestion}"?` : '')
+      );
+    } else {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}) has no dexpiType annotation. ` +
+        `Exporting as generic ProcessStep. ` +
+        `Add a dexpiType in extensionElements to assign a specific DEXPI class.`
+      );
+    }
+
+    return {
+      dexpiClass: 'ProcessStep',
+      mode: 'unvalidated',
+      customUri,
+      suggestedDexpiClass: suggestion,
+    };
+  }
   /** Find the closest known DEXPI class for a non-registry type (for suggestions). */
   private findClosestDexpiClass(unknown: string): string | undefined {
     if (this.registry.size === 0) return undefined;
