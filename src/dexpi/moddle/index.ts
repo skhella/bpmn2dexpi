@@ -25,6 +25,17 @@ export interface DexpiPort {
    * by name when multiple same-direction ports exist.
    */
   label?: string;
+  /**
+   * Explicit link to a port at the more-detailed hierarchy level (DEXPI SubReference).
+   * Set on subprocess boundary ports. When present, used directly instead of
+   * name+direction inference. Value is the portId of the child boundary port.
+   */
+  subReference?: string;
+  /**
+   * Explicit back-link to a port at a coarser hierarchy level (DEXPI SuperReference).
+   * Set on proxy-event ports. Value is the portId of the parent subprocess port.
+   */
+  superReference?: string;
   portType: 'MaterialPort' | 'InformationPort' | 'ThermalEnergyPort' | 'MechanicalEnergyPort' | 'ElectricalEnergyPort';
   direction: 'Inlet' | 'Outlet';
   anchorSide?: 'top' | 'right' | 'bottom' | 'left';

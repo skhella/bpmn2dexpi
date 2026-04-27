@@ -105,17 +105,33 @@ export class BpmnToDexpiTransformer {
     });
 
     // Extract start events (Sources)
-    // Proxy events (those matching parent subprocess ports) will be filtered out in extractSource
     const startEvents = Array.from(process.querySelectorAll('startEvent, intermediateCatchEvent'));
     startEvents.forEach((event) => {
       this.extractSource(event);
     });
 
     // Extract end events (Sinks)
-    // Proxy events (those matching parent subprocess ports) will be filtered out in extractSink
     const endEvents = Array.from(process.querySelectorAll('endEvent, intermediateThrowEvent'));
     endEvents.forEach((event) => {
       this.extractSink(event);
+    });
+
+    // Now that all ports are registered, resolve sub/superReference links.
+    // Must happen after all extractSource/extractSink calls so proxy-event ports exist.
+    this.processSteps.forEach((step) => {
+      if (!step.subProcessSteps?.length) return;
+      step.ports.forEach((parentPort: DexpiPort) => {
+        const parentPortData = this.ports.get(parentPort.portId);
+        if (!parentPortData || parentPortData.childPortIds?.length) return; // already resolved
+        const subRef = parentPort.subReference;
+        if (!subRef) return;
+        const childPortData = this.ports.get(subRef);
+        if (childPortData) {
+          if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
+          parentPortData.childPortIds.push(subRef);
+          childPortData.parentPortId = parentPort.portId;
+        }
+      });
     });
 
     // Extract sequence flows (MaterialFlow / EnergyFlow streams)
@@ -294,26 +310,16 @@ export class BpmnToDexpiTransformer {
     });
     
     // If this is a subprocess, map parent ports to child ports.
-    // Priority: explicit subReference annotation on the port (formal, unambiguous).
-    // Fallback: name + direction matching (heuristic — warns if multiple ambiguous matches).
+    // Ports with explicit subReference are resolved in the post-extraction pass
+    // in extractElements (after all proxy-event ports are registered).
+    // Ports without subReference fall back to name+direction heuristic matching.
     if (isSubProcess && processStep.subProcessSteps.length > 0) {
       processStep.ports.forEach((parentPort: DexpiPort) => {
+        if (parentPort.subReference) return; // deferred to post-pass
         const parentPortData = this.ports.get(parentPort.portId);
         if (!parentPortData) return;
 
-        // ── Path 1: explicit subReference annotation ─────────────────────────
-        const subRef = (parentPort as any).subReference as string | undefined;
-        if (subRef) {
-          const childPortData = this.ports.get(subRef);
-          if (childPortData) {
-            if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
-            parentPortData.childPortIds.push(subRef);
-            childPortData.parentPortId = parentPort.portId;
-            return;
-          }
-        }
-
-        // ── Path 2: name + direction match (heuristic fallback) ───────────────
+        // Heuristic fallback: name + direction match
         let foundMatch = false;
         for (const childId of processStep.subProcessSteps) {
           if (foundMatch) break;
@@ -949,7 +955,9 @@ export class BpmnToDexpiTransformer {
         anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
         anchorOffset: child.getAttribute('anchorOffset') ? parseFloat(child.getAttribute('anchorOffset')!) : undefined,
         anchorX: child.getAttribute('anchorX') ? parseFloat(child.getAttribute('anchorX')!) : undefined,
-        anchorY: child.getAttribute('anchorY') ? parseFloat(child.getAttribute('anchorY')!) : undefined
+        anchorY: child.getAttribute('anchorY') ? parseFloat(child.getAttribute('anchorY')!) : undefined,
+        subReference: child.getAttribute('subReference') || undefined,
+        superReference: child.getAttribute('superReference') || undefined,
       });
     }
     
@@ -984,7 +992,9 @@ export class BpmnToDexpiTransformer {
       anchorSide: (port.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
       anchorOffset: port.getAttribute('anchorOffset') ? parseFloat(port.getAttribute('anchorOffset')!) : undefined,
       anchorX: port.getAttribute('anchorX') ? parseFloat(port.getAttribute('anchorX')!) : undefined,
-      anchorY: port.getAttribute('anchorY') ? parseFloat(port.getAttribute('anchorY')!) : undefined
+      anchorY: port.getAttribute('anchorY') ? parseFloat(port.getAttribute('anchorY')!) : undefined,
+      subReference: port.getAttribute('subReference') || undefined,
+      superReference: port.getAttribute('superReference') || undefined,
     }));
   }
 

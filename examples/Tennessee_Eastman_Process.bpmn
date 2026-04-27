@@ -36,7 +36,7 @@
       <bpmn:outgoing>Flow_07wd8rg</bpmn:outgoing>
       <bpmn:subProcess id="Activity_11rkrj8" name="RemovingThermalEnergy">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8"><dexpi:port id="Activity_11rkrj8_TEI1_port" name="TEI1" type="MaterialPort" direction="Inlet" label="TEI1"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_11rkrj8_IPI_Temperature_port"/><dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.5" id="Activity_11rkrj8_IPO_Temperature_port"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8"><dexpi:port id="Activity_11rkrj8_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_11rkrj8_IPI_Temperature_port"/><dexpi:port name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.5" id="Activity_11rkrj8_IPO_Temperature_port"/></dexpi:element></bpmn:extensionElements>
         <bpmn:incoming>Flow_0wulh9g</bpmn:incoming>
         <bpmn:task id="Activity_1pzszmn" name="RegulatingFlow">
           <bpmn:extensionElements>
@@ -459,7 +459,7 @@
       </bpmn:task>
       <bpmn:subProcess id="Activity_0xhunfw" name="SupplyingThermalEnergy">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_0xhunfw" uid="uid_Activity_0xhunfw"><dexpi:port id="Activity_0xhunfw_TEO1 -TEI1_port" name="TEO1 -TEI1" type="MaterialPort" direction="Outlet" label="TEO1 -TEI1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_0xhunfw" uid="uid_Activity_0xhunfw"><dexpi:port id="Activity_0xhunfw_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1"/></dexpi:element></bpmn:extensionElements>
         <bpmn:outgoing>Flow_0ii62nn</bpmn:outgoing>
         <bpmn:task id="Activity_0uicpy3" name="ExchangingThermalEnergy">
           <bpmn:extensionElements>
@@ -489,7 +489,7 @@
       <bpmn:sequenceFlow id="Flow_0xyvyyt" name="MO2 - MI1" sourceRef="Activity_0uxjdkn" targetRef="Activity_1kyou8x"/>
       <bpmn:sequenceFlow id="Flow_1iwrfte" name="MO1 - MO1" sourceRef="Activity_0uxjdkn" targetRef="Event_1gcqtzr"/>
       <bpmn:sequenceFlow id="Flow_16mvdb6" name="MO2 - MI1" sourceRef="Activity_1kyou8x" targetRef="Activity_1uqovub"/>
-      <bpmn:sequenceFlow id="Flow_0ii62nn" name="TEO1 -TEI1" sourceRef="Activity_0xhunfw" targetRef="Activity_1uqovub"/>
+      <bpmn:sequenceFlow id="Flow_0ii62nn" name="TEO1 - TEI1" sourceRef="Activity_0xhunfw" targetRef="Activity_1uqovub"/>
       <bpmn:sequenceFlow id="Flow_1xayaxu" name="MO1 -MI1" sourceRef="Activity_1kyou8x" targetRef="Activity_1atxmzx"/>
       <bpmn:sequenceFlow id="Flow_0y79tc9" name="MI1 - MI1" sourceRef="Event_0h1gv72" targetRef="Activity_0dvp1ez"/>
       <bpmn:sequenceFlow id="Flow_1queo8p" name="MO1 - MO2" sourceRef="Activity_17bqtl6" targetRef="Event_1w0hjx9"/>
