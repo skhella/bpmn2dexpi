@@ -297,7 +297,7 @@ export class BpmnToDexpiTransformer {
           `Duplicate port detected in step "${name}" (id=${id}): ` +
           `name="${port.name}", direction="${port.direction}". ` +
           `DEXPI Process requires unique port name+direction combinations per element. ` +
-          `Subprocess parent-port mapping will use the first match only.`
+          `Add a subReference attribute to the dexpi:port element to explicitly link it.`
         );
       }
       seenPortKeys.add(key);
@@ -309,36 +309,25 @@ export class BpmnToDexpiTransformer {
       });
     });
     
-    // If this is a subprocess, map parent ports to child ports.
-    // Ports with explicit subReference are resolved in the post-extraction pass
-    // in extractElements (after all proxy-event ports are registered).
-    // Ports without subReference fall back to name+direction heuristic matching.
+    // If this is a subprocess, map parent ports to child ports using explicit
+    // subReference annotations only. Resolved in post-extraction pass in
+    // extractElements after all ports are registered. No name-based heuristics.
+    // Ports without subReference emit a warning — SubReference is omitted from
+    // DEXPI output rather than guessing, which could produce incorrect links.
     if (isSubProcess && processStep.subProcessSteps.length > 0) {
       processStep.ports.forEach((parentPort: DexpiPort) => {
-        if (parentPort.subReference) return; // deferred to post-pass
-        const parentPortData = this.ports.get(parentPort.portId);
-        if (!parentPortData) return;
-
-        // Heuristic fallback: name + direction match
-        let foundMatch = false;
-        for (const childId of processStep.subProcessSteps) {
-          if (foundMatch) break;
-          const childStep = this.processSteps.get(childId);
-          if (childStep) {
-            for (const childPort of childStep.ports) {
-              if (childPort.name === parentPort.name &&
-                  childPort.direction === parentPort.direction) {
-                const childPortData = this.ports.get(childPort.portId);
-                if (parentPortData && childPortData) {
-                  if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
-                  parentPortData.childPortIds.push(childPort.portId);
-                  childPortData.parentPortId = parentPort.portId;
-                  foundMatch = true;
-                  break;
-                }
-              }
-            }
-          }
+        if (parentPort.subReference) return; // resolved in post-pass
+        // Only warn for material ports — InformationPorts and energy ports on
+        // subprocess boundaries represent different abstraction levels and don't
+        // require SubReference to a child-level counterpart.
+        const needsRef = parentPort.portType === 'MaterialPort';
+        if (needsRef) {
+          this.logger.warn(
+            `Subprocess "${name}" (id=${id}): boundary port "${parentPort.name}" ` +
+            `has no subReference annotation — SubReference omitted from DEXPI output. ` +
+            `Add a subReference attribute to the dexpi:port element to formally link ` +
+            `this port to its child-level counterpart.`
+          );
         }
       });
     }
