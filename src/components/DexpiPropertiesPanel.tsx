@@ -310,7 +310,9 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
             anchorSide: updates.anchorSide !== undefined ? updates.anchorSide : p.anchorSide,
             anchorOffset: updates.anchorOffset !== undefined ? updates.anchorOffset : p.anchorOffset,
             anchorX: updates.anchorX !== undefined ? updates.anchorX : p.anchorX,
-            anchorY: updates.anchorY !== undefined ? updates.anchorY : p.anchorY
+            anchorY: updates.anchorY !== undefined ? updates.anchorY : p.anchorY,
+            subReference: updates.subReference !== undefined ? updates.subReference : (p as any).subReference,
+            superReference: updates.superReference !== undefined ? updates.superReference : (p as any).superReference,
           });
           return updatedPort;
         }
@@ -751,6 +753,82 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
               </>
             )}
             
+            {/* SubReference — only for subprocess boundary ports */}
+            {elementType === 'bpmn:SubProcess' && port.portType !== 'InformationPort' && (() => {
+              // Collect candidate child ports: same portType, compatible direction
+              // Parent Inlet → child Outlet (stream exits child, enters parent)
+              // Parent Outlet → child Inlet (stream enters child, exits parent)
+              const compatDir = port.direction === 'Inlet' ? 'Outlet' : 'Inlet';
+              const flowEls: any[] = element.businessObject.flowElements || [];
+              const candidates: { portId: string; label: string }[] = [];
+              flowEls.forEach((fe: any) => {
+                if (!fe.extensionElements?.values) return;
+                const dexpiEl = fe.extensionElements.values.find(
+                  (v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element'
+                );
+                if (!dexpiEl) return;
+                const fePorts: any[] = dexpiEl.ports || dexpiEl.$children?.filter((c: any) =>
+                  (c.$type || '').toLowerCase().includes('port')) || [];
+                fePorts.forEach((cp: any) => {
+                  if (cp.portType !== port.portType && cp.type !== port.portType) return;
+                  const cpDir = cp.direction;
+                  if (cpDir !== compatDir) return;
+                  const cpId = cp.portId || cp.id || '';
+                  const cpName = cp.name || cp.label || cpId;
+                  const parentName = fe.name || fe.id || '';
+                  candidates.push({ portId: cpId, label: `${parentName} › ${cpName}` });
+                });
+              });
+              return (
+                <label>
+                  Link to child port (subReference):
+                  <select
+                    value={port.subReference || ''}
+                    onChange={(e) => {
+                      const selectedChildPortId = e.target.value;
+                      const modeling = modeler.get('modeling');
+
+                      // Write subReference on this (parent) port
+                      updatePort(port.portId, { subReference: selectedChildPortId || undefined });
+
+                      // Write superReference on the selected child port
+                      if (selectedChildPortId) {
+                        const flowEls2: any[] = element.businessObject.flowElements || [];
+                        flowEls2.forEach((fe: any) => {
+                          if (!fe.extensionElements?.values) return;
+                          const dexpiEl = fe.extensionElements.values.find(
+                            (v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element'
+                          );
+                          if (!dexpiEl) return;
+                          const fePorts: any[] = dexpiEl.ports || dexpiEl.$children?.filter((c: any) =>
+                            (c.$type || '').toLowerCase().includes('port')) || [];
+                          const target = fePorts.find((cp: any) => (cp.portId || cp.id) === selectedChildPortId);
+                          if (target) {
+                            target.superReference = port.portId;
+                            modeling.updateProperties(
+                              modeler.get('elementRegistry').get(fe.id),
+                              { extensionElements: fe.extensionElements }
+                            );
+                          }
+                        });
+                      }
+                    }}
+                    style={{ fontSize: '0.85em' }}
+                  >
+                    <option value="">— None (no formal link) —</option>
+                    {candidates.map(c => (
+                      <option key={c.portId} value={c.portId}>{c.label}</option>
+                    ))}
+                  </select>
+                  {port.subReference && (
+                    <span style={{ fontSize: '0.8em', color: '#4a7c4e', marginTop: '2px', display: 'block' }}>
+                      ✓ Linked → {port.subReference}
+                    </span>
+                  )}
+                </label>
+              );
+            })()}
+
             {isPortConnected(port) && (
               <div style={{ fontSize: '0.85em', color: '#666', fontStyle: 'italic', marginTop: '8px' }}>
                 Position automatically determined by connection

@@ -12,8 +12,8 @@ export interface InternalProcessStep {
   name: string;
   type: string;             // DEXPI class name, e.g. "ReactingChemicals"
   typingMode?: StepTypingMode; // how the type was determined
-  customUri?: string;          // external RDL URI (mode 2 only)
-  suggestedDexpiClass?: string; // closest DEXPI class suggestion (mode 2 only)
+  customUri?: string;          // external RDL URI (unvalidated only, if provided)
+  suggestedDexpiClass?: string; // closest DEXPI class suggestion (unvalidated only)
   identifier: string;
   uid: string;
   hierarchyLevel?: string;
@@ -206,27 +206,23 @@ export interface ValidationResult {
  *                         AND the class name exists in the DEXPI Process.xml registry.
  *                         This is the only mode that produces clean, warning-free output.
  *
- * 2. 'custom-type'      — explicit dexpiType annotation found but NOT in the DEXPI
- *                         registry. The user is defining a custom process step class
- *                         (e.g. from a company RDL or another ontology). The custom
- *                         type name is preserved in the DEXPI output; an optional
- *                         customUri stores the external class URI. A warning is emitted
- *                         with a "did you mean?" suggestion for the closest DEXPI class.
- *
- * 3. 'unannotated'      — no dexpiType annotation present at all. Defaults to
- *                         'ProcessStep' (the generic DEXPI superclass). Always emits
- *                         a warning prompting the user to add a dexpiType annotation.
- *                         No name-based inference is attempted.
+ * 2. 'unvalidated'      — either no dexpiType annotation is present, OR the annotation
+ *                         does not match any class in the DEXPI Process.xml registry
+ *                         (could be a typo, a custom company type, or simply omitted).
+ *                         Both cases map identically to generic 'ProcessStep' output.
+ *                         A customUri is stored in the DEXPI output if provided.
+ *                         A "did you mean?" hint is emitted when the annotation looks
+ *                         like a near-miss against the registry.
  */
-export type StepTypingMode = 'dexpi-validated' | 'custom-type' | 'unannotated';
+export type StepTypingMode = 'dexpi-validated' | 'unvalidated';
 
 export interface StepTypingResult {
-  /** The resolved DEXPI class name (or heuristic guess). */
+  /** The resolved DEXPI class name. */
   dexpiClass: string;
   /** How the class was determined. */
   mode: StepTypingMode;
-  /** Present when mode is 'custom-uri' — stored in DEXPI output as ExternalReference. */
+  /** Optional URI referencing an external RDL class — stored in DEXPI output as ReferenceUri. */
   customUri?: string;
-  /** Closest DEXPI class suggestion (populated for custom-uri mode when a near-match exists). */
+  /** Closest DEXPI class suggestion shown as a hint (never affects output). */
   suggestedDexpiClass?: string;
 }

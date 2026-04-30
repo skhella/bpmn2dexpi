@@ -2,7 +2,7 @@
  * Tests for DexpiProcessClassRegistry and the three-mode typing system.
  *
  * Mode 1 'dexpi-validated'  — known DEXPI class, no warning
- * Mode 2 'custom-type'      — unknown class + optional URI, warns with "did you mean?" suggestion
+ * Mode 2 'unvalidated'      — unknown/missing annotation → ProcessStep + optional URI + hint
  * Mode 3 'unannotated'      — no annotation, defaults to ProcessStep, always warns
  */
 
@@ -94,7 +94,7 @@ function endEvent(id: string): string {
   </endEvent>`;
 }
 
-describe('Three-mode step typing', () => {
+describe('Two-mode step typing', () => {
 
   // ── Mode 1: dexpi-validated ────────────────────────────────────────────
 
@@ -139,9 +139,9 @@ describe('Three-mode step typing', () => {
     }
   });
 
-  // ── Mode 2: custom-type ───────────────────────────────────────────────
+  // ── Mode 2: unvalidated (unknown type or no annotation) ──────────────
 
-  it('Mode 2: unknown class + customUri → warning with "did you mean?" + ReferenceUri in output', async () => {
+  it('Mode 2: unvalidated (unknown class + customUri) → warning + ReferenceUri in output', async () => {
     const xml = bpmn(`
       <task id="T1" name="ElectrolyticReduction">
         <extensionElements>
@@ -159,7 +159,7 @@ describe('Three-mode step typing', () => {
 
     // Should warn — not a DEXPI class
     expect(t.logger.warnings.length).toBeGreaterThan(0);
-    expect(t.logger.warnings[0]).toMatch(/not a standard DEXPI 2\.0 Process class/i);
+    expect(t.logger.warnings[0]).toMatch(/not a recognised DEXPI 2\.0 Process class/i);
     // Must output generic ProcessStep — NOT the custom type name as DEXPI class
     expect(out).toMatch(/Process\/Process\.ProcessStep/);
     expect(out).not.toMatch(/Process\/Process\.ElectrolyticReduction/);
@@ -171,7 +171,7 @@ describe('Three-mode step typing', () => {
     expect(out).toContain('ElectrolyticReduction');
   });
 
-  it('Mode 2: unknown class without customUri → warning mentions missing URI', async () => {
+  it('Mode 2: unvalidated (unknown class, no customUri) → warning + ProcessStep output', async () => {
     const xml = bpmn(`
       <task id="T1" name="MyProprietaryStep">
         <extensionElements>
@@ -184,15 +184,15 @@ describe('Three-mode step typing', () => {
     `);
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(xml);
-    expect(t.logger.warnings[0]).toMatch(/Add a customUri attribute/i);
+    expect(t.logger.warnings[0]).toMatch(/not a recognised DEXPI 2\.0 Process class/i);
     // Still outputs ProcessStep
     expect(out).toMatch(/Process\/Process\.ProcessStep/);
     expect(out).not.toMatch(/Process\/Process\.MyProprietaryStep/);
   });
 
-  // ── Mode 3: unannotated ───────────────────────────────────────────────
+  // ── Mode 2 continued: no annotation ──────────────────────────────────
 
-  it('Mode 3: no annotation → defaults to ProcessStep with unannotated warning', async () => {
+  it('Mode 2: unvalidated (no annotation) → defaults to ProcessStep with warning', async () => {
     const xml = bpmn(`
       <task id="T1" name="ReactingChemicals"/>
       ${startEvent('SE1')}${endEvent('EE1')}
