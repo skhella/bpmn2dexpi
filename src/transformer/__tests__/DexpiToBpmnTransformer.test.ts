@@ -234,6 +234,10 @@ describe('DexpiToBpmnTransformer', () => {
       expect(dataObject).toBeGreaterThan(-1);
       expect(dataObject).toBeLessThan(subprocessEnd);
       expect(dataObjectShape).toBeGreaterThan(subprocessPlane);
+      expect(out).toContain('<bpmn:dataOutputAssociation id="doa_bpmn_IF_internal">');
+      expect(out).toContain('<bpmn:dataInputAssociation id="dia_bpmn_IF_internal">');
+      expect(out).toContain('bpmnElement="doa_bpmn_IF_internal"');
+      expect(out).toContain('bpmnElement="dia_bpmn_IF_internal"');
     });
 
     it('also recognizes nested ProcessModel containers as subprocess children', () => {
@@ -293,7 +297,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(out).toContain('streamType="ThermalEnergyFlow"');
     });
 
-    it('maps InformationFlow → bpmn:association + DataObjectReference', () => {
+    it('maps InformationFlow → DataObjectReference with source and target data associations', () => {
       const p1 = port('ia_out', 'InformationPort', 'Out', 'IO1');
       const p2 = port('ps_in', 'InformationPort', 'In', 'II1');
       const infoStream = `
@@ -312,8 +316,16 @@ ${step('MX1', 'Mixing', 'Mixer')}
         infoStream
       );
       const out = new DexpiToBpmnTransformer().transform(xml);
-      expect(out).toContain('bpmn:association');
+      expectWellFormedXml(out);
       expect(out).toContain('bpmn:dataObjectReference');
+      expect(out).toContain('<bpmn:dataOutputAssociation id="doa_bpmn_IF1">');
+      expect(out).toContain('<bpmn:targetRef>dobj_bpmn_IF1</bpmn:targetRef>');
+      expect(out).toContain('<bpmn:property id="prop_bpmn_IF1" name="__targetRef_placeholder"/>');
+      expect(out).toContain('<bpmn:dataInputAssociation id="dia_bpmn_IF1">');
+      expect(out).toContain('<bpmn:sourceRef>dobj_bpmn_IF1</bpmn:sourceRef>');
+      expect(out).toContain('<bpmn:targetRef>prop_bpmn_IF1</bpmn:targetRef>');
+      expect(out).toContain('bpmnElement="doa_bpmn_IF1"');
+      expect(out).toContain('bpmnElement="dia_bpmn_IF1"');
       expect(out).toContain('name="Temperature"');
     });
   });

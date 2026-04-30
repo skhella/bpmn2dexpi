@@ -9,7 +9,7 @@
  *   Process/Process.*  (other steps)  → bpmn:Task
  *   Process/Process.Stream            → bpmn:SequenceFlow (MaterialFlow)
  *   Process/Process.*EnergyFlow       → bpmn:SequenceFlow (energy subtype)
- *   Process/Process.InformationFlow   → bpmn:Association + DataObjectReference
+ *   Process/Process.InformationFlow   → bpmn:DataObjectReference + data associations
  *   Process/Process.MaterialTemplate  → bpmn:DataObjectReference
  *
  * Layout: layered left-to-right topology using BFS from Source nodes.
@@ -561,6 +561,8 @@ export class DexpiToBpmnTransformer {
     const extraProcessElementsByOwner = new Map<string, string[]>();
     const shapeElementsByOwner = new Map<string, string[]>();
     const edgeElementsByOwner = new Map<string, string[]>();
+    const dataOutputAssociationsByStep = new Map<string, string[]>();
+    const dataInputAssociationsByStep = new Map<string, string[]>();
     const ownerLayouts = new Map<string, Map<string, LayoutBox>>();
     const rootOwner = '__root__';
     const ownerKey = (ownerId?: string) => ownerId || rootOwner;
@@ -570,6 +572,10 @@ export class DexpiToBpmnTransformer {
     const pushOwned = (map: Map<string, string[]>, owner: string, xml: string) => {
       if (!map.has(owner)) map.set(owner, []);
       map.get(owner)!.push(xml);
+    };
+    const pushStepChild = (map: Map<string, string[]>, stepId: string, xml: string) => {
+      if (!map.has(stepId)) map.set(stepId, []);
+      map.get(stepId)!.push(xml);
     };
     const buildChildLayout = (owner: DexpiStep) => {
       const childLayout = this.computeStepLayout(visibleChildren(owner), connections, hiddenStepIds);
@@ -989,6 +995,16 @@ export class DexpiToBpmnTransformer {
       ]);
     };
 
+    const pointOnBoxToward = (pos: LayoutBox, toward: DiagramPoint): DiagramPoint => {
+      const center = centerOf(pos);
+      const dx = toward.x - center.x;
+      const dy = toward.y - center.y;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        return { x: dx >= 0 ? pos.x + pos.w : pos.x, y: center.y };
+      }
+      return { x: center.x, y: dy >= 0 ? pos.y + pos.h : pos.y };
+    };
+
     const edgeLaneByOwner = new Map<string, number>();
     const nextLane = (key: string) => {
       const lane = edgeLaneByOwner.get(key) ?? 0;
@@ -1018,7 +1034,15 @@ ${indent}</bpmn:extensionElements>`;
       const inc = incoming.get(step.id)?.map(id => `${childIndent}<bpmn:incoming>${bpmnId(id)}</bpmn:incoming>`).join('\n') || '';
       const out = outgoing.get(step.id)?.map(id => `${childIndent}<bpmn:outgoing>${bpmnId(id)}</bpmn:outgoing>`).join('\n') || '';
       const flowRefs = [inc, out].filter(Boolean).join('\n');
-      const commonBody = `${extEl}${flowRefs ? '\n' + flowRefs : ''}`;
+      const dataAssociations = [
+        ...(dataOutputAssociationsByStep.get(step.id) || []),
+        ...(dataInputAssociationsByStep.get(step.id) || []),
+      ].map(xml => indentBlock(xml, childIndent)).join('\n');
+      const commonBody = [
+        extEl,
+        flowRefs,
+        dataAssociations,
+      ].filter(Boolean).join('\n');
 
       if (step.dexpiType === 'Source') {
         return `${indent}<bpmn:startEvent id="${elId}" name="${name}">
@@ -1119,31 +1143,45 @@ ${waypoints}
       pushOwned(shapeElementsByOwner, owner, shapeForStep(step, pos));
     });
 
-    // InformationFlows → Association + DataObjectReference
+    // InformationFlows → DataObjectReference with source/target data associations
     infoFlows.forEach(conn => {
       const src = portToStep.get(conn.sourcePortId);
-      if (!src) return;
+      const tgt = portToStep.get(conn.targetPortId);
+      if (!src || !tgt) return;
       const srcStep = stepById.get(src);
-      const key = ownerKey(srcStep?.parentId);
+      const tgtStep = stepById.get(tgt);
+      const owner = srcStep?.parentId === tgtStep?.parentId ? srcStep?.parentId : undefined;
+      const key = ownerKey(owner);
 
       const varName = conn.informationVariantLabel || conn.label;
       const dobjId = `dobj_${bpmnId(conn.id)}`;
-      const assocId = `assoc_${bpmnId(conn.id)}`;
-      const srcEl = bpmnId(src);
+      const outputAssocId = `doa_${bpmnId(conn.id)}`;
+      const inputAssocId = `dia_${bpmnId(conn.id)}`;
+      const propertyId = `prop_${bpmnId(conn.id)}`;
 
       // Place DataObject between source and target
       const ownerLayout = ownerLayouts.get(key) || layout;
       const srcPos = ownerLayout.get(src);
-      const dobjX = (srcPos?.x ?? MARGIN_X) + TASK_W + 30;
-      const dobjY = (srcPos?.y ?? MARGIN_Y) - 60;
+      const tgtPos = ownerLayout.get(tgt);
+      const srcCenter = srcPos ? centerOf(srcPos) : { x: MARGIN_X, y: MARGIN_Y };
+      const tgtCenter = tgtPos ? centerOf(tgtPos) : { x: srcCenter.x + TASK_W + 90, y: srcCenter.y };
+      const dobjX = Math.round((srcCenter.x + tgtCenter.x) / 2 - 18);
+      const dobjY = Math.round(Math.min(srcCenter.y, tgtCenter.y) - 85);
+
+      pushStepChild(dataOutputAssociationsByStep, src, `<bpmn:dataOutputAssociation id="${outputAssocId}">
+  <bpmn:targetRef>${dobjId}</bpmn:targetRef>
+</bpmn:dataOutputAssociation>`);
+
+      if (tgt !== src) {
+        pushStepChild(dataInputAssociationsByStep, tgt, `<bpmn:property id="${propertyId}" name="__targetRef_placeholder"/>
+<bpmn:dataInputAssociation id="${inputAssocId}">
+  <bpmn:sourceRef>${dobjId}</bpmn:sourceRef>
+  <bpmn:targetRef>${propertyId}</bpmn:targetRef>
+</bpmn:dataInputAssociation>`);
+      }
 
       const dataObjectXml = `<bpmn:dataObjectReference id="${dobjId}" name="${varName}" dataObjectRef="DataObject_${dobjId}"/>
-  <bpmn:dataObject id="DataObject_${dobjId}"/>
-  <bpmn:association id="${assocId}" sourceRef="${srcEl}" targetRef="${dobjId}" associationDirection="One">
-    <bpmn:extensionElements>
-      <dexpi:Stream streamType="InformationFlow" uid="${conn.id}" identifier="${conn.identifier}"/>
-    </bpmn:extensionElements>
-  </bpmn:association>`;
+  <bpmn:dataObject id="DataObject_${dobjId}"/>`;
       if (key === rootOwner) {
         processElements.push(indentBlock(dataObjectXml, '  '));
       } else {
@@ -1161,9 +1199,23 @@ ${waypoints}
       }
 
       if (srcPos) {
-        const edgeXml = `      <bpmndi:BPMNEdge id="${assocId}_di" bpmnElement="${assocId}">
-        <di:waypoint x="${srcPos.x + srcPos.w / 2}" y="${srcPos.y}"/>
+        const srcOut = pointOnBoxToward(srcPos, { x: dobjX + 18, y: dobjY + 25 });
+        const edgeXml = `      <bpmndi:BPMNEdge id="${outputAssocId}_di" bpmnElement="${outputAssocId}">
+        <di:waypoint x="${srcOut.x}" y="${srcOut.y}"/>
         <di:waypoint x="${dobjX + 18}" y="${dobjY + 50}"/>
+      </bpmndi:BPMNEdge>`;
+        if (key === rootOwner) {
+          edgeElements.push(edgeXml);
+        } else {
+          pushOwned(edgeElementsByOwner, key, edgeXml);
+        }
+      }
+
+      if (tgtPos && tgt !== src) {
+        const tgtIn = pointOnBoxToward(tgtPos, { x: dobjX + 18, y: dobjY + 25 });
+        const edgeXml = `      <bpmndi:BPMNEdge id="${inputAssocId}_di" bpmnElement="${inputAssocId}">
+        <di:waypoint x="${dobjX + 18}" y="${dobjY + 50}"/>
+        <di:waypoint x="${tgtIn.x}" y="${tgtIn.y}"/>
       </bpmndi:BPMNEdge>`;
         if (key === rootOwner) {
           edgeElements.push(edgeXml);
