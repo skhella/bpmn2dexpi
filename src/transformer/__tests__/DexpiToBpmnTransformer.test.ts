@@ -54,6 +54,28 @@ function port(id: string, type: string, direction: 'In' | 'Out', label: string):
             </Object>`;
 }
 
+function portWithReferences(
+  id: string,
+  type: string,
+  direction: 'In' | 'Out',
+  label: string,
+  references: Record<string, string>
+): string {
+  const refsXml = Object.entries(references)
+    .map(([property, targetId]) => `<References property="${property}" objects="#${targetId}"/>`)
+    .join('\n              ');
+
+  return `
+            <Object id="${id}" type="Process/Process.${type}">
+              <Data property="Identifier"><String>${id}</String></Data>
+              <Data property="Label"><String>${label}</String></Data>
+              <Data property="NominalDirection">
+                <DataReference data="Process/Enumerations.PortDirectionClassification.${direction}"/>
+              </Data>
+              ${refsXml}
+            </Object>`;
+}
+
 function stream(id: string, type: string, srcPort: string, tgtPort: string, label = ''): string {
   return `
         <Object id="${id}" type="Process/Process.${type}">
@@ -238,6 +260,174 @@ describe('DexpiToBpmnTransformer', () => {
       expect(out).toContain('<bpmn:dataInputAssociation id="dia_bpmn_IF_internal">');
       expect(out).toContain('bpmnElement="doa_bpmn_IF_internal"');
       expect(out).toContain('bpmnElement="dia_bpmn_IF_internal"');
+    });
+
+    it('resolves parent information ports to subprocess child ports and deduplicates mirrored flows', () => {
+      const sensorOut = port('Sensor_out', 'InformationPort', 'Out', 'IPO_Temperature');
+      const parentInfoIn = portWithReferences(
+        'RC1_parent_temperature',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        { SubReference: 'Reactor_temperature_in' }
+      );
+      const childInfoIn = portWithReferences(
+        'Reactor_temperature_in',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        { SuperReference: 'RC1_parent_temperature' }
+      );
+      const infoStreams = `
+        <Object id="IF_child" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_child</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#Reactor_temperature_in"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>
+        <Object id="IF_parent" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_parent</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#RC1_parent_temperature"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        subProcessStep(
+          'RC1',
+          'ReactingChemicals',
+          'Reactor section',
+          step('Sensor', 'MeasuringProcessVariable', 'TI-101', sensorOut) +
+            step('Reactor', 'ReactingChemicals', 'Reactor', childInfoIn),
+          parentInfoIn
+        ),
+        infoStreams
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const variableRefs = out.match(/<bpmn:dataObjectReference[^>]*name="Temperature"/g) || [];
+      const outputAssociations = out.match(/<bpmn:dataOutputAssociation/g) || [];
+      const inputAssociations = out.match(/<bpmn:dataInputAssociation/g) || [];
+      expect(variableRefs).toHaveLength(1);
+      expect(outputAssociations).toHaveLength(1);
+      expect(inputAssociations).toHaveLength(1);
+
+      const subprocessStart = out.indexOf('<bpmn:subProcess id="bpmn_RC1"');
+      const subprocessEnd = out.indexOf('</bpmn:subProcess>', subprocessStart);
+      const dataObject = out.indexOf('name="Temperature"');
+      expect(dataObject).toBeGreaterThan(subprocessStart);
+      expect(dataObject).toBeLessThan(subprocessEnd);
+
+      const reactorStart = out.indexOf('<bpmn:task id="bpmn_Reactor"', subprocessStart);
+      const reactorEnd = out.indexOf('</bpmn:task>', reactorStart);
+      const inputAssoc = out.indexOf('<bpmn:dataInputAssociation', reactorStart);
+      expect(inputAssoc).toBeGreaterThan(reactorStart);
+      expect(inputAssoc).toBeLessThan(reactorEnd);
+
+      const rootPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="BPMNPlane_imported"');
+      const rootPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', rootPlaneStart);
+      const rootPlane = out.slice(rootPlaneStart, rootPlaneEnd);
+      expect(rootPlane).not.toContain('dobj_bpmn_IF_child');
+
+      const subprocessPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="bpmn_RC1_plane"');
+      const subprocessPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', subprocessPlaneStart);
+      const subprocessPlane = out.slice(subprocessPlaneStart, subprocessPlaneEnd);
+      expect(subprocessPlane).toContain('bpmnElement="dobj_bpmn_IF_child"');
+    });
+
+    it('recursively resolves nested subprocess information ports to their real child task endpoints', () => {
+      const sensorOut = port('Sensor_out', 'InformationPort', 'Out', 'IPO_Temperature');
+      const outerInfoIn = portWithReferences(
+        'Outer_temperature_in',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        { SubReference: 'Inner_temperature_in' }
+      );
+      const innerInfoIn = portWithReferences(
+        'Inner_temperature_in',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        {
+          SuperReference: 'Outer_temperature_in',
+          SubReference: 'Reactor_temperature_in',
+        }
+      );
+      const reactorInfoIn = portWithReferences(
+        'Reactor_temperature_in',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        { SuperReference: 'Inner_temperature_in' }
+      );
+      const infoStreams = `
+        <Object id="IF_child" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_child</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#Reactor_temperature_in"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>
+        <Object id="IF_outer" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_outer</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#Outer_temperature_in"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        subProcessStep(
+          'Outer',
+          'ReactingChemicals',
+          'Outer reactor section',
+          subProcessStep(
+            'Inner',
+            'RemovingThermalEnergy',
+            'Inner cooling section',
+            step('Sensor', 'MeasuringProcessVariable', 'TI-101', sensorOut) +
+              step('Reactor', 'ReactingChemicals', 'Reactor', reactorInfoIn),
+            innerInfoIn
+          ),
+          outerInfoIn
+        ),
+        infoStreams
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const variableRefs = out.match(/<bpmn:dataObjectReference[^>]*name="Temperature"/g) || [];
+      expect(variableRefs).toHaveLength(1);
+
+      const innerStart = out.indexOf('<bpmn:subProcess id="bpmn_Inner"');
+      const innerEnd = out.indexOf('</bpmn:subProcess>', innerStart);
+      const dataObject = out.indexOf('name="Temperature"');
+      expect(dataObject).toBeGreaterThan(innerStart);
+      expect(dataObject).toBeLessThan(innerEnd);
+
+      const rootPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="BPMNPlane_imported"');
+      const rootPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', rootPlaneStart);
+      expect(out.slice(rootPlaneStart, rootPlaneEnd)).not.toContain('dobj_bpmn_IF_child');
+
+      const outerPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="bpmn_Outer_plane"');
+      const outerPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', outerPlaneStart);
+      expect(out.slice(outerPlaneStart, outerPlaneEnd)).not.toContain('dobj_bpmn_IF_child');
+
+      const innerPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="bpmn_Inner_plane"');
+      const innerPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', innerPlaneStart);
+      expect(out.slice(innerPlaneStart, innerPlaneEnd)).toContain('bpmnElement="dobj_bpmn_IF_child"');
     });
 
     it('also recognizes nested ProcessModel containers as subprocess children', () => {

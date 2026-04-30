@@ -322,7 +322,7 @@ export class BpmnToDexpiTransformer {
       for (const childId of processStep.subProcessSteps) {
         const childStep = this.processSteps.get(childId);
         if (childStep) {
-          childStep.ports.forEach((p: DexpiPort) => childPortTypes.add(p.portType));
+          childStep.ports.forEach((p: DexpiPort) => childPortTypes.add(p.portType || p.type));
         }
       }
 
@@ -332,10 +332,11 @@ export class BpmnToDexpiTransformer {
         // hierarchically refineable connections in DEXPI Process. Energy and
         // information ports at subprocess boundaries represent different
         // abstraction levels and don't require SubReference to a child counterpart.
-        if (parentPort.portType === 'MaterialPort' && childPortTypes.has('MaterialPort')) {
+        const parentPortType = parentPort.portType || parentPort.type;
+        if (parentPortType === 'MaterialPort' && childPortTypes.has('MaterialPort')) {
           this.logger.warn(
             `Subprocess "${name}" (id=${id}): boundary port "${parentPort.name}" ` +
-            `(${parentPort.portType}) has no subReference annotation — SubReference ` +
+            `(${parentPortType}) has no subReference annotation — SubReference ` +
             `omitted from DEXPI output. Add a subReference attribute to the dexpi:port ` +
             `element to formally link this port to its child-level counterpart.`
           );

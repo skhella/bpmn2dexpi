@@ -32,6 +32,8 @@ interface DexpiPort {
   direction: string;      // In / Out
   label: string;
   identifier: string;
+  superPortId?: string;
+  subPortIds: string[];
 }
 
 interface DexpiConnection {
@@ -165,13 +167,23 @@ export class DexpiToBpmnTransformer {
           const portType = portFullType.replace('Process/Process.', '');
           const portLabel = this.getDataString(portObj, 'Label') || portId;
           const portIdentifier = this.getDataString(portObj, 'Identifier') || portId;
+          const superPortId = this.getReferenceIds(portObj, 'SuperReference')[0];
+          const subPortIds = this.getReferenceIds(portObj, 'SubReference');
 
           // Direction: In → Inlet, Out → Outlet
           const dirRef = portObj.querySelector('Data[property="NominalDirection"] DataReference');
           const dirData = dirRef?.getAttribute('data') || '';
           const direction = dirData.includes('.Out') ? 'Outlet' : 'Inlet';
 
-          ports.push({ id: portId, type: portType as any, direction, label: portLabel, identifier: portIdentifier });
+          ports.push({
+            id: portId,
+            type: portType as any,
+            direction,
+            label: portLabel,
+            identifier: portIdentifier,
+            superPortId,
+            subPortIds,
+          });
         });
     }
 
@@ -249,6 +261,13 @@ export class DexpiToBpmnTransformer {
     if (!parent) return '';
     const dataEl = parent.querySelector(`Data[property="${property}"] String`);
     return dataEl?.textContent?.trim() || '';
+  }
+
+  private getReferenceIds(parent: Element, property: string): string[] {
+    const refs = parent.querySelector(`References[property="${property}"]`)?.getAttribute('objects') || '';
+    return refs.split(/\s+/)
+      .map(ref => ref.replace(/^#/, '').trim())
+      .filter(Boolean);
   }
 
   // ── Layout engine ───────────────────────────────────────────────────────────
@@ -521,6 +540,8 @@ export class DexpiToBpmnTransformer {
     // Build port → step map for resolving connection endpoints
     const portToStep = new Map<string, string>();
     steps.forEach(s => s.ports.forEach(p => portToStep.set(p.id, s.id)));
+    const portById = new Map<string, DexpiPort>();
+    steps.forEach(s => s.ports.forEach(p => portById.set(p.id, p)));
     const stepById = new Map(steps.map(s => [s.id, s]));
     const hiddenStepIds = new Set(steps.filter(step => this.isPortProxyStep(step)).map(step => step.id));
 
@@ -537,6 +558,59 @@ export class DexpiToBpmnTransformer {
     };
     const seqFlows = connections.filter(c => c.dexpiType !== 'InformationFlow' && !isHiddenConnection(c));
     const infoFlows = connections.filter(c => c.dexpiType === 'InformationFlow' && !isHiddenConnection(c));
+
+    const isDescendantStep = (stepId: string, ancestorStepId: string) => {
+      let current = stepById.get(stepId);
+      while (current?.parentId) {
+        if (current.parentId === ancestorStepId) return true;
+        current = stepById.get(current.parentId);
+      }
+      return false;
+    };
+
+    const resolveVisualInfoPort = (portId: string, seen = new Set<string>()): string => {
+      if (seen.has(portId)) return portId;
+      seen.add(portId);
+
+      const port = portById.get(portId);
+      if (!port || port.subPortIds.length === 0) return portId;
+
+      const parentStepId = portToStep.get(portId);
+      const childPort = port.subPortIds.find(subPortId => {
+        const childStepId = portToStep.get(subPortId);
+        return childStepId && parentStepId && isDescendantStep(childStepId, parentStepId);
+      });
+
+      const nextPortId = childPort || port.subPortIds.find(subPortId => portToStep.has(subPortId));
+      return nextPortId ? resolveVisualInfoPort(nextPortId, seen) : portId;
+    };
+
+    const visibleInfoFlows = (() => {
+      const deduped: Array<{
+        conn: DexpiConnection;
+        sourcePortId: string;
+        targetPortId: string;
+        sourceStepId: string;
+        targetStepId: string;
+      }> = [];
+      const seen = new Set<string>();
+
+      infoFlows.forEach(conn => {
+        const sourcePortId = resolveVisualInfoPort(conn.sourcePortId);
+        const targetPortId = resolveVisualInfoPort(conn.targetPortId);
+        const sourceStepId = portToStep.get(sourcePortId);
+        const targetStepId = portToStep.get(targetPortId);
+        if (!sourceStepId || !targetStepId) return;
+
+        const variableName = conn.informationVariantLabel || conn.label || conn.identifier;
+        const key = `${sourceStepId}:${targetStepId}:${variableName}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        deduped.push({ conn, sourcePortId, targetPortId, sourceStepId, targetStepId });
+      });
+
+      return deduped;
+    })();
 
     // Build incoming/outgoing maps for steps
     const incoming = new Map<string, string[]>();
@@ -1144,13 +1218,10 @@ ${waypoints}
     });
 
     // InformationFlows → DataObjectReference with source/target data associations
-    infoFlows.forEach(conn => {
-      const src = portToStep.get(conn.sourcePortId);
-      const tgt = portToStep.get(conn.targetPortId);
-      if (!src || !tgt) return;
+    visibleInfoFlows.forEach(({ conn, sourceStepId: src, targetStepId: tgt }) => {
       const srcStep = stepById.get(src);
       const tgtStep = stepById.get(tgt);
-      const owner = srcStep?.parentId === tgtStep?.parentId ? srcStep?.parentId : undefined;
+      const owner = srcStep?.parentId === tgtStep?.parentId ? srcStep?.parentId : tgtStep?.parentId;
       const key = ownerKey(owner);
 
       const varName = conn.informationVariantLabel || conn.label;
@@ -1163,8 +1234,12 @@ ${waypoints}
       const ownerLayout = ownerLayouts.get(key) || layout;
       const srcPos = ownerLayout.get(src);
       const tgtPos = ownerLayout.get(tgt);
-      const srcCenter = srcPos ? centerOf(srcPos) : { x: MARGIN_X, y: MARGIN_Y };
-      const tgtCenter = tgtPos ? centerOf(tgtPos) : { x: srcCenter.x + TASK_W + 90, y: srcCenter.y };
+      const tgtCenter = tgtPos
+        ? centerOf(tgtPos)
+        : srcPos
+          ? { x: centerOf(srcPos).x + TASK_W + 90, y: centerOf(srcPos).y }
+          : { x: MARGIN_X + TASK_W + 90, y: MARGIN_Y };
+      const srcCenter = srcPos ? centerOf(srcPos) : { x: tgtCenter.x - TASK_W - 90, y: tgtCenter.y };
       const dobjX = Math.round((srcCenter.x + tgtCenter.x) / 2 - 18);
       const dobjY = Math.round(Math.min(srcCenter.y, tgtCenter.y) - 85);
 
