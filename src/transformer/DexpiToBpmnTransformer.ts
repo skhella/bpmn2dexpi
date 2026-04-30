@@ -57,6 +57,9 @@ interface ParsedDexpi {
 }
 
 type LayoutBox = {x: number, y: number, w: number, h: number};
+type DiagramPoint = {x: number, y: number};
+type AnchorSide = 'top' | 'right' | 'bottom' | 'left';
+type PortAnchor = { side: AnchorSide; offset: number };
 
 // Layout constants
 const TASK_W = 130;
@@ -620,13 +623,13 @@ export class DexpiToBpmnTransformer {
         }
       });
 
-    const portAnchor = (step: DexpiStep | undefined, portId: string) => {
-      if (!step) return { side: 'left' as const, offset: 0.5 };
+    const portAnchor = (step: DexpiStep | undefined, portId: string): PortAnchor => {
+      if (!step) return { side: 'left', offset: 0.5 };
 
       const port = step.ports.find(p => p.id === portId);
       const bpmnDir = port?.direction === 'Outlet' ? 'Outlet' : 'Inlet';
       const isRecycleStep = recycleStepIds.has(step.id);
-      const side: 'left' | 'right' = isRecycleStep
+      const side: AnchorSide = isRecycleStep
         ? (bpmnDir === 'Outlet' ? 'left' : 'right')
         : (bpmnDir === 'Outlet' ? 'right' : 'left');
       const isInfoPort = port?.type === 'InformationPort';
@@ -645,18 +648,177 @@ export class DexpiToBpmnTransformer {
       return { side, offset };
     };
 
-    const connectionPoint = (pos: LayoutBox, anchor: { side: 'left' | 'right'; offset: number }) => ({
-      x: anchor.side === 'left' ? pos.x : pos.x + pos.w,
-      y: pos.y + pos.h * anchor.offset,
-    });
+    const centerOf = (pos: LayoutBox) => ({ x: pos.x + pos.w / 2, y: pos.y + pos.h / 2 });
+
+    const connectionPoint = (pos: LayoutBox, anchor: PortAnchor) => {
+      switch (anchor.side) {
+        case 'top':
+          return { x: pos.x + pos.w * anchor.offset, y: pos.y };
+        case 'right':
+          return { x: pos.x + pos.w, y: pos.y + pos.h * anchor.offset };
+        case 'bottom':
+          return { x: pos.x + pos.w * anchor.offset, y: pos.y + pos.h };
+        case 'left':
+        default:
+          return { x: pos.x, y: pos.y + pos.h * anchor.offset };
+      }
+    };
+
+    const sourceAnchorForConnection = (
+      step: DexpiStep | undefined,
+      portId: string,
+      srcPos: LayoutBox,
+      tgtPos: LayoutBox
+    ): PortAnchor => {
+      const anchor = portAnchor(step, portId);
+      if (!step || step.dexpiType === 'Source' || step.dexpiType === 'Sink') return anchor;
+
+      const srcCenter = centerOf(srcPos);
+      const tgtCenter = centerOf(tgtPos);
+      const dx = tgtCenter.x - srcCenter.x;
+      const dy = tgtCenter.y - srcCenter.y;
+      const verticalThreshold = srcPos.h * 0.35;
+      const owner = stepOwnerKey(step.id);
+      const ownerLayout = ownerLayouts.get(owner) || layout;
+      const hasIncomingFromRight = visibleSeqFlowsForStep(step.id, 'incoming').some(conn => {
+        const sourceId = portToStep.get(conn.sourcePortId);
+        if (!sourceId || stepOwnerKey(sourceId) !== owner) return false;
+        const sourcePos = ownerLayout.get(sourceId);
+        return sourcePos ? centerOf(sourcePos).x > srcCenter.x + 10 : false;
+      });
+
+      if (dx < -10) return hasIncomingFromRight ? anchor : { side: 'top', offset: 0.5 };
+      if (dy > verticalThreshold) return { side: 'bottom', offset: 0.5 };
+      if (dy < -verticalThreshold) return { side: 'top', offset: 0.5 };
+      return anchor;
+    };
+
+    const targetAnchorForConnection = (
+      step: DexpiStep | undefined,
+      portId: string,
+      srcPos: LayoutBox,
+      tgtPos: LayoutBox
+    ): PortAnchor => {
+      const anchor = portAnchor(step, portId);
+      if (!step || step.dexpiType === 'Source' || step.dexpiType === 'Sink') return anchor;
+      const owner = stepOwnerKey(step.id);
+      const ownerLayout = ownerLayouts.get(owner) || layout;
+      const hasReturnOutlet = visibleSeqFlowsForStep(step.id, 'outgoing').some(conn => {
+        const targetId = portToStep.get(conn.targetPortId);
+        if (!targetId || stepOwnerKey(targetId) !== owner) return false;
+        const targetPos = ownerLayout.get(targetId);
+        return targetPos ? targetPos.x < tgtPos.x : false;
+      });
+      if (recycleStepIds.has(step.id) || hasReturnOutlet) return anchor;
+
+      const srcCenter = centerOf(srcPos);
+      const tgtCenter = centerOf(tgtPos);
+      if (srcCenter.x > tgtCenter.x + 10) return { side: 'top', offset: 0.5 };
+      return anchor;
+    };
+
+    const endpointKey = (connId: string, endpoint: 'source' | 'target') => `${connId}:${endpoint}`;
+    const anchorForEndpoint = new Map<string, PortAnchor>();
+
+    const buildConnectionAnchors = () => {
+      const groups = new Map<string, Array<{
+        key: string;
+        anchor: PortAnchor;
+        counterpart: DiagramPoint;
+        step: DexpiStep | undefined;
+      }>>();
+
+      const addEndpoint = (
+        key: string,
+        owner: string,
+        stepId: string,
+        step: DexpiStep | undefined,
+        anchor: PortAnchor,
+        counterpart: DiagramPoint
+      ) => {
+        const groupKey = `${owner}:${stepId}:${anchor.side}`;
+        if (!groups.has(groupKey)) groups.set(groupKey, []);
+        groups.get(groupKey)!.push({ key, anchor, counterpart, step });
+      };
+
+      seqFlows.forEach(conn => {
+        const src = portToStep.get(conn.sourcePortId);
+        const tgt = portToStep.get(conn.targetPortId);
+        if (!src || !tgt) return;
+
+        const srcStep = stepById.get(src);
+        const tgtStep = stepById.get(tgt);
+        const owner = srcStep?.parentId === tgtStep?.parentId ? srcStep?.parentId : undefined;
+        const key = ownerKey(owner);
+        const ownerLayout = ownerLayouts.get(key) || layout;
+        const srcPos = ownerLayout.get(src);
+        const tgtPos = ownerLayout.get(tgt);
+        if (!srcPos || !tgtPos) return;
+
+        const srcAnchor = sourceAnchorForConnection(srcStep, conn.sourcePortId, srcPos, tgtPos);
+        const tgtAnchor = targetAnchorForConnection(tgtStep, conn.targetPortId, srcPos, tgtPos);
+        addEndpoint(endpointKey(conn.id, 'source'), key, src, srcStep, srcAnchor, centerOf(tgtPos));
+        addEndpoint(endpointKey(conn.id, 'target'), key, tgt, tgtStep, tgtAnchor, centerOf(srcPos));
+      });
+
+      groups.forEach(group => {
+        group.sort((a, b) => {
+          if (a.anchor.side === 'top' || a.anchor.side === 'bottom') {
+            const delta = a.counterpart.x - b.counterpart.x;
+            return delta !== 0 ? delta : a.key.localeCompare(b.key);
+          }
+          const delta = a.counterpart.y - b.counterpart.y;
+          return delta !== 0 ? delta : a.key.localeCompare(b.key);
+        });
+
+        const sideSlotCount = group[0].step?.ports
+          .filter(port => port.type !== 'InformationPort' && portAnchor(group[0].step, port.id).side === group[0].anchor.side)
+          .length ?? 0;
+        const slotCount = Math.max(group.length, sideSlotCount);
+
+        group.forEach((entry, index) => {
+          const offset = group.length > 1 ? (index + 1) / (slotCount + 1) : entry.anchor.offset;
+          anchorForEndpoint.set(entry.key, { ...entry.anchor, offset });
+        });
+      });
+    };
+
+    buildConnectionAnchors();
 
     const routeSequenceFlow = (
       srcPos: LayoutBox,
       tgtPos: LayoutBox,
       lane: number,
-      srcAnchor: { side: 'left' | 'right'; offset: number },
-      tgtAnchor: { side: 'left' | 'right'; offset: number }
+      srcAnchor: PortAnchor,
+      tgtAnchor: PortAnchor,
+      obstacles: LayoutBox[]
     ) => {
+      const same = (a: number, b: number) => Math.abs(a - b) < 0.01;
+      const between = (value: number, a: number, b: number) =>
+        value >= Math.min(a, b) - 0.01 && value <= Math.max(a, b) + 0.01;
+      const overlaps = (a1: number, a2: number, b1: number, b2: number) =>
+        Math.max(Math.min(a1, a2), Math.min(b1, b2)) <= Math.min(Math.max(a1, a2), Math.max(b1, b2));
+      const compact = (points: DiagramPoint[]) => {
+        const deduped = points.filter((point, index) => {
+          const prev = points[index - 1];
+          return !prev || !same(point.x, prev.x) || !same(point.y, prev.y);
+        });
+        const result: DiagramPoint[] = [];
+        deduped.forEach(point => {
+          result.push(point);
+          while (result.length >= 3) {
+            const a = result[result.length - 3];
+            const b = result[result.length - 2];
+            const c = result[result.length - 1];
+            const vertical = same(a.x, b.x) && same(b.x, c.x) && between(b.y, a.y, c.y);
+            const horizontal = same(a.y, b.y) && same(b.y, c.y) && between(b.x, a.x, c.x);
+            if (!vertical && !horizontal) break;
+            result.splice(result.length - 2, 1);
+          }
+        });
+        return result;
+      };
+
       const srcPoint = connectionPoint(srcPos, srcAnchor);
       const tgtPoint = connectionPoint(tgtPos, tgtAnchor);
       const srcX = srcPoint.x;
@@ -664,32 +826,167 @@ export class DexpiToBpmnTransformer {
       const tgtX = tgtPoint.x;
       const tgtY = tgtPoint.y;
       const laneOffset = (lane % 6) * 18;
+      const stub = 55 + laneOffset;
+      const sameY = same(srcY, tgtY);
+      const isVerticalSide = (side: AnchorSide) => side === 'top' || side === 'bottom';
+      const blocksHorizontal = (y: number, x1: number, x2: number) =>
+        obstacles.some(box => {
+          if (box === srcPos || box === tgtPos) return false;
+          const pad = 18;
+          return y >= box.y - pad &&
+            y <= box.y + box.h + pad &&
+            overlaps(x1, x2, box.x - pad, box.x + box.w + pad);
+        });
+      const freeHorizontalY = (preferredY: number, x1: number, x2: number, direction: -1 | 1) => {
+        const step = 28;
+        let candidate = preferredY;
+        for (let i = 0; i < 18; i += 1) {
+          if (!blocksHorizontal(candidate, x1, x2)) return candidate;
+          candidate += direction * step;
+        }
+        return candidate;
+      };
 
-      if (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && tgtX >= srcX + 50) {
-        const bendX = Math.max(srcX + 35, tgtX - 60 - laneOffset);
-        return [
+      if (isVerticalSide(srcAnchor.side) && isVerticalSide(tgtAnchor.side)) {
+        const bothTop = srcAnchor.side === 'top' && tgtAnchor.side === 'top';
+        const bothBottom = srcAnchor.side === 'bottom' && tgtAnchor.side === 'bottom';
+        const preferredY = bothTop
+          ? Math.min(srcY, tgtY) - stub
+          : bothBottom
+            ? Math.max(srcY, tgtY) + stub
+            : srcY + (tgtY - srcY) / 2;
+        const bendY = freeHorizontalY(preferredY, srcX, tgtX, bothBottom ? 1 : -1);
+
+        return compact([
           { x: srcX, y: srcY },
-          { x: bendX, y: srcY },
-          { x: bendX, y: tgtY },
+          { x: srcX, y: bendY },
+          { x: tgtX, y: bendY },
           { x: tgtX, y: tgtY },
-        ];
+        ]);
+      }
+
+      if (isVerticalSide(srcAnchor.side)) {
+        const sourceOutward = srcAnchor.side === 'top' ? -1 : 1;
+        const targetIsOutward = sourceOutward < 0 ? tgtY < srcY : tgtY > srcY;
+        if (targetIsOutward) {
+          const bendY = blocksHorizontal(tgtY, srcX, tgtX)
+            ? freeHorizontalY(tgtY, srcX, tgtX, sourceOutward as -1 | 1)
+            : tgtY;
+          return compact([
+            { x: srcX, y: srcY },
+            { x: srcX, y: bendY },
+            { x: tgtX, y: bendY },
+            { x: tgtX, y: tgtY },
+          ]);
+        }
+
+        const bendY = freeHorizontalY(srcY + sourceOutward * stub, srcX, tgtX, sourceOutward as -1 | 1);
+        return compact([
+          { x: srcX, y: srcY },
+          { x: srcX, y: bendY },
+          { x: tgtX, y: bendY },
+          { x: tgtX, y: tgtY },
+        ]);
+      }
+
+      if (isVerticalSide(tgtAnchor.side)) {
+        const targetOutward = tgtAnchor.side === 'top' ? -1 : 1;
+        const sourceIsOutward = targetOutward < 0 ? srcY < tgtY : srcY > tgtY;
+        if (sourceIsOutward) {
+          const bendY = blocksHorizontal(srcY, srcX, tgtX)
+            ? freeHorizontalY(srcY, srcX, tgtX, targetOutward as -1 | 1)
+            : srcY;
+          return compact([
+            { x: srcX, y: srcY },
+            { x: srcX, y: bendY },
+            { x: tgtX, y: bendY },
+            { x: tgtX, y: tgtY },
+          ]);
+        }
+
+        const bendY = freeHorizontalY(tgtY + targetOutward * stub, srcX, tgtX, targetOutward as -1 | 1);
+        return compact([
+          { x: srcX, y: srcY },
+          { x: srcX, y: bendY },
+          { x: tgtX, y: bendY },
+          { x: tgtX, y: tgtY },
+        ]);
+      }
+
+      const directlyFacing =
+        (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && tgtX >= srcX) ||
+        (srcAnchor.side === 'left' && tgtAnchor.side === 'right' && tgtX <= srcX);
+      if (directlyFacing) {
+        if (sameY && !blocksHorizontal(srcY, srcX, tgtX)) return [srcPoint, tgtPoint];
+        if (sameY) {
+          const direction: -1 | 1 = srcY <= (srcPos.y + tgtPos.y + srcPos.h + tgtPos.h) / 2 ? -1 : 1;
+          const bendY = freeHorizontalY(srcY + direction * stub, srcX, tgtX, direction);
+          return compact([
+            { x: srcX, y: srcY },
+            { x: srcX, y: bendY },
+            { x: tgtX, y: bendY },
+            { x: tgtX, y: tgtY },
+          ]);
+        }
+
+        const midX = srcX + (tgtX - srcX) / 2;
+        return compact([
+          { x: srcX, y: srcY },
+          { x: midX, y: srcY },
+          { x: midX, y: tgtY },
+          { x: tgtX, y: tgtY },
+        ]);
+      }
+
+      if (srcAnchor.side === tgtAnchor.side) {
+        const trunkX = srcAnchor.side === 'right'
+          ? Math.max(srcX, tgtX) + stub
+          : Math.min(srcX, tgtX) - stub;
+
+        if (!sameY) {
+          return compact([
+            { x: srcX, y: srcY },
+            { x: trunkX, y: srcY },
+            { x: trunkX, y: tgtY },
+            { x: tgtX, y: tgtY },
+          ]);
+        }
+
+        const detourY = freeHorizontalY(
+          Math.min(srcPos.y, tgtPos.y, srcY, tgtY) - 45 - laneOffset,
+          trunkX,
+          tgtX,
+          -1
+        );
+        return compact([
+          { x: srcX, y: srcY },
+          { x: trunkX, y: srcY },
+          { x: trunkX, y: detourY },
+          { x: tgtX, y: detourY },
+          { x: tgtX, y: tgtY },
+        ]);
       }
 
       const srcDetourX = srcAnchor.side === 'right'
-        ? srcX + 60 + laneOffset
-        : srcX - 60 - laneOffset;
+        ? srcX + stub
+        : srcX - stub;
       const tgtDetourX = tgtAnchor.side === 'right'
-        ? tgtX + 60 + laneOffset
-        : tgtX - 60 - laneOffset;
-      const detourY = Math.min(srcPos.y, tgtPos.y, srcY, tgtY) - 55 - laneOffset;
-      return [
+        ? tgtX + stub
+        : tgtX - stub;
+      const detourY = freeHorizontalY(
+        Math.min(srcPos.y, tgtPos.y, srcY, tgtY) - 55 - laneOffset,
+        srcDetourX,
+        tgtDetourX,
+        -1
+      );
+      return compact([
         { x: srcX, y: srcY },
         { x: srcDetourX, y: srcY },
         { x: srcDetourX, y: detourY },
         { x: tgtDetourX, y: detourY },
         { x: tgtDetourX, y: tgtY },
         { x: tgtX, y: tgtY },
-      ];
+      ]);
     };
 
     const edgeLaneByOwner = new Map<string, number>();
@@ -776,9 +1073,12 @@ ${indent}</bpmn:task>`;
       const tgtPos = ownerLayout.get(tgt);
       if (!srcPos || !tgtPos) return;
 
-      const srcAnchor = portAnchor(srcStep, conn.sourcePortId);
-      const tgtAnchor = portAnchor(tgtStep, conn.targetPortId);
-      const waypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcAnchor, tgtAnchor)
+      const srcAnchor = anchorForEndpoint.get(endpointKey(conn.id, 'source')) ||
+        sourceAnchorForConnection(srcStep, conn.sourcePortId, srcPos, tgtPos);
+      const tgtAnchor = anchorForEndpoint.get(endpointKey(conn.id, 'target')) ||
+        targetAnchorForConnection(tgtStep, conn.targetPortId, srcPos, tgtPos);
+      const obstacles = Array.from(ownerLayout.values());
+      const waypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcAnchor, tgtAnchor, obstacles)
         .map(point => `        <di:waypoint x="${point.x}" y="${point.y}"/>`)
         .join('\n');
 

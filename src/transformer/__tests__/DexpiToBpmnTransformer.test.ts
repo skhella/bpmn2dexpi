@@ -382,12 +382,13 @@ ${step('MX1', 'Mixing', 'Mixer')}
       const out = new DexpiToBpmnTransformer().transform(xml);
       const waypoints = edgeWaypoints(out, 'bpmn_S1');
 
-      expect(waypoints.length).toBeGreaterThanOrEqual(4);
+      expect(waypoints.length).toBeGreaterThanOrEqual(2);
       for (let i = 1; i < waypoints.length; i += 1) {
         const prev = waypoints[i - 1];
         const cur = waypoints[i];
         expect(prev.x === cur.x || prev.y === cur.y).toBe(true);
       }
+      expect(waypoints).toHaveLength(2);
     });
 
     it('places recycle loop activities above the main path between the connected layers', () => {
@@ -426,6 +427,8 @@ ${step('MX1', 'Mixing', 'Mixer')}
 
       const recycleIncoming = edgeWaypoints(out, 'bpmn_S4');
       const recycleOutgoing = edgeWaypoints(out, 'bpmn_S5');
+      expect(recycleIncoming.length).toBeLessThanOrEqual(4);
+      expect(recycleOutgoing.length).toBeLessThanOrEqual(4);
       expect(recycleIncoming.at(-1)?.x).toBe(recycle.x + recycle.w);
       expect(recycleIncoming.at(-1)?.y).toBe(recycle.y + recycle.h * 0.65);
       expect(recycleOutgoing[0].x).toBe(recycle.x);
@@ -433,6 +436,90 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(recycleOutgoing[1].x).toBeLessThan(recycleOutgoing[0].x);
       expect(out).toMatch(/portId="Recycle_in"[^>]*direction="Inlet"[^>]*anchorSide="right"[^>]*anchorOffset="0.65"/);
       expect(out).toMatch(/portId="Recycle_out"[^>]*direction="Outlet"[^>]*anchorSide="left"[^>]*anchorOffset="0.35"/);
+    });
+
+    it('routes a recycle initiator out of the top when it has no incoming return path', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const earlyPorts =
+        port('A_in', 'MaterialPort', 'In', 'MI1') +
+        port('A_out', 'MaterialPort', 'Out', 'MO1') +
+        port('A_recycle_in', 'MaterialPort', 'In', 'MI2');
+      const middlePorts = port('B_in', 'MaterialPort', 'In', 'MI1') + port('B_out', 'MaterialPort', 'Out', 'MO1');
+      const returnPorts = port('C_in', 'MaterialPort', 'In', 'MI1') + port('C_out', 'MaterialPort', 'Out', 'MO1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('A', 'ReactingChemicals', 'Reactor', earlyPorts) +
+          step('B', 'Separating', 'Separator', middlePorts) +
+          step('C', 'Compressing', 'Recycle compressor', returnPorts),
+        stream('S1', 'Stream', 'SE_out', 'A_in') +
+          stream('S2', 'Stream', 'A_out', 'B_in') +
+          stream('S3', 'Stream', 'B_out', 'C_in') +
+          stream('S4', 'Stream', 'C_out', 'A_recycle_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const recycle = shapeBounds(out, 'bpmn_C');
+      const returnFlow = edgeWaypoints(out, 'bpmn_S4');
+
+      expect(returnFlow[0].x).toBe(recycle.x + recycle.w / 2);
+      expect(returnFlow[0].y).toBe(recycle.y);
+      expect(returnFlow[1].y).toBeLessThan(returnFlow[0].y);
+    });
+
+    it('routes lower branch streams out of the bottom of the source task', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const taskPorts =
+        port('A_in', 'MaterialPort', 'In', 'MI1') +
+        port('A_out_main', 'MaterialPort', 'Out', 'MO1') +
+        port('A_out_branch', 'MaterialPort', 'Out', 'MO2');
+      const branchPorts = port('B_in', 'MaterialPort', 'In', 'MI1') + port('B_out', 'MaterialPort', 'Out', 'MO1');
+      const mainSinkPort = port('EE_main_in', 'MaterialPort', 'In', 'MI1');
+      const branchSinkPort = port('EE_branch_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('A', 'Separating', 'Separator', taskPorts) +
+          step('B', 'StrippingDistilling', 'Stripper', branchPorts) +
+          step('EE_main', 'Sink', 'Purge', mainSinkPort) +
+          step('EE_branch', 'Sink', 'Product', branchSinkPort),
+        stream('S1', 'Stream', 'SE_out', 'A_in') +
+          stream('S_main', 'Stream', 'A_out_main', 'EE_main_in') +
+          stream('S_branch', 'Stream', 'A_out_branch', 'B_in') +
+          stream('S_product', 'Stream', 'B_out', 'EE_branch_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const separator = shapeBounds(out, 'bpmn_A');
+      const branch = shapeBounds(out, 'bpmn_B');
+      const branchFlow = edgeWaypoints(out, 'bpmn_S_branch');
+
+      expect(branch.y).toBeGreaterThan(separator.y);
+      expect(branchFlow[0].x).toBe(separator.x + separator.w / 2);
+      expect(branchFlow[0].y).toBe(separator.y + separator.h);
+    });
+
+    it('spreads multiple visible streams attached to the same target port', () => {
+      const sourceAPort = port('SA_out', 'MaterialPort', 'Out', 'MO1');
+      const sourceBPort = port('SB_out', 'MaterialPort', 'Out', 'MO1');
+      const taskPorts = port('A_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SA', 'Source', 'Feed A', sourceAPort) +
+          step('SB', 'Source', 'Feed B', sourceBPort) +
+          step('A', 'ReactingChemicals', 'Reactor', taskPorts),
+        stream('S_A', 'Stream', 'SA_out', 'A_in') +
+          stream('S_B', 'Stream', 'SB_out', 'A_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const reactor = shapeBounds(out, 'bpmn_A');
+      const feedA = edgeWaypoints(out, 'bpmn_S_A');
+      const feedB = edgeWaypoints(out, 'bpmn_S_B');
+      const targetA = feedA.at(-1);
+      const targetB = feedB.at(-1);
+
+      expect(targetA?.x).toBe(reactor.x);
+      expect(targetB?.x).toBe(reactor.x);
+      expect(targetA?.y).not.toBe(targetB?.y);
+      expect([targetA?.y, targetB?.y].sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([
+        reactor.y + reactor.h / 3,
+        reactor.y + reactor.h * 2 / 3,
+      ]);
     });
   });
 
