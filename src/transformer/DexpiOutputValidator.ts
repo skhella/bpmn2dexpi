@@ -11,11 +11,30 @@
 
 import type { ValidationResult } from './types';
 
+/**
+ * True when running in a browser-like environment where xmllint cannot be
+ * invoked.  We treat anything without Node's `process.versions.node` as
+ * browser-like — this stays accurate under jsdom / happy-dom test runners,
+ * where `window` exists but `process.versions.node` is also set (so we
+ * correctly identify them as Node).
+ */
+export function isBrowserEnvironment(): boolean {
+  const proc = (globalThis as { process?: { versions?: { node?: string } } }).process;
+  if (proc?.versions?.node) return false;
+  return typeof window !== 'undefined' || typeof self !== 'undefined';
+}
+
 // ── Node-only XSD validation ───────────────────────────────────────────────
 export async function validateDexpiOutputXsd(
   xml: string,
   xsdPath: string
 ): Promise<ValidationResult> {
+  // Browser short-circuit: xmllint is unavailable, run the structural fallback
+  // and clearly mark the result as structural-only.
+  if (isBrowserEnvironment()) {
+    return validateDexpiOutput(xml);
+  }
+
   try {
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
@@ -31,7 +50,7 @@ export async function validateDexpiOutputXsd(
       execFileP('xmllint', ['--noout', '--schema', xsdPath, tmpFile])
         .then(() => {
           ul(tmpFile).catch(() => {});
-          resolve({ valid: true, errors: [], warnings: [] });
+          resolve({ valid: true, errors: [], warnings: [], mode: 'xsd' });
         })
         .catch((err: { stderr?: string; stdout?: string; message?: string; code?: string }) => {
           ul(tmpFile).catch(() => {});
@@ -46,11 +65,11 @@ export async function validateDexpiOutputXsd(
             l.includes('fails to validate')
           );
           const errors = matched.length > 0 ? matched : lines.length > 0 ? lines : [`xmllint failed (exit ${err.code ?? '?'}): no output captured`];
-          resolve({ valid: false, errors, warnings: [] });
+          resolve({ valid: false, errors, warnings: [], mode: 'xsd' });
         });
     });
   } catch {
-    // child_process not available (browser) — fall back to structural checks
+    // child_process not available — fall back to structural checks
     return validateDexpiOutput(xml);
   }
 }
@@ -66,20 +85,20 @@ export function validateDexpiOutput(xml: string): ValidationResult {
     doc = parser.parseFromString(xml, 'text/xml');
   } catch {
     errors.push('Failed to parse generated XML.');
-    return { valid: false, errors, warnings };
+    return { valid: false, errors, warnings, mode: 'structural' };
   }
 
   const parseErr = doc.querySelector('parsererror');
   if (parseErr) {
     errors.push(`Generated XML is not well-formed: ${(parseErr.textContent ?? '').slice(0, 200)}`);
-    return { valid: false, errors, warnings };
+    return { valid: false, errors, warnings, mode: 'structural' };
   }
 
   const root = doc.documentElement;
   const rootLocal = root.localName || root.tagName.split(':').pop() || '';
   if (rootLocal !== 'Model') {
     errors.push(`Root element must be 'Model' (got '${rootLocal}').`);
-    return { valid: false, errors, warnings };
+    return { valid: false, errors, warnings, mode: 'structural' };
   }
 
   const imports = Array.from(root.children).filter(
@@ -93,7 +112,7 @@ export function validateDexpiOutput(xml: string): ValidationResult {
   const allObjects = Array.from(doc.querySelectorAll('Object'));
   if (allObjects.length === 0) {
     errors.push('No <Object> elements found in generated DEXPI XML.');
-    return { valid: false, errors, warnings };
+    return { valid: false, errors, warnings, mode: 'structural' };
   }
 
   const processModel = allObjects.find(
@@ -134,5 +153,5 @@ export function validateDexpiOutput(xml: string): ValidationResult {
       });
   }
 
-  return { valid: errors.length === 0, errors, warnings };
+  return { valid: errors.length === 0, errors, warnings, mode: 'structural' };
 }

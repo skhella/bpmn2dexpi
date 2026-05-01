@@ -76,7 +76,7 @@ src/transformer/
 ├── DexpiOutputValidator.ts        # XSD + structural validation
 ├── TransformerLogger.ts           # Warning/error collection
 ├── types.ts                       # Typed interfaces
-└── __tests__/                     # 56 automated tests
+└── __tests__/                     # 60 automated tests
 
 dexpi-schema-files/
 ├── DEXPI_XML_Schema.xsd           # Official DEXPI 2.0 XML Schema
@@ -86,14 +86,14 @@ dexpi-schema-files/
 ## Testing
 
 ```bash
-npm test              # run all 56 tests
+npm test              # run all 60 tests
 npm run test:watch    # watch mode
 npm run test:coverage # with coverage
 ```
 
-Covers unit tests (transformer logic, class registry, output validation) and an end-to-end integration benchmark on a real-world PFD. The integration suite requires `xmllint` — see Prerequisites.
+Covers unit tests (transformer logic, class registry, output validation) and an end-to-end integration benchmark using the Tennessee Eastman process PFD. The integration suite requires `xmllint` — see Prerequisites. In browser contexts where `xmllint` is unavailable, validation falls back to a structural check of key DEXPI 2.0 object-model invariants.
 
-CI runs on Node.js 18, 20, and 22 via GitHub Actions on every push.
+CI runs on Node.js 18, 20, and 22 via GitHub Actions on every push and pull request.
 
 ## Based on Research
 

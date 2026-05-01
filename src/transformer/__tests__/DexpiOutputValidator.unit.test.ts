@@ -3,8 +3,12 @@
  * Uses the actual DEXPI 2.0 output schema produced by BpmnToDexpiTransformer.
  */
 
-import { describe, it, expect } from 'vitest';
-import { validateDexpiOutput } from '../DexpiOutputValidator';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import {
+  validateDexpiOutput,
+  validateDexpiOutputXsd,
+  isBrowserEnvironment,
+} from '../DexpiOutputValidator';
 
 // A minimal valid DEXPI 2.0 output (matches transformer output shape)
 const VALID_XML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -120,5 +124,44 @@ describe('DexpiOutputValidator', () => {
     </Model>`;
     const result = validateDexpiOutput(xml);
     expect(result.warnings.some(w => /ProcessModel/i.test(w))).toBe(true);
+  });
+
+  it('marks structural results with mode="structural"', () => {
+    const result = validateDexpiOutput(VALID_XML);
+    expect(result.mode).toBe('structural');
+  });
+
+  describe('browser environment fallback', () => {
+    // Vitest runs under Node (with happy-dom layered on top), so by default
+    // isBrowserEnvironment() returns false. We simulate a real browser by
+    // hiding Node's process global; under happy-dom `window` is present, which
+    // satisfies the browser branch of the detection logic.
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('returns false in Node and true when process.versions.node is absent', () => {
+      expect(isBrowserEnvironment()).toBe(false);
+      vi.stubGlobal('process', undefined);
+      expect(isBrowserEnvironment()).toBe(true);
+    });
+
+    it('validateDexpiOutputXsd skips xmllint and runs structural validation in the browser', async () => {
+      vi.stubGlobal('process', undefined);
+      // The xsdPath argument is intentionally bogus — the browser path must
+      // never invoke xmllint, so the path is unused.
+      const result = await validateDexpiOutputXsd(VALID_XML, '/nonexistent/schema.xsd');
+      expect(result.mode).toBe('structural');
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('browser fallback still surfaces structural errors', async () => {
+      vi.stubGlobal('process', undefined);
+      const result = await validateDexpiOutputXsd('<unclosed>', '/nonexistent/schema.xsd');
+      expect(result.mode).toBe('structural');
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
   });
 });
