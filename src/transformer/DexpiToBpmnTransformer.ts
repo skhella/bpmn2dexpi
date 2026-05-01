@@ -32,6 +32,8 @@ interface DexpiPort {
   direction: string;      // In / Out
   label: string;
   identifier: string;
+  subPortIds?: string[];
+  superPortId?: string;
 }
 
 interface DexpiConnection {
@@ -42,6 +44,7 @@ interface DexpiConnection {
   sourcePortId: string;
   targetPortId: string;
   informationVariantLabel?: string;
+  hidden?: boolean;
 }
 
 interface DexpiMaterialTemplate {
@@ -73,6 +76,7 @@ export class DexpiToBpmnTransformer {
 
   transform(dexpiXml: string): string {
     const parsed = this.parseDexpi(dexpiXml);
+    this.materializeBoundaryProxyEvents(parsed);
     const layout = this.computeLayout(parsed);
     return this.buildBpmn(parsed, layout);
   }
@@ -167,8 +171,18 @@ export class DexpiToBpmnTransformer {
           const dirRef = portObj.querySelector('Data[property="NominalDirection"] DataReference');
           const dirData = dirRef?.getAttribute('data') || '';
           const direction = dirData.includes('.Out') ? 'Outlet' : 'Inlet';
+          const subPortIds = this.getReferenceIds(portObj, 'SubReference');
+          const superPortIds = this.getReferenceIds(portObj, 'SuperReference');
 
-          ports.push({ id: portId, type: portType as any, direction, label: portLabel, identifier: portIdentifier });
+          ports.push({
+            id: portId,
+            type: portType as any,
+            direction,
+            label: portLabel,
+            identifier: portIdentifier,
+            subPortIds: subPortIds.length > 0 ? subPortIds : undefined,
+            superPortId: superPortIds[0],
+          });
         });
     }
 
@@ -242,6 +256,235 @@ export class DexpiToBpmnTransformer {
     };
   }
 
+  private getReferenceIds(parent: Element | null, property: string): string[] {
+    if (!parent) return [];
+    const refs = Array.from(parent.querySelectorAll(`References[property="${property}"]`));
+    return refs.flatMap(ref => (ref.getAttribute('objects') || '')
+      .split(/\s+/)
+      .map(value => value.trim().replace(/^#/, ''))
+      .filter(Boolean));
+  }
+
+  private materializeBoundaryProxyEvents(parsed: ParsedDexpi): void {
+    const stepById = new Map(parsed.steps.map(step => [step.id, step]));
+    const portById = new Map<string, DexpiPort>();
+    const portToStep = new Map<string, DexpiStep>();
+    parsed.steps.forEach(step => {
+      step.ports.forEach(port => {
+        portById.set(port.id, port);
+        portToStep.set(port.id, step);
+      });
+    });
+
+    const stepIds = new Set(parsed.steps.map(step => step.id));
+    const portIds = new Set(Array.from(portById.keys()));
+    const connectionIds = new Set(parsed.connections.map(conn => conn.id));
+
+    const isDescendantOf = (step: DexpiStep | undefined, parentId: string): boolean => {
+      let current = step;
+      while (current?.parentId) {
+        if (current.parentId === parentId) return true;
+        current = stepById.get(current.parentId);
+      }
+      return false;
+    };
+
+    const addSubReference = (parentPort: DexpiPort, childPortId: string) => {
+      if (!parentPort.subPortIds) parentPort.subPortIds = [];
+      if (!parentPort.subPortIds.includes(childPortId)) parentPort.subPortIds.push(childPortId);
+    };
+
+    const oppositeEventType = (parentPort: DexpiPort) =>
+      parentPort.direction === 'Outlet' ? 'Sink' : 'Source';
+    const oppositePortDirection = (parentPort: DexpiPort) =>
+      parentPort.direction === 'Outlet' ? 'Inlet' : 'Outlet';
+
+    const findExistingProxyPorts = (parent: DexpiStep, parentPort: DexpiPort): string[] => {
+      const expectedType = oppositeEventType(parentPort);
+      const expectedDirection = oppositePortDirection(parentPort);
+      const explicitRefs = new Set(parentPort.subPortIds || []);
+
+      return parsed.steps
+        .filter(step =>
+          step.parentId === parent.id &&
+          step.dexpiType === expectedType &&
+          step.ports.length > 0
+        )
+        .flatMap(step => step.ports)
+        .filter(port =>
+          port.direction === expectedDirection &&
+          (
+            port.superPortId === parentPort.id ||
+            explicitRefs.has(port.id) ||
+            (port.label === parentPort.label && !port.superPortId && explicitRefs.size === 0)
+          )
+        )
+        .map(port => port.id);
+    };
+
+    const uniqueId = (base: string, used: Set<string>) => {
+      const sanitized = base.replace(/[^a-zA-Z0-9_]/g, '_') || 'BoundaryProxy';
+      let candidate = sanitized;
+      let counter = 2;
+      while (used.has(candidate)) {
+        candidate = `${sanitized}_${counter}`;
+        counter += 1;
+      }
+      used.add(candidate);
+      return candidate;
+    };
+
+    const streamTypeForPort = (port: DexpiPort) => {
+      switch (port.type) {
+        case 'ThermalEnergyPort':
+          return 'ThermalEnergyFlow';
+        case 'MechanicalEnergyPort':
+          return 'MechanicalEnergyFlow';
+        case 'ElectricalEnergyPort':
+          return 'ElectricalEnergyFlow';
+        default:
+          return 'Stream';
+      }
+    };
+    const isEnergyPortLike = (port: DexpiPort) =>
+      ['ThermalEnergyPort', 'MechanicalEnergyPort', 'ElectricalEnergyPort'].includes(port.type) ||
+      /^(TEI|TEO|MEI|MEO|EEI|EEO)\d+$/i.test(port.label);
+    const isEnergyConnection = (conn: DexpiConnection) =>
+      ['ThermalEnergyFlow', 'MechanicalEnergyFlow', 'ElectricalEnergyFlow', 'EnergyFlow'].includes(conn.dexpiType);
+
+    const addBoundaryProxy = (
+      parent: DexpiStep,
+      parentPort: DexpiPort,
+      innerPortIds: string[],
+      sourceConnections: DexpiConnection[] = []
+    ) => {
+      const eventType = oppositeEventType(parentPort);
+      const eventPortDirection = oppositePortDirection(parentPort);
+      const eventId = uniqueId(`${parent.id}_${parentPort.label}_${eventType}`, stepIds);
+      const eventPortId = uniqueId(`${eventId}_${parentPort.label}_port`, portIds);
+      const eventPort: DexpiPort = {
+        id: eventPortId,
+        type: parentPort.type,
+        direction: eventPortDirection,
+        label: parentPort.label,
+        identifier: eventPortId,
+        superPortId: parentPort.id,
+      };
+      const eventStep: DexpiStep = {
+        id: eventId,
+        dexpiType: eventType,
+        identifier: eventId,
+        label: parentPort.label,
+        ports: [eventPort],
+        parentId: parent.id,
+        children: [],
+      };
+
+      parent.children.push(eventStep);
+      parsed.steps.push(eventStep);
+      stepById.set(eventStep.id, eventStep);
+      portById.set(eventPort.id, eventPort);
+      portToStep.set(eventPort.id, eventStep);
+      parentPort.subPortIds = [eventPort.id];
+
+      innerPortIds.forEach((innerPortId, index) => {
+        if (!portById.has(innerPortId)) return;
+        const sourcePortId = parentPort.direction === 'Inlet' ? eventPort.id : innerPortId;
+        const targetPortId = parentPort.direction === 'Inlet' ? innerPortId : eventPort.id;
+        const sourcePort = portById.get(sourcePortId);
+        const targetPort = portById.get(targetPortId);
+        const sourceConnection = sourceConnections[index] || sourceConnections[0];
+        const flowId = uniqueId(`${eventId}_flow_${index + 1}`, connectionIds);
+
+        parsed.connections.push({
+          id: flowId,
+          dexpiType: sourceConnection?.dexpiType || streamTypeForPort(parentPort),
+          identifier: flowId,
+          label: `${sourcePort?.label || sourcePortId} - ${targetPort?.label || targetPortId}`,
+          sourcePortId,
+          targetPortId,
+        });
+      });
+    };
+
+    parsed.steps
+      .filter(parent => parent.children.length > 0)
+      .forEach(parent => {
+        parent.ports.forEach(parentPort => {
+          if (parentPort.type === 'InformationPort') return;
+
+          const existingProxyPortIds = findExistingProxyPorts(parent, parentPort);
+          if (existingProxyPortIds.length > 0) {
+            existingProxyPortIds.forEach(portId => {
+              const childPort = portById.get(portId);
+              if (childPort) childPort.superPortId = parentPort.id;
+              addSubReference(parentPort, portId);
+            });
+            return;
+          }
+
+          const innerPortIdsFromSubReference = (parentPort.subPortIds || [])
+            .filter(portId => {
+              const innerStep = portToStep.get(portId);
+              return isDescendantOf(innerStep, parent.id);
+            });
+
+          if (innerPortIdsFromSubReference.length > 0) {
+            const parentPortConnections = parsed.connections.filter(conn =>
+              !conn.hidden &&
+              conn.dexpiType !== 'InformationFlow' &&
+              (conn.sourcePortId === parentPort.id || conn.targetPortId === parentPort.id)
+            );
+            const isPeerEnergyBoundary = parentPortConnections.length > 0 &&
+              (
+                isEnergyPortLike(parentPort) ||
+                innerPortIdsFromSubReference.some(portId => {
+                  const innerPort = portById.get(portId);
+                  return innerPort ? isEnergyPortLike(innerPort) : false;
+                }) ||
+                parentPortConnections.some(isEnergyConnection)
+              ) &&
+              parentPortConnections.every(conn => {
+                const otherPortId = conn.sourcePortId === parentPort.id ? conn.targetPortId : conn.sourcePortId;
+                const otherStep = portToStep.get(otherPortId);
+                return !!otherStep &&
+                  !isDescendantOf(otherStep, parent.id) &&
+                  otherStep.id !== parent.id &&
+                  otherStep.dexpiType !== 'Source' &&
+                  otherStep.dexpiType !== 'Sink';
+              });
+
+            if (isPeerEnergyBoundary) return;
+            addBoundaryProxy(parent, parentPort, innerPortIdsFromSubReference);
+            return;
+          }
+
+          const crossingConnections = parsed.connections.filter(conn => {
+            if (conn.hidden || conn.dexpiType === 'InformationFlow') return false;
+            const sourceStep = portToStep.get(conn.sourcePortId);
+            const targetStep = portToStep.get(conn.targetPortId);
+            if (!sourceStep || !targetStep) return false;
+            if (conn.sourcePortId === parentPort.id) return isDescendantOf(targetStep, parent.id);
+            if (conn.targetPortId === parentPort.id) return isDescendantOf(sourceStep, parent.id);
+            return false;
+          });
+
+          if (crossingConnections.length === 0) return;
+
+          const innerPortIds = crossingConnections
+            .map(conn => conn.sourcePortId === parentPort.id ? conn.targetPortId : conn.sourcePortId)
+            .filter(portId => {
+              const innerStep = portToStep.get(portId);
+              return isDescendantOf(innerStep, parent.id);
+            });
+
+          if (innerPortIds.length === 0) return;
+          crossingConnections.forEach(conn => { conn.hidden = true; });
+          addBoundaryProxy(parent, parentPort, innerPortIds, crossingConnections);
+        });
+      });
+  }
+
   private getDataString(parent: Element | null, property: string): string {
     if (!parent) return '';
     const dataEl = parent.querySelector(`Data[property="${property}"] String`);
@@ -295,6 +538,7 @@ export class DexpiToBpmnTransformer {
     });
 
     connections.forEach(conn => {
+      if (conn.hidden) return;
       if (conn.dexpiType === 'InformationFlow') return;
       const src = portToStep.get(conn.sourcePortId);
       const tgt = portToStep.get(conn.targetPortId);
@@ -519,7 +763,9 @@ export class DexpiToBpmnTransformer {
     const portToStep = new Map<string, string>();
     steps.forEach(s => s.ports.forEach(p => portToStep.set(p.id, s.id)));
     const stepById = new Map(steps.map(s => [s.id, s]));
-    const hiddenStepIds = new Set(steps.filter(step => this.isPortProxyStep(step)).map(step => step.id));
+    const hiddenStepIds = new Set(steps
+      .filter(step => !step.parentId && this.isPortProxyStep(step))
+      .map(step => step.id));
 
     const processId = 'Process_imported';
     const defId = 'Definitions_imported';
@@ -532,8 +778,8 @@ export class DexpiToBpmnTransformer {
       return (src !== undefined && hiddenStepIds.has(src)) ||
              (tgt !== undefined && hiddenStepIds.has(tgt));
     };
-    const seqFlows = connections.filter(c => c.dexpiType !== 'InformationFlow' && !isHiddenConnection(c));
-    const infoFlows = connections.filter(c => c.dexpiType === 'InformationFlow' && !isHiddenConnection(c));
+    const seqFlows = connections.filter(c => !c.hidden && c.dexpiType !== 'InformationFlow' && !isHiddenConnection(c));
+    const infoFlows = connections.filter(c => !c.hidden && c.dexpiType === 'InformationFlow' && !isHiddenConnection(c));
 
     // Build incoming/outgoing maps for steps
     const incoming = new Map<string, string[]>();
@@ -704,7 +950,9 @@ export class DexpiToBpmnTransformer {
       const portsXml = step.ports.map(p => {
         const bpmnDir = p.direction === 'Outlet' ? 'Outlet' : 'Inlet';
         const anchor = portAnchor(step, p.id);
-        return `${indent}    <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.type}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchor.side}" anchorOffset="${anchor.offset.toFixed(2)}"/>`;
+        const subReference = p.subPortIds && p.subPortIds.length > 0 ? ` subReference="${p.subPortIds.join(' ')}"` : '';
+        const superReference = p.superPortId ? ` superReference="${p.superPortId}"` : '';
+        return `${indent}    <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.type}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchor.side}" anchorOffset="${anchor.offset.toFixed(2)}"${subReference}${superReference}/>`;
       }).join('\n');
 
       return `${indent}<bpmn:extensionElements>
@@ -778,7 +1026,7 @@ ${indent}</bpmn:task>`;
       if (!sequenceFlowsByOwner.has(key)) sequenceFlowsByOwner.set(key, []);
       sequenceFlowsByOwner.get(key)!.push(`<bpmn:sequenceFlow id="${connId}" name="${conn.label}" sourceRef="${bpmnId(src)}" targetRef="${bpmnId(tgt)}">
   <bpmn:extensionElements>
-    <dexpi:Stream uid="${conn.id}" identifier="${conn.identifier}"${streamTypeAttr}/>
+    <dexpi:Stream uid="${conn.id}" identifier="${conn.identifier}"${streamTypeAttr} sourcePortRef="${conn.sourcePortId}" targetPortRef="${conn.targetPortId}"/>
   </bpmn:extensionElements>
 </bpmn:sequenceFlow>`);
 
@@ -1063,6 +1311,7 @@ ${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
 
   private isPortProxyStep(step: DexpiStep): boolean {
     if (step.dexpiType !== 'Source' && step.dexpiType !== 'Sink') return false;
+    if (step.ports.some(port => port.superPortId)) return true;
 
     const label = step.label.trim();
     if (!label) return false;

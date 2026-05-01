@@ -54,6 +54,33 @@ function port(id: string, type: string, direction: 'In' | 'Out', label: string):
             </Object>`;
 }
 
+function portWithRefs(
+  id: string,
+  type: string,
+  direction: 'In' | 'Out',
+  label: string,
+  refs: { sub?: string[]; super?: string } = {}
+): string {
+  const references = [
+    refs.sub && refs.sub.length > 0
+      ? `<References property="SubReference" objects="${refs.sub.map(ref => `#${ref}`).join(' ')}"/>`
+      : '',
+    refs.super
+      ? `<References property="SuperReference" objects="#${refs.super}"/>`
+      : '',
+  ].filter(Boolean).join('\n              ');
+
+  return `
+            <Object id="${id}" type="Process/Process.${type}">
+              <Data property="Identifier"><String>${id}</String></Data>
+              <Data property="Label"><String>${label}</String></Data>
+              <Data property="NominalDirection">
+                <DataReference data="Process/Enumerations.PortDirectionClassification.${direction}"/>
+              </Data>
+              ${references}
+            </Object>`;
+}
+
 function stream(id: string, type: string, srcPort: string, tgtPort: string, label = ''): string {
   return `
         <Object id="${id}" type="Process/Process.${type}">
@@ -254,6 +281,70 @@ ${step('MX1', 'Mixing', 'Mixer')}
 
       expect(out).toContain('<bpmn:subProcess id="bpmn_RC1"');
       expect(out).toContain('<bpmn:task id="bpmn_MX1"');
+    });
+
+    it('synthesizes boundary Source/Sink events and skips peer-to-peer boundary ports', () => {
+      const parentPorts =
+        portWithRefs('RC_MI1', 'MaterialPort', 'In', 'MI1', { sub: ['Reactor_MI1'] }) +
+        port('RC_MO1', 'MaterialPort', 'Out', 'MO1') +
+        portWithRefs('RC_TEI1', 'ThermalEnergyPort', 'In', 'TEI1', { sub: ['Reactor_TEI1'] }) +
+        portWithRefs('RC_IPI_Temperature', 'InformationPort', 'In', 'IPI_Temperature', { sub: ['Reactor_IPI_Temperature'] });
+      const reactorPorts =
+        port('Reactor_MI1', 'MaterialPort', 'In', 'MI1') +
+        port('Reactor_MO1', 'MaterialPort', 'Out', 'MO1') +
+        portWithRefs('Reactor_TEI1', 'ThermalEnergyPort', 'In', 'TEI1', { super: 'RC_TEI1' }) +
+        portWithRefs('Reactor_IPI_Temperature', 'InformationPort', 'In', 'IPI_Temperature', { super: 'RC_IPI_Temperature' });
+      const heatPorts = port('Heater_TEO1', 'ThermalEnergyPort', 'Out', 'TEO1');
+      const xml = dexpi(
+        subProcessStep(
+          'RC',
+          'ReactingChemicals',
+          'Reactor section',
+          step('Reactor', 'ReactingChemicals', 'Reactor', reactorPorts),
+          parentPorts
+        ) +
+          step('Heater', 'SupplyingThermalEnergy', 'Heater', heatPorts),
+        stream('BoundaryOut', 'Stream', 'Reactor_MO1', 'RC_MO1') +
+          stream('ThermalPeer', 'ThermalEnergyFlow', 'Heater_TEO1', 'RC_TEI1')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(out).toContain('<bpmn:startEvent id="bpmn_RC_MI1_Source" name="MI1">');
+      expect(out).toContain('<bpmn:endEvent id="bpmn_RC_MO1_Sink" name="MO1">');
+      expect(out).toContain('portId="RC_MI1" name="MI1" portType="MaterialPort" direction="Inlet"');
+      expect(out).toContain('subReference="RC_MI1_Source_MI1_port"');
+      expect(out).toContain('portId="RC_MI1_Source_MI1_port" name="MI1" portType="MaterialPort" direction="Outlet"');
+      expect(out).toContain('superReference="RC_MI1"');
+      expect(out).toContain('sourcePortRef="RC_MI1_Source_MI1_port" targetPortRef="Reactor_MI1"');
+      expect(out).toContain('sourcePortRef="Reactor_MO1" targetPortRef="RC_MO1_Sink_MO1_port"');
+      expect(out).not.toContain('id="bpmn_BoundaryOut"');
+      expect(out).not.toContain('bpmn_RC_TEI1_Source');
+      expect(out).not.toContain('bpmn_RC_IPI_Temperature_Source');
+      expect(out).toContain('id="bpmn_ThermalPeer"');
+    });
+
+    it('uses existing child Source/Sink boundary events instead of synthesizing duplicates', () => {
+      const parentPorts = portWithRefs('RC_MI1', 'MaterialPort', 'In', 'MI1', { sub: ['InnerSource_MO1'] });
+      const sourcePorts = portWithRefs('InnerSource_MO1', 'MaterialPort', 'Out', 'MI1', { super: 'RC_MI1' });
+      const reactorPorts = port('Reactor_MI1', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        subProcessStep(
+          'RC',
+          'ReactingChemicals',
+          'Reactor section',
+          step('InnerSource', 'Source', 'MI1', sourcePorts) +
+            step('Reactor', 'ReactingChemicals', 'Reactor', reactorPorts),
+          parentPorts
+        ),
+        stream('InnerFeed', 'Stream', 'InnerSource_MO1', 'Reactor_MI1')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(out).toContain('<bpmn:startEvent id="bpmn_InnerSource" name="MI1">');
+      expect(out).toContain('superReference="RC_MI1"');
+      expect(out).toContain('subReference="InnerSource_MO1"');
+      expect(out).not.toContain('bpmn_RC_MI1_Source');
+      expect(out).toContain('sourcePortRef="InnerSource_MO1" targetPortRef="Reactor_MI1"');
     });
   });
 
