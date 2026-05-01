@@ -306,7 +306,6 @@ export class DexpiToBpmnTransformer {
 
       return parsed.steps
         .filter(step =>
-          step.parentId === parent.id &&
           step.dexpiType === expectedType &&
           step.ports.length > 0
         )
@@ -316,10 +315,23 @@ export class DexpiToBpmnTransformer {
           (
             port.superPortId === parentPort.id ||
             explicitRefs.has(port.id) ||
-            (port.label === parentPort.label && !port.superPortId && explicitRefs.size === 0)
+            (portToStep.get(port.id)?.parentId === parent.id &&
+              port.label === parentPort.label &&
+              !port.superPortId &&
+              explicitRefs.size === 0)
           )
         )
-        .map(port => port.id);
+        .map(port => {
+          const proxyStep = portToStep.get(port.id);
+          const isExplicitBoundaryProxy = port.superPortId === parentPort.id || explicitRefs.has(port.id);
+          if (proxyStep && !proxyStep.parentId && isExplicitBoundaryProxy) {
+            proxyStep.parentId = parent.id;
+            if (!parent.children.some(child => child.id === proxyStep.id)) {
+              parent.children.push(proxyStep);
+            }
+          }
+          return port.id;
+        });
     };
 
     const uniqueId = (base: string, used: Set<string>) => {

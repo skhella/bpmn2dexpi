@@ -346,6 +346,43 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(out).not.toContain('bpmn_RC_MI1_Source');
       expect(out).toContain('sourcePortRef="InnerSource_MO1" targetPortRef="Reactor_MI1"');
     });
+
+    it('adopts root-level boundary Source/Sink events into the referenced subprocess', () => {
+      const parentPorts =
+        portWithRefs('RC_MI1', 'MaterialPort', 'In', 'MI1', { sub: ['RootSource_MO1'] }) +
+        portWithRefs('RC_MO1', 'MaterialPort', 'Out', 'MO1', { sub: ['RootSink_MI1'] });
+      const sourcePorts = portWithRefs('RootSource_MO1', 'MaterialPort', 'Out', 'MI1', { super: 'RC_MI1' });
+      const sinkPorts = portWithRefs('RootSink_MI1', 'MaterialPort', 'In', 'MO1', { super: 'RC_MO1' });
+      const reactorPorts =
+        port('Reactor_MI1', 'MaterialPort', 'In', 'MI1') +
+        port('Reactor_MO1', 'MaterialPort', 'Out', 'MO1');
+      const xml = dexpi(
+        subProcessStep(
+          'RC',
+          'ReactingChemicals',
+          'Reactor section',
+          step('Reactor', 'ReactingChemicals', 'Reactor', reactorPorts),
+          parentPorts
+        ) +
+          step('RootSource', 'Source', 'MI1', sourcePorts) +
+          step('RootSink', 'Sink', 'MO1', sinkPorts),
+        stream('InnerFeed', 'Stream', 'RootSource_MO1', 'Reactor_MI1') +
+          stream('InnerProduct', 'Stream', 'Reactor_MO1', 'RootSink_MI1')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const parentStart = out.indexOf('<bpmn:subProcess id="bpmn_RC"');
+      const sourceEvent = out.indexOf('<bpmn:startEvent id="bpmn_RootSource"');
+      const sinkEvent = out.indexOf('<bpmn:endEvent id="bpmn_RootSink"');
+      const parentEnd = out.indexOf('</bpmn:subProcess>', parentStart);
+
+      expect(sourceEvent).toBeGreaterThan(parentStart);
+      expect(sourceEvent).toBeLessThan(parentEnd);
+      expect(sinkEvent).toBeGreaterThan(parentStart);
+      expect(sinkEvent).toBeLessThan(parentEnd);
+      expect(out).toContain('sourcePortRef="RootSource_MO1" targetPortRef="Reactor_MI1"');
+      expect(out).toContain('sourcePortRef="Reactor_MO1" targetPortRef="RootSink_MI1"');
+    });
   });
 
   describe('port mapping', () => {
