@@ -656,15 +656,19 @@ ${step('MX1', 'Mixing', 'Mixer')}
         stream('S1', 'Stream', 'SE_out', 'A_in') +
           stream('S2', 'Stream', 'A_out', 'B_in') +
           stream('S3', 'Stream', 'B_out', 'C_in') +
-          stream('S4', 'Stream', 'C_out', 'A_recycle_in')
+          stream('S4', 'Stream', 'C_out', 'A_in', 'MO1 - Stream 4 - MI2')
       );
       const out = new DexpiToBpmnTransformer().transform(xml);
+      const early = shapeBounds(out, 'bpmn_A');
       const recycle = shapeBounds(out, 'bpmn_C');
       const returnFlow = edgeWaypoints(out, 'bpmn_S4');
 
       expect(returnFlow[0].x).toBe(recycle.x + recycle.w / 2);
       expect(returnFlow[0].y).toBe(recycle.y);
       expect(returnFlow[1].y).toBeLessThan(returnFlow[0].y);
+      expect(returnFlow.at(-1)?.x).toBe(early.x);
+      expect(returnFlow.at(-1)?.y).toBe(early.y + early.h * 2 / 3);
+      expect(out).toMatch(/portId="A_recycle_in"[^>]*direction="Inlet"[^>]*anchorSide="left"[^>]*anchorOffset="0.67"/);
     });
 
     it('routes lower branch streams out of the bottom of the source task', () => {
@@ -722,6 +726,114 @@ ${step('MX1', 'Mixing', 'Mixer')}
         reactor.y + reactor.h / 3,
         reactor.y + reactor.h * 2 / 3,
       ]);
+    });
+
+    it('keeps information-only measurement tasks out of the process spine', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const reactorPorts =
+        port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
+        port('Reactor_out', 'MaterialPort', 'Out', 'MO1') +
+        port('Reactor_temperature', 'InformationPort', 'In', 'IPI_Temperature') +
+        port('Reactor_pressure', 'InformationPort', 'In', 'IPI_Pressure');
+      const sinkPort = port('EE_in', 'MaterialPort', 'In', 'MI1');
+      const sensor1Port = port('Sensor1_out', 'InformationPort', 'Out', 'IPO_Temperature');
+      const sensor2Port = port('Sensor2_out', 'InformationPort', 'Out', 'IPO_Pressure');
+      const infoFlow = (id: string, src: string, tgt: string, variable: string) => `
+        <Object id="${id}" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>${id}</String></Data>
+          <References property="Source" objects="#${src}"/>
+          <References property="Target" objects="#${tgt}"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>${variable}</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('Reactor', 'ReactingChemicals', 'Reactor', reactorPorts) +
+          step('EE1', 'Sink', 'Product', sinkPort) +
+          step('Sensor1', 'MeasuringProcessVariable', 'TI-101', sensor1Port) +
+          step('Sensor2', 'MeasuringProcessVariable', 'PI-101', sensor2Port),
+        stream('S_feed', 'Stream', 'SE_out', 'Reactor_in') +
+          stream('S_product', 'Stream', 'Reactor_out', 'EE_in') +
+          infoFlow('IF_temperature', 'Sensor1_out', 'Reactor_temperature', 'Temperature') +
+          infoFlow('IF_pressure', 'Sensor2_out', 'Reactor_pressure', 'Pressure')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const reactor = shapeBounds(out, 'bpmn_Reactor');
+      const sink = shapeBounds(out, 'bpmn_EE1');
+      const sensor1 = shapeBounds(out, 'bpmn_Sensor1');
+      const sensor2 = shapeBounds(out, 'bpmn_Sensor2');
+      const temperatureObject = shapeBounds(out, 'dobj_bpmn_IF_temperature');
+
+      expect(reactor.x).toBeLessThan(sink.x);
+      expect(sensor1.x).toBeGreaterThan(sink.x);
+      expect(sensor2.x).toBe(sensor1.x);
+      expect(sensor2.y).not.toBe(sensor1.y);
+      expect(temperatureObject.x).toBeGreaterThan(reactor.x + reactor.w);
+    });
+
+    it('uses subprocess port references to place entry and exit child tasks', () => {
+      const parentPorts =
+        portWithReferences('SP_parent_in', 'MaterialPort', 'In', 'MI1', { SubReference: 'EntryProxy_out' }) +
+        portWithReferences('SP_parent_out', 'MaterialPort', 'Out', 'MO1', { SubReference: 'ExitProxy_in' });
+      const entryProxyPorts = portWithReferences(
+        'EntryProxy_out',
+        'MaterialPort',
+        'Out',
+        'MO1',
+        { SuperReference: 'SP_parent_in' }
+      );
+      const exitProxyPorts = portWithReferences(
+        'ExitProxy_in',
+        'MaterialPort',
+        'In',
+        'MI1',
+        { SuperReference: 'SP_parent_out' }
+      );
+      const entryPorts =
+        port('Entry_in', 'MaterialPort', 'In', 'MI1') +
+        port('Entry_out', 'MaterialPort', 'Out', 'MO1');
+      const middlePorts =
+        port('Middle_in', 'MaterialPort', 'In', 'MI1') +
+        port('Middle_out', 'MaterialPort', 'Out', 'MO1');
+      const exitPorts =
+        port('Exit_in', 'MaterialPort', 'In', 'MI1') +
+        port('Exit_out', 'MaterialPort', 'Out', 'MO1');
+      const instrumentPorts = port('Instrument_out', 'InformationPort', 'Out', 'IPO_T');
+      const xml = dexpi(
+        subProcessStep(
+          'SP',
+          'ReactingChemicals',
+          'Referenced subprocess',
+          step('EntryProxy', 'Source', 'MO1', entryProxyPorts) +
+            step('Entry', 'ReactingChemicals', 'Entry task', entryPorts) +
+            step('Middle', 'Pumping', 'Middle task', middlePorts) +
+            step('Exit', 'Separating', 'Exit task', exitPorts) +
+            step('Instrument', 'MeasuringProcessVariable', 'Sensor', instrumentPorts) +
+            step('ExitProxy', 'Sink', 'MI1', exitProxyPorts),
+          parentPorts
+        ),
+        stream('S_entry', 'Stream', 'EntryProxy_out', 'Entry_in') +
+          stream('S_middle', 'Stream', 'Entry_out', 'Middle_in') +
+          stream('S_exit', 'Stream', 'Middle_out', 'Exit_in') +
+          stream('S_boundary_exit', 'Stream', 'Exit_out', 'ExitProxy_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(out).not.toContain('bpmn_EntryProxy');
+      expect(out).not.toContain('bpmn_ExitProxy');
+
+      const entry = shapeBounds(out, 'bpmn_Entry');
+      const middle = shapeBounds(out, 'bpmn_Middle');
+      const exit = shapeBounds(out, 'bpmn_Exit');
+      const instrument = shapeBounds(out, 'bpmn_Instrument');
+
+      expect(entry.x).toBeLessThan(middle.x);
+      expect(middle.x).toBeLessThan(exit.x);
+      expect(instrument.x).toBeGreaterThan(entry.x);
+      expect(exit.x).toBeGreaterThan(instrument.x);
     });
   });
 
