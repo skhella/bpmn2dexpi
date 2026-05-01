@@ -191,10 +191,20 @@ export interface TransformOptions {
 
 // ── Validation result ─────────────────────────────────────────────────────────
 
+/**
+ * 'xsd'        — full XSD validation against the official DEXPI 2.0 schema
+ *                via xmllint (Node / CLI environments).
+ * 'structural' — browser-safe fallback that checks the key DEXPI 2.0 object-model
+ *                invariants without invoking xmllint.
+ */
+export type ValidationMode = 'xsd' | 'structural';
+
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
   warnings: string[];
+  /** Which validation strategy produced this result. */
+  mode?: ValidationMode;
 }
 
 // ── Step typing result (three-mode classification) ────────────────────────────
