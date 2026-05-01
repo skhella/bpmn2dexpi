@@ -36,7 +36,8 @@ export interface DexpiPort {
    * Set on proxy-event ports. Value is the portId of the parent subprocess port.
    */
   superReference?: string;
-  portType: 'MaterialPort' | 'InformationPort' | 'ThermalEnergyPort' | 'MechanicalEnergyPort' | 'ElectricalEnergyPort';
+  type: 'MaterialPort' | 'InformationPort' | 'ThermalEnergyPort' | 'MechanicalEnergyPort' | 'ElectricalEnergyPort';
+  portType?: string; // legacy alias — use type
   direction: 'Inlet' | 'Outlet';
   anchorSide?: 'top' | 'right' | 'bottom' | 'left';
   anchorOffset?: number;

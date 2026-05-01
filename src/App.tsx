@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, type MouseEvent } from 'react';
 import BpmnModeler from 'bpmn-js/lib/Modeler';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css';
@@ -9,6 +9,7 @@ import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { transformer } from './transformer/BpmnToDexpiTransformer';
+import { DexpiToBpmnTransformer } from './transformer/DexpiToBpmnTransformer';
 import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
@@ -88,7 +89,28 @@ function App() {
   const [showNeo4jModal, setShowNeo4jModal] = useState(false);
   const [neo4jExporting, setNeo4jExporting] = useState(false);
   const [neo4jProgress, setNeo4jProgress] = useState<{ current: number; total: number; stage: string } | null>(null);
+  const [propertiesPanelWidth, setPropertiesPanelWidth] = useState<number>(350);
   const isNavigatingBack = useRef(false);
+
+  const startPropertiesPanelResize = (event: MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const resize = (moveEvent: globalThis.MouseEvent) => {
+      const nextWidth = window.innerWidth - moveEvent.clientX;
+      const clampedWidth = Math.min(720, Math.max(280, nextWidth));
+      setPropertiesPanelWidth(clampedWidth);
+    };
+
+    const stopResize = () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResize);
+      document.body.classList.remove('resizing-properties-panel');
+    };
+
+    document.body.classList.add('resizing-properties-panel');
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResize);
+  };
   
   // Update global flag for port visibility
   useEffect(() => {
@@ -409,6 +431,10 @@ function App() {
       // Now set the modeler state - the app is ready
       setModeler(bpmnModeler);
       if (savedXml) setValidationMessage('Restored previous session');
+
+      // Reanchor ports that lack explicit anchor positions after a short
+      // delay to let the modeler fully settle (ports need to be in the registry)
+      setTimeout(() => reanchorPortsAfterImport(bpmnModeler), 300);
     }).catch((err: any) => {
       if (isDestroyed) return;
       console.error('Failed to import BPMN:', err);
@@ -433,8 +459,8 @@ function App() {
     if (!modeler) return;
 
     try {
-      const result = await modeler.saveXML({ format: true });
-      const xml = result.xml;
+      const rawResult = await modeler.saveXML({ format: true });
+      const xml = rawResult.xml;
       
       const blob = new Blob([xml || ''], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
@@ -456,8 +482,8 @@ function App() {
 
     try {
       // Step 1: Generate BPMN XML with DEXPI extensions
-      const result = await modeler.saveXML({ format: true });
-      const bpmnXml = result.xml;
+      const rawResult = await modeler.saveXML({ format: true });
+      const bpmnXml = rawResult.xml;
       
       if (!bpmnXml) {
         setValidationMessage('No BPMN XML to transform');
@@ -528,8 +554,8 @@ function App() {
 
     try {
       // Generate BPMN XML then transform to DEXPI
-      const result = await modeler.saveXML({ format: true });
-      const bpmnXml = result.xml;
+      const rawResult = await modeler.saveXML({ format: true });
+      const bpmnXml = rawResult.xml;
       
       if (!bpmnXml) {
         setValidationMessage('No BPMN XML to export');
@@ -560,6 +586,52 @@ function App() {
     }
   };
 
+  /**
+   * After importing a BPMN file, assign anchorSide/anchorOffset to any DEXPI
+   * ports that lack them. Inlets → left side, Outlets → right side, spread
+   * evenly. Matches AutoTypeBehavior logic for newly drawn connections.
+   */
+  const reanchorPortsAfterImport = (bpmnModelerInstance?: any) => {
+    const m = bpmnModelerInstance || modeler;
+    if (!m) return;
+    try {
+      const elementRegistry = m.get('elementRegistry') as any;
+      const eventBus = m.get('eventBus') as any;
+
+      elementRegistry.getAll().forEach((element: any) => {
+        const bo = element.businessObject;
+        const ext = bo?.extensionElements?.values;
+        if (!ext?.length) return;
+
+        const dexpiEl = ext.find((e: any) => e.$type === 'dexpi:Element');
+        if (!dexpiEl?.ports?.length) return;
+
+        const inlets  = dexpiEl.ports.filter((p: any) => p.direction === 'Inlet');
+        const outlets = dexpiEl.ports.filter((p: any) => p.direction === 'Outlet');
+
+        let changed = false;
+        dexpiEl.ports.forEach((port: any) => {
+          if (port.anchorSide) return;
+          const isOutlet = port.direction === 'Outlet';
+          const group = isOutlet ? outlets : inlets;
+          const idx = group.indexOf(port);
+          // Direct mutation — no command stack, no autosave trigger
+          port.anchorSide = isOutlet ? 'right' : 'left';
+          port.anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
+          changed = true;
+        });
+
+        if (changed) {
+          // Fire element-changed to trigger re-render without going through modeling API
+          eventBus.fire('element.changed', { element });
+        }
+      });
+    } catch (e) {
+      // Never let port anchoring break the modeler
+      console.warn('reanchorPortsAfterImport error (non-fatal):', e);
+    }
+  };
+
   const handleImportBpmn = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -576,7 +648,6 @@ function App() {
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
         setValidationMessage('BPMN imported successfully!');
-        // Reset navigation state
         setPlaneStack([]);
         setCurrentPlane(null);
         const canvas = modeler.get('canvas') as any;
@@ -584,6 +655,39 @@ function App() {
       } catch (err) {
         console.error('Import failed:', err);
         setValidationMessage('Import failed: ' + (err as Error).message);
+      }
+    };
+    input.click();
+  };
+
+  const handleImportDexpi = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xml';
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file || !modeler) return;
+
+      setValidationMessage('⏳ Importing DEXPI XML...');
+
+      // Yield to let the UI update before heavy processing
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      try {
+        const dexpiXml = await file.text();
+        const t = new DexpiToBpmnTransformer();
+        const bpmnXml = t.transform(dexpiXml);
+
+        await modeler.importXML(bpmnXml);
+        reanchorPortsAfterImport();
+        setPlaneStack([]);
+        setCurrentPlane(null);
+        const canvas = modeler.get('canvas') as any;
+        canvas.zoom('fit-viewport');
+        setValidationMessage('✓ DEXPI imported successfully');
+      } catch (err) {
+        console.error('DEXPI import failed:', err);
+        setValidationMessage('✗ DEXPI import failed: ' + (err as Error).message);
       }
     };
     input.click();
@@ -634,6 +738,7 @@ function App() {
           </button>
           <button onClick={handleNewDiagram} className="btn" title="Start a new empty diagram">New</button>
           <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
+          <button onClick={handleImportDexpi} className="btn">Import DEXPI XML</button>
           <button onClick={handleExportBpmn} className="btn">Export BPMN</button>
           <button onClick={handleExportSvg} className="btn">Export SVG</button>
           <button onClick={() => setShowNeo4jModal(true)} className="btn btn-neo4j" title="Export to Neo4j Graph Database">
@@ -672,7 +777,15 @@ function App() {
           </>
         )}
         
-        <div className="properties-panel">
+        <div
+          className="properties-panel"
+          style={{ width: propertiesPanelWidth, minWidth: propertiesPanelWidth }}
+        >
+          <div
+            className="properties-panel-resizer"
+            onMouseDown={startPropertiesPanelResize}
+            title="Resize properties panel"
+          />
           {selectedMaterialItem ? (
             <MaterialEditorPanel 
               item={selectedMaterialItem} 

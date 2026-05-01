@@ -1,75 +1,78 @@
 #!/usr/bin/env node
 
 /**
- * CLI tool for converting BPMN files to DEXPI XML
- * Usage: node cli.js input.bpmn [output.xml]
- * Or: npm run transform input.bpmn [output.xml]
+ * bpmn2dexpi CLI
+ * Usage:
+ *   node --import tsx cli.js <input.bpmn> [output.xml]           BPMN → DEXPI
+ *   node --import tsx cli.js --reverse <input.xml> [output.bpmn] DEXPI → BPMN
  */
 
 import { readFileSync, writeFileSync } from 'fs';
-import { transformer } from './src/transformer/BpmnToDexpiTransformer.ts';
 import { JSDOM } from 'jsdom';
 
-// Set up DOM globals for Node.js environment
+// DOM polyfill — must run before any transformer is imported/instantiated
 const dom = new JSDOM('<!DOCTYPE html>');
 global.DOMParser = dom.window.DOMParser;
 global.XMLSerializer = dom.window.XMLSerializer;
 global.Document = dom.window.Document;
 global.Element = dom.window.Element;
 
+// Static imports — class definitions only, no instantiation at module level issue
+// because BpmnToDexpiTransformer exports `transformer` (a singleton instance).
+// We lazy-import to avoid running that singleton constructor before polyfills are set.
 const args = process.argv.slice(2);
 
 if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
   console.log(`
-bpmn2dexpi - BPMN to DEXPI XML Transformer
+bpmn2dexpi - BPMN ↔ DEXPI XML Transformer
 
 Usage:
-  node cli.js <input.bpmn> [output.xml]
-  npm run transform <input.bpmn> [output.xml]
-
-Arguments:
-  input.bpmn   Path to input BPMN file (required)
-  output.xml   Path to output DEXPI XML file (optional, prints to stdout if not provided)
+  node --import tsx cli.js <input.bpmn> [output.xml]           BPMN → DEXPI (default)
+  node --import tsx cli.js --reverse <input.xml> [output.bpmn] DEXPI → BPMN
 
 Examples:
-  node cli.js process.bpmn                  # Print DEXPI XML to console
-  node cli.js process.bpmn output.xml       # Save DEXPI XML to file
-  npm run transform process.bpmn output.xml # Using npm script
-
-From Python:
-  import subprocess
-  result = subprocess.run(['node', 'cli.js', 'input.bpmn'], capture_output=True, text=True)
-  dexpi_xml = result.stdout
+  node --import tsx cli.js process.bpmn output.xml
+  node --import tsx cli.js --reverse process.xml output.bpmn
+  npm run transform process.bpmn output.xml
+  npm run transform:reverse process.xml output.bpmn
 `);
   process.exit(0);
 }
 
-const inputPath = args[0];
-const outputPath = args[1];
+const isReverse = args[0] === '--reverse';
+const inputPath = isReverse ? args[1] : args[0];
+const outputPath = isReverse ? args[2] : args[1];
+
+if (!inputPath) {
+  console.error('✗ Error: input file required');
+  process.exit(1);
+}
 
 async function main() {
   try {
-    // Read BPMN file
-    const bpmnXml = readFileSync(inputPath, 'utf-8');
-    
-    // Transform to DEXPI
-    const dexpiXml = await transformer.transform(bpmnXml);
-    
-    if (outputPath) {
-      // Write to file
-      writeFileSync(outputPath, dexpiXml, 'utf-8');
-      console.error(`✓ Successfully transformed ${inputPath} → ${outputPath}`);
+    const inputXml = readFileSync(inputPath, 'utf-8');
+    let outputXml;
+
+    if (isReverse) {
+      const { DexpiToBpmnTransformer } = await import('./src/transformer/DexpiToBpmnTransformer.ts');
+      const t = new DexpiToBpmnTransformer();
+      outputXml = t.transform(inputXml);
     } else {
-      // Print to stdout
-      console.log(dexpiXml);
+      const { transformer } = await import('./src/transformer/BpmnToDexpiTransformer.ts');
+      outputXml = await transformer.transform(inputXml);
     }
-    
+
+    if (outputPath) {
+      writeFileSync(outputPath, outputXml, 'utf-8');
+      console.error(`✓ ${isReverse ? 'DEXPI → BPMN' : 'BPMN → DEXPI'}: ${inputPath} → ${outputPath}`);
+    } else {
+      process.stdout.write(outputXml);
+    }
+
     process.exit(0);
   } catch (error) {
     console.error(`✗ Error: ${error.message}`);
-    if (error.stack) {
-      console.error(error.stack);
-    }
+    if (error.stack) console.error(error.stack);
     process.exit(1);
   }
 }

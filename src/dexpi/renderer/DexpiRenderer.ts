@@ -570,7 +570,7 @@ export default class DexpiRenderer extends BaseRenderer {
     let shape: SVGElement;
 
     // Different shapes for different port types
-    switch (port.portType) {
+    switch (port.type) {
       case 'MaterialPort':
         shape = svgCreate('circle');
         svgAttr(shape, {

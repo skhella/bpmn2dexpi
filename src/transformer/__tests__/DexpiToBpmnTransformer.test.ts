@@ -1,0 +1,867 @@
+import { describe, it, expect } from 'vitest';
+import { DexpiToBpmnTransformer } from '../DexpiToBpmnTransformer';
+import { BpmnToDexpiTransformer } from '../BpmnToDexpiTransformer';
+
+// Minimal DEXPI XML helper
+function dexpi(steps: string, connections = '', materialTemplates = ''): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Model name="process_model" uri="http://www.example.org">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel">
+      <Object id="pm1" type="Process/ProcessModel">
+        <Components property="ProcessSteps">
+${steps}
+        </Components>
+        ${connections ? `<Components property="ProcessConnections">${connections}</Components>` : ''}
+        ${materialTemplates ? `<Components property="MaterialTemplates">${materialTemplates}</Components>` : ''}
+      </Object>
+    </Components>
+  </Object>
+</Model>`;
+}
+
+function step(id: string, type: string, label: string, ports = ''): string {
+  return `
+        <Object id="${id}" type="Process/Process.${type}">
+          <Data property="Identifier"><String>${id}</String></Data>
+          <Data property="Label"><String>${label}</String></Data>
+          ${ports ? `<Components property="Ports">${ports}</Components>` : ''}
+        </Object>`;
+}
+
+function subProcessStep(id: string, type: string, label: string, children: string, ports = ''): string {
+  return `
+        <Object id="${id}" type="Process/Process.${type}">
+          <Data property="Identifier"><String>${id}</String></Data>
+          <Data property="Label"><String>${label}</String></Data>
+          ${ports ? `<Components property="Ports">${ports}</Components>` : ''}
+          <Components property="SubProcessSteps">
+${children}
+          </Components>
+        </Object>`;
+}
+
+function port(id: string, type: string, direction: 'In' | 'Out', label: string): string {
+  return `
+            <Object id="${id}" type="Process/Process.${type}">
+              <Data property="Identifier"><String>${id}</String></Data>
+              <Data property="Label"><String>${label}</String></Data>
+              <Data property="NominalDirection">
+                <DataReference data="Process/Enumerations.PortDirectionClassification.${direction}"/>
+              </Data>
+            </Object>`;
+}
+
+function portWithReferences(
+  id: string,
+  type: string,
+  direction: 'In' | 'Out',
+  label: string,
+  references: Record<string, string>
+): string {
+  const refsXml = Object.entries(references)
+    .map(([property, targetId]) => `<References property="${property}" objects="#${targetId}"/>`)
+    .join('\n              ');
+
+  return `
+            <Object id="${id}" type="Process/Process.${type}">
+              <Data property="Identifier"><String>${id}</String></Data>
+              <Data property="Label"><String>${label}</String></Data>
+              <Data property="NominalDirection">
+                <DataReference data="Process/Enumerations.PortDirectionClassification.${direction}"/>
+              </Data>
+              ${refsXml}
+            </Object>`;
+}
+
+function stream(id: string, type: string, srcPort: string, tgtPort: string, label = ''): string {
+  return `
+        <Object id="${id}" type="Process/Process.${type}">
+          <Data property="Identifier"><String>${id}</String></Data>
+          ${label ? `<Data property="Label"><String>${label}</String></Data>` : ''}
+          <References property="Source" objects="#${srcPort}"/>
+          <References property="Target" objects="#${tgtPort}"/>
+        </Object>`;
+}
+
+function expectWellFormedXml(xml: string): void {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  expect(doc.querySelector('parsererror')?.textContent || '').toBe('');
+}
+
+describe('DexpiToBpmnTransformer', () => {
+
+  describe('basic structure', () => {
+    it('produces valid BPMN XML with required namespaces', () => {
+      const xml = dexpi(step('SE1', 'Source', 'Feed') + step('EE1', 'Sink', 'Product'));
+      const t = new DexpiToBpmnTransformer();
+      const out = t.transform(xml);
+
+      expect(out).toContain('xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"');
+      expect(out).toContain('xmlns:bpmndi=');
+      expect(out).toContain('xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"');
+      expect(out).toContain('bpmndi:BPMNDiagram');
+      expect(out).toContain('bpmndi:BPMNPlane');
+    });
+
+    it('throws if no ProcessModel found', () => {
+      const t = new DexpiToBpmnTransformer();
+      expect(() => t.transform('<Model><bad/></Model>')).toThrow('No ProcessModel found');
+    });
+  });
+
+  describe('step type mapping', () => {
+    it('maps Source → bpmn:startEvent', () => {
+      const xml = dexpi(step('SE1', 'Source', 'Feed'));
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      expect(out).toContain('bpmn:startEvent');
+      expect(out).toContain('dexpiType="Source"');
+    });
+
+    it('maps Sink → bpmn:endEvent', () => {
+      const xml = dexpi(step('EE1', 'Sink', 'Product'));
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      expect(out).toContain('bpmn:endEvent');
+      expect(out).toContain('dexpiType="Sink"');
+    });
+
+    it('maps Pumping → bpmn:task', () => {
+      const xml = dexpi(step('T1', 'Pumping', 'Feed Pump'));
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      expect(out).toContain('bpmn:task');
+      expect(out).toContain('dexpiType="Pumping"');
+      expect(out).toContain('name="Feed Pump"');
+    });
+
+    it('preserves uid and identifier as extensionElements', () => {
+      const xml = dexpi(step('uid_pump1', 'Pumping', 'P-101'));
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      expect(out).toContain('uid="uid_pump1"');
+      expect(out).toContain('identifier="uid_pump1"');
+    });
+
+    it('omits Source/Sink steps that are only visual port proxies', () => {
+      const realSourcePort = port('ReactantA_out', 'MaterialPort', 'Out', 'MO1');
+      const proxySourcePort = port('MI1_proxy_out', 'MaterialPort', 'Out', 'MI1');
+      const taskPorts =
+        port('Pump_in', 'MaterialPort', 'In', 'MI1') +
+        port('Pump_out', 'MaterialPort', 'Out', 'MO1');
+      const proxySinkPort = port('MO1_proxy_in', 'MaterialPort', 'In', 'MO1');
+      const xml = dexpi(
+        step('ReactantA', 'Source', 'Reactant A', realSourcePort) +
+        step('MI1Proxy', 'Source', 'MI1', proxySourcePort) +
+        step('Pump', 'Pumping', 'Pump', taskPorts) +
+        step('MO1Proxy', 'Sink', 'MO1', proxySinkPort),
+        stream('RealFeed', 'Stream', 'ReactantA_out', 'Pump_in') +
+        stream('ProxyFeed', 'Stream', 'MI1_proxy_out', 'Pump_in') +
+        stream('ProxyOut', 'Stream', 'Pump_out', 'MO1_proxy_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(out).toContain('<bpmn:startEvent id="bpmn_ReactantA"');
+      expect(out).toContain('<bpmn:sequenceFlow id="bpmn_RealFeed"');
+      expect(out).not.toContain('id="bpmn_MI1Proxy"');
+      expect(out).not.toContain('id="bpmn_MO1Proxy"');
+      expect(out).not.toContain('id="bpmn_ProxyFeed"');
+      expect(out).not.toContain('id="bpmn_ProxyOut"');
+      expect(out).toContain('portId="Pump_in"');
+      expect(out).toContain('portId="Pump_out"');
+    });
+  });
+
+  describe('subprocess mapping', () => {
+    it('maps nested SubProcessSteps to a collapsed bpmn:subProcess', () => {
+      const xml = dexpi(
+        subProcessStep(
+          'RC1',
+          'ReactingChemicals',
+          'Reactor section',
+          step('MX1', 'Mixing', 'Mixer') + step('RX1', 'ReactingChemicals', 'Reactor')
+        )
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const parentStart = out.indexOf('<bpmn:subProcess id="bpmn_RC1"');
+      const childTask = out.indexOf('<bpmn:task id="bpmn_MX1"');
+      const parentEnd = out.indexOf('</bpmn:subProcess>', parentStart);
+
+      expect(parentStart).toBeGreaterThan(-1);
+      expect(out).toContain('isExpanded="false"');
+      expect(childTask).toBeGreaterThan(parentStart);
+      expect(childTask).toBeLessThan(parentEnd);
+      expect(out).toContain('<bpmndi:BPMNPlane id="bpmn_RC1_plane" bpmnElement="bpmn_RC1">');
+      expect(out).toContain('id="bpmn_MX1_di"');
+      expect(out).toContain('dexpiType="ReactingChemicals"');
+      expect(out).toContain('dexpiType="Mixing"');
+    });
+
+    it('places sequence flows between sibling subprocess children inside the subprocess', () => {
+      const c1Ports = port('MX_out', 'MaterialPort', 'Out', 'MO1');
+      const c2Ports = port('RX_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        subProcessStep(
+          'RC1',
+          'ReactingChemicals',
+          'Reactor section',
+          step('MX1', 'Mixing', 'Mixer', c1Ports) + step('RX1', 'ReactingChemicals', 'Reactor', c2Ports)
+        ),
+        stream('S_internal', 'Stream', 'MX_out', 'RX_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const parentStart = out.indexOf('<bpmn:subProcess id="bpmn_RC1"');
+      const internalFlow = out.indexOf('<bpmn:sequenceFlow id="bpmn_S_internal"');
+      const parentEnd = out.indexOf('</bpmn:subProcess>', parentStart);
+
+      expect(internalFlow).toBeGreaterThan(parentStart);
+      expect(internalFlow).toBeLessThan(parentEnd);
+      expect(out).toContain('id="bpmn_S_internal_di"');
+      expect(out).toContain('<bpmn:outgoing>bpmn_S_internal</bpmn:outgoing>');
+      expect(out).toContain('<bpmn:incoming>bpmn_S_internal</bpmn:incoming>');
+    });
+
+    it('places InformationFlow data objects in the owning subprocess plane', () => {
+      const infoOut = port('Sensor_out', 'InformationPort', 'Out', 'IPO_Temperature');
+      const infoIn = port('Reactor_in', 'InformationPort', 'In', 'IPI_Temperature');
+      const infoStream = `
+        <Object id="IF_internal" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_internal</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#Reactor_in"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        subProcessStep(
+          'RC1',
+          'ReactingChemicals',
+          'Reactor section',
+          step('Sensor', 'MeasuringProcessVariable', 'TI-101', infoOut) +
+            step('Reactor', 'ReactingChemicals', 'Reactor', infoIn)
+        ),
+        infoStream
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const subprocessEnd = out.indexOf('</bpmn:subProcess>', out.indexOf('<bpmn:subProcess id="bpmn_RC1"'));
+      const dataObject = out.indexOf('name="Temperature"');
+      const subprocessPlane = out.indexOf('<bpmndi:BPMNPlane id="bpmn_RC1_plane"');
+      const dataObjectShape = out.indexOf('bpmnElement="dobj_bpmn_IF_internal"');
+
+      expect(dataObject).toBeGreaterThan(-1);
+      expect(dataObject).toBeLessThan(subprocessEnd);
+      expect(dataObjectShape).toBeGreaterThan(subprocessPlane);
+      expect(out).toContain('<bpmn:dataOutputAssociation id="doa_bpmn_IF_internal">');
+      expect(out).toContain('<bpmn:dataInputAssociation id="dia_bpmn_IF_internal">');
+      expect(out).toContain('bpmnElement="doa_bpmn_IF_internal"');
+      expect(out).toContain('bpmnElement="dia_bpmn_IF_internal"');
+    });
+
+    it('resolves parent information ports to subprocess child ports and deduplicates mirrored flows', () => {
+      const sensorOut = port('Sensor_out', 'InformationPort', 'Out', 'IPO_Temperature');
+      const parentInfoIn = portWithReferences(
+        'RC1_parent_temperature',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        { SubReference: 'Reactor_temperature_in' }
+      );
+      const childInfoIn = portWithReferences(
+        'Reactor_temperature_in',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        { SuperReference: 'RC1_parent_temperature' }
+      );
+      const infoStreams = `
+        <Object id="IF_child" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_child</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#Reactor_temperature_in"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>
+        <Object id="IF_parent" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_parent</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#RC1_parent_temperature"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        subProcessStep(
+          'RC1',
+          'ReactingChemicals',
+          'Reactor section',
+          step('Sensor', 'MeasuringProcessVariable', 'TI-101', sensorOut) +
+            step('Reactor', 'ReactingChemicals', 'Reactor', childInfoIn),
+          parentInfoIn
+        ),
+        infoStreams
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const variableRefs = out.match(/<bpmn:dataObjectReference[^>]*name="Temperature"/g) || [];
+      const outputAssociations = out.match(/<bpmn:dataOutputAssociation/g) || [];
+      const inputAssociations = out.match(/<bpmn:dataInputAssociation/g) || [];
+      expect(variableRefs).toHaveLength(1);
+      expect(outputAssociations).toHaveLength(1);
+      expect(inputAssociations).toHaveLength(1);
+
+      const subprocessStart = out.indexOf('<bpmn:subProcess id="bpmn_RC1"');
+      const subprocessEnd = out.indexOf('</bpmn:subProcess>', subprocessStart);
+      const dataObject = out.indexOf('name="Temperature"');
+      expect(dataObject).toBeGreaterThan(subprocessStart);
+      expect(dataObject).toBeLessThan(subprocessEnd);
+
+      const reactorStart = out.indexOf('<bpmn:task id="bpmn_Reactor"', subprocessStart);
+      const reactorEnd = out.indexOf('</bpmn:task>', reactorStart);
+      const inputAssoc = out.indexOf('<bpmn:dataInputAssociation', reactorStart);
+      expect(inputAssoc).toBeGreaterThan(reactorStart);
+      expect(inputAssoc).toBeLessThan(reactorEnd);
+
+      const rootPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="BPMNPlane_imported"');
+      const rootPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', rootPlaneStart);
+      const rootPlane = out.slice(rootPlaneStart, rootPlaneEnd);
+      expect(rootPlane).not.toContain('dobj_bpmn_IF_child');
+
+      const subprocessPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="bpmn_RC1_plane"');
+      const subprocessPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', subprocessPlaneStart);
+      const subprocessPlane = out.slice(subprocessPlaneStart, subprocessPlaneEnd);
+      expect(subprocessPlane).toContain('bpmnElement="dobj_bpmn_IF_child"');
+    });
+
+    it('recursively resolves nested subprocess information ports to their real child task endpoints', () => {
+      const sensorOut = port('Sensor_out', 'InformationPort', 'Out', 'IPO_Temperature');
+      const outerInfoIn = portWithReferences(
+        'Outer_temperature_in',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        { SubReference: 'Inner_temperature_in' }
+      );
+      const innerInfoIn = portWithReferences(
+        'Inner_temperature_in',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        {
+          SuperReference: 'Outer_temperature_in',
+          SubReference: 'Reactor_temperature_in',
+        }
+      );
+      const reactorInfoIn = portWithReferences(
+        'Reactor_temperature_in',
+        'InformationPort',
+        'In',
+        'IPI_Temperature',
+        { SuperReference: 'Inner_temperature_in' }
+      );
+      const infoStreams = `
+        <Object id="IF_child" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_child</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#Reactor_temperature_in"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>
+        <Object id="IF_outer" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_outer</String></Data>
+          <References property="Source" objects="#Sensor_out"/>
+          <References property="Target" objects="#Outer_temperature_in"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        subProcessStep(
+          'Outer',
+          'ReactingChemicals',
+          'Outer reactor section',
+          subProcessStep(
+            'Inner',
+            'RemovingThermalEnergy',
+            'Inner cooling section',
+            step('Sensor', 'MeasuringProcessVariable', 'TI-101', sensorOut) +
+              step('Reactor', 'ReactingChemicals', 'Reactor', reactorInfoIn),
+            innerInfoIn
+          ),
+          outerInfoIn
+        ),
+        infoStreams
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      const variableRefs = out.match(/<bpmn:dataObjectReference[^>]*name="Temperature"/g) || [];
+      expect(variableRefs).toHaveLength(1);
+
+      const innerStart = out.indexOf('<bpmn:subProcess id="bpmn_Inner"');
+      const innerEnd = out.indexOf('</bpmn:subProcess>', innerStart);
+      const dataObject = out.indexOf('name="Temperature"');
+      expect(dataObject).toBeGreaterThan(innerStart);
+      expect(dataObject).toBeLessThan(innerEnd);
+
+      const rootPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="BPMNPlane_imported"');
+      const rootPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', rootPlaneStart);
+      expect(out.slice(rootPlaneStart, rootPlaneEnd)).not.toContain('dobj_bpmn_IF_child');
+
+      const outerPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="bpmn_Outer_plane"');
+      const outerPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', outerPlaneStart);
+      expect(out.slice(outerPlaneStart, outerPlaneEnd)).not.toContain('dobj_bpmn_IF_child');
+
+      const innerPlaneStart = out.indexOf('<bpmndi:BPMNPlane id="bpmn_Inner_plane"');
+      const innerPlaneEnd = out.indexOf('</bpmndi:BPMNPlane>', innerPlaneStart);
+      expect(out.slice(innerPlaneStart, innerPlaneEnd)).toContain('bpmnElement="dobj_bpmn_IF_child"');
+    });
+
+    it('also recognizes nested ProcessModel containers as subprocess children', () => {
+      const nestedProcessModelStep = `
+        <Object id="RC1" type="Process/Process.ReactingChemicals">
+          <Data property="Identifier"><String>RC1</String></Data>
+          <Data property="Label"><String>Reactor section</String></Data>
+          <Components property="ProcessModel">
+            <Object id="PM_child" type="Process/ProcessModel">
+              <Components property="ProcessSteps">
+${step('MX1', 'Mixing', 'Mixer')}
+              </Components>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(nestedProcessModelStep);
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(out).toContain('<bpmn:subProcess id="bpmn_RC1"');
+      expect(out).toContain('<bpmn:task id="bpmn_MX1"');
+    });
+  });
+
+  describe('port mapping', () => {
+    it('recreates ports as dexpi:port in extensionElements', () => {
+      const ports = port('p1', 'MaterialPort', 'In', 'MI1') + port('p2', 'MaterialPort', 'Out', 'MO1');
+      const xml = dexpi(step('T1', 'Pumping', 'Pump', ports));
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      expectWellFormedXml(out);
+      expect(out).toContain('portType="MaterialPort"');
+      expect(out).toContain('direction="Inlet"');
+      expect(out).toContain('direction="Outlet"');
+    });
+  });
+
+  describe('connection mapping', () => {
+    it('maps MaterialFlow Stream → bpmn:sequenceFlow', () => {
+      const p1 = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const p2 = port('T1_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', p1) + step('T1', 'Pumping', 'Pump', p2),
+        stream('S1', 'Stream', 'SE_out', 'T1_in', 'feed')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      expect(out).toContain('bpmn:sequenceFlow');
+      expect(out).toContain('dexpi:Stream');
+    });
+
+    it('maps ThermalEnergyFlow → sequenceFlow with streamType', () => {
+      const p1 = port('src_out', 'ThermalEnergyPort', 'Out', 'TEO1');
+      const p2 = port('tgt_in', 'ThermalEnergyPort', 'In', 'TEI1');
+      const xml = dexpi(
+        step('S1', 'Source', 'Steam', p1) + step('T1', 'ExchangingThermalEnergy', 'HX', p2),
+        stream('E1', 'ThermalEnergyFlow', 'src_out', 'tgt_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      expect(out).toContain('streamType="ThermalEnergyFlow"');
+    });
+
+    it('maps InformationFlow → DataObjectReference with source and target data associations', () => {
+      const p1 = port('ia_out', 'InformationPort', 'Out', 'IO1');
+      const p2 = port('ps_in', 'InformationPort', 'In', 'II1');
+      const infoStream = `
+        <Object id="IF1" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF1</String></Data>
+          <References property="Source" objects="#ia_out"/>
+          <References property="Target" objects="#ps_in"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        step('IA1', 'MeasuringProcessVariable', 'TI-101', p1) + step('PS1', 'ReactingChemicals', 'Reactor', p2),
+        infoStream
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      expectWellFormedXml(out);
+      expect(out).toContain('bpmn:dataObjectReference');
+      expect(out).toContain('<bpmn:dataOutputAssociation id="doa_bpmn_IF1">');
+      expect(out).toContain('<bpmn:targetRef>dobj_bpmn_IF1</bpmn:targetRef>');
+      expect(out).toContain('<bpmn:property id="prop_bpmn_IF1" name="__targetRef_placeholder"/>');
+      expect(out).toContain('<bpmn:dataInputAssociation id="dia_bpmn_IF1">');
+      expect(out).toContain('<bpmn:sourceRef>dobj_bpmn_IF1</bpmn:sourceRef>');
+      expect(out).toContain('<bpmn:targetRef>prop_bpmn_IF1</bpmn:targetRef>');
+      expect(out).toContain('bpmnElement="doa_bpmn_IF1"');
+      expect(out).toContain('bpmnElement="dia_bpmn_IF1"');
+      expect(out).toContain('name="Temperature"');
+    });
+  });
+
+  describe('layout', () => {
+    const shapeBounds = (xml: string, bpmnElement: string) => {
+      const match = xml.match(new RegExp(`<bpmndi:BPMNShape[^>]*bpmnElement="${bpmnElement}"[\\s\\S]*?<dc:Bounds x="(-?\\d+(?:\\.\\d+)?)" y="(-?\\d+(?:\\.\\d+)?)" width="(-?\\d+(?:\\.\\d+)?)" height="(-?\\d+(?:\\.\\d+)?)"`));
+      if (!match) throw new Error(`No bounds for ${bpmnElement}`);
+      return { x: Number(match[1]), y: Number(match[2]), w: Number(match[3]), h: Number(match[4]) };
+    };
+
+    const edgeWaypoints = (xml: string, bpmnElement: string) => {
+      const edge = xml.match(new RegExp(`<bpmndi:BPMNEdge[^>]*bpmnElement="${bpmnElement}"[\\s\\S]*?</bpmndi:BPMNEdge>`))?.[0] || '';
+      return [...edge.matchAll(/<di:waypoint x="(-?\d+(?:\.\d+)?)" y="(-?\d+(?:\.\d+)?)"\/>/g)]
+        .map(match => ({ x: Number(match[1]), y: Number(match[2]) }));
+    };
+
+    it('assigns distinct x/y positions to all elements', () => {
+      const p1 = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const p2 = port('T1_in', 'MaterialPort', 'In', 'MI1');
+      const p3 = port('T1_out', 'MaterialPort', 'Out', 'MO1');
+      const p4 = port('EE_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', p1) + step('T1', 'Pumping', 'Pump', p2 + p3) + step('EE1', 'Sink', 'Out', p4),
+        stream('S1', 'Stream', 'SE_out', 'T1_in') + stream('S2', 'Stream', 'T1_out', 'EE_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      // Extract all dc:Bounds x values — should have multiple distinct values
+      const bounds = [...out.matchAll(/dc:Bounds x="(\d+)"/g)].map(m => Number(m[1]));
+      const unique = new Set(bounds);
+      expect(unique.size).toBeGreaterThan(1);
+      // Source should be leftmost
+      expect(Math.min(...bounds)).toBeGreaterThanOrEqual(100);
+    });
+
+    it('keeps source-adjacent tasks left of sink-adjacent tasks', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const firstPorts = port('A_in', 'MaterialPort', 'In', 'MI1') + port('A_out', 'MaterialPort', 'Out', 'MO1');
+      const middlePorts = port('B_in', 'MaterialPort', 'In', 'MI1') + port('B_out', 'MaterialPort', 'Out', 'MO1');
+      const lastPorts = port('C_in', 'MaterialPort', 'In', 'MI1') + port('C_out', 'MaterialPort', 'Out', 'MO1');
+      const sinkPort = port('EE_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('A', 'ReactingChemicals', 'A', firstPorts) +
+          step('B', 'Separating', 'B', middlePorts) +
+          step('C', 'Compressing', 'C', lastPorts) +
+          step('EE1', 'Sink', 'Product', sinkPort),
+        stream('S1', 'Stream', 'SE_out', 'A_in') +
+          stream('S2', 'Stream', 'A_out', 'B_in') +
+          stream('S3', 'Stream', 'B_out', 'C_in') +
+          stream('S4', 'Stream', 'C_out', 'EE_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(shapeBounds(out, 'bpmn_A').x).toBeLessThan(shapeBounds(out, 'bpmn_C').x);
+      expect(shapeBounds(out, 'bpmn_C').x).toBeLessThan(shapeBounds(out, 'bpmn_EE1').x);
+    });
+
+    it('routes sequence flows with orthogonal waypoints', () => {
+      const p1 = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const p2 = port('T1_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', p1) + step('T1', 'Pumping', 'Pump', p2),
+        stream('S1', 'Stream', 'SE_out', 'T1_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const waypoints = edgeWaypoints(out, 'bpmn_S1');
+
+      expect(waypoints.length).toBeGreaterThanOrEqual(2);
+      for (let i = 1; i < waypoints.length; i += 1) {
+        const prev = waypoints[i - 1];
+        const cur = waypoints[i];
+        expect(prev.x === cur.x || prev.y === cur.y).toBe(true);
+      }
+      expect(waypoints).toHaveLength(2);
+    });
+
+    it('places recycle loop activities above the main path between the connected layers', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const reactorPorts =
+        port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
+        port('Reactor_out', 'MaterialPort', 'Out', 'MO1') +
+        port('Reactor_recycle_in', 'MaterialPort', 'In', 'MI2');
+      const coolerPorts = port('Cooler_in', 'MaterialPort', 'In', 'MI1') + port('Cooler_out', 'MaterialPort', 'Out', 'MO1');
+      const separatorPorts = port('Separator_in', 'MaterialPort', 'In', 'MI1') + port('Separator_out', 'MaterialPort', 'Out', 'MO1');
+      const recyclePorts = port('Recycle_in', 'MaterialPort', 'In', 'MI1') + port('Recycle_out', 'MaterialPort', 'Out', 'MO1');
+      const sinkPort = port('EE_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('Reactor', 'ReactingChemicals', 'Reactor', reactorPorts) +
+          step('Cooler', 'RemovingThermalEnergy', 'Cooler', coolerPorts) +
+          step('Separator', 'Separating', 'Separator', separatorPorts) +
+          step('Recycle', 'Compressing', 'Recycle compressor', recyclePorts) +
+          step('EE1', 'Sink', 'Product', sinkPort),
+        stream('S1', 'Stream', 'SE_out', 'Reactor_in') +
+          stream('S2', 'Stream', 'Reactor_out', 'Cooler_in') +
+          stream('S3', 'Stream', 'Cooler_out', 'Separator_in') +
+          stream('S4', 'Stream', 'Separator_out', 'Recycle_in') +
+          stream('S5', 'Stream', 'Recycle_out', 'Reactor_recycle_in') +
+          stream('S6', 'Stream', 'Separator_out', 'EE_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const reactor = shapeBounds(out, 'bpmn_Reactor');
+      const separator = shapeBounds(out, 'bpmn_Separator');
+      const recycle = shapeBounds(out, 'bpmn_Recycle');
+      const cooler = shapeBounds(out, 'bpmn_Cooler');
+
+      expect(recycle.x).toBeGreaterThan(reactor.x);
+      expect(recycle.x).toBeLessThan(separator.x);
+      expect(recycle.y).toBeLessThan(cooler.y);
+
+      const recycleIncoming = edgeWaypoints(out, 'bpmn_S4');
+      const recycleOutgoing = edgeWaypoints(out, 'bpmn_S5');
+      expect(recycleIncoming.length).toBeLessThanOrEqual(4);
+      expect(recycleOutgoing.length).toBeLessThanOrEqual(4);
+      expect(recycleIncoming.at(-1)?.x).toBe(recycle.x + recycle.w);
+      expect(recycleIncoming.at(-1)?.y).toBe(recycle.y + recycle.h * 0.65);
+      expect(recycleOutgoing[0].x).toBe(recycle.x);
+      expect(recycleOutgoing[0].y).toBe(recycle.y + recycle.h * 0.35);
+      expect(recycleOutgoing[1].x).toBeLessThan(recycleOutgoing[0].x);
+      expect(out).toMatch(/portId="Recycle_in"[^>]*direction="Inlet"[^>]*anchorSide="right"[^>]*anchorOffset="0.65"/);
+      expect(out).toMatch(/portId="Recycle_out"[^>]*direction="Outlet"[^>]*anchorSide="left"[^>]*anchorOffset="0.35"/);
+    });
+
+    it('routes a recycle initiator out of the top when it has no incoming return path', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const earlyPorts =
+        port('A_in', 'MaterialPort', 'In', 'MI1') +
+        port('A_out', 'MaterialPort', 'Out', 'MO1') +
+        port('A_recycle_in', 'MaterialPort', 'In', 'MI2');
+      const middlePorts = port('B_in', 'MaterialPort', 'In', 'MI1') + port('B_out', 'MaterialPort', 'Out', 'MO1');
+      const returnPorts = port('C_in', 'MaterialPort', 'In', 'MI1') + port('C_out', 'MaterialPort', 'Out', 'MO1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('A', 'ReactingChemicals', 'Reactor', earlyPorts) +
+          step('B', 'Separating', 'Separator', middlePorts) +
+          step('C', 'Compressing', 'Recycle compressor', returnPorts),
+        stream('S1', 'Stream', 'SE_out', 'A_in') +
+          stream('S2', 'Stream', 'A_out', 'B_in') +
+          stream('S3', 'Stream', 'B_out', 'C_in') +
+          stream('S4', 'Stream', 'C_out', 'A_in', 'MO1 - Stream 4 - MI2')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const early = shapeBounds(out, 'bpmn_A');
+      const recycle = shapeBounds(out, 'bpmn_C');
+      const returnFlow = edgeWaypoints(out, 'bpmn_S4');
+
+      expect(returnFlow[0].x).toBe(recycle.x + recycle.w / 2);
+      expect(returnFlow[0].y).toBe(recycle.y);
+      expect(returnFlow[1].y).toBeLessThan(returnFlow[0].y);
+      expect(returnFlow.at(-1)?.x).toBe(early.x);
+      expect(returnFlow.at(-1)?.y).toBe(early.y + early.h * 2 / 3);
+      expect(out).toMatch(/portId="A_recycle_in"[^>]*direction="Inlet"[^>]*anchorSide="left"[^>]*anchorOffset="0.67"/);
+    });
+
+    it('routes lower branch streams out of the bottom of the source task', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const taskPorts =
+        port('A_in', 'MaterialPort', 'In', 'MI1') +
+        port('A_out_main', 'MaterialPort', 'Out', 'MO1') +
+        port('A_out_branch', 'MaterialPort', 'Out', 'MO2');
+      const branchPorts = port('B_in', 'MaterialPort', 'In', 'MI1') + port('B_out', 'MaterialPort', 'Out', 'MO1');
+      const mainSinkPort = port('EE_main_in', 'MaterialPort', 'In', 'MI1');
+      const branchSinkPort = port('EE_branch_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('A', 'Separating', 'Separator', taskPorts) +
+          step('B', 'StrippingDistilling', 'Stripper', branchPorts) +
+          step('EE_main', 'Sink', 'Purge', mainSinkPort) +
+          step('EE_branch', 'Sink', 'Product', branchSinkPort),
+        stream('S1', 'Stream', 'SE_out', 'A_in') +
+          stream('S_main', 'Stream', 'A_out_main', 'EE_main_in') +
+          stream('S_branch', 'Stream', 'A_out_branch', 'B_in') +
+          stream('S_product', 'Stream', 'B_out', 'EE_branch_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const separator = shapeBounds(out, 'bpmn_A');
+      const branch = shapeBounds(out, 'bpmn_B');
+      const branchFlow = edgeWaypoints(out, 'bpmn_S_branch');
+
+      expect(branch.y).toBeGreaterThan(separator.y);
+      expect(branchFlow[0].x).toBe(separator.x + separator.w / 2);
+      expect(branchFlow[0].y).toBe(separator.y + separator.h);
+    });
+
+    it('spreads multiple visible streams attached to the same target port', () => {
+      const sourceAPort = port('SA_out', 'MaterialPort', 'Out', 'MO1');
+      const sourceBPort = port('SB_out', 'MaterialPort', 'Out', 'MO1');
+      const taskPorts = port('A_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SA', 'Source', 'Feed A', sourceAPort) +
+          step('SB', 'Source', 'Feed B', sourceBPort) +
+          step('A', 'ReactingChemicals', 'Reactor', taskPorts),
+        stream('S_A', 'Stream', 'SA_out', 'A_in') +
+          stream('S_B', 'Stream', 'SB_out', 'A_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const reactor = shapeBounds(out, 'bpmn_A');
+      const feedA = edgeWaypoints(out, 'bpmn_S_A');
+      const feedB = edgeWaypoints(out, 'bpmn_S_B');
+      const targetA = feedA.at(-1);
+      const targetB = feedB.at(-1);
+
+      expect(targetA?.x).toBe(reactor.x);
+      expect(targetB?.x).toBe(reactor.x);
+      expect(targetA?.y).not.toBe(targetB?.y);
+      expect([targetA?.y, targetB?.y].sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([
+        reactor.y + reactor.h / 3,
+        reactor.y + reactor.h * 2 / 3,
+      ]);
+    });
+
+    it('keeps information-only measurement tasks out of the process spine', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const reactorPorts =
+        port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
+        port('Reactor_out', 'MaterialPort', 'Out', 'MO1') +
+        port('Reactor_temperature', 'InformationPort', 'In', 'IPI_Temperature') +
+        port('Reactor_pressure', 'InformationPort', 'In', 'IPI_Pressure');
+      const sinkPort = port('EE_in', 'MaterialPort', 'In', 'MI1');
+      const sensor1Port = port('Sensor1_out', 'InformationPort', 'Out', 'IPO_Temperature');
+      const sensor2Port = port('Sensor2_out', 'InformationPort', 'Out', 'IPO_Pressure');
+      const infoFlow = (id: string, src: string, tgt: string, variable: string) => `
+        <Object id="${id}" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>${id}</String></Data>
+          <References property="Source" objects="#${src}"/>
+          <References property="Target" objects="#${tgt}"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>${variable}</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('Reactor', 'ReactingChemicals', 'Reactor', reactorPorts) +
+          step('EE1', 'Sink', 'Product', sinkPort) +
+          step('Sensor1', 'MeasuringProcessVariable', 'TI-101', sensor1Port) +
+          step('Sensor2', 'MeasuringProcessVariable', 'PI-101', sensor2Port),
+        stream('S_feed', 'Stream', 'SE_out', 'Reactor_in') +
+          stream('S_product', 'Stream', 'Reactor_out', 'EE_in') +
+          infoFlow('IF_temperature', 'Sensor1_out', 'Reactor_temperature', 'Temperature') +
+          infoFlow('IF_pressure', 'Sensor2_out', 'Reactor_pressure', 'Pressure')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const reactor = shapeBounds(out, 'bpmn_Reactor');
+      const sink = shapeBounds(out, 'bpmn_EE1');
+      const sensor1 = shapeBounds(out, 'bpmn_Sensor1');
+      const sensor2 = shapeBounds(out, 'bpmn_Sensor2');
+      const temperatureObject = shapeBounds(out, 'dobj_bpmn_IF_temperature');
+
+      expect(reactor.x).toBeLessThan(sink.x);
+      expect(sensor1.x).toBeGreaterThan(sink.x);
+      expect(sensor2.x).toBe(sensor1.x);
+      expect(sensor2.y).not.toBe(sensor1.y);
+      expect(temperatureObject.x).toBeGreaterThan(reactor.x + reactor.w);
+    });
+
+    it('uses subprocess port references to place entry and exit child tasks', () => {
+      const parentPorts =
+        portWithReferences('SP_parent_in', 'MaterialPort', 'In', 'MI1', { SubReference: 'EntryProxy_out' }) +
+        portWithReferences('SP_parent_out', 'MaterialPort', 'Out', 'MO1', { SubReference: 'ExitProxy_in' });
+      const entryProxyPorts = portWithReferences(
+        'EntryProxy_out',
+        'MaterialPort',
+        'Out',
+        'MO1',
+        { SuperReference: 'SP_parent_in' }
+      );
+      const exitProxyPorts = portWithReferences(
+        'ExitProxy_in',
+        'MaterialPort',
+        'In',
+        'MI1',
+        { SuperReference: 'SP_parent_out' }
+      );
+      const entryPorts =
+        port('Entry_in', 'MaterialPort', 'In', 'MI1') +
+        port('Entry_out', 'MaterialPort', 'Out', 'MO1');
+      const middlePorts =
+        port('Middle_in', 'MaterialPort', 'In', 'MI1') +
+        port('Middle_out', 'MaterialPort', 'Out', 'MO1');
+      const exitPorts =
+        port('Exit_in', 'MaterialPort', 'In', 'MI1') +
+        port('Exit_out', 'MaterialPort', 'Out', 'MO1');
+      const instrumentPorts = port('Instrument_out', 'InformationPort', 'Out', 'IPO_T');
+      const xml = dexpi(
+        subProcessStep(
+          'SP',
+          'ReactingChemicals',
+          'Referenced subprocess',
+          step('EntryProxy', 'Source', 'MO1', entryProxyPorts) +
+            step('Entry', 'ReactingChemicals', 'Entry task', entryPorts) +
+            step('Middle', 'Pumping', 'Middle task', middlePorts) +
+            step('Exit', 'Separating', 'Exit task', exitPorts) +
+            step('Instrument', 'MeasuringProcessVariable', 'Sensor', instrumentPorts) +
+            step('ExitProxy', 'Sink', 'MI1', exitProxyPorts),
+          parentPorts
+        ),
+        stream('S_entry', 'Stream', 'EntryProxy_out', 'Entry_in') +
+          stream('S_middle', 'Stream', 'Entry_out', 'Middle_in') +
+          stream('S_exit', 'Stream', 'Middle_out', 'Exit_in') +
+          stream('S_boundary_exit', 'Stream', 'Exit_out', 'ExitProxy_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      expect(out).not.toContain('bpmn_EntryProxy');
+      expect(out).not.toContain('bpmn_ExitProxy');
+
+      const entry = shapeBounds(out, 'bpmn_Entry');
+      const middle = shapeBounds(out, 'bpmn_Middle');
+      const exit = shapeBounds(out, 'bpmn_Exit');
+      const instrument = shapeBounds(out, 'bpmn_Instrument');
+
+      expect(entry.x).toBeLessThan(middle.x);
+      expect(middle.x).toBeLessThan(exit.x);
+      expect(instrument.x).toBeGreaterThan(entry.x);
+      expect(exit.x).toBeGreaterThan(instrument.x);
+    });
+  });
+
+  describe('round-trip', () => {
+    it('BPMN → DEXPI → BPMN preserves step types and extensionElements', async () => {
+      const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:dexpi="http://dexpi.org/bpmn-extension/1.0" id="D1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="P1">
+    <bpmn:startEvent id="SE1"><bpmn:extensionElements><dexpi:element dexpiType="Source" identifier="SE1" uid="uid_SE1"/></bpmn:extensionElements><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="T1" name="Pumping"><bpmn:extensionElements><dexpi:element dexpiType="Pumping" identifier="T1" uid="uid_T1"><dexpi:port portId="T1_MI1" name="MI1" portType="MaterialPort" direction="Inlet"/><dexpi:port portId="T1_MO1" name="MO1" portType="MaterialPort" direction="Outlet"/></dexpi:element></bpmn:extensionElements><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="EE1"><bpmn:extensionElements><dexpi:element dexpiType="Sink" identifier="EE1" uid="uid_EE1"/></bpmn:extensionElements><bpmn:incoming>F2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="F1" sourceRef="SE1" targetRef="T1"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="T1" targetRef="EE1"/>
+  </bpmn:process>
+</bpmn:definitions>`;
+
+      const dexpiXml = await new BpmnToDexpiTransformer().transform(bpmn);
+      const bpmn2 = new DexpiToBpmnTransformer().transform(dexpiXml);
+
+      // Step types are preserved through the round-trip
+      expect(bpmn2).toContain('dexpiType="Pumping"');
+      expect(bpmn2).toContain('dexpiType="Source"');
+      expect(bpmn2).toContain('dexpiType="Sink"');
+      // Ports are recreated
+      expect(bpmn2).toContain('portType="MaterialPort"');
+      // UIDs are preserved
+      expect(bpmn2).toContain('uid="uid_T1"');
+    });
+  });
+});

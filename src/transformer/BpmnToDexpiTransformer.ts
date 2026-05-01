@@ -322,7 +322,7 @@ export class BpmnToDexpiTransformer {
       for (const childId of processStep.subProcessSteps) {
         const childStep = this.processSteps.get(childId);
         if (childStep) {
-          childStep.ports.forEach((p: DexpiPort) => childPortTypes.add(p.portType));
+          childStep.ports.forEach((p: DexpiPort) => childPortTypes.add(p.portType || p.type));
         }
       }
 
@@ -332,10 +332,11 @@ export class BpmnToDexpiTransformer {
         // hierarchically refineable connections in DEXPI Process. Energy and
         // information ports at subprocess boundaries represent different
         // abstraction levels and don't require SubReference to a child counterpart.
-        if (parentPort.portType === 'MaterialPort' && childPortTypes.has('MaterialPort')) {
+        const parentPortType = parentPort.portType || parentPort.type;
+        if (parentPortType === 'MaterialPort' && childPortTypes.has('MaterialPort')) {
           this.logger.warn(
             `Subprocess "${name}" (id=${id}): boundary port "${parentPort.name}" ` +
-            `(${parentPort.portType}) has no subReference annotation — SubReference ` +
+            `(${parentPortType}) has no subReference annotation — SubReference ` +
             `omitted from DEXPI output. Add a subReference attribute to the dexpi:port ` +
             `element to formally link this port to its child-level counterpart.`
           );
@@ -550,39 +551,73 @@ export class BpmnToDexpiTransformer {
       });
     });
 
-    // Create InformationFlows from the graph
+    // Create InformationFlows from the graph.
+    // Key insight: only one flow per DataObject should exist.
+    // - If the DataObject has InstrumentationActivity tasks as sources and
+    //   ProcessStep tasks as targets → IA→PS (one flow per IA, skip PS→PS pairs)
+    // - If only sources (IA with no downstream PS) → one-sided flow per IA
     graph.forEach((node, dataObjId) => {
       const { name, sourceTaskIds, targetTaskIds } = node;
 
-      // Pair sources with targets (cross-product for multiple connections)
-      const pairs: Array<{source: string, target: string | null}> = [];
-      if (sourceTaskIds.length > 0 && targetTaskIds.length > 0) {
-        sourceTaskIds.forEach(src => {
-          targetTaskIds.forEach(tgt => {
-            if (src !== tgt) pairs.push({ source: src, target: tgt });
-          });
-        });
-      } else if (sourceTaskIds.length > 0) {
-        // One-sided: InstrumentationActivity → DataObject only
-        sourceTaskIds.forEach(src => pairs.push({ source: src, target: null }));
-      }
+      const IA_TYPES = new Set(['MeasuringProcessVariable', 'ControllingProcessVariable',
+        'ConveyingSignal', 'CalculatingProcessVariable', 'CalculatingRatio',
+        'CalculatingSplitRange', 'TransformingProcessVariable', 'InstrumentationActivity']);
 
-      pairs.forEach(({ source, target }) => {
-        const flowId = `IF_${dataObjId}_${source}_${target || 'solo'}`;
-        const flow: InternalStream = {
-          id: flowId,
-          name,
-          identifier: flowId,
-          uid: this.generateUid(),
-          sourceRef: source,
-          targetRef: target || source,
-          streamType: 'InformationFlow',
-          provenance: 'Calculated',
-          range: 'Design',
-          attributes: [],
-          informationVariantLabel: name,  // DataObject name → InformationVariant
-        };
-        this.informationFlows.set(flowId, flow);
+      // Classify tasks by DEXPI type — check extensionElements dexpiType attribute,
+      // falling back to task name (TEP uses name=dexpiType convention)
+      const getDexpiType = (taskId: string): string => {
+        const el = process.querySelector(`[id="${taskId}"]`);
+        if (!el) return '';
+        // Try to extract dexpiType from extensionElements children
+        const extEl = el.querySelector('extensionElements');
+        if (extEl) {
+          for (const child of Array.from(extEl.children)) {
+            const dtype = child.getAttribute('dexpiType');
+            if (dtype) return dtype;
+          }
+        }
+        // Fall back to task name attribute
+        return el.getAttribute('name') || '';
+      };
+
+      const isIA = (taskId: string) => {
+        const dtype = getDexpiType(taskId);
+        return IA_TYPES.has(dtype) || this.registry.hasAncestor(dtype, 'InstrumentationActivity');
+      };
+
+      const iaSources = sourceTaskIds.filter(id => isIA(id));
+      const psTargets = targetTaskIds.filter(id => !isIA(id));
+
+      // Prefer IA→PS pairs; fall back to IA→solo if no PS target found
+      const sources = iaSources.length > 0 ? iaSources : sourceTaskIds;
+      const targets = psTargets.length > 0 ? psTargets : [];
+
+      sources.forEach(src => {
+        if (targets.length > 0) {
+          // One flow per IA→PS pair (not cross-product of all combinations)
+          targets.forEach(tgt => {
+            const flowId = `IF_${dataObjId}_${src}_${tgt}`;
+            this.informationFlows.set(flowId, {
+              id: flowId, name, identifier: flowId,
+              uid: this.generateUid(),
+              sourceRef: src, targetRef: tgt,
+              streamType: 'InformationFlow',
+              provenance: 'Calculated', range: 'Design',
+              attributes: [], informationVariantLabel: name,
+            });
+          });
+        } else {
+          // One-sided: IA → DataObject only, no downstream PS
+          const flowId = `IF_${dataObjId}_${src}_solo`;
+          this.informationFlows.set(flowId, {
+            id: flowId, name, identifier: flowId,
+            uid: this.generateUid(),
+            sourceRef: src, targetRef: src,
+            streamType: 'InformationFlow',
+            provenance: 'Calculated', range: 'Design',
+            attributes: [], informationVariantLabel: name,
+          });
+        }
       });
     });
   }
@@ -955,7 +990,7 @@ export class BpmnToDexpiTransformer {
         portId: child.getAttribute('portId') || child.getAttribute('id') || this.generateUid(),
         name: child.getAttribute('name') || child.getAttribute('label') || 'Port',
         label: child.getAttribute('label') || undefined,
-        portType: (child.getAttribute('portType') || child.getAttribute('type') || 'MaterialPort') as DexpiPort['portType'],
+        type: (child.getAttribute('type') || child.getAttribute('portType') || 'MaterialPort') as DexpiPort['type'],
         direction: (child.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
         anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
         anchorOffset: child.getAttribute('anchorOffset') ? parseFloat(child.getAttribute('anchorOffset')!) : undefined,
@@ -992,7 +1027,7 @@ export class BpmnToDexpiTransformer {
       portId: port.getAttribute('id') || port.getAttribute('portId') || this.generateUid(),
       name: port.getAttribute('name') || port.getAttribute('label') || 'Port',
       label: port.getAttribute('label') || undefined,
-      portType: (port.getAttribute('type') || port.getAttribute('portType') || 'MaterialPort') as DexpiPort['portType'],
+      type: (port.getAttribute('type') || port.getAttribute('portType') || 'MaterialPort') as DexpiPort['type'],
       direction: (port.getAttribute('direction') || 'Inlet') as DexpiPort['direction'],
       anchorSide: (port.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
       anchorOffset: port.getAttribute('anchorOffset') ? parseFloat(port.getAttribute('anchorOffset')!) : undefined,
@@ -1026,24 +1061,27 @@ export class BpmnToDexpiTransformer {
 
     // Add ProcessConnections (Streams + InformationFlows) collection if there are any
     if (this.streams.size > 0 || this.informationFlows.size > 0) {
-      if (!processModelObject.Components) {
-        processModelObject.Components = [];
-      }
       const allConnections = [
         ...this.buildStreams(),
         ...this.buildInformationFlows(),
       ];
-      const streamsComponent = {
-        '$': {
-          'property': 'ProcessConnections'
-        },
-        'Object': allConnections
-      };
-      
-      if (Array.isArray(processModelObject.Components)) {
-        processModelObject.Components.push(streamsComponent);
-      } else {
-        processModelObject.Components = [processModelObject.Components, streamsComponent];
+      // Only add the wrapper if there are actual connections to output
+      // (buildInformationFlows may return empty if all flows lack ports)
+      if (allConnections.length > 0) {
+        if (!processModelObject.Components) {
+          processModelObject.Components = [];
+        }
+        const streamsComponent = {
+          '$': {
+            'property': 'ProcessConnections'
+          },
+          'Object': allConnections
+        };
+        if (Array.isArray(processModelObject.Components)) {
+          processModelObject.Components.push(streamsComponent);
+        } else {
+          processModelObject.Components = [processModelObject.Components, streamsComponent];
+        }
       }
     }
 
@@ -1246,7 +1284,7 @@ export class BpmnToDexpiTransformer {
           const portObject: Record<string, unknown> = {
             '$': {
               'id': safePortId,
-              'type': `Process/Process.${port.portType}`
+              'type': `Process/Process.${port.type}`
             },
             'Data': [
               {
@@ -1626,7 +1664,7 @@ export class BpmnToDexpiTransformer {
     const port = this.ports.get(sourcePortId);
     if (!port) return 'MaterialFlow';
 
-    switch (port.portType) {
+    switch (port.type) {
       case 'ThermalEnergyPort':    return 'ThermalEnergyFlow';
       case 'MechanicalEnergyPort': return 'MechanicalEnergyFlow';
       case 'ElectricalEnergyPort': return 'ElectricalEnergyFlow';
@@ -2060,7 +2098,7 @@ export class BpmnToDexpiTransformer {
     }
 
     const sameSlot = (p: DexpiPort) =>
-      p.direction === defaultDirection && (!portType || p.portType === portType);
+      p.direction === defaultDirection && (!portType || p.type === portType);
 
     // Match by variable name against port.label (preferred) or port.name.
     // The label carries the semantic identity the connecting object refers to,
