@@ -5,7 +5,7 @@ A web-based tool for creating DEXPI 2.0-compliant block flow and process flow di
 ## Features
 
 - **Visual Modeling**: Drag-and-drop BPMN 2.0 editor with DEXPI-aware palette
-- **DEXPI 2.0 Export**: XSD-validated output against the official DEXPI XML Schema
+- **DEXPI 2.0 Export**: XSD-validated output against the official DEXPI XML Schema, with a structural fallback in browser contexts (validation result includes a `mode` field indicating which path ran)
 - **Material Library**: Define materials, compositions, and thermodynamic states
 - **Port System**: Typed ports (Material, Energy, Information) with hierarchy support
 - **Stream Properties**: Typed streams (Material, Thermal/Mechanical/Electrical Energy, Information) with flow rates, compositions, and qualified parameters
@@ -17,7 +17,7 @@ A web-based tool for creating DEXPI 2.0-compliant block flow and process flow di
 
 - **Node.js** 18+ (recommended: 20 LTS)
 - **npm** 9+
-- **xmllint** (for XSD validation — `libxml2-utils` on Linux, `brew install libxml2` on macOS)
+- **xmllint** (for XSD validation in Node and CLI contexts — `libxml2-utils` on Linux, `brew install libxml2` on macOS). In browser contexts, validation falls back to a structural check of key DEXPI 2.0 object-model invariants.
 
 ## Quick Start
 
@@ -73,7 +73,7 @@ The transformer is a standalone, framework-independent TypeScript module — imp
 src/transformer/
 ├── BpmnToDexpiTransformer.ts      # Core BPMN → DEXPI 2.0 transformation
 ├── DexpiProcessClassRegistry.ts   # Loads Process.xml → authoritative class list
-├── DexpiOutputValidator.ts        # XSD + structural validation
+├── DexpiOutputValidator.ts        # XSD validation (xmllint) + structural fallback
 ├── TransformerLogger.ts           # Warning/error collection
 ├── types.ts                       # Typed interfaces
 └── __tests__/                     # 60 automated tests
@@ -91,7 +91,7 @@ npm run test:watch    # watch mode
 npm run test:coverage # with coverage
 ```
 
-Covers unit tests (transformer logic, class registry, output validation) and an end-to-end integration benchmark using the Tennessee Eastman process PFD. The integration suite requires `xmllint` — see Prerequisites. In browser contexts where `xmllint` is unavailable, validation falls back to a structural check of key DEXPI 2.0 object-model invariants.
+Covers unit tests (transformer logic, class registry, output validation) and an end-to-end integration benchmark using the Tennessee Eastman process PFD. The integration suite requires `xmllint` — see Prerequisites.
 
 CI runs on Node.js 18, 20, and 22 via GitHub Actions on every push and pull request.
 
