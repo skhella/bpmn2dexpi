@@ -16,14 +16,11 @@ export default class PortBehavior extends CommandInterceptor {
     this.elementRegistry = elementRegistry;
     this.canvas = canvas;
 
-    // Listen to connection waypoint changes
+    // Listen to explicit connection waypoint edits. Normal shape dragging also
+    // triggers connection layout commands; mutating waypoints there interferes
+    // with bpmn-js' move command and can make shapes snap back or stick.
     this.postExecuted('connection.updateWaypoints', HIGH_PRIORITY, (event: any) => {
-      this.handleConnectionWaypointChange(event);
-    });
-
-    // Listen to connection layout changes
-    this.postExecuted('connection.layout', HIGH_PRIORITY, (event: any) => {
-      this.handleConnectionWaypointChange(event);
+      this.handleConnectionWaypointChange(event, true);
     });
 
     // Setup port drag behavior after diagram is imported
@@ -35,9 +32,13 @@ export default class PortBehavior extends CommandInterceptor {
     });
   }
 
-  private handleConnectionWaypointChange(event: any): void {
+  private handleConnectionWaypointChange(event: any, dockEndpoints = false): void {
     const connection = event.context.connection;
     if (!connection || connection.type !== 'bpmn:SequenceFlow') return;
+
+    if (dockEndpoints) {
+      this.dockConnectionEndpoints(connection);
+    }
 
     const bo = connection.businessObject;
     const streamName = bo.name || '';
@@ -82,6 +83,90 @@ export default class PortBehavior extends CommandInterceptor {
     }
   }
 
+  private dockConnectionEndpoints(connection: any): void {
+    if (!connection.waypoints || connection.waypoints.length < 2) return;
+
+    const waypoints = connection.waypoints.map((point: any) => ({ x: point.x, y: point.y }));
+    const sourceDock = connection.source
+      ? this.projectWaypointToBorder(connection.source, waypoints[0])
+      : null;
+    const targetDock = connection.target
+      ? this.projectWaypointToBorder(connection.target, waypoints[waypoints.length - 1])
+      : null;
+
+    if (sourceDock) waypoints[0] = sourceDock.point;
+    if (targetDock) waypoints[waypoints.length - 1] = targetDock.point;
+
+    if (waypoints.length === 2 && waypoints[0].x !== waypoints[1].x && waypoints[0].y !== waypoints[1].y) {
+      if (!sourceDock || sourceDock.side === 'left' || sourceDock.side === 'right') {
+        const midX = (waypoints[0].x + waypoints[1].x) / 2;
+        waypoints.splice(1, 0, { x: midX, y: waypoints[0].y }, { x: midX, y: waypoints[1].y });
+      } else {
+        const midY = (waypoints[0].y + waypoints[1].y) / 2;
+        waypoints.splice(1, 0, { x: waypoints[0].x, y: midY }, { x: waypoints[1].x, y: midY });
+      }
+    } else {
+      const last = waypoints.length - 1;
+
+      if (sourceDock) {
+        if (sourceDock.side === 'left' || sourceDock.side === 'right') {
+          waypoints[1] = { ...waypoints[1], y: sourceDock.point.y };
+        } else {
+          waypoints[1] = { ...waypoints[1], x: sourceDock.point.x };
+        }
+      }
+
+      if (targetDock) {
+        if (targetDock.side === 'left' || targetDock.side === 'right') {
+          waypoints[last - 1] = { ...waypoints[last - 1], y: targetDock.point.y };
+        } else {
+          waypoints[last - 1] = { ...waypoints[last - 1], x: targetDock.point.x };
+        }
+      }
+    }
+
+    const changed = waypoints.length !== connection.waypoints.length || waypoints.some((point: any, idx: number) => {
+      const current = connection.waypoints[idx];
+      return !current || point.x !== current.x || point.y !== current.y;
+    });
+
+    if (!changed) return;
+
+    connection.waypoints = waypoints;
+
+    const di = connection.di;
+    if (di) {
+      di.waypoint = waypoints.map((point: any) => ({ x: point.x, y: point.y }));
+    }
+
+    this.eventBus.fire('element.changed', { element: connection });
+  }
+
+  private projectWaypointToBorder(
+    element: any,
+    waypoint: { x: number; y: number }
+  ): {
+    point: { x: number; y: number };
+    side: 'top' | 'right' | 'bottom' | 'left';
+  } {
+    const anchor = this.calculateBorderAnchor(element, waypoint);
+    const width = element.width || 0;
+    const height = element.height || 0;
+    const offset = this.clamp(anchor.offset, 0, 1);
+
+    switch (anchor.side) {
+      case 'right':
+        return { point: { x: element.x + width, y: element.y + height * offset }, side: anchor.side };
+      case 'top':
+        return { point: { x: element.x + width * offset, y: element.y }, side: anchor.side };
+      case 'bottom':
+        return { point: { x: element.x + width * offset, y: element.y + height }, side: anchor.side };
+      case 'left':
+      default:
+        return { point: { x: element.x, y: element.y + height * offset }, side: anchor.side };
+    }
+  }
+
   private updatePortPosition(
     element: any,
     portName: string,
@@ -120,17 +205,51 @@ export default class PortBehavior extends CommandInterceptor {
     });
 
     if (port) {
-      // Convert waypoint to relative coordinates
-      const relX = waypoint.x - element.x;
-      const relY = waypoint.y - element.y;
+      const anchor = this.calculateBorderAnchor(element, waypoint);
+      const hasChanged =
+        port.anchorSide !== anchor.side ||
+        port.anchorOffset !== anchor.offset ||
+        port.anchorX !== undefined ||
+        port.anchorY !== undefined;
 
-      // Update port anchor position
-      port.anchorX = relX;
-      port.anchorY = relY;
+      if (!hasChanged) return;
+
+      port.anchorSide = anchor.side;
+      port.anchorOffset = anchor.offset;
+      delete port.anchorX;
+      delete port.anchorY;
 
       // Trigger re-render
       this.eventBus.fire('elements.changed', { elements: [element] });
     }
+  }
+
+  private calculateBorderAnchor(
+    element: any,
+    waypoint: { x: number; y: number }
+  ): { side: 'top' | 'right' | 'bottom' | 'left'; offset: number } {
+    const relX = waypoint.x - element.x;
+    const relY = waypoint.y - element.y;
+    const { width, height } = element;
+
+    const distances = [
+      { side: 'left' as const, distance: Math.abs(relX), offset: height > 0 ? relY / height : 0.5 },
+      { side: 'right' as const, distance: Math.abs(width - relX), offset: height > 0 ? relY / height : 0.5 },
+      { side: 'top' as const, distance: Math.abs(relY), offset: width > 0 ? relX / width : 0.5 },
+      { side: 'bottom' as const, distance: Math.abs(height - relY), offset: width > 0 ? relX / width : 0.5 },
+    ];
+
+    distances.sort((a, b) => a.distance - b.distance);
+    const winner = distances[0];
+
+    return {
+      side: winner.side,
+      offset: this.clamp(winner.offset, 0, 1),
+    };
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
   }
 
   private portDragBehaviorSetup = false;
@@ -155,6 +274,10 @@ export default class PortBehavior extends CommandInterceptor {
 
     this.portDragBehaviorSetup = true;
 
+    const clearDraggedPort = () => {
+      draggedPort = null;
+    };
+
     // Listen for mouse down on port
     svg.addEventListener('mousedown', (e: MouseEvent) => {
       const target = e.target as SVGElement;
@@ -169,15 +292,13 @@ export default class PortBehavior extends CommandInterceptor {
       const element = this.findElementWithPort(portId);
       if (!element) return;
 
-      // Check if port has any connections
-      if (this.portHasConnections(element, portId)) {
-        // Port is connected, don't allow manual dragging
-        return;
-      }
-
       // Get port data
       const port = this.getPortFromElement(element, portId);
       if (!port) return;
+
+      // Connected ports are controlled by their sequence flow/association
+      // endpoint. Let the normal canvas drag handlers receive the event.
+      if (this.portHasConnections(element, port)) return;
 
       // Start dragging
       draggedPort = {
@@ -191,9 +312,14 @@ export default class PortBehavior extends CommandInterceptor {
       e.stopPropagation();
     });
 
-    // Listen for mouse move
-    svg.addEventListener('mousemove', (e: MouseEvent) => {
+    // Listen on window so a manual port drag cannot get stuck if the pointer
+    // leaves the SVG before mouseup.
+    window.addEventListener('mousemove', (e: MouseEvent) => {
       if (!draggedPort) return;
+      if (e.buttons === 0) {
+        clearDraggedPort();
+        return;
+      }
 
       const deltaX = e.clientX - draggedPort.initialX;
       const deltaY = e.clientY - draggedPort.initialY;
@@ -249,10 +375,8 @@ export default class PortBehavior extends CommandInterceptor {
       e.preventDefault();
     });
 
-    // Listen for mouse up
-    svg.addEventListener('mouseup', () => {
-      draggedPort = null;
-    });
+    window.addEventListener('mouseup', clearDraggedPort);
+    window.addEventListener('blur', clearDraggedPort);
   }
 
   private findElementWithPort(portId: string): any {
@@ -311,8 +435,9 @@ export default class PortBehavior extends CommandInterceptor {
     return ports.find((p: any) => p.portId === portId || p.id === portId) || null;
   }
 
-  private portHasConnections(element: any, portName: string): boolean {
+  private portHasConnections(element: any, port: any): boolean {
     const elementId = element.businessObject.id;
+    const portNames = [port.name, port.label, port.id, port.portId].filter(Boolean);
     
     const connections = this.elementRegistry.filter((el: any) => {
       if (el.type !== 'bpmn:SequenceFlow') return false;
@@ -334,7 +459,14 @@ export default class PortBehavior extends CommandInterceptor {
         [sourcePortName, , targetPortName] = parts;
       }
 
-      return sourcePortName === portName || targetPortName === portName;
+      const stream = bo.extensionElements?.values?.find((value: any) =>
+        value.$type === 'dexpi:Stream' || value.$type === 'dexpi:stream'
+      );
+
+      return portNames.includes(sourcePortName) ||
+        portNames.includes(targetPortName) ||
+        portNames.includes(stream?.sourcePortRef) ||
+        portNames.includes(stream?.targetPortRef);
     });
   }
 }

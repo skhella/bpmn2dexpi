@@ -256,7 +256,7 @@ describe('DexpiToBpmnTransformer', () => {
       const subprocessEnd = out.indexOf('</bpmn:subProcess>', out.indexOf('<bpmn:subProcess id="bpmn_RC1"'));
       const dataObject = out.indexOf('name="Temperature"');
       const subprocessPlane = out.indexOf('<bpmndi:BPMNPlane id="bpmn_RC1_plane"');
-      const dataObjectShape = out.indexOf('bpmnElement="dobj_bpmn_IF_internal"');
+      const dataObjectShape = out.indexOf('bpmnElement="dobj_bpmn_Sensor_bpmn_Temperature"');
 
       expect(dataObject).toBeGreaterThan(-1);
       expect(dataObject).toBeLessThan(subprocessEnd);
@@ -518,6 +518,143 @@ ${step('MX1', 'Mixing', 'Mixer')}
       }
     });
 
+    it('keeps sequence flows orthogonal after shared-port nudging', () => {
+      const p1 = port('SE1_out', 'MaterialPort', 'Out', 'MO1');
+      const p2 = port('SE2_out', 'MaterialPort', 'Out', 'MO1');
+      const p3 = port('T1_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed 1', p1) +
+          step('SE2', 'Source', 'Feed 2', p2) +
+          step('T1', 'Pumping', 'Pump', p3),
+        stream('S1', 'Stream', 'SE1_out', 'T1_in') +
+          stream('S2', 'Stream', 'SE2_out', 'T1_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+
+      ['bpmn_S1', 'bpmn_S2'].forEach(edgeId => {
+        const waypoints = edgeWaypoints(out, edgeId);
+        expect(waypoints.length).toBeGreaterThanOrEqual(4);
+        for (let i = 1; i < waypoints.length; i += 1) {
+          const prev = waypoints[i - 1];
+          const cur = waypoints[i];
+          expect(prev.x === cur.x || prev.y === cur.y).toBe(true);
+        }
+      });
+    });
+
+    it('keeps shared-port sequence-flow endpoints docked to the task border', () => {
+      const sourceSteps = Array.from({ length: 11 }, (_, idx) => {
+        const sourceId = `SE${idx + 1}`;
+        return step(sourceId, 'Source', `Feed ${idx + 1}`, port(`${sourceId}_out`, 'MaterialPort', 'Out', 'MO1'));
+      }).join('');
+      const streams = Array.from({ length: 11 }, (_, idx) => {
+        const sourceId = `SE${idx + 1}`;
+        return stream(`S${idx + 1}`, 'Stream', `${sourceId}_out`, 'T1_in');
+      }).join('');
+      const xml = dexpi(
+        sourceSteps + step('T1', 'Pumping', 'Pump', port('T1_in', 'MaterialPort', 'In', 'MI1')),
+        streams
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const target = shapeBounds(out, 'bpmn_T1');
+
+      Array.from({ length: 11 }, (_, idx) => `bpmn_S${idx + 1}`).forEach(edgeId => {
+        const waypoints = edgeWaypoints(out, edgeId);
+        const last = waypoints.at(-1)!;
+        const beforeLast = waypoints.at(-2)!;
+
+        expect(last.x).toBe(target.x);
+        expect(last.y).toBeGreaterThanOrEqual(target.y);
+        expect(last.y).toBeLessThanOrEqual(target.y + target.h);
+        expect(beforeLast.y).toBe(last.y);
+      });
+    });
+
+    it('orders same-side task ports by their connected neighbor positions', () => {
+      const targetPorts =
+        port('T_low', 'MaterialPort', 'In', 'MI3') +
+        port('T_high', 'MaterialPort', 'In', 'MI1') +
+        port('T_mid', 'MaterialPort', 'In', 'MI2');
+      const xml = dexpi(
+        step('SE_high', 'Source', 'High feed', port('SE_high_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('SE_mid', 'Source', 'Middle feed', port('SE_mid_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('SE_low', 'Source', 'Low feed', port('SE_low_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('T1', 'ReactingChemicals', 'Reactor', targetPorts),
+        stream('S_high', 'Stream', 'SE_high_out', 'T_high') +
+          stream('S_mid', 'Stream', 'SE_mid_out', 'T_mid') +
+          stream('S_low', 'Stream', 'SE_low_out', 'T_low')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const pairs = [
+        { source: shapeBounds(out, 'bpmn_SE_high'), targetY: edgeWaypoints(out, 'bpmn_S_high').at(-1)!.y },
+        { source: shapeBounds(out, 'bpmn_SE_mid'), targetY: edgeWaypoints(out, 'bpmn_S_mid').at(-1)!.y },
+        { source: shapeBounds(out, 'bpmn_SE_low'), targetY: edgeWaypoints(out, 'bpmn_S_low').at(-1)!.y },
+      ].sort((a, b) => (a.source.y + a.source.h / 2) - (b.source.y + b.source.h / 2));
+
+      expect(pairs[0].targetY).toBeLessThan(pairs[1].targetY);
+      expect(pairs[1].targetY).toBeLessThan(pairs[2].targetY);
+    });
+
+    it('uses stream labels to separate collapsed visual ports on the same DEXPI port ref', () => {
+      const targetPort = port('T_shared', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE_high', 'Source', 'High feed', port('SE_high_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('SE_mid', 'Source', 'Middle feed', port('SE_mid_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('SE_low', 'Source', 'Low feed', port('SE_low_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('T1', 'ReactingChemicals', 'Reactor', targetPort),
+        stream('S_high', 'Stream', 'SE_high_out', 'T_shared', 'MO1 - Stream 1 - MI1') +
+          stream('S_mid', 'Stream', 'SE_mid_out', 'T_shared', 'MO1 - Stream 2 - MI2') +
+          stream('S_low', 'Stream', 'SE_low_out', 'T_shared', 'MO1 - Stream 3 - MI3')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const pairs = [
+        { source: shapeBounds(out, 'bpmn_SE_high'), targetY: edgeWaypoints(out, 'bpmn_S_high').at(-1)!.y },
+        { source: shapeBounds(out, 'bpmn_SE_mid'), targetY: edgeWaypoints(out, 'bpmn_S_mid').at(-1)!.y },
+        { source: shapeBounds(out, 'bpmn_SE_low'), targetY: edgeWaypoints(out, 'bpmn_S_low').at(-1)!.y },
+      ].sort((a, b) => (a.source.y + a.source.h / 2) - (b.source.y + b.source.h / 2));
+
+      expect(pairs[0].targetY).toBeLessThan(pairs[1].targetY);
+      expect(pairs[1].targetY).toBeLessThan(pairs[2].targetY);
+    });
+
+    it('places instrumentation below the process and data objects between instrumentation and target', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const reactorPorts =
+        port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
+        port('Reactor_info', 'InformationPort', 'In', 'IPI_Temperature');
+      const sensorPort = port('Sensor_info', 'InformationPort', 'Out', 'IPO_Temperature');
+      const infoStream = `
+        <Object id="IF_temp" type="Process/Process.InformationFlow">
+          <Data property="Identifier"><String>IF_temp</String></Data>
+          <References property="Source" objects="#Sensor_info"/>
+          <References property="Target" objects="#Reactor_info"/>
+          <Components property="InformationValue">
+            <Object type="Process/Process.InformationVariant">
+              <Data property="Label"><String>Temperature</String></Data>
+            </Object>
+          </Components>
+        </Object>`;
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('Reactor', 'ReactingChemicals', 'Reactor', reactorPorts) +
+          step('Sensor', 'MeasuringProcessVariable', 'TI-101', sensorPort),
+        stream('S1', 'Stream', 'SE_out', 'Reactor_in') + infoStream
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const reactor = shapeBounds(out, 'bpmn_Reactor');
+      const sensor = shapeBounds(out, 'bpmn_Sensor');
+      const dataObject = shapeBounds(out, 'dobj_bpmn_Sensor_bpmn_Temperature');
+      const associationToReactor = edgeWaypoints(out, 'assocIn_bpmn_IF_temp');
+
+      expect(sensor.y).toBeGreaterThan(reactor.y + reactor.h);
+      expect(dataObject.y).toBeGreaterThan(reactor.y);
+      expect(dataObject.y).toBeLessThan(sensor.y + sensor.h);
+      expect(associationToReactor[0].y).toBe(dataObject.y);
+      expect(associationToReactor.at(-1)?.y).toBe(reactor.y + reactor.h);
+      expect(out).toContain('id="assocInfo_bpmn_IF_temp"');
+      expect(out).not.toContain('dobj_bpmn_IF_temp');
+    });
+
     it('places recycle loop activities above the main path between the connected layers', () => {
       const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const reactorPorts =
@@ -556,11 +693,41 @@ ${step('MX1', 'Mixing', 'Mixer')}
       const recycleOutgoing = edgeWaypoints(out, 'bpmn_S5');
       expect(recycleIncoming.at(-1)?.x).toBe(recycle.x + recycle.w);
       expect(recycleIncoming.at(-1)?.y).toBe(recycle.y + recycle.h * 0.65);
+      expect(Math.min(...recycleIncoming.map(point => point.y))).toBeGreaterThanOrEqual(recycle.y);
       expect(recycleOutgoing[0].x).toBe(recycle.x);
       expect(recycleOutgoing[0].y).toBe(recycle.y + recycle.h * 0.35);
       expect(recycleOutgoing[1].x).toBeLessThan(recycleOutgoing[0].x);
+      expect(Math.min(...recycleOutgoing.map(point => point.y))).toBeGreaterThanOrEqual(Math.min(recycle.y, reactor.y));
       expect(out).toMatch(/portId="Recycle_in"[^>]*direction="Inlet"[^>]*anchorSide="right"[^>]*anchorOffset="0.65"/);
       expect(out).toMatch(/portId="Recycle_out"[^>]*direction="Outlet"[^>]*anchorSide="left"[^>]*anchorOffset="0.35"/);
+    });
+
+    it('routes backward right-to-left recycle returns through a local side corridor', () => {
+      const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
+      const reactorPorts =
+        port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
+        port('Reactor_out', 'MaterialPort', 'Out', 'MO1') +
+        port('Reactor_recycle_in', 'MaterialPort', 'In', 'MI2');
+      const branchPorts = port('Branch_in', 'MaterialPort', 'In', 'MI1') + port('Branch_out', 'MaterialPort', 'Out', 'MO1');
+      const sinkPort = port('EE_in', 'MaterialPort', 'In', 'MI1');
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', sourcePort) +
+          step('Reactor', 'ReactingChemicals', 'Reactor', reactorPorts) +
+          step('Branch', 'StrippingDistilling', 'Recycle branch', branchPorts) +
+          step('EE1', 'Sink', 'Product', sinkPort),
+        stream('S1', 'Stream', 'SE_out', 'Reactor_in') +
+          stream('S2', 'Stream', 'Reactor_out', 'Branch_in') +
+          stream('S3', 'Stream', 'Branch_out', 'Reactor_recycle_in') +
+          stream('S4', 'Stream', 'Branch_out', 'EE_in')
+      );
+      const out = new DexpiToBpmnTransformer().transform(xml);
+      const reactor = shapeBounds(out, 'bpmn_Reactor');
+      const branch = shapeBounds(out, 'bpmn_Branch');
+      const recycleReturn = edgeWaypoints(out, 'bpmn_S3');
+
+      expect(recycleReturn[0].x).toBe(branch.x + branch.w);
+      expect(recycleReturn.at(-1)?.x).toBe(reactor.x);
+      expect(Math.min(...recycleReturn.map(point => point.y))).toBeGreaterThanOrEqual(Math.min(reactor.y, branch.y));
     });
   });
 
