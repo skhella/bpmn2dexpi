@@ -383,7 +383,13 @@ export default class DexpiRenderer extends BaseRenderer {
     if (port.portType === 'InformationPort' || (port as any).type === 'InformationPort') {
       // Respect manual positioning — same as calculatePortPosition does for all ports
       if (port.anchorX !== undefined && port.anchorY !== undefined) {
-        return { x: port.anchorX, y: port.anchorY };
+        return this.calculatePortPositionFromRelativePoint(
+          port.anchorX + portSize / 2,
+          port.anchorY + portSize / 2,
+          width,
+          height,
+          portSize
+        );
       }
       // InformationPorts only render when a visual association connection exists.
       // If no matching DataObject association is found, return null → port is not drawn.
@@ -422,7 +428,7 @@ export default class DexpiRenderer extends BaseRenderer {
           ? assocEl.waypoints[0]
           : assocEl.waypoints[assocEl.waypoints.length - 1];
 
-        return { x: pt.x - element.x - 4, y: pt.y - element.y - 4 };
+        return this.calculatePortPositionFromWaypoint(element, pt, width, height, portSize);
       }
 
       // Also handle plain bpmn:association elements (like our Composition fix)
@@ -440,7 +446,7 @@ export default class DexpiRenderer extends BaseRenderer {
           const portSide = bo.sourceRef?.id === elementId
             ? assocEl.waypoints[0]
             : assocEl.waypoints[assocEl.waypoints.length - 1];
-          return { x: portSide.x - element.x - 4, y: portSide.y - element.y - 4 };
+          return this.calculatePortPositionFromWaypoint(element, portSide, width, height, portSize);
         }
       }
 
@@ -483,10 +489,7 @@ export default class DexpiRenderer extends BaseRenderer {
           const connectionPoint = isSourcePort ? conn.waypoints[0] : conn.waypoints[conn.waypoints.length - 1];
           
           // Convert to relative coordinates
-          const relX = connectionPoint.x - element.x;
-          const relY = connectionPoint.y - element.y;
-          
-          return { x: relX - portSize / 2, y: relY - portSize / 2 };
+          return this.calculatePortPositionFromWaypoint(element, connectionPoint, width, height, portSize);
         }
       }
     }
@@ -501,13 +504,14 @@ export default class DexpiRenderer extends BaseRenderer {
     width: number,
     height: number
   ): { x: number; y: number } {
+    const portSize = 8;
+
     // Calculate port position based on anchor
     if (port.anchorX !== undefined && port.anchorY !== undefined) {
-      return { x: port.anchorX, y: port.anchorY };
+      return this.calculatePortPositionFromRelativePoint(port.anchorX + portSize / 2, port.anchorY + portSize / 2, width, height, portSize);
     }
 
     const offset = port.anchorOffset || 0.5; // Default to center of side
-    const portSize = 8;
 
     // Use anchorSide if available
     if (port.anchorSide) {
@@ -529,6 +533,66 @@ export default class DexpiRenderer extends BaseRenderer {
     } else {
       return { x: -portSize / 2, y: height * 0.5 - portSize / 2 };
     }
+  }
+
+  private calculatePortPositionFromWaypoint(
+    element: any,
+    waypoint: { x: number; y: number },
+    width: number,
+    height: number,
+    portSize: number
+  ): { x: number; y: number } {
+    return this.calculatePortPositionFromRelativePoint(
+      waypoint.x - element.x,
+      waypoint.y - element.y,
+      width,
+      height,
+      portSize
+    );
+  }
+
+  private calculatePortPositionFromRelativePoint(
+    relX: number,
+    relY: number,
+    width: number,
+    height: number,
+    portSize: number
+  ): { x: number; y: number } {
+    const side = this.nearestBorderSide(relX, relY, width, height);
+    const half = portSize / 2;
+
+    switch (side) {
+      case 'top':
+        return { x: this.clamp(relX, 0, width) - half, y: -half };
+      case 'right':
+        return { x: width - half, y: this.clamp(relY, 0, height) - half };
+      case 'bottom':
+        return { x: this.clamp(relX, 0, width) - half, y: height - half };
+      case 'left':
+      default:
+        return { x: -half, y: this.clamp(relY, 0, height) - half };
+    }
+  }
+
+  private nearestBorderSide(
+    relX: number,
+    relY: number,
+    width: number,
+    height: number
+  ): 'top' | 'right' | 'bottom' | 'left' {
+    const distances = [
+      { side: 'left' as const, distance: Math.abs(relX) },
+      { side: 'right' as const, distance: Math.abs(width - relX) },
+      { side: 'top' as const, distance: Math.abs(relY) },
+      { side: 'bottom' as const, distance: Math.abs(height - relY) },
+    ];
+
+    distances.sort((a, b) => a.distance - b.distance);
+    return distances[0].side;
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
   }
 
   private drawPort(

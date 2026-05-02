@@ -525,6 +525,94 @@ export class DexpiToBpmnTransformer {
     return layout;
   }
 
+  private positionInstrumentationActivities(
+    steps: DexpiStep[],
+    connections: DexpiConnection[],
+    layout: Map<string, LayoutBox>,
+    hiddenStepIds: Set<string>
+  ): void {
+    const visibleSteps = steps.filter(step => !hiddenStepIds.has(step.id));
+    const instruments = visibleSteps.filter(step => this.isInstrumentationStep(step) && layout.has(step.id));
+    if (instruments.length === 0) return;
+
+    const stepById = new Map(visibleSteps.map(step => [step.id, step]));
+    const portToStep = new Map<string, string>();
+    visibleSteps.forEach(step => step.ports.forEach(port => portToStep.set(port.id, step.id)));
+
+    const mainSteps = visibleSteps.filter(step => !this.isInstrumentationStep(step) && layout.has(step.id));
+    const mainBoxes = () => mainSteps.map(step => layout.get(step.id)!);
+    if (mainBoxes().length === 0) return;
+
+    type InstrumentBandItem = { id: string; desiredX: number; band: 'top' | 'bottom' };
+    const topBand: InstrumentBandItem[] = [];
+    const bottomBand: InstrumentBandItem[] = [];
+
+    instruments.forEach(step => {
+      const linkedStepIds = connections
+        .filter(conn => !conn.hidden && conn.dexpiType === 'InformationFlow')
+        .map(conn => {
+          const src = portToStep.get(conn.sourcePortId);
+          const tgt = portToStep.get(conn.targetPortId);
+          if (src === step.id && tgt && !this.isInstrumentationStep(stepById.get(tgt))) return tgt;
+          if (tgt === step.id && src && !this.isInstrumentationStep(stepById.get(src))) return src;
+          return undefined;
+        })
+        .filter((id): id is string => !!id && layout.has(id));
+
+      const anchorCenters = linkedStepIds.map(id => {
+        const box = layout.get(id)!;
+        return box.x + box.w / 2;
+      });
+      const current = layout.get(step.id)!;
+      const desiredCenter = anchorCenters.length > 0
+        ? anchorCenters.reduce((sum, x) => sum + x, 0) / anchorCenters.length
+        : current.x + current.w / 2;
+      const item = {
+        id: step.id,
+        desiredX: desiredCenter - current.w / 2,
+        band: step.dexpiType === 'ControllingProcessVariable' ? 'top' as const : 'bottom' as const,
+      };
+
+      if (item.band === 'top') topBand.push(item);
+      else bottomBand.push(item);
+    });
+
+    if (topBand.length > 0) {
+      const minY = Math.min(...mainBoxes().map(box => box.y));
+      const wantedTopY = minY - TASK_H - 120;
+      const shiftY = Math.max(0, 20 - wantedTopY);
+      if (shiftY > 0) {
+        mainSteps.forEach(step => {
+          const current = layout.get(step.id);
+          if (current) layout.set(step.id, { ...current, y: current.y + shiftY });
+        });
+      }
+    }
+
+    const updatedMainBoxes = mainBoxes();
+    const minY = Math.min(...updatedMainBoxes.map(box => box.y));
+    const maxY = Math.max(...updatedMainBoxes.map(box => box.y + box.h));
+    const topY = minY - TASK_H - 120;
+    const bottomY = maxY + 120;
+
+    const placeBand = (items: InstrumentBandItem[], y: number) => {
+      const minGap = TASK_W + 45;
+      let nextX = MARGIN_X;
+      items
+        .sort((a, b) => a.desiredX - b.desiredX || a.id.localeCompare(b.id))
+        .forEach(item => {
+          const current = layout.get(item.id);
+          if (!current) return;
+          const x = Math.max(MARGIN_X, item.desiredX, nextX);
+          layout.set(item.id, { ...current, x, y });
+          nextX = x + minGap;
+        });
+    };
+
+    placeBand(topBand, topY);
+    placeBand(bottomBand, bottomY);
+  }
+
   private computeStepLayout(
     steps: DexpiStep[],
     connections: DexpiConnection[],
@@ -763,6 +851,8 @@ export class DexpiToBpmnTransformer {
       });
     });
 
+    this.positionInstrumentationActivities(visibleSteps, connections, layout, hiddenStepIds);
+
     return layout;
   }
 
@@ -878,6 +968,151 @@ export class DexpiToBpmnTransformer {
         }
       });
 
+    type EndpointRole = 'source' | 'target';
+    type Anchor = { side: 'left' | 'right'; offset: number; yNudge?: number };
+    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+    const isVisualPortLabel = (label?: string) =>
+      !!label && (
+        /^(MI|MO|TEI|TEO|MEI|MEO|EEI|EEO)\d+$/i.test(label) ||
+        /^IP[IO]_/i.test(label)
+      );
+    const streamEndpointLabels = (label: string) => {
+      const parts = label.split(/\s+-\s+/).map(part => part.trim()).filter(Boolean);
+      if (parts.length < 2) return {};
+
+      const source = parts[0];
+      const target = parts[parts.length - 1];
+      return {
+        source: isVisualPortLabel(source) ? source : undefined,
+        target: isVisualPortLabel(target) ? target : undefined,
+      };
+    };
+    const endpointPort = (conn: DexpiConnection, role: EndpointRole) => {
+      const portId = role === 'source' ? conn.sourcePortId : conn.targetPortId;
+      const stepId = portToStep.get(portId);
+      const step = stepId ? stepById.get(stepId) : undefined;
+      const port = step?.ports.find(p => p.id === portId);
+      return { portId, stepId, step, port };
+    };
+    const visualEndpointLabel = (conn: DexpiConnection, role: EndpointRole, port?: DexpiPort) =>
+      streamEndpointLabels(conn.label)[role] || port?.label || (role === 'source' ? conn.sourcePortId : conn.targetPortId);
+    const visualEndpointKey = (conn: DexpiConnection, role: EndpointRole) => {
+      const { portId, stepId, port } = endpointPort(conn, role);
+      const bpmnDir = port?.direction === 'Outlet' ? 'Outlet' : 'Inlet';
+      const portKind = port?.type || 'MaterialPort';
+      return `${stepId || ''}:${role}:${bpmnDir}:${portKind}:${visualEndpointLabel(conn, role, port) || portId}`;
+    };
+
+    const connectedPortY = (step: DexpiStep, port: DexpiPort): number | undefined => {
+      const owner = stepOwnerKey(step.id);
+      const ownerLayout = ownerLayouts.get(owner) || layout;
+      const isOutlet = port.direction === 'Outlet';
+      const linkedCenters = seqFlows
+        .map(conn => {
+          if (isOutlet && conn.sourcePortId !== port.id) return undefined;
+          if (!isOutlet && conn.targetPortId !== port.id) return undefined;
+
+          const otherStepId = isOutlet
+            ? portToStep.get(conn.targetPortId)
+            : portToStep.get(conn.sourcePortId);
+          if (!otherStepId || stepOwnerKey(otherStepId) !== owner) return undefined;
+
+          const otherPos = ownerLayout.get(otherStepId);
+          return otherPos ? otherPos.y + otherPos.h / 2 : undefined;
+        })
+        .filter((value): value is number => value !== undefined);
+
+      if (linkedCenters.length === 0) return undefined;
+      return linkedCenters.reduce((sum, y) => sum + y, 0) / linkedCenters.length;
+    };
+
+    const connectionAnchor = (
+      step: DexpiStep | undefined,
+      portId: string,
+      conn: DexpiConnection,
+      role: EndpointRole
+    ): Anchor => {
+      if (!step) return { side: 'left', offset: 0.5 };
+
+      const port = step.ports.find(p => p.id === portId);
+      const bpmnDir = port?.direction === 'Outlet' ? 'Outlet' : 'Inlet';
+      const isRecycleStep = recycleStepIds.has(step.id);
+      const side: 'left' | 'right' = isRecycleStep
+        ? (bpmnDir === 'Outlet' ? 'left' : 'right')
+        : (bpmnDir === 'Outlet' ? 'right' : 'left');
+      const isInfoPort = port?.type === 'InformationPort';
+      const owner = stepOwnerKey(step.id);
+      const ownerLayout = ownerLayouts.get(owner) || layout;
+      const stepPos = ownerLayout.get(step.id);
+      const records = new Map<string, { firstIndex: number; linkedY: number[] }>();
+
+      seqFlows.forEach((candidate, candidateIndex) => {
+        const roles: EndpointRole[] = [];
+        if (portToStep.get(candidate.sourcePortId) === step.id) roles.push('source');
+        if (portToStep.get(candidate.targetPortId) === step.id) roles.push('target');
+
+        roles.forEach(candidateRole => {
+          const candidatePortId = candidateRole === 'source' ? candidate.sourcePortId : candidate.targetPortId;
+          const candidatePort = step.ports.find(p => p.id === candidatePortId);
+          if (!candidatePort) return;
+          const candidateDir = candidatePort.direction === 'Outlet' ? 'Outlet' : 'Inlet';
+          if (candidateDir !== bpmnDir) return;
+          const candidateIsInfo = candidatePort.type === 'InformationPort';
+          if (candidateIsInfo !== !!isInfoPort) return;
+
+          const otherStepId = candidateRole === 'source'
+            ? portToStep.get(candidate.targetPortId)
+            : portToStep.get(candidate.sourcePortId);
+          const otherPos = otherStepId && stepOwnerKey(otherStepId) === owner
+            ? ownerLayout.get(otherStepId)
+            : undefined;
+          const key = visualEndpointKey(candidate, candidateRole);
+          const record = records.get(key) || { firstIndex: candidateIndex, linkedY: [] };
+          if (otherPos) record.linkedY.push(otherPos.y + otherPos.h / 2);
+          record.firstIndex = Math.min(record.firstIndex, candidateIndex);
+          records.set(key, record);
+        });
+      });
+
+      if (records.size <= 1) {
+        let offset = 0.5;
+        if (isRecycleStep) offset = bpmnDir === 'Outlet' ? 0.35 : 0.65;
+        return { side, offset };
+      }
+
+      const orderedRecords = [...records.entries()].sort(([, a], [, b]) => {
+        const aY = a.linkedY.length > 0 ? a.linkedY.reduce((sum, y) => sum + y, 0) / a.linkedY.length : undefined;
+        const bY = b.linkedY.length > 0 ? b.linkedY.reduce((sum, y) => sum + y, 0) / b.linkedY.length : undefined;
+        if (aY !== undefined && bY !== undefined && aY !== bY) return aY - bY;
+        if (aY !== undefined && bY === undefined) return -1;
+        if (aY === undefined && bY !== undefined) return 1;
+        return a.firstIndex - b.firstIndex;
+      });
+      const desiredOffsets = orderedRecords.map(([, record], groupIdx) => {
+        if (stepPos && record.linkedY.length > 0) {
+          const linkedY = record.linkedY.reduce((sum, y) => sum + y, 0) / record.linkedY.length;
+          return clamp((linkedY - stepPos.y) / stepPos.h, 0.12, 0.88);
+        }
+        return (groupIdx + 1) / (orderedRecords.length + 1);
+      });
+
+      const minOffset = 0.12;
+      const maxOffset = 0.88;
+      const minSpacing = Math.min(0.16, (maxOffset - minOffset) / (orderedRecords.length - 1));
+      for (let i = 0; i < desiredOffsets.length; i += 1) {
+        desiredOffsets[i] = clamp(desiredOffsets[i], minOffset, maxOffset);
+        if (i > 0) desiredOffsets[i] = Math.max(desiredOffsets[i], desiredOffsets[i - 1] + minSpacing);
+      }
+      for (let i = desiredOffsets.length - 1; i >= 0; i -= 1) {
+        desiredOffsets[i] = clamp(desiredOffsets[i], minOffset, maxOffset);
+        if (i < desiredOffsets.length - 1) desiredOffsets[i] = Math.min(desiredOffsets[i], desiredOffsets[i + 1] - minSpacing);
+      }
+
+      const key = visualEndpointKey(conn, role);
+      const idx = Math.max(0, orderedRecords.findIndex(([recordKey]) => recordKey === key));
+      return { side, offset: desiredOffsets[idx] ?? 0.5 };
+    };
+
     const portAnchor = (step: DexpiStep | undefined, portId: string) => {
       if (!step) return { side: 'left' as const, offset: 0.5 };
 
@@ -892,10 +1127,41 @@ export class DexpiToBpmnTransformer {
         (p.direction === 'Outlet' ? 'Outlet' : 'Inlet') === bpmnDir &&
         (isInfoPort ? p.type === 'InformationPort' : p.type !== 'InformationPort')
       );
-      const idx = Math.max(0, group.findIndex(p => p.id === portId));
+      const orderedGroup = isInfoPort ? group : [...group].sort((a, b) => {
+        const aY = connectedPortY(step, a);
+        const bY = connectedPortY(step, b);
+        if (aY !== undefined && bY !== undefined && aY !== bY) return aY - bY;
+        if (aY !== undefined && bY === undefined) return -1;
+        if (aY === undefined && bY !== undefined) return 1;
+        return group.findIndex(p => p.id === a.id) - group.findIndex(p => p.id === b.id);
+      });
+      const idx = Math.max(0, orderedGroup.findIndex(p => p.id === portId));
 
-      let offset = group.length <= 1 ? 0.5 : (idx + 1) / (group.length + 1);
-      if (isRecycleStep && group.length <= 1) {
+      const stepPos = (ownerLayouts.get(stepOwnerKey(step.id)) || layout).get(step.id);
+      const desiredOffsets = orderedGroup.map((p, groupIdx) => {
+        const connectedY = !isInfoPort && stepPos ? connectedPortY(step, p) : undefined;
+        if (connectedY !== undefined && stepPos && stepPos.h > 0) {
+          return clamp((connectedY - stepPos.y) / stepPos.h, 0.12, 0.88);
+        }
+        return orderedGroup.length <= 1 ? 0.5 : (groupIdx + 1) / (orderedGroup.length + 1);
+      });
+
+      if (orderedGroup.length > 1) {
+        const minOffset = 0.12;
+        const maxOffset = 0.88;
+        const minSpacing = Math.min(0.16, (maxOffset - minOffset) / (orderedGroup.length - 1));
+        for (let i = 0; i < desiredOffsets.length; i += 1) {
+          desiredOffsets[i] = clamp(desiredOffsets[i], minOffset, maxOffset);
+          if (i > 0) desiredOffsets[i] = Math.max(desiredOffsets[i], desiredOffsets[i - 1] + minSpacing);
+        }
+        for (let i = desiredOffsets.length - 1; i >= 0; i -= 1) {
+          desiredOffsets[i] = clamp(desiredOffsets[i], minOffset, maxOffset);
+          if (i < desiredOffsets.length - 1) desiredOffsets[i] = Math.min(desiredOffsets[i], desiredOffsets[i + 1] - minSpacing);
+        }
+      }
+
+      let offset = desiredOffsets[idx] ?? 0.5;
+      if (isRecycleStep && orderedGroup.length <= 1) {
         // Separate the single recycle inlet and outlet so return lines do not read as one continuous stroke.
         offset = bpmnDir === 'Outlet' ? 0.35 : 0.65;
       }
@@ -903,17 +1169,17 @@ export class DexpiToBpmnTransformer {
       return { side, offset };
     };
 
-    const connectionPoint = (pos: LayoutBox, anchor: { side: 'left' | 'right'; offset: number }) => ({
+    const connectionPoint = (pos: LayoutBox, anchor: Anchor) => ({
       x: anchor.side === 'left' ? pos.x : pos.x + pos.w,
-      y: pos.y + pos.h * anchor.offset,
+      y: clamp(pos.y + pos.h * anchor.offset + (anchor.yNudge ?? 0), pos.y, pos.y + pos.h),
     });
 
     const routeSequenceFlow = (
       srcPos: LayoutBox,
       tgtPos: LayoutBox,
       lane: number,
-      srcAnchor: { side: 'left' | 'right'; offset: number },
-      tgtAnchor: { side: 'left' | 'right'; offset: number }
+      srcAnchor: Anchor,
+      tgtAnchor: Anchor
     ) => {
       const srcPoint = connectionPoint(srcPos, srcAnchor);
       const tgtPoint = connectionPoint(tgtPos, tgtAnchor);
@@ -929,6 +1195,39 @@ export class DexpiToBpmnTransformer {
           { x: srcX, y: srcY },
           { x: bendX, y: srcY },
           { x: bendX, y: tgtY },
+          { x: tgtX, y: tgtY },
+        ];
+      }
+
+      if (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && srcX > tgtX) {
+        const corridorX = Math.max(srcX, tgtX) + 45 + laneOffset;
+        return [
+          { x: srcX, y: srcY },
+          { x: corridorX, y: srcY },
+          { x: corridorX, y: tgtY },
+          { x: tgtX, y: tgtY },
+        ];
+      }
+
+      if (srcAnchor.side === 'left' && tgtAnchor.side === 'right' && srcX < tgtX) {
+        const corridorX = Math.min(srcX, tgtX) - 45 - laneOffset;
+        return [
+          { x: srcX, y: srcY },
+          { x: corridorX, y: srcY },
+          { x: corridorX, y: tgtY },
+          { x: tgtX, y: tgtY },
+        ];
+      }
+
+      if (srcAnchor.side === tgtAnchor.side) {
+        const corridorPadding = 45 + laneOffset;
+        const corridorX = srcAnchor.side === 'left'
+          ? Math.min(srcX, tgtX) - corridorPadding
+          : Math.max(srcX, tgtX) + corridorPadding;
+        return [
+          { x: srcX, y: srcY },
+          { x: corridorX, y: srcY },
+          { x: corridorX, y: tgtY },
           { x: tgtX, y: tgtY },
         ];
       }
@@ -1017,9 +1316,9 @@ ${indent}</bpmn:task>`;
     type PortShare = { total: number; next: number };
     const portShareIndex = new Map<string, PortShare>();
     seqFlows.forEach(conn => {
-      for (const portId of [conn.sourcePortId, conn.targetPortId]) {
-        if (!portShareIndex.has(portId)) portShareIndex.set(portId, { total: 0, next: 0 });
-        portShareIndex.get(portId)!.total++;
+      for (const key of [visualEndpointKey(conn, 'source'), visualEndpointKey(conn, 'target')]) {
+        if (!portShareIndex.has(key)) portShareIndex.set(key, { total: 0, next: 0 });
+        portShareIndex.get(key)!.total++;
       }
     });
 
@@ -1047,36 +1346,24 @@ ${indent}</bpmn:task>`;
       const tgtPos = ownerLayout.get(tgt);
       if (!srcPos || !tgtPos) return;
 
-      const srcAnchor = portAnchor(srcStep, conn.sourcePortId);
-      const tgtAnchor = portAnchor(tgtStep, conn.targetPortId);
+      const srcAnchor = connectionAnchor(srcStep, conn.sourcePortId, conn, 'source');
+      const tgtAnchor = connectionAnchor(tgtStep, conn.targetPortId, conn, 'target');
 
       // Sub-distribute waypoints: if multiple streams share a port, stagger
       // their connection points by ±spread px so they're visually distinct.
       const SPREAD = 12;
-      const withNudge = (portId: string, anchor: { side: 'left' | 'right'; offset: number }) => {
-        const share = portShareIndex.get(portId);
+      const withNudge = (shareKey: string, anchor: { side: 'left' | 'right'; offset: number }) => {
+        const share = portShareIndex.get(shareKey);
         if (!share || share.total <= 1) return anchor;
         const idx = share.next++;
         const totalSpread = (share.total - 1) * SPREAD;
         const yNudge = idx * SPREAD - totalSpread / 2;
         return { ...anchor, yNudge };
       };
-      const srcA = withNudge(conn.sourcePortId, srcAnchor);
-      const tgtA = withNudge(conn.targetPortId, tgtAnchor);
+      const srcA = withNudge(visualEndpointKey(conn, 'source'), srcAnchor);
+      const tgtA = withNudge(visualEndpointKey(conn, 'target'), tgtAnchor);
 
-      // Custom connection-point that applies yNudge
-      const cp = (pos: LayoutBox, a: typeof srcA) => ({
-        x: a.side === 'left' ? pos.x : pos.x + pos.w,
-        y: pos.y + pos.h * a.offset + (('yNudge' in a ? (a as any).yNudge : 0)),
-      });
-      const srcPt = cp(srcPos, srcA);
-      const tgtPt = cp(tgtPos, tgtA);
-
-      // Re-use routeSequenceFlow but override start/end points
       const rawWaypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcA, tgtA);
-      // Splice in nudged start/end
-      rawWaypoints[0] = srcPt;
-      rawWaypoints[rawWaypoints.length - 1] = tgtPt;
 
       const waypoints = rawWaypoints
         .map(point => `        <di:waypoint x="${point.x}" y="${point.y}"/>`)
@@ -1096,11 +1383,13 @@ ${waypoints}
     // InformationFlows → DataObjectReference + bidirectional associations.
     // One DataObject per (source-port, variable) pair; one output association
     // source→DataObject, then one input association DataObject→target per target.
-    const dobjBySourcePort = new Map<string, { dobjId: string; srcEl: string; dobjX: number; dobjY: number; key: string }>();
+    const dobjBySourcePort = new Map<string, { dobjId: string; dobjX: number; dobjY: number; key: string }>();
     infoFlows.forEach(conn => {
       const src = portToStep.get(conn.sourcePortId);
-      if (!src) return;
+      const tgt = portToStep.get(conn.targetPortId);
+      if (!src || !tgt) return;
       const srcStep = stepById.get(src);
+      const tgtStep = stepById.get(tgt);
       const key = ownerKey(srcStep?.parentId);
       const varName = conn.informationVariantLabel || conn.label;
 
@@ -1108,10 +1397,17 @@ ${waypoints}
       if (!dobjInfo) {
         const ownerLayout = ownerLayouts.get(key) || layout;
         const srcPos = ownerLayout.get(src);
+        const tgtPos = ownerLayout.get(tgt);
+        const srcCenter = srcPos
+          ? { x: srcPos.x + srcPos.w / 2, y: srcPos.y + srcPos.h / 2 }
+          : { x: MARGIN_X + TASK_W / 2, y: MARGIN_Y + TASK_H / 2 };
+        const tgtCenter = tgtPos
+          ? { x: tgtPos.x + tgtPos.w / 2, y: tgtPos.y + tgtPos.h / 2 }
+          : srcCenter;
         const dobjId = `dobj_${bpmnId(src)}_${bpmnId(varName.replace(/[^a-zA-Z0-9]/g, '_'))}`;
-        const dobjX = (srcPos?.x ?? MARGIN_X) + TASK_W + 30;
-        const dobjY = (srcPos?.y ?? MARGIN_Y) - 60;
-        dobjInfo = { dobjId, srcEl: bpmnId(src), dobjX, dobjY, key };
+        const dobjX = (srcCenter.x + tgtCenter.x) / 2 - 18;
+        const dobjY = (srcCenter.y + tgtCenter.y) / 2 - 25;
+        dobjInfo = { dobjId, dobjX, dobjY, key };
         dobjBySourcePort.set(conn.sourcePortId, dobjInfo);
 
         const assocOutId = `assocOut_${dobjId}`;
@@ -1135,9 +1431,14 @@ ${waypoints}
         }
 
         if (srcPos) {
+          const dobjCenterY = dobjY + 25;
+          const srcCenterY = srcPos.y + srcPos.h / 2;
+          const dataObjectIsBelowSource = dobjCenterY >= srcCenterY;
+          const srcEdgeY = dataObjectIsBelowSource ? srcPos.y + srcPos.h : srcPos.y;
+          const dobjEdgeY = dataObjectIsBelowSource ? dobjY : dobjY + 50;
           const edgeOutXml = `      <bpmndi:BPMNEdge id="${assocOutId}_di" bpmnElement="${assocOutId}">
-        <di:waypoint x="${srcPos.x + srcPos.w / 2}" y="${srcPos.y}"/>
-        <di:waypoint x="${dobjX + 18}" y="${dobjY + 50}"/>
+        <di:waypoint x="${srcPos.x + srcPos.w / 2}" y="${srcEdgeY}"/>
+        <di:waypoint x="${dobjX + 18}" y="${dobjEdgeY}"/>
       </bpmndi:BPMNEdge>`;
           if (key === rootOwner) {
             edgeElements.push(edgeOutXml);
@@ -1148,13 +1449,16 @@ ${waypoints}
       }
 
       // Input association: DataObject → target task
-      const tgt = portToStep.get(conn.targetPortId);
-      if (!tgt) return;
-      const tgtStep = stepById.get(tgt);
       const tgtKey = ownerKey(tgtStep?.parentId);
       const assocInId = `assocIn_${bpmnId(conn.id)}`;
+      const assocSemanticId = `assocInfo_${bpmnId(conn.id)}`;
 
-      const dataInputXml = `<bpmn:association id="${assocInId}" sourceRef="${dobjInfo.dobjId}" targetRef="${bpmnId(tgt)}" associationDirection="One"/>`;
+      const dataInputXml = `<bpmn:association id="${assocInId}" sourceRef="${dobjInfo.dobjId}" targetRef="${bpmnId(tgt)}" associationDirection="One"/>
+<bpmn:association id="${assocSemanticId}" name="${varName}" sourceRef="${bpmnId(src)}" targetRef="${bpmnId(tgt)}" associationDirection="One">
+  <bpmn:extensionElements>
+    <dexpi:Stream streamType="InformationFlow" uid="${conn.id}" identifier="${conn.identifier}" sourcePortRef="${conn.sourcePortId}" targetPortRef="${conn.targetPortId}"/>
+  </bpmn:extensionElements>
+</bpmn:association>`;
       if (tgtKey === rootOwner) {
         processElements.push(indentBlock(dataInputXml, '  '));
       } else {
@@ -1164,9 +1468,14 @@ ${waypoints}
       const ownerLayout = ownerLayouts.get(tgtKey) || layout;
       const tgtPos = ownerLayout.get(tgt);
       if (tgtPos) {
+        const dobjCenterY = dobjInfo.dobjY + 25;
+        const tgtCenterY = tgtPos.y + tgtPos.h / 2;
+        const dataObjectIsBelowTarget = dobjCenterY >= tgtCenterY;
+        const dobjEdgeY = dataObjectIsBelowTarget ? dobjInfo.dobjY : dobjInfo.dobjY + 50;
+        const tgtEdgeY = dataObjectIsBelowTarget ? tgtPos.y + tgtPos.h : tgtPos.y;
         const edgeInXml = `      <bpmndi:BPMNEdge id="${assocInId}_di" bpmnElement="${assocInId}">
-        <di:waypoint x="${dobjInfo.dobjX + 18}" y="${dobjInfo.dobjY}"/>
-        <di:waypoint x="${tgtPos.x + tgtPos.w / 2}" y="${tgtPos.y}"/>
+        <di:waypoint x="${dobjInfo.dobjX + 18}" y="${dobjEdgeY}"/>
+        <di:waypoint x="${tgtPos.x + tgtPos.w / 2}" y="${tgtEdgeY}"/>
       </bpmndi:BPMNEdge>`;
         if (tgtKey === rootOwner) {
           edgeElements.push(edgeInXml);
@@ -1200,60 +1509,6 @@ ${waypoints}
       const pos = ownerLayout?.get(step.id);
       if (!pos) return;
       pushOwned(shapeElementsByOwner, owner, shapeForStep(step, pos));
-    });
-
-    // InformationFlows → Association + DataObjectReference
-    infoFlows.forEach(conn => {
-      const src = portToStep.get(conn.sourcePortId);
-      if (!src) return;
-      const srcStep = stepById.get(src);
-      const key = ownerKey(srcStep?.parentId);
-
-      const varName = conn.informationVariantLabel || conn.label;
-      const dobjId = `dobj_${bpmnId(conn.id)}`;
-      const assocId = `assoc_${bpmnId(conn.id)}`;
-      const srcEl = bpmnId(src);
-
-      // Place DataObject between source and target
-      const ownerLayout = ownerLayouts.get(key) || layout;
-      const srcPos = ownerLayout.get(src);
-      const dobjX = (srcPos?.x ?? MARGIN_X) + TASK_W + 30;
-      const dobjY = (srcPos?.y ?? MARGIN_Y) - 60;
-
-      const dataObjectXml = `<bpmn:dataObjectReference id="${dobjId}" name="${varName}" dataObjectRef="DataObject_${dobjId}"/>
-  <bpmn:dataObject id="DataObject_${dobjId}"/>
-  <bpmn:association id="${assocId}" sourceRef="${srcEl}" targetRef="${dobjId}" associationDirection="One">
-    <bpmn:extensionElements>
-      <dexpi:Stream streamType="InformationFlow" uid="${conn.id}" identifier="${conn.identifier}"/>
-    </bpmn:extensionElements>
-  </bpmn:association>`;
-      if (key === rootOwner) {
-        processElements.push(indentBlock(dataObjectXml, '  '));
-      } else {
-        pushOwned(extraProcessElementsByOwner, key, dataObjectXml);
-      }
-
-      const shapeXml = `      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
-        <dc:Bounds x="${dobjX}" y="${dobjY}" width="36" height="50"/>
-        <bpmndi:BPMNLabel/>
-      </bpmndi:BPMNShape>`;
-      if (key === rootOwner) {
-        shapeElements.push(shapeXml);
-      } else {
-        pushOwned(shapeElementsByOwner, key, shapeXml);
-      }
-
-      if (srcPos) {
-        const edgeXml = `      <bpmndi:BPMNEdge id="${assocId}_di" bpmnElement="${assocId}">
-        <di:waypoint x="${srcPos.x + srcPos.w / 2}" y="${srcPos.y}"/>
-        <di:waypoint x="${dobjX + 18}" y="${dobjY + 50}"/>
-      </bpmndi:BPMNEdge>`;
-        if (key === rootOwner) {
-          edgeElements.push(edgeXml);
-        } else {
-          pushOwned(edgeElementsByOwner, key, edgeXml);
-        }
-      }
     });
 
     steps.filter(step => !step.parentId && !hiddenStepIds.has(step.id)).forEach(step => {
@@ -1333,6 +1588,24 @@ ${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
     if (isPortLikeLabel) return true;
 
     return step.ports.length > 0 && step.ports.every(port => port.label === label);
+  }
+
+  private isInstrumentationStep(step: DexpiStep | undefined): boolean {
+    if (!step) return false;
+
+    const instrumentationTypes = new Set([
+      'MeasuringProcessVariable',
+      'ControllingProcessVariable',
+      'ConveyingSignal',
+      'CalculatingProcessVariable',
+      'CalculatingRatio',
+      'CalculatingSplitRange',
+      'TransformingProcessVariable',
+      'InstrumentationActivity',
+    ]);
+
+    return instrumentationTypes.has(step.dexpiType) ||
+      /(?:Instrumentation|ProcessVariable|ConveyingSignal|Calculating|Transforming)/.test(step.dexpiType);
   }
 
   private _uidCounter = 0;
