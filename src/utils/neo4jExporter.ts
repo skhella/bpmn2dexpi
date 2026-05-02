@@ -10,6 +10,13 @@
  * - Generic attribute parsing for any DEXPI property
  */
 
+interface ExportStats {
+  nodes?: number;
+  relationships?: number;
+  [key: string]: unknown;
+}
+
+
 export interface Neo4jConfig {
   uri: string;
   user: string;
@@ -922,7 +929,7 @@ export async function executeNeo4jQueries(
   config: Neo4jConfig, 
   queries: string[],
   onProgress?: (current: number, total: number) => void
-): Promise<{ success: boolean; message: string; stats?: any }> {
+): Promise<{ success: boolean; message: string; stats?: ExportStats }> {
   const { uri, user, password, database = 'neo4j' } = config;
   
   let httpUri = uri;
@@ -976,9 +983,9 @@ export async function executeNeo4jQueries(
         onProgress(Math.min(i + batchSize, queries.length), queries.length);
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       errorCount += batch.length;
-      errors.push(error.message || 'Unknown error');
+      errors.push(error instanceof Error ? (error instanceof Error ? error.message : String(error)) : 'Unknown error');
     }
   }
   
@@ -1010,10 +1017,10 @@ export async function exportToNeo4j(
     const queries = generateCypherQueries(data);
     const result = await executeNeo4jQueries(config, queries, onProgress);
     return result;
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       success: false,
-      message: `Export failed: ${error.message}`
+      message: `Export failed: ${(error instanceof Error ? error.message : String(error))}`
     };
   }
 }
