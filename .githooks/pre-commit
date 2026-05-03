@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Refuse commits whose author email is not on the allowlist.
+# This guards against AI agents, fresh sandboxes, or unconfigured machines
+# committing under a phantom identity (e.g. noreply@anthropic.com,
+# codex@openai.com, shadykhella@users.noreply.github.com). To bypass for a
+# single legitimate commit, use `git commit --no-verify` — but normally that
+# means the identity needs to be set correctly instead.
+
+allowed=(
+  "s.khella@tu-berlin.de"
+  "khella@tu-berlin.de"
+  "140087799+skhella@users.noreply.github.com"
+)
+
+email="$(git config user.email || true)"
+
+for ok in "${allowed[@]}"; do
+  if [[ "$email" == "$ok" ]]; then
+    exit 0
+  fi
+done
+
+cat >&2 <<EOF
+Refusing commit: git user.email '${email:-<unset>}' is not on the allowlist.
+
+Allowed identities:
+  - s.khella@tu-berlin.de
+  - khella@tu-berlin.de
+  - 140087799+skhella@users.noreply.github.com
+
+To fix:
+  git config user.name  "Shady Khella"
+  git config user.email "s.khella@tu-berlin.de"
+
+If the commit is intentionally being authored by someone else, bypass with:
+  git commit --no-verify
+EOF
+exit 1
