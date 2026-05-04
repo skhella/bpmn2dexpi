@@ -60,6 +60,7 @@ interface ParsedDexpi {
 }
 
 type LayoutBox = {x: number, y: number, w: number, h: number};
+type EdgeSide = 'left' | 'right' | 'top' | 'bottom';
 
 // Layout constants
 const TASK_W = 130;
@@ -69,6 +70,7 @@ const H_GAP = 200;       // horizontal gap between elements
 const V_GAP = 100;       // vertical gap between elements
 const MARGIN_X = 100;
 const MARGIN_Y = 100;
+const ENERGY_BAND_GAP = 80; // vertical gap between an energy boundary event and its connected task
 
 export class DexpiToBpmnTransformer {
 
@@ -618,15 +620,25 @@ export class DexpiToBpmnTransformer {
     connections: DexpiConnection[],
     hiddenStepIds: Set<string> = new Set()
   ): Map<string, LayoutBox> {
-    const visibleSteps = steps.filter(step => !hiddenStepIds.has(step.id));
-    const visibleStepIds = new Set(visibleSteps.map(step => step.id));
-    const stepById = new Map(visibleSteps.map(step => [step.id, step]));
+    const allVisibleSteps = steps.filter(step => !hiddenStepIds.has(step.id));
     const layout = new Map<string, LayoutBox>();
 
-    if (visibleSteps.length === 0) return layout;
+    if (allVisibleSteps.length === 0) return layout;
+
+    // Generic rule: energy boundary proxy events (Source/Sink that mirror an
+    // energy port on the parent subprocess) are removed from the left-to-right
+    // BFS flow and placed on a top/bottom band attached to their connected
+    // interior task. This matches the way energy inputs (EEI/TEI/MEI) are drawn
+    // in the BPMN-for-process-engineering convention.
+    const energyBoundaryProxies = new Set(
+      allVisibleSteps.filter(step => this.isEnergyBoundaryProxy(step)).map(step => step.id)
+    );
+    const visibleSteps = allVisibleSteps.filter(step => !energyBoundaryProxies.has(step.id));
+    const visibleStepIds = new Set(visibleSteps.map(step => step.id));
+    const stepById = new Map(visibleSteps.map(step => [step.id, step]));
 
     const portToStep = new Map<string, string>();
-    visibleSteps.forEach(step => {
+    allVisibleSteps.forEach(step => {
       step.ports.forEach(port => portToStep.set(port.id, step.id));
     });
 
@@ -851,9 +863,203 @@ export class DexpiToBpmnTransformer {
       });
     });
 
+    // Generic rule: iterative barycenter sweep to reduce edge crossings. The
+    // initial layered placement orders each layer by upstream barycenter only;
+    // a few alternating downstream/upstream passes typically remove obvious
+    // crossings (e.g. parallel branches that converge later).
+    this.barycenterSweep(layout, byLayer, sortedLayers, upstream, downstream, branchLane, stepById, initialOrder);
+
+    // Generic rule: collapse empty middle lanes — if e.g. there are no recycle
+    // steps (lane 0), don't pay the vertical cost of an empty lane band. This
+    // tightens layouts that have only main-flow content.
+    this.compactLanes(layout, visibleSteps, stepById);
+
     this.positionInstrumentationActivities(visibleSteps, connections, layout, hiddenStepIds);
 
+    // Generic rule: place energy-port boundary proxy events (TEI/TEO/MEI/MEO/
+    // EEI/EEO sources/sinks at a subprocess boundary) above or below the
+    // interior task they connect to, instead of mixing them into the left/right
+    // material flow.
+    this.positionEnergyBoundaryProxies(
+      allVisibleSteps.filter(step => energyBoundaryProxies.has(step.id)),
+      connections,
+      layout,
+      portToStep
+    );
+
     return layout;
+  }
+
+  /**
+   * Iterative barycenter ordering to reduce edge crossings. Each pass walks
+   * either down or up the layer stack, reordering siblings within a layer by
+   * the average y-position of their connected partners on the adjacent layer.
+   * Within-lane ordering is preserved (we don't move steps across lanes).
+   *
+   * Generic graph-drawing technique: cheap, deterministic, and almost always
+   * reduces visible crossings without changing the structural layout.
+   */
+  private barycenterSweep(
+    layout: Map<string, LayoutBox>,
+    byLayer: Map<number, string[]>,
+    sortedLayers: number[],
+    upstream: Map<string, Set<string>>,
+    downstream: Map<string, Set<string>>,
+    branchLane: (id: string) => number,
+    stepById: Map<string, DexpiStep>,
+    initialOrder: Map<string, number>
+  ): void {
+    if (sortedLayers.length < 2) return;
+    const PASSES = 3;
+
+    const centerY = (id: string) => {
+      const box = layout.get(id);
+      return box ? box.y + box.h / 2 : (initialOrder.get(id) ?? 0);
+    };
+
+    const reorderLayer = (layerIdx: number, neighbors: Map<string, Set<string>>) => {
+      const ids = byLayer.get(layerIdx);
+      if (!ids || ids.length < 2) return;
+
+      // Group by lane so the pass doesn't cross structural lane boundaries.
+      const lanes = new Map<number, string[]>();
+      ids.forEach(id => {
+        const lane = branchLane(id);
+        if (!lanes.has(lane)) lanes.set(lane, []);
+        lanes.get(lane)!.push(id);
+      });
+
+      const newOrder: string[] = [];
+      Array.from(lanes.keys()).sort((a, b) => a - b).forEach(lane => {
+        const laneIds = lanes.get(lane)!;
+        // Stable sort by barycenter of adjacent-layer neighbors.
+        const decorated = laneIds.map((id, idx) => {
+          // Source/Sink keep their initial order — they often anchor the layout.
+          const step = stepById.get(id);
+          if (step?.dexpiType === 'Source' || step?.dexpiType === 'Sink') {
+            return { id, key: idx, originalIdx: idx };
+          }
+          const neighborIds = [...(neighbors.get(id) || [])];
+          if (neighborIds.length === 0) return { id, key: idx, originalIdx: idx };
+          const avg = neighborIds.reduce((sum, n) => sum + centerY(n), 0) / neighborIds.length;
+          return { id, key: avg, originalIdx: idx };
+        });
+        decorated.sort((a, b) => a.key - b.key || a.originalIdx - b.originalIdx);
+        decorated.forEach(d => newOrder.push(d.id));
+      });
+
+      if (newOrder.length !== ids.length) return;
+
+      // Reassign Y positions in their existing slots (preserving lane bands).
+      const slotYs = ids.map(id => layout.get(id)!.y);
+      slotYs.sort((a, b) => a - b);
+      newOrder.forEach((id, slot) => {
+        const box = layout.get(id);
+        if (!box) return;
+        layout.set(id, { ...box, y: slotYs[slot] });
+      });
+      byLayer.set(layerIdx, newOrder);
+    };
+
+    for (let pass = 0; pass < PASSES; pass += 1) {
+      // Down pass: order layer N by upstream (layer N-1) barycenter.
+      for (let i = 1; i < sortedLayers.length; i += 1) reorderLayer(sortedLayers[i], upstream);
+      // Up pass: order layer N by downstream (layer N+1) barycenter.
+      for (let i = sortedLayers.length - 2; i >= 0; i -= 1) reorderLayer(sortedLayers[i], downstream);
+    }
+  }
+
+  /**
+   * Renumber occupied lane bands to be contiguous, then shift step Y positions
+   * accordingly. Removes vertical whitespace from layouts whose lane indices
+   * have gaps (e.g. main flow only — no recycle in lane 0, no sink-adjacent in
+   * lane 2).
+   */
+  private compactLanes(
+    layout: Map<string, LayoutBox>,
+    visibleSteps: DexpiStep[],
+    stepById: Map<string, DexpiStep>
+  ): void {
+    const laneGap = TASK_H + V_GAP;
+    const laneOf = (y: number) => Math.round((y - MARGIN_Y) / laneGap);
+    const occupiedLanes = new Set<number>();
+    layout.forEach((box, id) => {
+      const step = stepById.get(id);
+      if (!step) return;
+      // Only count lanes for layered steps (not data templates / dt_* keys).
+      if (!visibleSteps.includes(step)) return;
+      occupiedLanes.add(laneOf(box.y));
+    });
+    if (occupiedLanes.size === 0) return;
+
+    const sortedLanes = Array.from(occupiedLanes).sort((a, b) => a - b);
+    const remap = new Map<number, number>();
+    sortedLanes.forEach((lane, index) => remap.set(lane, index));
+
+    layout.forEach((box, id) => {
+      const step = stepById.get(id);
+      if (!step || !visibleSteps.includes(step)) return;
+      const oldLane = laneOf(box.y);
+      const newLane = remap.get(oldLane);
+      if (newLane === undefined || newLane === oldLane) return;
+      const delta = (newLane - oldLane) * laneGap;
+      layout.set(id, { ...box, y: box.y + delta });
+    });
+  }
+
+  /**
+   * Move energy boundary proxies (sources/sinks for energy ports at a
+   * subprocess boundary) above or below the interior task they connect to.
+   * This is a no-op for proxies whose connected task isn't laid out (e.g.
+   * disconnected boundary).
+   */
+  private positionEnergyBoundaryProxies(
+    proxies: DexpiStep[],
+    connections: DexpiConnection[],
+    layout: Map<string, LayoutBox>,
+    portToStep: Map<string, string>
+  ): void {
+    if (proxies.length === 0) return;
+
+    const placedByAnchor = new Map<string, number>();
+    proxies.forEach(proxy => {
+      const port = proxy.ports[0];
+      if (!port) return;
+      const isInlet = port.direction !== 'Outlet';
+
+      // Find the interior task this proxy connects to.
+      const connection = connections.find(conn =>
+        !conn.hidden &&
+        conn.dexpiType !== 'InformationFlow' &&
+        (conn.sourcePortId === port.id || conn.targetPortId === port.id)
+      );
+      if (!connection) return;
+
+      const otherPortId = connection.sourcePortId === port.id ? connection.targetPortId : connection.sourcePortId;
+      const otherStepId = portToStep.get(otherPortId);
+      if (!otherStepId) return;
+      const otherPos = layout.get(otherStepId);
+      if (!otherPos) return;
+
+      // Place above for inlet proxies (energy flows in from above), below for outlets.
+      const w = EVENT_D;
+      const h = EVENT_D;
+      const y = isInlet
+        ? otherPos.y - h - ENERGY_BAND_GAP
+        : otherPos.y + otherPos.h + ENERGY_BAND_GAP;
+
+      // Stagger horizontally if multiple proxies attach to the same task on the
+      // same side, so their circles don't overlap.
+      const anchorKey = `${otherStepId}:${isInlet ? 'top' : 'bottom'}`;
+      const stack = placedByAnchor.get(anchorKey) ?? 0;
+      placedByAnchor.set(anchorKey, stack + 1);
+      const slotWidth = w + 24;
+      const stackOffset = (stack - (stack > 0 ? 0 : 0)) * slotWidth;
+      const baseX = otherPos.x + (otherPos.w - w) / 2;
+      const x = baseX + (stack === 0 ? 0 : (stack % 2 === 1 ? stackOffset : -stackOffset));
+
+      layout.set(proxy.id, { x, y, w, h });
+    });
   }
 
   // ── BPMN builder ────────────────────────────────────────────────────────────
@@ -969,8 +1175,34 @@ export class DexpiToBpmnTransformer {
       });
 
     type EndpointRole = 'source' | 'target';
-    type Anchor = { side: 'left' | 'right'; offset: number; yNudge?: number };
+    type Anchor = { side: EdgeSide; offset: number; yNudge?: number; xNudge?: number };
     const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+    const isEnergyPortFn = (port: DexpiPort | undefined) => this.isEnergyPort(port);
+
+    /**
+     * Generic rule: choose which edge of the task box a port should anchor on,
+     * based purely on port type/direction and whether the owning step is part
+     * of a recycle loop (which inverts left/right).
+     *
+     *   energy ports (Thermal/Mechanical/Electrical or labelled TEI/TEO/MEI/...):
+     *     Inlet  → top
+     *     Outlet → bottom
+     *   recycle steps:
+     *     Inlet  → right   (so the return line enters on the recycle side)
+     *     Outlet → left
+     *   everything else (material + information ports):
+     *     Inlet  → left
+     *     Outlet → right
+     */
+    const preferredEdgeSide = (
+      port: DexpiPort | undefined,
+      isRecycleStep: boolean
+    ): EdgeSide => {
+      const bpmnDir = port?.direction === 'Outlet' ? 'Outlet' : 'Inlet';
+      if (isEnergyPortFn(port)) return bpmnDir === 'Outlet' ? 'bottom' : 'top';
+      if (isRecycleStep) return bpmnDir === 'Outlet' ? 'left' : 'right';
+      return bpmnDir === 'Outlet' ? 'right' : 'left';
+    };
     const isVisualPortLabel = (label?: string) =>
       !!label && (
         /^(MI|MO|TEI|TEO|MEI|MEO|EEI|EEO)\d+$/i.test(label) ||
@@ -1003,28 +1235,50 @@ export class DexpiToBpmnTransformer {
       return `${stepId || ''}:${role}:${bpmnDir}:${portKind}:${visualEndpointLabel(conn, role, port) || portId}`;
     };
 
-    const connectedPortY = (step: DexpiStep, port: DexpiPort): number | undefined => {
+    const connectedOtherPos = (step: DexpiStep, port: DexpiPort): LayoutBox[] => {
       const owner = stepOwnerKey(step.id);
       const ownerLayout = ownerLayouts.get(owner) || layout;
       const isOutlet = port.direction === 'Outlet';
-      const linkedCenters = seqFlows
+      return seqFlows
         .map(conn => {
           if (isOutlet && conn.sourcePortId !== port.id) return undefined;
           if (!isOutlet && conn.targetPortId !== port.id) return undefined;
-
           const otherStepId = isOutlet
             ? portToStep.get(conn.targetPortId)
             : portToStep.get(conn.sourcePortId);
           if (!otherStepId || stepOwnerKey(otherStepId) !== owner) return undefined;
-
-          const otherPos = ownerLayout.get(otherStepId);
-          return otherPos ? otherPos.y + otherPos.h / 2 : undefined;
+          return ownerLayout.get(otherStepId);
         })
-        .filter((value): value is number => value !== undefined);
-
-      if (linkedCenters.length === 0) return undefined;
-      return linkedCenters.reduce((sum, y) => sum + y, 0) / linkedCenters.length;
+        .filter((value): value is LayoutBox => !!value);
     };
+
+    const connectedPortY = (step: DexpiStep, port: DexpiPort): number | undefined => {
+      const others = connectedOtherPos(step, port);
+      if (others.length === 0) return undefined;
+      return others.reduce((sum, box) => sum + box.y + box.h / 2, 0) / others.length;
+    };
+
+    const connectedPortX = (step: DexpiStep, port: DexpiPort): number | undefined => {
+      const others = connectedOtherPos(step, port);
+      if (others.length === 0) return undefined;
+      return others.reduce((sum, box) => sum + box.x + box.w / 2, 0) / others.length;
+    };
+
+    /**
+     * Generic rule: when distributing multiple anchors along the same edge of a
+     * task, the offset is along Y for left/right edges and along X for
+     * top/bottom edges. Returns the connected partner's position on the
+     * relevant axis (for ordering / desired offset computation).
+     */
+    const connectedAxisPos = (step: DexpiStep, port: DexpiPort, side: EdgeSide): number | undefined => {
+      return side === 'top' || side === 'bottom'
+        ? connectedPortX(step, port)
+        : connectedPortY(step, port);
+    };
+    const stepAxisStart = (pos: LayoutBox, side: EdgeSide) =>
+      side === 'top' || side === 'bottom' ? pos.x : pos.y;
+    const stepAxisLength = (pos: LayoutBox, side: EdgeSide) =>
+      side === 'top' || side === 'bottom' ? pos.w : pos.h;
 
     const connectionAnchor = (
       step: DexpiStep | undefined,
@@ -1035,16 +1289,16 @@ export class DexpiToBpmnTransformer {
       if (!step) return { side: 'left', offset: 0.5 };
 
       const port = step.ports.find(p => p.id === portId);
-      const bpmnDir = port?.direction === 'Outlet' ? 'Outlet' : 'Inlet';
       const isRecycleStep = recycleStepIds.has(step.id);
-      const side: 'left' | 'right' = isRecycleStep
-        ? (bpmnDir === 'Outlet' ? 'left' : 'right')
-        : (bpmnDir === 'Outlet' ? 'right' : 'left');
+      const side = preferredEdgeSide(port, isRecycleStep);
+      const bpmnDir = port?.direction === 'Outlet' ? 'Outlet' : 'Inlet';
       const isInfoPort = port?.type === 'InformationPort';
       const owner = stepOwnerKey(step.id);
       const ownerLayout = ownerLayouts.get(owner) || layout;
       const stepPos = ownerLayout.get(step.id);
-      const records = new Map<string, { firstIndex: number; linkedY: number[] }>();
+      const axisStart = stepPos ? stepAxisStart(stepPos, side) : 0;
+      const axisLength = stepPos ? stepAxisLength(stepPos, side) : 1;
+      const records = new Map<string, { firstIndex: number; linked: number[] }>();
 
       seqFlows.forEach((candidate, candidateIndex) => {
         const roles: EndpointRole[] = [];
@@ -1055,6 +1309,9 @@ export class DexpiToBpmnTransformer {
           const candidatePortId = candidateRole === 'source' ? candidate.sourcePortId : candidate.targetPortId;
           const candidatePort = step.ports.find(p => p.id === candidatePortId);
           if (!candidatePort) return;
+          // Group only ports that share an edge with the current port; offsets
+          // are distributed independently per edge side.
+          if (preferredEdgeSide(candidatePort, isRecycleStep) !== side) return;
           const candidateDir = candidatePort.direction === 'Outlet' ? 'Outlet' : 'Inlet';
           if (candidateDir !== bpmnDir) return;
           const candidateIsInfo = candidatePort.type === 'InformationPort';
@@ -1067,8 +1324,12 @@ export class DexpiToBpmnTransformer {
             ? ownerLayout.get(otherStepId)
             : undefined;
           const key = visualEndpointKey(candidate, candidateRole);
-          const record = records.get(key) || { firstIndex: candidateIndex, linkedY: [] };
-          if (otherPos) record.linkedY.push(otherPos.y + otherPos.h / 2);
+          const record = records.get(key) || { firstIndex: candidateIndex, linked: [] };
+          if (otherPos) {
+            record.linked.push(side === 'top' || side === 'bottom'
+              ? otherPos.x + otherPos.w / 2
+              : otherPos.y + otherPos.h / 2);
+          }
           record.firstIndex = Math.min(record.firstIndex, candidateIndex);
           records.set(key, record);
         });
@@ -1076,22 +1337,24 @@ export class DexpiToBpmnTransformer {
 
       if (records.size <= 1) {
         let offset = 0.5;
-        if (isRecycleStep) offset = bpmnDir === 'Outlet' ? 0.35 : 0.65;
+        if (isRecycleStep && (side === 'left' || side === 'right')) {
+          offset = bpmnDir === 'Outlet' ? 0.35 : 0.65;
+        }
         return { side, offset };
       }
 
       const orderedRecords = [...records.entries()].sort(([, a], [, b]) => {
-        const aY = a.linkedY.length > 0 ? a.linkedY.reduce((sum, y) => sum + y, 0) / a.linkedY.length : undefined;
-        const bY = b.linkedY.length > 0 ? b.linkedY.reduce((sum, y) => sum + y, 0) / b.linkedY.length : undefined;
-        if (aY !== undefined && bY !== undefined && aY !== bY) return aY - bY;
-        if (aY !== undefined && bY === undefined) return -1;
-        if (aY === undefined && bY !== undefined) return 1;
+        const aPos = a.linked.length > 0 ? a.linked.reduce((sum, v) => sum + v, 0) / a.linked.length : undefined;
+        const bPos = b.linked.length > 0 ? b.linked.reduce((sum, v) => sum + v, 0) / b.linked.length : undefined;
+        if (aPos !== undefined && bPos !== undefined && aPos !== bPos) return aPos - bPos;
+        if (aPos !== undefined && bPos === undefined) return -1;
+        if (aPos === undefined && bPos !== undefined) return 1;
         return a.firstIndex - b.firstIndex;
       });
       const desiredOffsets = orderedRecords.map(([, record], groupIdx) => {
-        if (stepPos && record.linkedY.length > 0) {
-          const linkedY = record.linkedY.reduce((sum, y) => sum + y, 0) / record.linkedY.length;
-          return clamp((linkedY - stepPos.y) / stepPos.h, 0.12, 0.88);
+        if (axisLength > 0 && record.linked.length > 0) {
+          const linkedAxis = record.linked.reduce((sum, v) => sum + v, 0) / record.linked.length;
+          return clamp((linkedAxis - axisStart) / axisLength, 0.12, 0.88);
         }
         return (groupIdx + 1) / (orderedRecords.length + 1);
       });
@@ -1113,35 +1376,37 @@ export class DexpiToBpmnTransformer {
       return { side, offset: desiredOffsets[idx] ?? 0.5 };
     };
 
-    const portAnchor = (step: DexpiStep | undefined, portId: string) => {
-      if (!step) return { side: 'left' as const, offset: 0.5 };
+    const portAnchor = (step: DexpiStep | undefined, portId: string): { side: EdgeSide; offset: number } => {
+      if (!step) return { side: 'left', offset: 0.5 };
 
       const port = step.ports.find(p => p.id === portId);
       const bpmnDir = port?.direction === 'Outlet' ? 'Outlet' : 'Inlet';
       const isRecycleStep = recycleStepIds.has(step.id);
-      const side: 'left' | 'right' = isRecycleStep
-        ? (bpmnDir === 'Outlet' ? 'left' : 'right')
-        : (bpmnDir === 'Outlet' ? 'right' : 'left');
+      const side = preferredEdgeSide(port, isRecycleStep);
       const isInfoPort = port?.type === 'InformationPort';
-      const group = step.ports.filter(p =>
-        (p.direction === 'Outlet' ? 'Outlet' : 'Inlet') === bpmnDir &&
-        (isInfoPort ? p.type === 'InformationPort' : p.type !== 'InformationPort')
-      );
+      // Group only ports that share the same edge — distribution is per-edge.
+      const group = step.ports.filter(p => {
+        if ((p.direction === 'Outlet' ? 'Outlet' : 'Inlet') !== bpmnDir) return false;
+        if ((p.type === 'InformationPort') !== !!isInfoPort) return false;
+        return preferredEdgeSide(p, isRecycleStep) === side;
+      });
       const orderedGroup = isInfoPort ? group : [...group].sort((a, b) => {
-        const aY = connectedPortY(step, a);
-        const bY = connectedPortY(step, b);
-        if (aY !== undefined && bY !== undefined && aY !== bY) return aY - bY;
-        if (aY !== undefined && bY === undefined) return -1;
-        if (aY === undefined && bY !== undefined) return 1;
+        const aPos = connectedAxisPos(step, a, side);
+        const bPos = connectedAxisPos(step, b, side);
+        if (aPos !== undefined && bPos !== undefined && aPos !== bPos) return aPos - bPos;
+        if (aPos !== undefined && bPos === undefined) return -1;
+        if (aPos === undefined && bPos !== undefined) return 1;
         return group.findIndex(p => p.id === a.id) - group.findIndex(p => p.id === b.id);
       });
       const idx = Math.max(0, orderedGroup.findIndex(p => p.id === portId));
 
       const stepPos = (ownerLayouts.get(stepOwnerKey(step.id)) || layout).get(step.id);
+      const axisStart = stepPos ? stepAxisStart(stepPos, side) : 0;
+      const axisLength = stepPos ? stepAxisLength(stepPos, side) : 1;
       const desiredOffsets = orderedGroup.map((p, groupIdx) => {
-        const connectedY = !isInfoPort && stepPos ? connectedPortY(step, p) : undefined;
-        if (connectedY !== undefined && stepPos && stepPos.h > 0) {
-          return clamp((connectedY - stepPos.y) / stepPos.h, 0.12, 0.88);
+        const connected = !isInfoPort && stepPos ? connectedAxisPos(step, p, side) : undefined;
+        if (connected !== undefined && axisLength > 0) {
+          return clamp((connected - axisStart) / axisLength, 0.12, 0.88);
         }
         return orderedGroup.length <= 1 ? 0.5 : (groupIdx + 1) / (orderedGroup.length + 1);
       });
@@ -1161,7 +1426,7 @@ export class DexpiToBpmnTransformer {
       }
 
       let offset = desiredOffsets[idx] ?? 0.5;
-      if (isRecycleStep && orderedGroup.length <= 1) {
+      if (isRecycleStep && orderedGroup.length <= 1 && (side === 'left' || side === 'right')) {
         // Separate the single recycle inlet and outlet so return lines do not read as one continuous stroke.
         offset = bpmnDir === 'Outlet' ? 0.35 : 0.65;
       }
@@ -1169,10 +1434,24 @@ export class DexpiToBpmnTransformer {
       return { side, offset };
     };
 
-    const connectionPoint = (pos: LayoutBox, anchor: Anchor) => ({
-      x: anchor.side === 'left' ? pos.x : pos.x + pos.w,
-      y: clamp(pos.y + pos.h * anchor.offset + (anchor.yNudge ?? 0), pos.y, pos.y + pos.h),
-    });
+    const connectionPoint = (pos: LayoutBox, anchor: Anchor) => {
+      if (anchor.side === 'top') {
+        return {
+          x: clamp(pos.x + pos.w * anchor.offset + (anchor.xNudge ?? 0), pos.x, pos.x + pos.w),
+          y: pos.y,
+        };
+      }
+      if (anchor.side === 'bottom') {
+        return {
+          x: clamp(pos.x + pos.w * anchor.offset + (anchor.xNudge ?? 0), pos.x, pos.x + pos.w),
+          y: pos.y + pos.h,
+        };
+      }
+      return {
+        x: anchor.side === 'left' ? pos.x : pos.x + pos.w,
+        y: clamp(pos.y + pos.h * anchor.offset + (anchor.yNudge ?? 0), pos.y, pos.y + pos.h),
+      };
+    };
 
     type Waypoint = { x: number; y: number };
     const horizontalIntersections = (
@@ -1250,6 +1529,44 @@ export class DexpiToBpmnTransformer {
       const tgtX = tgtPoint.x;
       const tgtY = tgtPoint.y;
       const laneOffset = (lane % 6) * 18;
+
+      // Generic rule: when either endpoint anchors on a top/bottom edge, route
+      // with a stub-corner-stub pattern. The stub direction is dictated by the
+      // edge so the connection visibly enters/exits perpendicular to the box.
+      if (srcAnchor.side === 'top' || srcAnchor.side === 'bottom' ||
+          tgtAnchor.side === 'top' || tgtAnchor.side === 'bottom') {
+        const stub = 30 + laneOffset;
+        const stubFor = (point: Waypoint, side: EdgeSide): Waypoint => {
+          if (side === 'left')   return { x: point.x - stub, y: point.y };
+          if (side === 'right')  return { x: point.x + stub, y: point.y };
+          if (side === 'top')    return { x: point.x, y: point.y - stub };
+          return { x: point.x, y: point.y + stub };  // bottom
+        };
+        const srcStub = stubFor(srcPoint, srcAnchor.side);
+        const tgtStub = stubFor(tgtPoint, tgtAnchor.side);
+
+        // For mixed sides, insert a single corner so the line travels along
+        // the dominant axis between the stubs without re-entering either box.
+        const srcVertical = srcAnchor.side === 'top' || srcAnchor.side === 'bottom';
+        const tgtVertical = tgtAnchor.side === 'top' || tgtAnchor.side === 'bottom';
+
+        let mid: Waypoint;
+        if (srcVertical && tgtVertical) {
+          // both top/bottom — go vertical from src, horizontal across, vertical into tgt
+          mid = { x: tgtStub.x, y: srcStub.y };
+        } else if (!srcVertical && !tgtVertical) {
+          // both left/right — fall through to existing logic below
+          mid = { x: tgtStub.x, y: srcStub.y };
+        } else if (srcVertical) {
+          // src vertical, tgt horizontal — first horizontal from tgtStub, then vertical to srcStub
+          mid = { x: srcStub.x, y: tgtStub.y };
+        } else {
+          // src horizontal, tgt vertical
+          mid = { x: tgtStub.x, y: srcStub.y };
+        }
+
+        return [srcPoint, srcStub, mid, tgtStub, tgtPoint];
+      }
 
       if (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && tgtX >= srcX + 50) {
         const bendX = Math.max(srcX + 35, tgtX - 60 - laneOffset);
@@ -1442,13 +1759,16 @@ ${indent}</bpmn:task>`;
       // Sub-distribute waypoints: if multiple streams share a port, stagger
       // their connection points by ±spread px so they're visually distinct.
       const SPREAD = 12;
-      const withNudge = (shareKey: string, anchor: { side: 'left' | 'right'; offset: number }) => {
+      const withNudge = (shareKey: string, anchor: Anchor): Anchor => {
         const share = portShareIndex.get(shareKey);
         if (!share || share.total <= 1) return anchor;
         const idx = share.next++;
         const totalSpread = (share.total - 1) * SPREAD;
-        const yNudge = idx * SPREAD - totalSpread / 2;
-        return { ...anchor, yNudge };
+        const nudge = idx * SPREAD - totalSpread / 2;
+        // Top/bottom anchors stagger horizontally; left/right anchors vertically.
+        return anchor.side === 'top' || anchor.side === 'bottom'
+          ? { ...anchor, xNudge: nudge }
+          : { ...anchor, yNudge: nudge };
       };
       const srcA = withNudge(visualEndpointKey(conn, 'source'), srcAnchor);
       const tgtA = withNudge(visualEndpointKey(conn, 'target'), tgtAnchor);
@@ -1687,6 +2007,31 @@ ${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
     if (isPortLikeLabel) return true;
 
     return step.ports.length > 0 && step.ports.every(port => port.label === label);
+  }
+
+  /**
+   * Generic rule: energy ports (Thermal/Mechanical/Electrical) and any port whose
+   * label follows the conventional energy-port naming scheme (TEI/TEO, MEI/MEO,
+   * EEI/EEO) are routed on the top or bottom edge of the owning task instead of
+   * left/right. This frees the left/right edges for material flow and matches the
+   * BPMN-for-process-engineering convention used in the DEXPI mapping paper.
+   */
+  private isEnergyPort(port: DexpiPort | undefined): boolean {
+    if (!port) return false;
+    if (['ThermalEnergyPort', 'MechanicalEnergyPort', 'ElectricalEnergyPort'].includes(port.type)) return true;
+    return /^(TEI|TEO|MEI|MEO|EEI|EEO)\d+$/i.test(port.label || '');
+  }
+
+  /**
+   * A boundary proxy event materialized for an energy port at a subprocess boundary.
+   * These should be placed above (Inlet) or below (Outlet) the connected interior
+   * task rather than within the left-to-right BFS flow.
+   */
+  private isEnergyBoundaryProxy(step: DexpiStep): boolean {
+    if (step.dexpiType !== 'Source' && step.dexpiType !== 'Sink') return false;
+    const port = step.ports[0];
+    if (!port?.superPortId) return false;
+    return this.isEnergyPort(port);
   }
 
   private isInstrumentationStep(step: DexpiStep | undefined): boolean {
