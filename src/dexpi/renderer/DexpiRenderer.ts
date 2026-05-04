@@ -381,13 +381,10 @@ export default class DexpiRenderer extends BaseRenderer {
     // Same logic as MaterialPort/SequenceFlow matching but using the DataObject's
     // name: an IPI_Composition port matches the association whose DataObject is "Composition".
     if (port.portType === 'InformationPort' || (port as any).type === 'InformationPort') {
-      // Respect manual positioning — same as calculatePortPosition does for all ports
-      if (port.anchorX !== undefined && port.anchorY !== undefined) {
-        return { x: port.anchorX, y: port.anchorY };
-      }
-      // InformationPorts only render when a visual association connection exists.
-      // If no matching DataObject association is found, return null → port is not drawn.
-      // This prevents export-only IPI ports from cluttering subprocess boundaries.
+      // Live association waypoints take precedence over stored anchors so the
+      // port follows the association in real time. Stored anchorX/Y is used only
+      // as a fallback when no association exists (e.g. after manual port drag on
+      // an unconnected port).
       const isOutlet = port.direction === 'Outlet';
       const associations = isOutlet
         ? (businessObject.dataOutputAssociations || [])
@@ -444,7 +441,11 @@ export default class DexpiRenderer extends BaseRenderer {
         }
       }
 
-      // No matching association found — don't render this port
+      // No matching association found — fall back to stored anchors if present
+      // (manual drag on an unconnected port), otherwise don't render.
+      if (port.anchorX !== undefined && port.anchorY !== undefined) {
+        return { x: port.anchorX, y: port.anchorY };
+      }
       return null;
     }
     
