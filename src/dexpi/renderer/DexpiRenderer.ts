@@ -91,9 +91,7 @@ export default class DexpiRenderer extends BaseRenderer {
     const extensionElements = businessObject.extensionElements;
 
     if (extensionElements && extensionElements.values) {
-      const dexpiElement = extensionElements.values.find(
-        (e: any) => e.$type === 'dexpi:Element'
-      );
+      const dexpiElement = this.getDexpiElement(extensionElements.values);
 
       if (dexpiElement && dexpiElement.ports) {
         this.drawPorts(parentNode, element, dexpiElement.ports);
@@ -129,7 +127,8 @@ export default class DexpiRenderer extends BaseRenderer {
           return {
             portId: `${element.businessObject.id}_${p.name || p.label}`,
             name: p.name || p.label,
-            type: p.type || p.type,
+            type: p.portType || p.type,
+            portType: p.portType || p.type,
             direction: direction,
             anchorSide: p.anchorSide || 'left',
             anchorOffset: p.anchorOffset !== undefined ? p.anchorOffset : 0.5,
@@ -466,6 +465,7 @@ export default class DexpiRenderer extends BaseRenderer {
     for (const conn of connections) {
       const bo = conn.businessObject;
       const streamName = bo.name || '';
+      const stream = this.getDexpiStream(bo);
       
       // Parse stream name: "SourcePort - [Stream ID] - TargetPort" or "SourcePort - TargetPort"
       const parts = streamName.split(' - ').map((p: string) => p.trim());
@@ -480,8 +480,14 @@ export default class DexpiRenderer extends BaseRenderer {
       
       
       // Check if this port matches
-      const isSourcePort = (bo.sourceRef?.id === elementId && port.name === sourcePortName && port.direction === 'Outlet');
-      const isTargetPort = (bo.targetRef?.id === elementId && port.name === targetPortName && port.direction === 'Inlet');
+      const sourcePortCandidates = [stream?.sourcePortRef, sourcePortName].filter(Boolean) as string[];
+      const targetPortCandidates = [stream?.targetPortRef, targetPortName].filter(Boolean) as string[];
+      const isSourcePort = bo.sourceRef?.id === elementId &&
+        port.direction === 'Outlet' &&
+        this.portMatches(port, sourcePortCandidates);
+      const isTargetPort = bo.targetRef?.id === elementId &&
+        port.direction === 'Inlet' &&
+        this.portMatches(port, targetPortCandidates);
       
       if (isSourcePort || isTargetPort) {
         
@@ -602,7 +608,7 @@ export default class DexpiRenderer extends BaseRenderer {
     y: number
   ): void {
     const portGroup = svgCreate('g');
-    svgAttr(portGroup, { 'class': 'dexpi-port', 'data-port-id': port.portId });
+    svgAttr(portGroup, { 'class': 'dexpi-port', 'data-port-id': this.getPortId(port) });
 
     // Draw port shape based on type and direction
     const portShape = this.createPortShape(port);
@@ -634,7 +640,7 @@ export default class DexpiRenderer extends BaseRenderer {
     let shape: SVGElement;
 
     // Different shapes for different port types
-    switch (port.type) {
+    switch (this.getPortType(port)) {
       case 'MaterialPort':
         shape = svgCreate('circle');
         svgAttr(shape, {
@@ -750,5 +756,34 @@ export default class DexpiRenderer extends BaseRenderer {
         textElement.parentNode.appendChild(textElement);
       }
     }
+  }
+
+  private getDexpiElement(values: any[]): any {
+    return values.find((e: any) => e.$type === 'dexpi:Element' || e.$type === 'dexpi:element');
+  }
+
+  private getPortType(port: DexpiPort): string {
+    return (port as any).portType || (port as any).type || '';
+  }
+
+  private getPortId(port: DexpiPort): string {
+    return (port as any).portId || (port as any).id || port.name || '';
+  }
+
+  private getDexpiStream(bo: any): any {
+    return bo.extensionElements?.values?.find((value: any) =>
+      value.$type === 'dexpi:Stream' || value.$type === 'dexpi:stream'
+    );
+  }
+
+  private portMatches(port: DexpiPort, candidates: string[]): boolean {
+    const portIds = [
+      (port as any).portId,
+      (port as any).id,
+      port.name,
+      (port as any).label,
+    ].filter(Boolean);
+
+    return candidates.some(candidate => portIds.includes(candidate));
   }
 }

@@ -1174,12 +1174,74 @@ export class DexpiToBpmnTransformer {
       y: clamp(pos.y + pos.h * anchor.offset + (anchor.yNudge ?? 0), pos.y, pos.y + pos.h),
     });
 
+    type Waypoint = { x: number; y: number };
+    const horizontalIntersections = (
+      x1: number,
+      x2: number,
+      y: number,
+      obstacles: LayoutBox[],
+      padding = 12
+    ) => {
+      const minX = Math.min(x1, x2);
+      const maxX = Math.max(x1, x2);
+      return obstacles.filter(box =>
+        maxX > box.x - padding &&
+        minX < box.x + box.w + padding &&
+        y >= box.y - padding &&
+        y <= box.y + box.h + padding
+      );
+    };
+
+    const segmentIntersectsObstacle = (
+      a: Waypoint,
+      b: Waypoint,
+      obstacles: LayoutBox[],
+      padding = 12
+    ) => {
+      if (a.y === b.y) {
+        return horizontalIntersections(a.x, b.x, a.y, obstacles, padding).length > 0;
+      }
+
+      if (a.x === b.x) {
+        const minY = Math.min(a.y, b.y);
+        const maxY = Math.max(a.y, b.y);
+        return obstacles.some(box =>
+          a.x >= box.x - padding &&
+          a.x <= box.x + box.w + padding &&
+          maxY > box.y - padding &&
+          minY < box.y + box.h + padding
+        );
+      }
+
+      return false;
+    };
+
+    const routeIntersectsObstacle = (points: Waypoint[], obstacles: LayoutBox[]) =>
+      points.some((point, index) => index > 0 && segmentIntersectsObstacle(points[index - 1], point, obstacles));
+
+    const simplifyWaypoints = (points: Waypoint[]) => {
+      const withoutDuplicates = points.filter((point, index) => {
+        const previous = points[index - 1];
+        return !previous || previous.x !== point.x || previous.y !== point.y;
+      });
+
+      return withoutDuplicates.filter((point, index) => {
+        if (index === 0 || index === withoutDuplicates.length - 1) return true;
+        const previous = withoutDuplicates[index - 1];
+        const next = withoutDuplicates[index + 1];
+        const vertical = previous.x === point.x && point.x === next.x;
+        const horizontal = previous.y === point.y && point.y === next.y;
+        return !(vertical || horizontal);
+      });
+    };
+
     const routeSequenceFlow = (
       srcPos: LayoutBox,
       tgtPos: LayoutBox,
       lane: number,
       srcAnchor: Anchor,
-      tgtAnchor: Anchor
+      tgtAnchor: Anchor,
+      obstacles: LayoutBox[]
     ) => {
       const srcPoint = connectionPoint(srcPos, srcAnchor);
       const tgtPoint = connectionPoint(tgtPos, tgtAnchor);
@@ -1191,10 +1253,38 @@ export class DexpiToBpmnTransformer {
 
       if (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && tgtX >= srcX + 50) {
         const bendX = Math.max(srcX + 35, tgtX - 60 - laneOffset);
-        return [
+        const directRoute = [
           { x: srcX, y: srcY },
           { x: bendX, y: srcY },
           { x: bendX, y: tgtY },
+          { x: tgtX, y: tgtY },
+        ];
+
+        if (!routeIntersectsObstacle(directRoute, obstacles)) {
+          return directRoute;
+        }
+
+        const crossed = [
+          ...horizontalIntersections(srcX, bendX, srcY, obstacles),
+          ...horizontalIntersections(bendX, tgtX, tgtY, obstacles),
+        ];
+        const relevant = crossed.length > 0 ? crossed : obstacles;
+        const topLane = Math.min(srcY, tgtY, ...relevant.map(box => box.y)) - 45 - laneOffset;
+        const bottomLane = Math.max(srcY, tgtY, ...relevant.map(box => box.y + box.h)) + 45 + laneOffset;
+        const sourceCenterY = srcPos.y + srcPos.h / 2;
+        const targetCenterY = tgtPos.y + tgtPos.h / 2;
+        const detourY = targetCenterY > sourceCenterY ? bottomLane : topLane;
+        const exitX = srcX + 35 + laneOffset;
+        const entryMin = srcX + 35;
+        const entryMax = Math.max(entryMin, tgtX - 25);
+        const entryX = clamp(tgtX - 60 - laneOffset, entryMin, entryMax);
+
+        return [
+          { x: srcX, y: srcY },
+          { x: exitX, y: srcY },
+          { x: exitX, y: detourY },
+          { x: entryX, y: detourY },
+          { x: entryX, y: tgtY },
           { x: tgtX, y: tgtY },
         ];
       }
@@ -1363,7 +1453,16 @@ ${indent}</bpmn:task>`;
       const srcA = withNudge(visualEndpointKey(conn, 'source'), srcAnchor);
       const tgtA = withNudge(visualEndpointKey(conn, 'target'), tgtAnchor);
 
-      const rawWaypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcA, tgtA);
+      const obstacles = [...ownerLayout.entries()]
+        .filter(([stepId, box]) => {
+          if (stepId === src || stepId === tgt) return false;
+          const obstacleStep = stepById.get(stepId);
+          if (!obstacleStep || obstacleStep.dexpiType === 'Source' || obstacleStep.dexpiType === 'Sink') return false;
+          return box.w > 0 && box.h > 0;
+        })
+        .map(([, box]) => box);
+      const routedWaypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcA, tgtA, obstacles);
+      const rawWaypoints = routedWaypoints.length > 4 ? simplifyWaypoints(routedWaypoints) : routedWaypoints;
 
       const waypoints = rawWaypoints
         .map(point => `        <di:waypoint x="${point.x}" y="${point.y}"/>`)

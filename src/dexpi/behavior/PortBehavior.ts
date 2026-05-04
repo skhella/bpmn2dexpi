@@ -6,6 +6,7 @@ export default class PortBehavior extends CommandInterceptor {
   private elementRegistry: any;
   private canvas: any;
   private eventBus: any;
+  private refreshingPortOwners = false;
 
   static $inject = ['eventBus', 'modeling', 'elementRegistry', 'canvas'];
 
@@ -20,7 +21,27 @@ export default class PortBehavior extends CommandInterceptor {
     // triggers connection layout commands; mutating waypoints there interferes
     // with bpmn-js' move command and can make shapes snap back or stick.
     this.postExecuted('connection.updateWaypoints', HIGH_PRIORITY, (event: any) => {
-      this.handleConnectionWaypointChange(event, true);
+      this.handleConnectionWaypointChange(event.context.connection, true);
+    });
+
+    eventBus.on('element.changed', (event: any) => {
+      if (this.refreshingPortOwners) return;
+      const element = event.element;
+      if (!this.isPortAwareConnection(element)) return;
+      this.handleConnectionWaypointChange(element, false);
+    });
+
+    [
+      'connectionSegment.move.move',
+      'bendpoint.move.move',
+      'connect.move',
+      'connection.move',
+    ].forEach(eventName => {
+      eventBus.on(eventName, (event: any) => {
+        const connection = event.connection || event.context?.connection || event.element;
+        if (!this.isPortAwareConnection(connection)) return;
+        this.handleConnectionWaypointChange(connection, false);
+      });
     });
 
     // Setup port drag behavior after diagram is imported
@@ -32,16 +53,28 @@ export default class PortBehavior extends CommandInterceptor {
     });
   }
 
-  private handleConnectionWaypointChange(event: any, dockEndpoints = false): void {
-    const connection = event.context.connection;
-    if (!connection || connection.type !== 'bpmn:SequenceFlow') return;
+  private handleConnectionWaypointChange(connection: any, dockEndpoints = false): void {
+    if (!this.isPortAwareConnection(connection)) return;
 
-    if (dockEndpoints) {
+    if (dockEndpoints && connection.type === 'bpmn:SequenceFlow') {
       this.dockConnectionEndpoints(connection);
     }
 
+    if (connection.type === 'bpmn:SequenceFlow') {
+      this.updateSequenceFlowPortAnchors(connection);
+    } else {
+      this.updateAssociationPortAnchors(connection);
+    }
+
+    this.refreshConnectedPortOwners(connection);
+  }
+
+  private updateSequenceFlowPortAnchors(connection: any): void {
+    if (!connection.waypoints || connection.waypoints.length < 2) return;
+
     const bo = connection.businessObject;
     const streamName = bo.name || '';
+    const stream = this.getDexpiStream(bo);
     
     // Parse stream name to get port names
     const parts = streamName.split(' - ').map((p: string) => p.trim());
@@ -54,32 +87,56 @@ export default class PortBehavior extends CommandInterceptor {
       [sourcePortName, , targetPortName] = parts;
     }
 
-    if (!sourcePortName || !targetPortName) return;
+    const sourcePortCandidates = [stream?.sourcePortRef, sourcePortName].filter(Boolean);
+    const targetPortCandidates = [stream?.targetPortRef, targetPortName].filter(Boolean);
+    if (sourcePortCandidates.length === 0 && targetPortCandidates.length === 0) return;
 
     // Update source and target port positions
-    if (connection.waypoints && connection.waypoints.length >= 2) {
-      const sourceElement = connection.source;
-      const targetElement = connection.target;
+    const sourceElement = connection.source;
+    const targetElement = connection.target;
 
-      // Update source port
-      if (sourceElement) {
-        this.updatePortPosition(
-          sourceElement,
-          sourcePortName,
-          'Outlet',
-          connection.waypoints[0]
-        );
-      }
+    if (sourceElement && sourcePortCandidates.length > 0) {
+      this.updatePortPosition(
+        sourceElement,
+        sourcePortCandidates,
+        'Outlet',
+        connection.waypoints[0]
+      );
+    }
 
-      // Update target port
-      if (targetElement) {
-        this.updatePortPosition(
-          targetElement,
-          targetPortName,
-          'Inlet',
-          connection.waypoints[connection.waypoints.length - 1]
-        );
-      }
+    if (targetElement && targetPortCandidates.length > 0) {
+      this.updatePortPosition(
+        targetElement,
+        targetPortCandidates,
+        'Inlet',
+        connection.waypoints[connection.waypoints.length - 1]
+      );
+    }
+  }
+
+  private updateAssociationPortAnchors(connection: any): void {
+    if (!connection.waypoints || connection.waypoints.length < 2) return;
+
+    const bo = connection.businessObject;
+    const stream = this.getDexpiStream(bo);
+    const sourceElement = connection.source;
+    const targetElement = connection.target;
+    const otherNameForSource = targetElement?.businessObject?.name;
+    const otherNameForTarget = sourceElement?.businessObject?.name;
+
+    if (sourceElement && this.hasPorts(sourceElement)) {
+      const candidates = this.infoPortCandidates(stream?.sourcePortRef, otherNameForSource, 'Outlet');
+      this.updatePortPosition(sourceElement, candidates, 'Outlet', connection.waypoints[0]);
+    }
+
+    if (targetElement && this.hasPorts(targetElement)) {
+      const candidates = this.infoPortCandidates(stream?.targetPortRef, otherNameForTarget, 'Inlet');
+      this.updatePortPosition(
+        targetElement,
+        candidates,
+        'Inlet',
+        connection.waypoints[connection.waypoints.length - 1]
+      );
     }
   }
 
@@ -169,40 +226,16 @@ export default class PortBehavior extends CommandInterceptor {
 
   private updatePortPosition(
     element: any,
-    portName: string,
+    portNames: string | string[],
     direction: string,
     waypoint: { x: number; y: number }
   ): void {
-    const bo = element.businessObject;
-    const extensionElements = bo.extensionElements;
-    
-    if (!extensionElements || !extensionElements.values) return;
-
-    // Find ports container
-    const portsContainer = extensionElements.values.find(
-      (e: any) => {
-        const type = (e.$type || '').toLowerCase();
-        return type === 'ports' || type.includes('ports') || e.port !== undefined;
-      }
-    );
-
-    if (!portsContainer) return;
-
-    // Get ports array
-    let ports: any[] = [];
-    if (Array.isArray(portsContainer.port)) {
-      ports = portsContainer.port;
-    } else if (portsContainer.port) {
-      ports = [portsContainer.port];
-    } else if (portsContainer.$children) {
-      ports = portsContainer.$children;
-    }
+    const ports = this.getPorts(element);
+    if (ports.length === 0) return;
+    const candidates = Array.isArray(portNames) ? portNames : [portNames];
 
     // Find the port
-    const port = ports.find((p: any) => {
-      return (p.name === portName || p.label === portName) && 
-             p.direction === direction;
-    });
+    const port = ports.find((p: any) => this.portMatches(p, candidates, direction));
 
     if (port) {
       const anchor = this.calculateBorderAnchor(element, waypoint);
@@ -220,6 +253,7 @@ export default class PortBehavior extends CommandInterceptor {
       delete port.anchorY;
 
       // Trigger re-render
+      this.eventBus.fire('element.changed', { element });
       this.eventBus.fire('elements.changed', { elements: [element] });
     }
   }
@@ -380,73 +414,39 @@ export default class PortBehavior extends CommandInterceptor {
   }
 
   private findElementWithPort(portId: string): any {
-    const elements = this.elementRegistry.filter((el: any) => {
-      const bo = el.businessObject;
-      const ext = bo.extensionElements;
-      if (!ext || !ext.values) return false;
-
-      const portsContainer = ext.values.find(
-        (e: any) => {
-          const type = (e.$type || '').toLowerCase();
-          return type === 'ports' || type.includes('ports') || e.port !== undefined;
-        }
-      );
-
-      if (!portsContainer) return false;
-
-      let ports: any[] = [];
-      if (Array.isArray(portsContainer.port)) {
-        ports = portsContainer.port;
-      } else if (portsContainer.port) {
-        ports = [portsContainer.port];
-      } else if (portsContainer.$children) {
-        ports = portsContainer.$children;
-      }
-
-      return ports.some((p: any) => p.portId === portId || p.id === portId);
-    });
+    const elements = this.elementRegistry.filter((el: any) =>
+      this.getPorts(el).some((p: any) => this.portIdentifiers(p).includes(portId))
+    );
 
     return elements[0] || null;
   }
 
   private getPortFromElement(element: any, portId: string): any {
-    const bo = element.businessObject;
-    const ext = bo.extensionElements;
-    if (!ext || !ext.values) return null;
-
-    const portsContainer = ext.values.find(
-      (e: any) => {
-        const type = (e.$type || '').toLowerCase();
-        return type === 'ports' || type.includes('ports') || e.port !== undefined;
-      }
-    );
-
-    if (!portsContainer) return null;
-
-    let ports: any[] = [];
-    if (Array.isArray(portsContainer.port)) {
-      ports = portsContainer.port;
-    } else if (portsContainer.port) {
-      ports = [portsContainer.port];
-    } else if (portsContainer.$children) {
-      ports = portsContainer.$children;
-    }
-
-    return ports.find((p: any) => p.portId === portId || p.id === portId) || null;
+    return this.getPorts(element).find((p: any) => this.portIdentifiers(p).includes(portId)) || null;
   }
 
   private portHasConnections(element: any, port: any): boolean {
     const elementId = element.businessObject.id;
-    const portNames = [port.name, port.label, port.id, port.portId].filter(Boolean);
+    const portNames = this.portIdentifiers(port);
     
     const connections = this.elementRegistry.filter((el: any) => {
-      if (el.type !== 'bpmn:SequenceFlow') return false;
+      if (!this.isPortAwareConnection(el)) return false;
       const bo = el.businessObject;
       return bo.sourceRef?.id === elementId || bo.targetRef?.id === elementId;
     });
 
     return connections.some((conn: any) => {
       const bo = conn.businessObject;
+      if (conn.type !== 'bpmn:SequenceFlow') {
+        const otherRef = bo.sourceRef?.id === elementId ? bo.targetRef : bo.sourceRef;
+        const otherName = otherRef?.name;
+        return !!otherName && (
+          portNames.includes(otherName) ||
+          portNames.includes(`IPI_${otherName}`) ||
+          portNames.includes(`IPO_${otherName}`)
+        );
+      }
+
       const streamName = bo.name || '';
       const parts = streamName.split(' - ').map((p: string) => p.trim());
       
@@ -468,5 +468,78 @@ export default class PortBehavior extends CommandInterceptor {
         portNames.includes(stream?.sourcePortRef) ||
         portNames.includes(stream?.targetPortRef);
     });
+  }
+
+  private isPortAwareConnection(element: any): boolean {
+    return !!element &&
+      !!element.waypoints &&
+      (
+        element.type === 'bpmn:SequenceFlow' ||
+        element.type === 'bpmn:Association' ||
+        element.type === 'bpmn:DataInputAssociation' ||
+        element.type === 'bpmn:DataOutputAssociation'
+      );
+  }
+
+  private refreshConnectedPortOwners(connection: any): void {
+    const elements = [connection.source, connection.target]
+      .filter((element: any) => element && !this.isPortAwareConnection(element) && this.hasPorts(element));
+    if (elements.length === 0) return;
+
+    this.refreshingPortOwners = true;
+    try {
+      elements.forEach((element: any) => this.eventBus.fire('element.changed', { element }));
+      this.eventBus.fire('elements.changed', { elements });
+    } finally {
+      this.refreshingPortOwners = false;
+    }
+  }
+
+  private hasPorts(element: any): boolean {
+    return this.getPorts(element).length > 0;
+  }
+
+  private getPorts(element: any): any[] {
+    const values = element?.businessObject?.extensionElements?.values;
+    if (!values) return [];
+
+    const dexpiElement = values.find((e: any) => e.$type === 'dexpi:Element' || e.$type === 'dexpi:element');
+    if (dexpiElement?.ports) return Array.isArray(dexpiElement.ports) ? dexpiElement.ports : [dexpiElement.ports];
+
+    const portsContainer = values.find((e: any) => {
+      const type = (e.$type || '').toLowerCase();
+      return type === 'ports' || type.includes('ports') || e.port !== undefined;
+    });
+    if (!portsContainer) return [];
+
+    if (Array.isArray(portsContainer.port)) return portsContainer.port;
+    if (portsContainer.port) return [portsContainer.port];
+    if (portsContainer.$children) return portsContainer.$children;
+    return [];
+  }
+
+  private getDexpiStream(bo: any): any {
+    return bo.extensionElements?.values?.find((value: any) =>
+      value.$type === 'dexpi:Stream' || value.$type === 'dexpi:stream'
+    );
+  }
+
+  private portIdentifiers(port: any): string[] {
+    return [port.portId, port.id, port.name, port.label].filter(Boolean);
+  }
+
+  private portMatches(port: any, candidates: string[], direction?: string): boolean {
+    if (direction && port.direction !== direction) return false;
+    const identifiers = this.portIdentifiers(port);
+    return candidates.filter(Boolean).some(candidate => identifiers.includes(candidate));
+  }
+
+  private infoPortCandidates(portRef: string | undefined, variableName: string | undefined, direction: 'Inlet' | 'Outlet'): string[] {
+    const prefix = direction === 'Outlet' ? 'IPO_' : 'IPI_';
+    return [
+      portRef,
+      variableName,
+      variableName ? `${prefix}${variableName}` : undefined,
+    ].filter(Boolean) as string[];
   }
 }
