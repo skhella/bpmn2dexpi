@@ -2037,15 +2037,17 @@ ${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
   }
 
   /**
-   * A boundary proxy event materialized for an energy port at a subprocess boundary.
-   * These should be placed above (Inlet) or below (Outlet) the connected interior
-   * task rather than within the left-to-right BFS flow.
+   * Generic rule: any Source/Sink event whose only port is energy-type (TEI/
+   * TEO/MEI/MEO/EEI/EEO or ThermalEnergyPort/Mechanical…/Electrical…) is
+   * conceptually an energy supply/sink and should be placed above (Inlet) or
+   * below (Outlet) the interior task it connects to — not in the left/right
+   * material flow. Matches both auto-materialized boundary proxies (which
+   * carry a superPortId) and user-modeled energy events.
    */
   private isEnergyBoundaryProxy(step: DexpiStep): boolean {
     if (step.dexpiType !== 'Source' && step.dexpiType !== 'Sink') return false;
-    const port = step.ports[0];
-    if (!port?.superPortId) return false;
-    return this.isEnergyPort(port);
+    if (step.ports.length === 0) return false;
+    return step.ports.every(port => this.isEnergyPort(port));
   }
 
   private isInstrumentationStep(step: DexpiStep | undefined): boolean {
