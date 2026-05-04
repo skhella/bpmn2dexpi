@@ -1747,7 +1747,27 @@ ${waypoints}
           : srcCenter;
         const dobjId = `dobj_${bpmnId(src)}_${bpmnId(varName.replace(/[^a-zA-Z0-9]/g, '_'))}`;
         const dobjX = (srcCenter.x + tgtCenter.x) / 2 - 18;
-        const dobjY = (srcCenter.y + tgtCenter.y) / 2 - 25;
+        // Generic rule: data objects associated with an instrument↔task pair
+        // belong in the "data band" between the task row and the instrument
+        // band. Pure midpoint placement frequently lands inside the task row;
+        // instead, anchor the data object adjacent to the non-instrument task
+        // on the side that faces its instrument partner. Falls back to
+        // midpoint when neither endpoint is an instrument.
+        const srcIsInstrument = srcStep && this.isInstrumentationStep(srcStep);
+        const tgtIsInstrument = tgtStep && this.isInstrumentationStep(tgtStep);
+        const taskPos = srcIsInstrument ? tgtPos : (tgtIsInstrument ? srcPos : undefined);
+        const instrumentPos = srcIsInstrument ? srcPos : (tgtIsInstrument ? tgtPos : undefined);
+        const dataObjGap = 30;
+        let dobjY: number;
+        if (taskPos && instrumentPos) {
+          const taskCenterY = taskPos.y + taskPos.h / 2;
+          const instrumentCenterY = instrumentPos.y + instrumentPos.h / 2;
+          dobjY = instrumentCenterY > taskCenterY
+            ? taskPos.y + taskPos.h + dataObjGap        // instrument below task → data object below task
+            : taskPos.y - dataObjGap - 50;              // instrument above task → data object above task
+        } else {
+          dobjY = (srcCenter.y + tgtCenter.y) / 2 - 25;
+        }
         dobjInfo = { dobjId, dobjX, dobjY, key };
         dobjBySourcePort.set(conn.sourcePortId, dobjInfo);
 
