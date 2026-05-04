@@ -853,10 +853,22 @@ export class DexpiToBpmnTransformer {
         };
 
         if (ta === 'Source' && tb === 'Source') {
-          const delta = sourceScore(a) - sourceScore(b);
-          if (delta !== 0) return delta;
+          // Generic rule: when source labels share a common alphabetic prefix
+          // and differ only by numeric suffix (e.g. MI1, MI2, MI3, ..., or
+          // EEI1, TEI1, ...), sort by the numeric suffix. This preserves the
+          // user's port-naming intent regardless of any downstream-layer
+          // ambiguity (which can otherwise reorder them based on which inner
+          // port the boundary proxy bound to). Falls back to sourceScore +
+          // alphabetic when labels don't fit the suffix-numbered pattern.
           const labelA = stepById.get(a)?.label || a;
           const labelB = stepById.get(b)?.label || b;
+          const suffixA = labelA.match(/^([A-Za-z]+)(\d+)$/);
+          const suffixB = labelB.match(/^([A-Za-z]+)(\d+)$/);
+          if (suffixA && suffixB && suffixA[1] === suffixB[1]) {
+            return parseInt(suffixA[2], 10) - parseInt(suffixB[2], 10);
+          }
+          const delta = sourceScore(a) - sourceScore(b);
+          if (delta !== 0) return delta;
           return labelA.localeCompare(labelB);
         }
         if (ta === 'Source' && tb !== 'Source') return -1;
