@@ -620,25 +620,24 @@ export class DexpiToBpmnTransformer {
     connections: DexpiConnection[],
     hiddenStepIds: Set<string> = new Set()
   ): Map<string, LayoutBox> {
-    const allVisibleSteps = steps.filter(step => !hiddenStepIds.has(step.id));
-    const layout = new Map<string, LayoutBox>();
-
-    if (allVisibleSteps.length === 0) return layout;
-
-    // Generic rule: energy boundary proxy events (Source/Sink that mirror an
-    // energy port on the parent subprocess) are removed from the left-to-right
-    // BFS flow and placed on a top/bottom band attached to their connected
-    // interior task. This matches the way energy inputs (EEI/TEI/MEI) are drawn
-    // in the BPMN-for-process-engineering convention.
-    const energyBoundaryProxies = new Set(
-      allVisibleSteps.filter(step => this.isEnergyBoundaryProxy(step)).map(step => step.id)
-    );
-    const visibleSteps = allVisibleSteps.filter(step => !energyBoundaryProxies.has(step.id));
+    const visibleSteps = steps.filter(step => !hiddenStepIds.has(step.id));
     const visibleStepIds = new Set(visibleSteps.map(step => step.id));
     const stepById = new Map(visibleSteps.map(step => [step.id, step]));
+    const layout = new Map<string, LayoutBox>();
+
+    if (visibleSteps.length === 0) return layout;
+
+    // Generic rule: energy boundary proxy events (Source/Sink that mirror an
+    // energy port on the parent subprocess) are kept in the BFS so they
+    // contribute to connectivity, then moved to a top/bottom band in
+    // post-processing — matching how EEI/TEI/MEI are drawn in the BPMN
+    // convention from the DEXPI mapping paper.
+    const energyBoundaryProxies = new Set(
+      visibleSteps.filter(step => this.isEnergyBoundaryProxy(step)).map(step => step.id)
+    );
 
     const portToStep = new Map<string, string>();
-    allVisibleSteps.forEach(step => {
+    visibleSteps.forEach(step => {
       step.ports.forEach(port => portToStep.set(port.id, step.id));
     });
 
@@ -674,18 +673,49 @@ export class DexpiToBpmnTransformer {
       });
     });
 
-    const processRoots = [...sourceAdjacent].filter(id => !sinkAdjacent.has(id));
+    // Generic rule: process roots are source-adjacent steps that aren't also
+    // sink-adjacent (i.e. real "first stage" tasks, not single-step throughputs).
+    // BUT in tightly looped subprocesses every source-adjacent step often also
+    // feeds the sink (e.g. MI1 → RegulatingFlow → … → MO1). When the strict
+    // exclusion would leave processRoots empty, fall back to using the full
+    // source-adjacent set; otherwise BFS from Source can never propagate and
+    // everything collapses into a single layer.
+    let processRoots = [...sourceAdjacent].filter(id => !sinkAdjacent.has(id));
+    if (processRoots.length === 0 && sourceAdjacent.size > 0) {
+      processRoots = [...sourceAdjacent];
+    }
     const processRootSet = new Set(processRoots);
+    // Generic rule: choose BFS roots in priority order:
+    //   1. Real Sources (Source dexpiType)
+    //   2. Steps with no upstream AND at least one downstream (true graph roots)
+    //   3. Any step on a cycle that has downstream (break the cycle deterministically)
+    //   4. Last resort: first non-sink step
+    // Rule 3 prevents isolated instrumentation tasks (no flow connections) from
+    // becoming roots and starving the actual closed-loop flow tasks of layering.
+    const flowConnected = (step: DexpiStep) =>
+      (downstream.get(step.id)?.size ?? 0) > 0;
     const fallbackRoots = visibleSteps
       .filter(step =>
         step.dexpiType !== 'Source' &&
         step.dexpiType !== 'Sink' &&
-        (upstream.get(step.id)?.size ?? 0) === 0
+        (upstream.get(step.id)?.size ?? 0) === 0 &&
+        flowConnected(step)
+      )
+      .map(step => step.id);
+    const cycleRoots = visibleSteps
+      .filter(step =>
+        step.dexpiType !== 'Source' &&
+        step.dexpiType !== 'Sink' &&
+        flowConnected(step)
       )
       .map(step => step.id);
     const roots = sources.length > 0
       ? [...sources, ...processRoots]
-      : (fallbackRoots.length > 0 ? fallbackRoots : [visibleSteps.find(step => step.dexpiType !== 'Sink')?.id || visibleSteps[0].id]);
+      : (fallbackRoots.length > 0
+          ? fallbackRoots
+          : (cycleRoots.length > 0
+              ? [cycleRoots[0]]
+              : [visibleSteps.find(step => step.dexpiType !== 'Sink')?.id || visibleSteps[0].id]));
 
     const layer = new Map<string, number>();
     sources.forEach(id => layer.set(id, 0));
@@ -694,6 +724,12 @@ export class DexpiToBpmnTransformer {
 
     const queue = [...roots];
 
+    // Generic rule: cap per-step updates so closed-loop subprocesses (no
+    // source/sink, every node in a cycle) don't make the BFS spiral with each
+    // node bumping the next around the loop. A small cap (≤ visibleSteps.length)
+    // is enough for legitimate convergent paths that should push a downstream
+    // step to a later layer; beyond that we're chasing a cycle.
+    const updateCap = 1;
     const updateCount = new Map<string, number>();
     const maxLayer = Math.max(1, visibleSteps.length);
     while (queue.length > 0) {
@@ -706,7 +742,7 @@ export class DexpiToBpmnTransformer {
         const proposed = Math.min(maxLayer, curLayer + 1);
         const existing = layer.get(next) ?? -1;
         const count = updateCount.get(next) ?? 0;
-        if (proposed > existing && count < visibleSteps.length) {
+        if (proposed > existing && count < updateCap) {
           layer.set(next, proposed);
           updateCount.set(next, count + 1);
           queue.push(next);
@@ -755,8 +791,14 @@ export class DexpiToBpmnTransformer {
       .map(step => layer.get(step.id) ?? 0)) + 1;
     sinks.forEach(id => layer.set(id, sinkLayer));
 
+    // Generic rule: instrumentation tasks (MeasuringProcessVariable, Controlling…
+    // etc) are repositioned by positionInstrumentationActivities into top/bottom
+    // bands aligned with their connected flow tasks. They should NOT claim an X
+    // layer slot, otherwise they leave a gap that pushes downstream tasks/sinks
+    // far to the right when they're moved out of the main grid.
     const byLayer = new Map<number, string[]>();
     visibleSteps.forEach(step => {
+      if (this.isInstrumentationStep(step)) return;
       const l = layer.get(step.id) ?? 0;
       if (!byLayer.has(l)) byLayer.set(l, []);
       byLayer.get(l)!.push(step.id);
@@ -863,16 +905,13 @@ export class DexpiToBpmnTransformer {
       });
     });
 
-    // Generic rule: iterative barycenter sweep to reduce edge crossings. The
-    // initial layered placement orders each layer by upstream barycenter only;
-    // a few alternating downstream/upstream passes typically remove obvious
-    // crossings (e.g. parallel branches that converge later).
-    this.barycenterSweep(layout, byLayer, sortedLayers, upstream, downstream, branchLane, stepById, initialOrder);
-
-    // Generic rule: collapse empty middle lanes — if e.g. there are no recycle
-    // steps (lane 0), don't pay the vertical cost of an empty lane band. This
-    // tightens layouts that have only main-flow content.
-    this.compactLanes(layout, visibleSteps, stepById);
+    // Instrumentation steps were excluded from byLayer above. Give them a
+    // placeholder layout entry so positionInstrumentationActivities can pick
+    // them up and move them to the proper top/bottom band.
+    visibleSteps.forEach(step => {
+      if (!this.isInstrumentationStep(step) || layout.has(step.id)) return;
+      layout.set(step.id, { x: MARGIN_X, y: MARGIN_Y, w: TASK_W, h: TASK_H });
+    });
 
     this.positionInstrumentationActivities(visibleSteps, connections, layout, hiddenStepIds);
 
@@ -881,130 +920,13 @@ export class DexpiToBpmnTransformer {
     // interior task they connect to, instead of mixing them into the left/right
     // material flow.
     this.positionEnergyBoundaryProxies(
-      allVisibleSteps.filter(step => energyBoundaryProxies.has(step.id)),
+      visibleSteps.filter(step => energyBoundaryProxies.has(step.id)),
       connections,
       layout,
       portToStep
     );
 
     return layout;
-  }
-
-  /**
-   * Iterative barycenter ordering to reduce edge crossings. Each pass walks
-   * either down or up the layer stack, reordering siblings within a layer by
-   * the average y-position of their connected partners on the adjacent layer.
-   * Within-lane ordering is preserved (we don't move steps across lanes).
-   *
-   * Generic graph-drawing technique: cheap, deterministic, and almost always
-   * reduces visible crossings without changing the structural layout.
-   */
-  private barycenterSweep(
-    layout: Map<string, LayoutBox>,
-    byLayer: Map<number, string[]>,
-    sortedLayers: number[],
-    upstream: Map<string, Set<string>>,
-    downstream: Map<string, Set<string>>,
-    branchLane: (id: string) => number,
-    stepById: Map<string, DexpiStep>,
-    initialOrder: Map<string, number>
-  ): void {
-    if (sortedLayers.length < 2) return;
-    const PASSES = 3;
-
-    const centerY = (id: string) => {
-      const box = layout.get(id);
-      return box ? box.y + box.h / 2 : (initialOrder.get(id) ?? 0);
-    };
-
-    const reorderLayer = (layerIdx: number, neighbors: Map<string, Set<string>>) => {
-      const ids = byLayer.get(layerIdx);
-      if (!ids || ids.length < 2) return;
-
-      // Group by lane so the pass doesn't cross structural lane boundaries.
-      const lanes = new Map<number, string[]>();
-      ids.forEach(id => {
-        const lane = branchLane(id);
-        if (!lanes.has(lane)) lanes.set(lane, []);
-        lanes.get(lane)!.push(id);
-      });
-
-      const newOrder: string[] = [];
-      Array.from(lanes.keys()).sort((a, b) => a - b).forEach(lane => {
-        const laneIds = lanes.get(lane)!;
-        // Stable sort by barycenter of adjacent-layer neighbors.
-        const decorated = laneIds.map((id, idx) => {
-          // Source/Sink keep their initial order — they often anchor the layout.
-          const step = stepById.get(id);
-          if (step?.dexpiType === 'Source' || step?.dexpiType === 'Sink') {
-            return { id, key: idx, originalIdx: idx };
-          }
-          const neighborIds = [...(neighbors.get(id) || [])];
-          if (neighborIds.length === 0) return { id, key: idx, originalIdx: idx };
-          const avg = neighborIds.reduce((sum, n) => sum + centerY(n), 0) / neighborIds.length;
-          return { id, key: avg, originalIdx: idx };
-        });
-        decorated.sort((a, b) => a.key - b.key || a.originalIdx - b.originalIdx);
-        decorated.forEach(d => newOrder.push(d.id));
-      });
-
-      if (newOrder.length !== ids.length) return;
-
-      // Reassign Y positions in their existing slots (preserving lane bands).
-      const slotYs = ids.map(id => layout.get(id)!.y);
-      slotYs.sort((a, b) => a - b);
-      newOrder.forEach((id, slot) => {
-        const box = layout.get(id);
-        if (!box) return;
-        layout.set(id, { ...box, y: slotYs[slot] });
-      });
-      byLayer.set(layerIdx, newOrder);
-    };
-
-    for (let pass = 0; pass < PASSES; pass += 1) {
-      // Down pass: order layer N by upstream (layer N-1) barycenter.
-      for (let i = 1; i < sortedLayers.length; i += 1) reorderLayer(sortedLayers[i], upstream);
-      // Up pass: order layer N by downstream (layer N+1) barycenter.
-      for (let i = sortedLayers.length - 2; i >= 0; i -= 1) reorderLayer(sortedLayers[i], downstream);
-    }
-  }
-
-  /**
-   * Renumber occupied lane bands to be contiguous, then shift step Y positions
-   * accordingly. Removes vertical whitespace from layouts whose lane indices
-   * have gaps (e.g. main flow only — no recycle in lane 0, no sink-adjacent in
-   * lane 2).
-   */
-  private compactLanes(
-    layout: Map<string, LayoutBox>,
-    visibleSteps: DexpiStep[],
-    stepById: Map<string, DexpiStep>
-  ): void {
-    const laneGap = TASK_H + V_GAP;
-    const laneOf = (y: number) => Math.round((y - MARGIN_Y) / laneGap);
-    const occupiedLanes = new Set<number>();
-    layout.forEach((box, id) => {
-      const step = stepById.get(id);
-      if (!step) return;
-      // Only count lanes for layered steps (not data templates / dt_* keys).
-      if (!visibleSteps.includes(step)) return;
-      occupiedLanes.add(laneOf(box.y));
-    });
-    if (occupiedLanes.size === 0) return;
-
-    const sortedLanes = Array.from(occupiedLanes).sort((a, b) => a - b);
-    const remap = new Map<number, number>();
-    sortedLanes.forEach((lane, index) => remap.set(lane, index));
-
-    layout.forEach((box, id) => {
-      const step = stepById.get(id);
-      if (!step || !visibleSteps.includes(step)) return;
-      const oldLane = laneOf(box.y);
-      const newLane = remap.get(oldLane);
-      if (newLane === undefined || newLane === oldLane) return;
-      const delta = (newLane - oldLane) * laneGap;
-      layout.set(id, { ...box, y: box.y + delta });
-    });
   }
 
   /**

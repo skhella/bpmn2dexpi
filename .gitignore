@@ -41,3 +41,5 @@ coverage/
 .env.*
 !.env.example
 examples/Tennessee_Eastman_Process.xml
+debug_layers.mjs
+inspect_layout.mjs
