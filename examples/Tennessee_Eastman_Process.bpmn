@@ -100,7 +100,7 @@
               <dexpi:port id="Activity_0iie89x_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
               <dexpi:port id="Activity_0iie89x_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
               <dexpi:port id="Activity_0iie89x_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
-              <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_0iie89x_IPI_Temperature_port" />
+              <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_0iie89x_IPI_Temperature_port" />
             </dexpi:element>
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_04ncgwf</bpmn:incoming>
@@ -194,9 +194,15 @@
         <bpmn:extensionElements>
           <dexpi:element dexpiType="Sink" identifier="Event_062k0v7" uid="uid_Event_062k0v7">
             <dexpi:port id="Event_062k0v7_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_07878z5_MO1_port" />
+            <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" id="Event_062k0v7_IPI_Pressure_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_1hd54gp</bpmn:incoming>
+        <bpmn:property id="Property_0qnrdet" name="__targetRef_placeholder" />
+        <bpmn:dataInputAssociation id="DataInputAssociation_0pdtdvl">
+          <bpmn:sourceRef>DataObjectReference_06451do</bpmn:sourceRef>
+          <bpmn:targetRef>Property_0qnrdet</bpmn:targetRef>
+        </bpmn:dataInputAssociation>
       </bpmn:endEvent>
       <bpmn:task id="Activity_0msgfdr" name="ReactingChemicals">
         <bpmn:extensionElements>
@@ -205,11 +211,10 @@
             <dexpi:port id="Activity_0msgfdr_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_0msgfdr_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_0msgfdr_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
-            <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.17" id="Activity_0msgfdr_IPI_Composition_port" />
-            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.33" id="Activity_0msgfdr_IPI_Level_port" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_0msgfdr_IPI_MassFlow_port" />
-            <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.67" id="Activity_0msgfdr_IPI_Pressure_port" />
-            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.83" id="Activity_0msgfdr_IPI_Temperature_port" />
+            <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" id="Activity_0msgfdr_IPI_Composition_port" />
+            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" id="Activity_0msgfdr_IPI_Level_port" />
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_0msgfdr_IPI_MassFlow_port" />
+            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_0msgfdr_IPI_Temperature_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_11ko4yy</bpmn:incoming>
@@ -231,10 +236,6 @@
         </bpmn:dataInputAssociation>
         <bpmn:dataInputAssociation id="DataInputAssociation_16faofj">
           <bpmn:sourceRef>DataObjectReference_10911pm</bpmn:sourceRef>
-          <bpmn:targetRef>Property_0h0ehut</bpmn:targetRef>
-        </bpmn:dataInputAssociation>
-        <bpmn:dataInputAssociation id="DataInputAssociation_0pdtdvl">
-          <bpmn:sourceRef>DataObjectReference_06451do</bpmn:sourceRef>
           <bpmn:targetRef>Property_0h0ehut</bpmn:targetRef>
         </bpmn:dataInputAssociation>
       </bpmn:task>
@@ -316,7 +317,7 @@
       <bpmn:task id="Activity_07twnf1" name="ControllingProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="ControllingProcessVariable" identifier="Activity_07twnf1" uid="uid_Activity_07twnf1">
-            <dexpi:port name="IPO_RotationalFrequency" type="InformationPort" direction="Outlet" label="RotationalFrequency" anchorSide="right" anchorOffset="0.5" id="Activity_07twnf1_IPO_RotationalFrequency_port" />
+            <dexpi:port name="IPO_RotationalFrequency" type="InformationPort" direction="Outlet" label="RotationalFrequency" id="Activity_07twnf1_IPO_RotationalFrequency_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1nqcm2o">
@@ -413,8 +414,8 @@
             <dexpi:port id="Activity_0x085ms_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_0x085ms_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_0x085ms_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.33" id="Activity_0x085ms_IPI_Level_port" />
-            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.67" id="Activity_0x085ms_IPI_Temperature_port" />
+            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" id="Activity_0x085ms_IPI_Level_port" />
+            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_0x085ms_IPI_Temperature_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0kavtkx</bpmn:incoming>
@@ -436,8 +437,8 @@
             <dexpi:port id="Activity_1ozs40z_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_1ozs40z_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1ozs40z_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.33" id="Activity_1ozs40z_IPI_MassFlow_port" />
-            <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" anchorSide="left" anchorOffset="0.67" id="Activity_1ozs40z_IPI_Pressure_port" />
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_1ozs40z_IPI_MassFlow_port" />
+            <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" id="Activity_1ozs40z_IPI_Pressure_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_09m76dx</bpmn:incoming>
@@ -470,7 +471,7 @@
             <dexpi:port id="Activity_11jo3tg_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_11jo3tg_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
             <dexpi:port id="Activity_11jo3tg_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_11jo3tg_IPI_MassFlow_port" />
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_11jo3tg_IPI_MassFlow_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0ny5wle</bpmn:incoming>
@@ -672,9 +673,9 @@
             <dexpi:port id="Activity_1kyou8x_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_1kyou8x_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1kyou8x_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" anchorSide="left" anchorOffset="0.25" id="Activity_1kyou8x_IPI_Level_port" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_1kyou8x_IPI_MassFlow_port" />
-            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.75" id="Activity_1kyou8x_IPI_Temperature_port" />
+            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" id="Activity_1kyou8x_IPI_Level_port" />
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_1kyou8x_IPI_MassFlow_port" />
+            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_1kyou8x_IPI_Temperature_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0xyvyyt</bpmn:incoming>
@@ -753,7 +754,7 @@
           <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_17bqtl6" uid="uid_Activity_17bqtl6">
             <dexpi:port id="Activity_17bqtl6_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_17bqtl6_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" anchorSide="left" anchorOffset="0.5" id="Activity_17bqtl6_IPI_Composition_port" />
+            <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" id="Activity_17bqtl6_IPI_Composition_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0agl4n2</bpmn:incoming>
@@ -968,7 +969,7 @@
             <dexpi:port id="Activity_02gkcfc_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
             <dexpi:port id="Activity_02gkcfc_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_02gkcfc_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:port name="IPI_Duty" type="InformationPort" direction="Inlet" label="Duty" anchorSide="left" anchorOffset="0.5" id="Activity_02gkcfc_IPI_Duty_port" />
+            <dexpi:port name="IPI_Duty" type="InformationPort" direction="Inlet" label="Duty" id="Activity_02gkcfc_IPI_Duty_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_1gic2ao</bpmn:incoming>
@@ -986,7 +987,7 @@
             <dexpi:port id="Activity_00hgxpv_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_00hgxpv_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_00hgxpv_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" anchorSide="left" anchorOffset="0.5" id="Activity_00hgxpv_IPI_MassFlow_port" />
+            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_00hgxpv_IPI_MassFlow_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_00cotc8</bpmn:incoming>
@@ -1130,7 +1131,7 @@
             <dexpi:port id="Activity_1rs6esf_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1rs6esf_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
             <dexpi:port id="Activity_1rs6esf_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
-            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5" id="Activity_1rs6esf_IPI_Temperature_port" />
+            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_1rs6esf_IPI_Temperature_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0tv8sn4</bpmn:incoming>
@@ -2449,6 +2450,10 @@
           <ns4:Bounds x="771" y="217" width="58" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DataInputAssociation_0pdtdvl_di" bpmnElement="DataInputAssociation_0pdtdvl">
+        <ns5:waypoint x="1240" y="745" />
+        <ns5:waypoint x="1150" y="510" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="DataInputAssociation_1g7sns2_di" bpmnElement="DataInputAssociation_1g7sns2">
         <ns5:waypoint x="428" y="735" />
         <ns5:waypoint x="700" y="511" />
@@ -2464,10 +2469,6 @@
       <bpmndi:BPMNEdge id="DataInputAssociation_16faofj_di" bpmnElement="DataInputAssociation_16faofj">
         <ns5:waypoint x="577" y="735" />
         <ns5:waypoint x="713" y="530" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="DataInputAssociation_0pdtdvl_di" bpmnElement="DataInputAssociation_0pdtdvl">
-        <ns5:waypoint x="1232" y="759" />
-        <ns5:waypoint x="800" y="502" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_1hd54gp_di" bpmnElement="Flow_1hd54gp">
         <ns5:waypoint x="800" y="490" />
