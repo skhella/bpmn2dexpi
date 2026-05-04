@@ -37,16 +37,33 @@ export default class PortBehavior extends CommandInterceptor {
 
   private handleConnectionWaypointChange(event: any): void {
     const connection = event.context.connection;
-    if (!connection || connection.type !== 'bpmn:SequenceFlow') return;
+    if (!connection) return;
+
+    // Re-render source/target tasks so the renderer recomputes port positions
+    // from the connection's current waypoints. This must run for every connection
+    // change (SequenceFlow or Association) regardless of whether name-based port
+    // matching below succeeds — otherwise dragging the connection leaves ports
+    // stuck at their old positions until the user toggles port visibility.
+    const sourceElement = connection.source;
+    const targetElement = connection.target;
+    const changed: any[] = [];
+    if (sourceElement) changed.push(sourceElement);
+    if (targetElement) changed.push(targetElement);
+    if (changed.length) {
+      this.eventBus.fire('elements.changed', { elements: changed });
+    }
+
+    // The remaining logic mirrors port anchor data into the businessObject for
+    // SequenceFlow-connected MaterialPorts. Only runs when the stream name
+    // encodes port names ("SourcePort - TargetPort" or "Src - Stream - Tgt").
+    if (connection.type !== 'bpmn:SequenceFlow') return;
 
     const bo = connection.businessObject;
     const streamName = bo.name || '';
-    
-    // Parse stream name to get port names
     const parts = streamName.split(' - ').map((p: string) => p.trim());
     let sourcePortName = '';
     let targetPortName = '';
-    
+
     if (parts.length === 2) {
       [sourcePortName, targetPortName] = parts;
     } else if (parts.length === 3) {
@@ -55,12 +72,7 @@ export default class PortBehavior extends CommandInterceptor {
 
     if (!sourcePortName || !targetPortName) return;
 
-    // Update source and target port positions
     if (connection.waypoints && connection.waypoints.length >= 2) {
-      const sourceElement = connection.source;
-      const targetElement = connection.target;
-
-      // Update source port
       if (sourceElement) {
         this.updatePortPosition(
           sourceElement,
@@ -69,8 +81,6 @@ export default class PortBehavior extends CommandInterceptor {
           connection.waypoints[0]
         );
       }
-
-      // Update target port
       if (targetElement) {
         this.updatePortPosition(
           targetElement,
