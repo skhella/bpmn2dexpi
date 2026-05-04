@@ -1747,26 +1747,60 @@ ${waypoints}
           : srcCenter;
         const dobjId = `dobj_${bpmnId(src)}_${bpmnId(varName.replace(/[^a-zA-Z0-9]/g, '_'))}`;
         const dobjX = (srcCenter.x + tgtCenter.x) / 2 - 18;
-        // Generic rule: data objects associated with an instrument↔task pair
-        // belong in the "data band" between the task row and the instrument
-        // band. Pure midpoint placement frequently lands inside the task row;
-        // instead, anchor the data object adjacent to the non-instrument task
-        // on the side that faces its instrument partner. Falls back to
-        // midpoint when neither endpoint is an instrument.
-        const srcIsInstrument = srcStep && this.isInstrumentationStep(srcStep);
-        const tgtIsInstrument = tgtStep && this.isInstrumentationStep(tgtStep);
-        const taskPos = srcIsInstrument ? tgtPos : (tgtIsInstrument ? srcPos : undefined);
-        const instrumentPos = srcIsInstrument ? srcPos : (tgtIsInstrument ? tgtPos : undefined);
-        const dataObjGap = 30;
-        let dobjY: number;
-        if (taskPos && instrumentPos) {
-          const taskCenterY = taskPos.y + taskPos.h / 2;
-          const instrumentCenterY = instrumentPos.y + instrumentPos.h / 2;
-          dobjY = instrumentCenterY > taskCenterY
-            ? taskPos.y + taskPos.h + dataObjGap        // instrument below task → data object below task
-            : taskPos.y - dataObjGap - 50;              // instrument above task → data object above task
-        } else {
-          dobjY = (srcCenter.y + tgtCenter.y) / 2 - 25;
+        // Generic rule: prefer the midpoint between source and target centers
+        // (natural visual centering between task and instrument bands). But if
+        // that midpoint would put the data object on top of ANY flow step in
+        // the same column (not just the partner task), shift it vertically to
+        // the nearest gap. This avoids data objects landing inside the task
+        // row when source/target are in different lanes.
+        const dataObjWidth = 36;
+        const dataObjHeight = 50;
+        const dataObjGap = 12;
+        let dobjY = (srcCenter.y + tgtCenter.y) / 2 - dataObjHeight / 2;
+
+        // Build vertical obstacle list from steps overlapping the data object's
+        // X range — only those can collide.
+        const dataLeft = dobjX;
+        const dataRight = dobjX + dataObjWidth;
+        const overlappingObstacles = [...ownerLayout.values()]
+          .filter(box => box.w > 0 && box.h > 0)
+          .filter(box => box.x < dataRight + 4 && box.x + box.w > dataLeft - 4)
+          .sort((a, b) => a.y - b.y);
+
+        const intersects = (y: number) =>
+          overlappingObstacles.find(box =>
+            y + dataObjHeight > box.y - 4 && y < box.y + box.h + 4
+          );
+
+        let collide = intersects(dobjY);
+        if (collide) {
+          // Try below the colliding obstacle, then above. Prefer the side
+          // closer to the instrument partner.
+          const srcIsInstrument = srcStep && this.isInstrumentationStep(srcStep);
+          const tgtIsInstrument = tgtStep && this.isInstrumentationStep(tgtStep);
+          const instrumentPos = srcIsInstrument ? srcPos : (tgtIsInstrument ? tgtPos : undefined);
+          const preferBelow = instrumentPos
+            ? (instrumentPos.y + instrumentPos.h / 2) > (collide.y + collide.h / 2)
+            : true;
+
+          const tryShift = (downward: boolean) => {
+            let candidate = dobjY;
+            for (let i = 0; i < overlappingObstacles.length + 2; i += 1) {
+              const c = intersects(candidate);
+              if (!c) return candidate;
+              candidate = downward
+                ? c.y + c.h + dataObjGap
+                : c.y - dataObjGap - dataObjHeight;
+            }
+            return undefined;
+          };
+
+          const first = preferBelow ? tryShift(true) : tryShift(false);
+          const second = first === undefined
+            ? (preferBelow ? tryShift(false) : tryShift(true))
+            : undefined;
+          if (first !== undefined) dobjY = first;
+          else if (second !== undefined) dobjY = second;
         }
         dobjInfo = { dobjId, dobjX, dobjY, key };
         dobjBySourcePort.set(conn.sourcePortId, dobjInfo);
