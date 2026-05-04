@@ -1336,10 +1336,24 @@ export class DexpiToBpmnTransformer {
         if ((p.type === 'InformationPort') !== !!isInfoPort) return false;
         return preferredEdgeSide(p, isRecycleStep) === side;
       });
+      // Generic rule: order ports along the edge by their connected partner's
+      // axis position. Ports without any connection fall back to the same
+      // numeric-suffix sort used for sources/sinks (MI1 < MI2 < … MO1 < MO2)
+      // so unused ports don't end up in arbitrary positions disrupting the
+      // visual port stack.
+      const labelOrderKey = (p: DexpiPort) => {
+        const m = (p.label || '').match(/^([A-Za-z]+)(\d+)$/);
+        return m ? { prefix: m[1], num: parseInt(m[2], 10) } : null;
+      };
       const orderedGroup = isInfoPort ? group : [...group].sort((a, b) => {
         const aPos = connectedAxisPos(step, a, side);
         const bPos = connectedAxisPos(step, b, side);
         if (aPos !== undefined && bPos !== undefined && aPos !== bPos) return aPos - bPos;
+        // Both connected at same axis or both disconnected → sort by label
+        // suffix, then by initial group order.
+        const aKey = labelOrderKey(a);
+        const bKey = labelOrderKey(b);
+        if (aKey && bKey && aKey.prefix === bKey.prefix) return aKey.num - bKey.num;
         if (aPos !== undefined && bPos === undefined) return -1;
         if (aPos === undefined && bPos !== undefined) return 1;
         return group.findIndex(p => p.id === a.id) - group.findIndex(p => p.id === b.id);
