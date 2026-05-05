@@ -5,11 +5,13 @@ A web-based tool for creating DEXPI 2.0-compliant block flow and process flow di
 ## Features
 
 - **Visual Modeling**: Drag-and-drop BPMN 2.0 editor with DEXPI-aware palette
+- **Bidirectional Transformation**: BPMN 2.0 ↔ DEXPI 2.0 round-trip — export models for downstream DEXPI tools, or import existing DEXPI XML to view and edit visually
 - **DEXPI 2.0 Export**: XSD-validated output against the official DEXPI XML Schema, with a structural fallback in browser contexts (validation result includes a `mode` field indicating which path ran)
+- **DEXPI Import + Auto-Layout**: Open any DEXPI XML — a generic layout engine produces a left-to-right BFS-layered diagram (subprocess planes, recycle-loop detection, energy ports anchored top/bottom, instrumentation lanes) so the imported model is editable immediately
 - **Material Library**: Define materials, compositions, and thermodynamic states
 - **Port System**: Typed ports (Material, Energy, Information) with hierarchy support
 - **Stream Properties**: Typed streams (Material, Thermal/Mechanical/Electrical Energy, Information) with flow rates, compositions, and qualified parameters
-- **CLI Tool**: Batch convert BPMN files to DEXPI 2.0 XML from terminal or Python
+- **CLI Tool**: Batch convert in either direction from terminal or Python
 - **Neo4j Export**: Export process graphs directly to a Neo4j graph database
 - **RDL Extension**: Steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri`
 
@@ -31,11 +33,16 @@ npm run dev        # web app at http://localhost:5173
 ### CLI
 
 ```bash
+# BPMN → DEXPI
 npm run transform input.bpmn output.xml
+
+# DEXPI → BPMN (reverse — opens in the editor with auto-layout)
+npm run transform -- --reverse input.xml output.bpmn
 
 # or install globally
 npm install -g bpmn2dexpi
 bpmn2dexpi input.bpmn output.xml
+bpmn2dexpi --reverse input.xml output.bpmn
 ```
 
 ### Python
@@ -67,16 +74,17 @@ See [CLI_USAGE.md](./CLI_USAGE.md) for more examples.
 
 ## Architecture
 
-The transformer is a standalone, framework-independent TypeScript module — importable independently of the React frontend:
+The transformers are standalone, framework-independent TypeScript modules — importable independently of the React frontend:
 
 ```
 src/transformer/
-├── BpmnToDexpiTransformer.ts      # Core BPMN → DEXPI 2.0 transformation
+├── BpmnToDexpiTransformer.ts      # BPMN → DEXPI 2.0 (export)
+├── DexpiToBpmnTransformer.ts      # DEXPI 2.0 → BPMN (import + generic auto-layout)
 ├── DexpiProcessClassRegistry.ts   # Loads Process.xml → authoritative class list
 ├── DexpiOutputValidator.ts        # XSD validation (xmllint) + structural fallback
 ├── TransformerLogger.ts           # Warning/error collection
 ├── types.ts                       # Typed interfaces
-└── __tests__/                     # 60 automated tests
+└── __tests__/                     # automated tests
 
 dexpi-schema-files/
 ├── DEXPI_XML_Schema.xsd           # Official DEXPI 2.0 XML Schema
@@ -86,12 +94,12 @@ dexpi-schema-files/
 ## Testing
 
 ```bash
-npm test              # run all 60 tests
+npm test              # run the test suite
 npm run test:watch    # watch mode
 npm run test:coverage # with coverage
 ```
 
-Covers unit tests (transformer logic, class registry, output validation) and an end-to-end integration benchmark using the Tennessee Eastman process PFD. The integration suite requires `xmllint` — see Prerequisites.
+Covers unit tests (both transformer directions, class registry, output validation) and an end-to-end integration benchmark using the Tennessee Eastman process PFD. The integration suite requires `xmllint` — see Prerequisites.
 
 CI runs on Node.js 18, 20, and 22 via GitHub Actions on every push and pull request.
 

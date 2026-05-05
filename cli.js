@@ -34,7 +34,7 @@ Examples:
   node --import tsx cli.js process.bpmn output.xml
   node --import tsx cli.js --reverse process.xml output.bpmn
   npm run transform process.bpmn output.xml
-  npm run transform:reverse process.xml output.bpmn
+  npm run transform -- --reverse process.xml output.bpmn
 `);
   process.exit(0);
 }
