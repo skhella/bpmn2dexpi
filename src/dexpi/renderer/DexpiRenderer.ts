@@ -627,7 +627,7 @@ export default class DexpiRenderer extends BaseRenderer {
 
   private applyDexpiTypeColor(shape: SVGElement, element: any): void {
     // Only apply to tasks and activities
-    const isTaskLike = element.type === 'bpmn:Task' || 
+    const isTaskLike = element.type === 'bpmn:Task' ||
                        element.type === 'bpmn:SubProcess' ||
                        element.type === 'bpmn:ServiceTask' ||
                        element.type === 'bpmn:UserTask' ||
@@ -637,7 +637,7 @@ export default class DexpiRenderer extends BaseRenderer {
                        element.type === 'bpmn:SendTask' ||
                        element.type === 'bpmn:ReceiveTask' ||
                        element.type === 'bpmn:CallActivity';
-    
+
     if (!isTaskLike) return;
 
     const businessObject = element.businessObject;
@@ -646,9 +646,12 @@ export default class DexpiRenderer extends BaseRenderer {
 
     if (!extensionElements || !extensionElements.values) return;
 
-    const dexpiElement = extensionElements.values.find(
-      (e: any) => e.$type === 'dexpi:Element' || e.$type === 'dexpi:element'
-    );
+    // Lenient match — handles dexpi:Element / dexpi:element / any local-name
+    // ending in "element". Mirrors DexpiPropertiesPanel.
+    const dexpiElement = extensionElements.values.find((e: any) => {
+      const t = (e.$type || '').toString();
+      return t === 'dexpi:Element' || t === 'dexpi:element' || t.toLowerCase().endsWith(':element');
+    });
 
 
     if (!dexpiElement || !dexpiElement.dexpiType) return;
@@ -668,16 +671,34 @@ export default class DexpiRenderer extends BaseRenderer {
     } else if (isProcessStep) {
       fillColor = '#bbdefb';   // Light blue
       strokeColor = '#0d4372'; // Dark blue
-    } // else: non-task element uses default colours
+    } else if (RENDERER_REGISTRY.size === 0) {
+      // Registry didn't load (Process.xml ?raw import failed). Log once so the
+      // user knows why colours look default.
+      // eslint-disable-next-line no-console
+      if (!(window as any).__dexpi_registry_warned__) {
+        (window as any).__dexpi_registry_warned__ = true;
+        console.warn(
+          '[dexpi] DexpiProcessClassRegistry is empty — task colour-coding disabled. ' +
+          'Process.xml ?raw import returned no content. Check vite.config.ts and ' +
+          'the path src/dexpi/renderer/DexpiRenderer.ts → ../../../dexpi-schema-files/Process.xml'
+        );
+      }
+    } // else: non-task DEXPI class uses default colours
 
     if (fillColor && strokeColor) {
-      // The shape itself IS the rect element for tasks
-      const rect = shape.tagName === 'rect' ? shape : shape.querySelector('rect');
+      // The shape itself IS the rect element for tasks; for subprocess
+      // markers etc. dig down. Apply via attribute AND inline style so we
+      // beat any later CSS override (bpmn-js stylesheets occasionally win
+      // by specificity).
+      const rect = (shape.tagName === 'rect' || shape.tagName === 'RECT')
+        ? shape
+        : (shape.querySelector('rect') || shape.querySelector('path'));
       if (rect) {
         svgAttr(rect, {
           'fill': fillColor,
           'stroke': strokeColor,
-          'stroke-width': '2'
+          'stroke-width': '2',
+          'style': `fill: ${fillColor} !important; stroke: ${strokeColor} !important; stroke-width: 2px !important;`,
         });
       }
 
