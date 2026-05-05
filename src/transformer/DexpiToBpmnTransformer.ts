@@ -681,8 +681,18 @@ export class DexpiToBpmnTransformer {
 
     const sources = visibleSteps.filter(step => step.dexpiType === 'Source').map(step => step.id);
     const sinks = new Set(visibleSteps.filter(step => step.dexpiType === 'Sink').map(step => step.id));
+
+    // Generic rule: energy supply Sources (whose only port is energy-typed) are
+    // auxiliary inputs (e.g. EEI1 → motor), not the start of the material flow.
+    // They should NOT contribute to "process roots" — otherwise their target
+    // task gets pinned at layer 1, overriding the layer it would naturally
+    // receive from the material chain. Material sources only.
+    const materialSourceIds = sources.filter(id =>
+      !this.isEnergyBoundaryProxy(stepById.get(id)!)
+    );
+
     const sourceAdjacent = new Set<string>();
-    sources.forEach(sourceId => {
+    materialSourceIds.forEach(sourceId => {
       downstream.get(sourceId)?.forEach(targetId => {
         if (stepById.get(targetId)?.dexpiType !== 'Sink') sourceAdjacent.add(targetId);
       });

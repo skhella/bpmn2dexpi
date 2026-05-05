@@ -138,6 +138,12 @@ export class BpmnToDexpiTransformer {
     dataObjects.forEach((obj) => {
       this.extractMaterialData(obj);
     });
+
+    // Map subprocess boundary ports to inner-step ports — done last so that
+    // any source/sink events nested in subprocesses (extracted in the second
+    // phase above) are visible as candidate inner ports and as the target of
+    // explicit subReference annotations.
+    this.mapAllSubprocessBoundaries();
   }
 
   // Valid DEXPI 2.0 ProcessStep types (from Process.xml schema - ConcreteClass definitions)
@@ -299,18 +305,35 @@ export class BpmnToDexpiTransformer {
       });
     });
     
-    // If this is a subprocess, map parent boundary ports to inner child ports.
-    // Two-tier matching:
-    //   1. Explicit subReference attribute on the parent port (space-separated
-    //      list of inner port IDs). Authors use this to disambiguate when
-    //      multiple inner tasks share a port name (e.g. several inner tasks
-    //      with port "MI1" — first-match-by-name binds to the wrong one).
-    //   2. Fallback: first child port matching by name + direction.
-    if (isSubProcess && processStep.subProcessSteps.length > 0) {
+    // Note: parent-boundary-to-child-port mapping is deferred to a separate
+    // pass (mapAllSubprocessBoundaries) called from extractFromBpmn AFTER all
+    // sources/sinks are extracted. Doing it inline here would miss source/sink
+    // events nested in the subprocess, which are extracted in a later phase.
+  }
+
+  /**
+   * For every subprocess in the model, link its boundary ports to inner-step
+   * ports. Two-tier matching:
+   *   1. Explicit subReference attribute on the parent port (space-separated
+   *      list of inner port IDs). Authors use this to disambiguate when
+   *      multiple inner ports share a port name.
+   *   2. Fallback: first child port matching by name + direction. Multiple
+   *      matches → warn loudly and fall back to first match for backward
+   *      compatibility.
+   */
+  private mapAllSubprocessBoundaries(): void {
+    this.processSteps.forEach(processStep => {
+      if (processStep.subProcessSteps.length === 0) return;
+      this.mapSubprocessBoundaryPorts(processStep);
+    });
+  }
+
+  private mapSubprocessBoundaryPorts(processStep: InternalProcessStep): void {
+      const id = processStep.id;
       // Build a flat lookup of all descendant ports keyed by their unique
       // (prefixed) portId. We compare against both the bare and prefixed forms
       // so authors can use either in the subReference attribute.
-      const descendantPortIndex = new Map<string, { childStep: typeof processStep; childPort: DexpiPort }>();
+      const descendantPortIndex = new Map<string, { childStep: InternalProcessStep; childPort: DexpiPort }>();
       for (const childId of processStep.subProcessSteps) {
         const childStep = this.processSteps.get(childId);
         if (!childStep) continue;
@@ -331,7 +354,7 @@ export class BpmnToDexpiTransformer {
         const childPortData = this.ports.get(childPort.portId);
         if (!parentPortData || !childPortData) return false;
         if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
-        parentPortData.childPortIds.push(childPort.portId);
+        if (!parentPortData.childPortIds.includes(childPort.portId)) parentPortData.childPortIds.push(childPort.portId);
         childPortData.parentPortId = parentPort.portId;
         return true;
       };
@@ -381,7 +404,6 @@ export class BpmnToDexpiTransformer {
           link(parentPort, candidates[0]);
         }
       });
-    }
   }
 
   private extractSource(event: Element): void {
