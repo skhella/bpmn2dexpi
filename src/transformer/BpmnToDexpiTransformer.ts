@@ -22,6 +22,7 @@ export class BpmnToDexpiTransformer {
   private streams: Map<string, InternalStream> = new Map();
   private informationFlows: Map<string, InternalStream> = new Map();
   private ports: Map<string, InternalPort> = new Map();
+  private doc: Document | null = null;
   private materialTemplates: Map<string, InternalMaterialTemplate> = new Map();
   private materialComponents: Map<string, InternalMaterialComponent> = new Map();
   private materialStates: Map<string, InternalMaterialState> = new Map();
@@ -55,6 +56,7 @@ export class BpmnToDexpiTransformer {
     
     // Parse BPMN XML
     const bpmnModel = this.parseBpmn(bpmnXml);
+    this.doc = bpmnModel;
     
     // Extract DEXPI elements
     this.extractElements(bpmnModel);
@@ -103,17 +105,33 @@ export class BpmnToDexpiTransformer {
     });
 
     // Extract start events (Sources)
-    // Proxy events (those matching parent subprocess ports) will be filtered out in extractSource
     const startEvents = Array.from(process.querySelectorAll('startEvent, intermediateCatchEvent'));
     startEvents.forEach((event) => {
       this.extractSource(event);
     });
 
     // Extract end events (Sinks)
-    // Proxy events (those matching parent subprocess ports) will be filtered out in extractSink
     const endEvents = Array.from(process.querySelectorAll('endEvent, intermediateThrowEvent'));
     endEvents.forEach((event) => {
       this.extractSink(event);
+    });
+
+    // Now that all ports are registered, resolve sub/superReference links.
+    // Must happen after all extractSource/extractSink calls so proxy-event ports exist.
+    this.processSteps.forEach((step) => {
+      if (!step.subProcessSteps?.length) return;
+      step.ports.forEach((parentPort: DexpiPort) => {
+        const parentPortData = this.ports.get(parentPort.portId);
+        if (!parentPortData || parentPortData.childPortIds?.length) return; // already resolved
+        const subRef = parentPort.subReference;
+        if (!subRef) return;
+        const childPortData = this.ports.get(subRef);
+        if (childPortData) {
+          if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
+          parentPortData.childPortIds.push(subRef);
+          childPortData.parentPortId = parentPort.portId;
+        }
+      });
     });
 
     // Extract sequence flows (MaterialFlow / EnergyFlow streams)
@@ -151,21 +169,16 @@ export class BpmnToDexpiTransformer {
   /**
    * Resolve the DEXPI type for a process step — three-mode system:
    *
+   * Resolve the DEXPI type for a process step — two-mode system:
+   *
    * Mode 1 'dexpi-validated':
    *   dexpiType annotation present AND class is in the official Process.xml registry.
-   *   → Clean output, no warning.
+   *   Clean output, no warning.
    *
-   * Mode 2 'custom-type':
-   *   dexpiType annotation present but NOT in the DEXPI registry.
-   *   The user is explicitly defining a custom process step class (e.g. from a company
-   *   RDL or another ontology such as ISO 15926 or OntoCAPE). The custom type name is
-   *   preserved in the DEXPI output; an optional customUri stores the external class URI.
-   *   A warning is emitted with a "did you mean?" suggestion for the closest DEXPI class.
-   *
-   * Mode 3 'unannotated':
-   *   No dexpiType annotation present. Defaults to 'ProcessStep' (the generic DEXPI
-   *   superclass). Always emits a warning prompting the user to add a dexpiType.
-   *   No name-based inference is attempted — the user must be explicit.
+   * Mode 2 'unvalidated':
+   *   Either no dexpiType annotation, OR annotation not found in the registry.
+   *   Both cases export as generic 'ProcessStep'. customUri stored if provided.
+   *   A "did you mean?" hint is emitted when the annotation is a near-miss.
    */
   private resolveStepType(
     annotatedType: string | undefined,
@@ -177,40 +190,35 @@ export class BpmnToDexpiTransformer {
     // ── Mode 1: explicit annotation, validated against registry ──────────────
     if (annotatedType) {
       if (this.registry.size === 0 || this.registry.isValidClass(annotatedType)) {
-        // Registry not loaded (offline/browser) OR class is known — accept it
         return { dexpiClass: annotatedType, mode: 'dexpi-validated' };
       }
-
-      // ── Mode 2: explicit custom type, not in DEXPI registry ───────────────
-      const suggestion = this.findClosestDexpiClass(annotatedType);
-      const uriNote = customUri
-        ? ` ReferenceUri stored: ${customUri}`
-        : ' Add a customUri attribute to reference your RDL class URI.';
-
-      this.logger.warn(
-        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a standard ` +
-        `DEXPI 2.0 Process class — outputting as generic ProcessStep.${uriNote}` +
-        (suggestion ? ` Did you mean "${suggestion}"?` : '')
-      );
-
-      return {
-        dexpiClass: 'ProcessStep',  // always generic superclass for non-DEXPI types
-        mode: 'custom-type',
-        customUri,
-        suggestedDexpiClass: suggestion,
-      };
     }
 
-    // ── Mode 3: no annotation — default to generic ProcessStep ───────────────
-    this.logger.warn(
-      `Task "${taskName}" (id=${taskId}) has no dexpiType annotation. ` +
-      `Defaulting to "ProcessStep" (generic DEXPI superclass). ` +
-      `Add a dexpiType attribute in extensionElements to assign a specific DEXPI class ` +
-      `or a custom step type.`
-    );
-    return { dexpiClass: 'ProcessStep', mode: 'unannotated' };
-  }
+    // ── Mode 2: unvalidated — no annotation OR unrecognised type ─────────────
+    // Both cases are treated identically: generic ProcessStep output.
+    const suggestion = annotatedType ? this.findClosestDexpiClass(annotatedType) : undefined;
 
+    if (annotatedType) {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a recognised ` +
+        `DEXPI 2.0 Process class — exporting as generic ProcessStep.` +
+        (suggestion ? ` Did you mean "${suggestion}"?` : '')
+      );
+    } else {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}) has no dexpiType annotation. ` +
+        `Exporting as generic ProcessStep. ` +
+        `Add a dexpiType in extensionElements to assign a specific DEXPI class.`
+      );
+    }
+
+    return {
+      dexpiClass: 'ProcessStep',
+      mode: 'unvalidated',
+      customUri,
+      suggestedDexpiClass: suggestion,
+    };
+  }
   /** Find the closest known DEXPI class for a non-registry type (for suggestions). */
   private findClosestDexpiClass(unknown: string): string | undefined {
     if (this.registry.size === 0) return undefined;
@@ -256,10 +264,12 @@ export class BpmnToDexpiTransformer {
     };
 
 
-    // Make port IDs unique by prefixing with step ID
+    // Make port IDs globally unique by prefixing with step ID.
+    // Skip if the port ID already contains the step ID as a prefix
+    // (happens when port IDs were pre-normalized to include the task prefix).
     processStep.ports = processStep.ports.map((port: DexpiPort) => ({
       ...port,
-      portId: `${id}_${port.portId}`
+      portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
     }));
 
     this.processSteps.set(id, processStep);
@@ -287,7 +297,7 @@ export class BpmnToDexpiTransformer {
           `Duplicate port detected in step "${name}" (id=${id}): ` +
           `name="${port.name}", direction="${port.direction}". ` +
           `DEXPI Process requires unique port name+direction combinations per element. ` +
-          `Subprocess parent-port mapping will use the first match only.`
+          `Add a subReference attribute to the dexpi:port element to explicitly link it.`
         );
       }
       seenPortKeys.add(key);
@@ -299,39 +309,40 @@ export class BpmnToDexpiTransformer {
       });
     });
     
-    // If this is a subprocess, map parent ports to child ports with same name/direction
-    // Only map to the FIRST matching child port (not all children with same name)
+    // If this is a subprocess, map parent ports to child ports using explicit
+    // subReference annotations only. Resolved in post-extraction pass in
+    // extractElements after all ports are registered. No name-based heuristics.
+    // Warn only when a child step has a port of the same type as the parent
+    // boundary port — meaning the hierarchy IS refineable at that port type
+    // and a subReference annotation is missing. If no child has a matching
+    // port type, the abstraction levels differ and no warning is needed.
     if (isSubProcess && processStep.subProcessSteps.length > 0) {
+      // Collect all port types present in child steps
+      const childPortTypes = new Set<string>();
+      for (const childId of processStep.subProcessSteps) {
+        const childStep = this.processSteps.get(childId);
+        if (childStep) {
+          childStep.ports.forEach((p: DexpiPort) => childPortTypes.add(p.type));
+        }
+      }
+
       processStep.ports.forEach((parentPort: DexpiPort) => {
-        let foundMatch = false;
-        // Find the first matching port in child process steps
-        for (const childId of processStep.subProcessSteps) {
-          if (foundMatch) break;
-          const childStep = this.processSteps.get(childId);
-          if (childStep) {
-            for (const childPort of childStep.ports) {
-              // Match by port name and direction - only first match
-              if (childPort.name === parentPort.name && 
-                  childPort.direction === parentPort.direction) {
-                // Create parent-child port relationship
-                const parentPortData = this.ports.get(parentPort.portId);
-                const childPortData = this.ports.get(childPort.portId);
-                
-                if (parentPortData && childPortData) {
-                  if (!parentPortData.childPortIds) parentPortData.childPortIds = [];
-                  parentPortData.childPortIds.push(childPort.portId);
-                  childPortData.parentPortId = parentPort.portId;
-                  foundMatch = true;
-                  break;
-                }
-              }
-            }
-          }
+        if (parentPort.subReference) return; // resolved in post-pass
+        // Only warn for MaterialPorts — material streams are the primary
+        // hierarchically refineable connections in DEXPI Process. Energy and
+        // information ports at subprocess boundaries represent different
+        // abstraction levels and don't require SubReference to a child counterpart.
+        if (parentPort.type === 'MaterialPort' && childPortTypes.has('MaterialPort')) {
+          this.logger.warn(
+            `Subprocess "${name}" (id=${id}): boundary port "${parentPort.name}" ` +
+            `(${parentPort.type}) has no subReference annotation — SubReference ` +
+            `omitted from DEXPI output. Add a subReference attribute to the dexpi:port ` +
+            `element to formally link this port to its child-level counterpart.`
+          );
         }
       });
     }
   }
-
   private extractSource(event: Element): void {
     const id = event.getAttribute('id') || '';
     const name = event.getAttribute('name') || id;
@@ -357,7 +368,7 @@ export class BpmnToDexpiTransformer {
       uid: dexpiData?.uid || this.generateUid(),
       ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
         ...port,
-        portId: `${id}_${port.portId}`
+        portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
       })),
       attributes: [],
       parentId: null,
@@ -396,7 +407,7 @@ export class BpmnToDexpiTransformer {
       uid: dexpiData?.uid || this.generateUid(),
       ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
         ...port,
-        portId: `${id}_${port.portId}`
+        portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
       })),
       attributes: [],
       parentId: null,
@@ -503,13 +514,16 @@ export class BpmnToDexpiTransformer {
       const taskId = task.getAttribute('id') || '';
 
       // dataOutputAssociation: this task → DataObject
-      const outputs = Array.from(task.querySelectorAll('dataOutputAssociation'));
+      // Use only DIRECT children — querySelectorAll would also find associations
+      // inside nested subProcess children, incorrectly attributing them to the parent.
+      const outputs = Array.from(task.children).filter(
+        c => (c.localName || c.tagName.split(':').pop()) === 'dataOutputAssociation'
+      );
       outputs.forEach(doa => {
         const targetRef = doa.querySelector('targetRef');
         const dataObjId = targetRef?.textContent?.trim() || '';
         if (!dataObjId) return;
         if (!graph.has(dataObjId)) {
-          // Resolve DataObject name from the diagram
           const dataObjEl = process.querySelector(`[id="${dataObjId}"]`) ||
                             process.ownerDocument?.querySelector(`[id="${dataObjId}"]`);
           const name = dataObjEl?.getAttribute('name') || dataObjId;
@@ -519,7 +533,9 @@ export class BpmnToDexpiTransformer {
       });
 
       // dataInputAssociation: DataObject → this task
-      const inputs = Array.from(task.querySelectorAll('dataInputAssociation'));
+      const inputs = Array.from(task.children).filter(
+        c => (c.localName || c.tagName.split(':').pop()) === 'dataInputAssociation'
+      );
       inputs.forEach(dia => {
         const sourceRef = dia.querySelector('sourceRef');
         const dataObjId = sourceRef?.textContent?.trim() || '';
@@ -978,7 +994,9 @@ export class BpmnToDexpiTransformer {
         anchorSide: (child.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
         anchorOffset: child.getAttribute('anchorOffset') ? parseFloat(child.getAttribute('anchorOffset')!) : undefined,
         anchorX: child.getAttribute('anchorX') ? parseFloat(child.getAttribute('anchorX')!) : undefined,
-        anchorY: child.getAttribute('anchorY') ? parseFloat(child.getAttribute('anchorY')!) : undefined
+        anchorY: child.getAttribute('anchorY') ? parseFloat(child.getAttribute('anchorY')!) : undefined,
+        subReference: child.getAttribute('subReference') || undefined,
+        superReference: child.getAttribute('superReference') || undefined,
       });
     }
     
@@ -1013,7 +1031,9 @@ export class BpmnToDexpiTransformer {
       anchorSide: (port.getAttribute('anchorSide') || undefined) as DexpiPort['anchorSide'],
       anchorOffset: port.getAttribute('anchorOffset') ? parseFloat(port.getAttribute('anchorOffset')!) : undefined,
       anchorX: port.getAttribute('anchorX') ? parseFloat(port.getAttribute('anchorX')!) : undefined,
-      anchorY: port.getAttribute('anchorY') ? parseFloat(port.getAttribute('anchorY')!) : undefined
+      anchorY: port.getAttribute('anchorY') ? parseFloat(port.getAttribute('anchorY')!) : undefined,
+      subReference: port.getAttribute('subReference') || undefined,
+      superReference: port.getAttribute('superReference') || undefined,
     }));
   }
 
@@ -1475,6 +1495,26 @@ export class BpmnToDexpiTransformer {
     const streamElements: Record<string, unknown>[] = [];
 
     this.streams.forEach((stream) => {
+      // Warn if source or target isn't a registered process step at all.
+      // Exception: gateways are valid BPMN but intentionally have no DEXPI
+      // equivalent — flows through them are silently skipped, not warned.
+      if (!this.processSteps.has(stream.sourceRef) && !this.isGateway(stream.sourceRef)) {
+        this.logger.warn(
+          `Stream "${stream.name}" (id=${stream.id}): source "${stream.sourceRef}" is not a recognised process step — stream skipped.`
+        );
+        return;
+      }
+      if (!this.processSteps.has(stream.targetRef) && !this.isGateway(stream.targetRef)) {
+        this.logger.warn(
+          `Stream "${stream.name}" (id=${stream.id}): target "${stream.targetRef}" is not a recognised process step — stream skipped.`
+        );
+        return;
+      }
+      if (!this.processSteps.has(stream.sourceRef) || !this.processSteps.has(stream.targetRef)) {
+        // Gateway case — silently skip
+        return;
+      }
+
       const sourcePort = this.findPortForConnection(stream.sourceRef, stream.sourcePortRef, 'Outlet');
       const targetPort = this.findPortForConnection(stream.targetRef, stream.targetPortRef, 'Inlet');
 
@@ -2171,6 +2211,20 @@ export class BpmnToDexpiTransformer {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
+  }
+
+  /**
+  /**
+   * Returns true if the element ID refers to a BPMN gateway element.
+   * Gateways are intentionally not mapped to DEXPI process steps; flows
+   * through them are silently skipped without warning.
+   */
+  private isGateway(elementId: string): boolean {
+    if (!this.doc) return false;
+    const el = this.doc.querySelector(`[id="${elementId}"]`);
+    if (!el) return false;
+    const tag = (el.localName || el.tagName.split(':').pop() || '').toLowerCase();
+    return tag.includes('gateway');
   }
 
   /**
