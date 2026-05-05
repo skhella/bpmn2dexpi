@@ -56,22 +56,6 @@ function preprocessBpmnXml(xml: string): string {
       .replace(/<\/port>/g, '</dexpi:port>');
   }
 
-  // 4. Rewrite legacy `type="..."` → `portType="..."` inside <dexpi:port> tags.
-  //    moddle treats `type` specially (it's the element-type discriminator)
-  //    and does NOT preserve a string attribute named `type` on parsed
-  //    elements — even though the dexpi moddle descriptor declares it.
-  //    The renderer reads port.portType to pick fill colour; without this
-  //    rewrite, ports from older exports (e.g. <dexpi:port type="MaterialPort"/>)
-  //    fall through to the default branch and render grey.
-  result = result.replace(
-    /<dexpi:port\b([^>]*?)\stype="([^"]*)"/g,
-    (_match, before: string, value: string) => {
-      // Skip if portType is also present — preserve the canonical one.
-      if (/\bportType="/.test(before)) return _match;
-      return `<dexpi:port${before} portType="${value}"`;
-    }
-  );
-
   return result;
 }
 
