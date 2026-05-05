@@ -676,7 +676,7 @@ function App() {
       try {
         const dexpiXml = await file.text();
         const t = new DexpiToBpmnTransformer();
-        const bpmnXml = t.transform(dexpiXml);
+        const bpmnXml = await t.transform(dexpiXml, { processXml: processXmlRaw });
 
         await modeler.importXML(bpmnXml);
         reanchorPortsAfterImport();

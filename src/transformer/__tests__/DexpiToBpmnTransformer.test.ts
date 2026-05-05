@@ -99,10 +99,10 @@ function expectWellFormedXml(xml: string): void {
 describe('DexpiToBpmnTransformer', () => {
 
   describe('basic structure', () => {
-    it('produces valid BPMN XML with required namespaces', () => {
+    it('produces valid BPMN XML with required namespaces', async () => {
       const xml = dexpi(step('SE1', 'Source', 'Feed') + step('EE1', 'Sink', 'Product'));
       const t = new DexpiToBpmnTransformer();
-      const out = t.transform(xml);
+      const out = await t.transform(xml);
 
       expect(out).toContain('xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"');
       expect(out).toContain('xmlns:bpmndi=');
@@ -111,43 +111,43 @@ describe('DexpiToBpmnTransformer', () => {
       expect(out).toContain('bpmndi:BPMNPlane');
     });
 
-    it('throws if no ProcessModel found', () => {
+    it('throws if no ProcessModel found', async () => {
       const t = new DexpiToBpmnTransformer();
-      expect(() => t.transform('<Model><bad/></Model>')).toThrow('No ProcessModel found');
+      await expect(t.transform('<Model><bad/></Model>')).rejects.toThrow('No ProcessModel found');
     });
   });
 
   describe('step type mapping', () => {
-    it('maps Source → bpmn:startEvent', () => {
+    it('maps Source → bpmn:startEvent', async () => {
       const xml = dexpi(step('SE1', 'Source', 'Feed'));
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       expect(out).toContain('bpmn:startEvent');
       expect(out).toContain('dexpiType="Source"');
     });
 
-    it('maps Sink → bpmn:endEvent', () => {
+    it('maps Sink → bpmn:endEvent', async () => {
       const xml = dexpi(step('EE1', 'Sink', 'Product'));
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       expect(out).toContain('bpmn:endEvent');
       expect(out).toContain('dexpiType="Sink"');
     });
 
-    it('maps Pumping → bpmn:task', () => {
+    it('maps Pumping → bpmn:task', async () => {
       const xml = dexpi(step('T1', 'Pumping', 'Feed Pump'));
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       expect(out).toContain('bpmn:task');
       expect(out).toContain('dexpiType="Pumping"');
       expect(out).toContain('name="Feed Pump"');
     });
 
-    it('preserves uid and identifier as extensionElements', () => {
+    it('preserves uid and identifier as extensionElements', async () => {
       const xml = dexpi(step('uid_pump1', 'Pumping', 'P-101'));
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       expect(out).toContain('uid="uid_pump1"');
       expect(out).toContain('identifier="uid_pump1"');
     });
 
-    it('omits Source/Sink steps that are only visual port proxies', () => {
+    it('omits Source/Sink steps that are only visual port proxies', async () => {
       const realSourcePort = port('ReactantA_out', 'MaterialPort', 'Out', 'MO1');
       const proxySourcePort = port('MI1_proxy_out', 'MaterialPort', 'Out', 'MI1');
       const taskPorts =
@@ -163,7 +163,7 @@ describe('DexpiToBpmnTransformer', () => {
         stream('ProxyFeed', 'Stream', 'MI1_proxy_out', 'Pump_in') +
         stream('ProxyOut', 'Stream', 'Pump_out', 'MO1_proxy_in')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       expect(out).toContain('<bpmn:startEvent id="bpmn_ReactantA"');
       expect(out).toContain('<bpmn:sequenceFlow id="bpmn_RealFeed"');
@@ -177,7 +177,7 @@ describe('DexpiToBpmnTransformer', () => {
   });
 
   describe('subprocess mapping', () => {
-    it('maps nested SubProcessSteps to a collapsed bpmn:subProcess', () => {
+    it('maps nested SubProcessSteps to a collapsed bpmn:subProcess', async () => {
       const xml = dexpi(
         subProcessStep(
           'RC1',
@@ -186,7 +186,7 @@ describe('DexpiToBpmnTransformer', () => {
           step('MX1', 'Mixing', 'Mixer') + step('RX1', 'ReactingChemicals', 'Reactor')
         )
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       const parentStart = out.indexOf('<bpmn:subProcess id="bpmn_RC1"');
       const childTask = out.indexOf('<bpmn:task id="bpmn_MX1"');
@@ -202,7 +202,7 @@ describe('DexpiToBpmnTransformer', () => {
       expect(out).toContain('dexpiType="Mixing"');
     });
 
-    it('places sequence flows between sibling subprocess children inside the subprocess', () => {
+    it('places sequence flows between sibling subprocess children inside the subprocess', async () => {
       const c1Ports = port('MX_out', 'MaterialPort', 'Out', 'MO1');
       const c2Ports = port('RX_in', 'MaterialPort', 'In', 'MI1');
       const xml = dexpi(
@@ -214,7 +214,7 @@ describe('DexpiToBpmnTransformer', () => {
         ),
         stream('S_internal', 'Stream', 'MX_out', 'RX_in')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       const parentStart = out.indexOf('<bpmn:subProcess id="bpmn_RC1"');
       const internalFlow = out.indexOf('<bpmn:sequenceFlow id="bpmn_S_internal"');
@@ -227,7 +227,7 @@ describe('DexpiToBpmnTransformer', () => {
       expect(out).toContain('<bpmn:incoming>bpmn_S_internal</bpmn:incoming>');
     });
 
-    it('places InformationFlow data objects in the owning subprocess plane', () => {
+    it('places InformationFlow data objects in the owning subprocess plane', async () => {
       const infoOut = port('Sensor_out', 'InformationPort', 'Out', 'IPO_Temperature');
       const infoIn = port('Reactor_in', 'InformationPort', 'In', 'IPI_Temperature');
       const infoStream = `
@@ -251,7 +251,7 @@ describe('DexpiToBpmnTransformer', () => {
         ),
         infoStream
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       const subprocessEnd = out.indexOf('</bpmn:subProcess>', out.indexOf('<bpmn:subProcess id="bpmn_RC1"'));
       const dataObject = out.indexOf('name="Temperature"');
@@ -263,7 +263,7 @@ describe('DexpiToBpmnTransformer', () => {
       expect(dataObjectShape).toBeGreaterThan(subprocessPlane);
     });
 
-    it('also recognizes nested ProcessModel containers as subprocess children', () => {
+    it('also recognizes nested ProcessModel containers as subprocess children', async () => {
       const nestedProcessModelStep = `
         <Object id="RC1" type="Process/Process.ReactingChemicals">
           <Data property="Identifier"><String>RC1</String></Data>
@@ -277,13 +277,13 @@ ${step('MX1', 'Mixing', 'Mixer')}
           </Components>
         </Object>`;
       const xml = dexpi(nestedProcessModelStep);
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       expect(out).toContain('<bpmn:subProcess id="bpmn_RC1"');
       expect(out).toContain('<bpmn:task id="bpmn_MX1"');
     });
 
-    it('synthesizes boundary Source/Sink events and skips peer-to-peer boundary ports', () => {
+    it('synthesizes boundary Source/Sink events and skips peer-to-peer boundary ports', async () => {
       const parentPorts =
         portWithRefs('RC_MI1', 'MaterialPort', 'In', 'MI1', { sub: ['Reactor_MI1'] }) +
         port('RC_MO1', 'MaterialPort', 'Out', 'MO1') +
@@ -307,7 +307,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
         stream('BoundaryOut', 'Stream', 'Reactor_MO1', 'RC_MO1') +
           stream('ThermalPeer', 'ThermalEnergyFlow', 'Heater_TEO1', 'RC_TEI1')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       expect(out).toContain('<bpmn:startEvent id="bpmn_RC_MI1_Source" name="MI1">');
       expect(out).toContain('<bpmn:endEvent id="bpmn_RC_MO1_Sink" name="MO1">');
@@ -323,7 +323,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(out).toContain('id="bpmn_ThermalPeer"');
     });
 
-    it('uses existing child Source/Sink boundary events instead of synthesizing duplicates', () => {
+    it('uses existing child Source/Sink boundary events instead of synthesizing duplicates', async () => {
       const parentPorts = portWithRefs('RC_MI1', 'MaterialPort', 'In', 'MI1', { sub: ['InnerSource_MO1'] });
       const sourcePorts = portWithRefs('InnerSource_MO1', 'MaterialPort', 'Out', 'MI1', { super: 'RC_MI1' });
       const reactorPorts = port('Reactor_MI1', 'MaterialPort', 'In', 'MI1');
@@ -338,7 +338,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
         ),
         stream('InnerFeed', 'Stream', 'InnerSource_MO1', 'Reactor_MI1')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       expect(out).toContain('<bpmn:startEvent id="bpmn_InnerSource" name="MI1">');
       expect(out).toContain('superReference="RC_MI1"');
@@ -347,7 +347,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(out).toContain('sourcePortRef="InnerSource_MO1" targetPortRef="Reactor_MI1"');
     });
 
-    it('adopts root-level boundary Source/Sink events into the referenced subprocess', () => {
+    it('adopts root-level boundary Source/Sink events into the referenced subprocess', async () => {
       const parentPorts =
         portWithRefs('RC_MI1', 'MaterialPort', 'In', 'MI1', { sub: ['RootSource_MO1'] }) +
         portWithRefs('RC_MO1', 'MaterialPort', 'Out', 'MO1', { sub: ['RootSink_MI1'] });
@@ -369,7 +369,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
         stream('InnerFeed', 'Stream', 'RootSource_MO1', 'Reactor_MI1') +
           stream('InnerProduct', 'Stream', 'Reactor_MO1', 'RootSink_MI1')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       const parentStart = out.indexOf('<bpmn:subProcess id="bpmn_RC"');
       const sourceEvent = out.indexOf('<bpmn:startEvent id="bpmn_RootSource"');
@@ -386,10 +386,10 @@ ${step('MX1', 'Mixing', 'Mixer')}
   });
 
   describe('port mapping', () => {
-    it('recreates ports as dexpi:port in extensionElements', () => {
+    it('recreates ports as dexpi:port in extensionElements', async () => {
       const ports = port('p1', 'MaterialPort', 'In', 'MI1') + port('p2', 'MaterialPort', 'Out', 'MO1');
       const xml = dexpi(step('T1', 'Pumping', 'Pump', ports));
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       expectWellFormedXml(out);
       expect(out).toContain('portType="MaterialPort"');
       expect(out).toContain('direction="Inlet"');
@@ -398,30 +398,30 @@ ${step('MX1', 'Mixing', 'Mixer')}
   });
 
   describe('connection mapping', () => {
-    it('maps MaterialFlow Stream → bpmn:sequenceFlow', () => {
+    it('maps MaterialFlow Stream → bpmn:sequenceFlow', async () => {
       const p1 = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const p2 = port('T1_in', 'MaterialPort', 'In', 'MI1');
       const xml = dexpi(
         step('SE1', 'Source', 'Feed', p1) + step('T1', 'Pumping', 'Pump', p2),
         stream('S1', 'Stream', 'SE_out', 'T1_in', 'feed')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       expect(out).toContain('bpmn:sequenceFlow');
       expect(out).toContain('dexpi:Stream');
     });
 
-    it('maps ThermalEnergyFlow → sequenceFlow with streamType', () => {
+    it('maps ThermalEnergyFlow → sequenceFlow with streamType', async () => {
       const p1 = port('src_out', 'ThermalEnergyPort', 'Out', 'TEO1');
       const p2 = port('tgt_in', 'ThermalEnergyPort', 'In', 'TEI1');
       const xml = dexpi(
         step('S1', 'Source', 'Steam', p1) + step('T1', 'ExchangingThermalEnergy', 'HX', p2),
         stream('E1', 'ThermalEnergyFlow', 'src_out', 'tgt_in')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       expect(out).toContain('streamType="ThermalEnergyFlow"');
     });
 
-    it('maps InformationFlow → bpmn:association + DataObjectReference', () => {
+    it('maps InformationFlow → bpmn:association + DataObjectReference', async () => {
       const p1 = port('ia_out', 'InformationPort', 'Out', 'IO1');
       const p2 = port('ps_in', 'InformationPort', 'In', 'II1');
       const infoStream = `
@@ -439,7 +439,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
         step('IA1', 'MeasuringProcessVariable', 'TI-101', p1) + step('PS1', 'ReactingChemicals', 'Reactor', p2),
         infoStream
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       expect(out).toContain('bpmn:association');
       expect(out).toContain('bpmn:dataObjectReference');
       expect(out).toContain('name="Temperature"');
@@ -459,7 +459,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
         .map(match => ({ x: Number(match[1]), y: Number(match[2]) }));
     };
 
-    it('assigns distinct x/y positions to all elements', () => {
+    it('assigns distinct x/y positions to all elements', async () => {
       const p1 = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const p2 = port('T1_in', 'MaterialPort', 'In', 'MI1');
       const p3 = port('T1_out', 'MaterialPort', 'Out', 'MO1');
@@ -468,7 +468,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
         step('SE1', 'Source', 'Feed', p1) + step('T1', 'Pumping', 'Pump', p2 + p3) + step('EE1', 'Sink', 'Out', p4),
         stream('S1', 'Stream', 'SE_out', 'T1_in') + stream('S2', 'Stream', 'T1_out', 'EE_in')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       // Extract all dc:Bounds x values — should have multiple distinct values
       const bounds = [...out.matchAll(/dc:Bounds x="(\d+)"/g)].map(m => Number(m[1]));
       const unique = new Set(bounds);
@@ -477,7 +477,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(Math.min(...bounds)).toBeGreaterThanOrEqual(100);
     });
 
-    it('keeps source-adjacent tasks left of sink-adjacent tasks', () => {
+    it('keeps source-adjacent tasks left of sink-adjacent tasks', async () => {
       const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const firstPorts = port('A_in', 'MaterialPort', 'In', 'MI1') + port('A_out', 'MaterialPort', 'Out', 'MO1');
       const middlePorts = port('B_in', 'MaterialPort', 'In', 'MI1') + port('B_out', 'MaterialPort', 'Out', 'MO1');
@@ -494,20 +494,20 @@ ${step('MX1', 'Mixing', 'Mixer')}
           stream('S3', 'Stream', 'B_out', 'C_in') +
           stream('S4', 'Stream', 'C_out', 'EE_in')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       expect(shapeBounds(out, 'bpmn_A').x).toBeLessThan(shapeBounds(out, 'bpmn_C').x);
       expect(shapeBounds(out, 'bpmn_C').x).toBeLessThan(shapeBounds(out, 'bpmn_EE1').x);
     });
 
-    it('routes sequence flows with orthogonal waypoints', () => {
+    it('routes sequence flows with orthogonal waypoints', async () => {
       const p1 = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const p2 = port('T1_in', 'MaterialPort', 'In', 'MI1');
       const xml = dexpi(
         step('SE1', 'Source', 'Feed', p1) + step('T1', 'Pumping', 'Pump', p2),
         stream('S1', 'Stream', 'SE_out', 'T1_in')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       const waypoints = edgeWaypoints(out, 'bpmn_S1');
 
       expect(waypoints.length).toBeGreaterThanOrEqual(4);
@@ -518,7 +518,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       }
     });
 
-    it('keeps sequence flows orthogonal after shared-port nudging', () => {
+    it('keeps sequence flows orthogonal after shared-port nudging', async () => {
       const p1 = port('SE1_out', 'MaterialPort', 'Out', 'MO1');
       const p2 = port('SE2_out', 'MaterialPort', 'Out', 'MO1');
       const p3 = port('T1_in', 'MaterialPort', 'In', 'MI1');
@@ -529,7 +529,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
         stream('S1', 'Stream', 'SE1_out', 'T1_in') +
           stream('S2', 'Stream', 'SE2_out', 'T1_in')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
 
       ['bpmn_S1', 'bpmn_S2'].forEach(edgeId => {
         const waypoints = edgeWaypoints(out, edgeId);
@@ -542,7 +542,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       });
     });
 
-    it('keeps shared-port sequence-flow endpoints docked to the task border', () => {
+    it('keeps shared-port sequence-flow endpoints docked to the task border', async () => {
       const sourceSteps = Array.from({ length: 11 }, (_, idx) => {
         const sourceId = `SE${idx + 1}`;
         return step(sourceId, 'Source', `Feed ${idx + 1}`, port(`${sourceId}_out`, 'MaterialPort', 'Out', 'MO1'));
@@ -555,7 +555,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
         sourceSteps + step('T1', 'Pumping', 'Pump', port('T1_in', 'MaterialPort', 'In', 'MI1')),
         streams
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       const target = shapeBounds(out, 'bpmn_T1');
 
       Array.from({ length: 11 }, (_, idx) => `bpmn_S${idx + 1}`).forEach(edgeId => {
@@ -570,7 +570,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       });
     });
 
-    it('orders same-side task ports by their connected neighbor positions', () => {
+    it('orders same-side task ports by their connected neighbor positions', async () => {
       const targetPorts =
         port('T_low', 'MaterialPort', 'In', 'MI3') +
         port('T_high', 'MaterialPort', 'In', 'MI1') +
@@ -584,7 +584,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
           stream('S_mid', 'Stream', 'SE_mid_out', 'T_mid') +
           stream('S_low', 'Stream', 'SE_low_out', 'T_low')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       const pairs = [
         { source: shapeBounds(out, 'bpmn_SE_high'), targetY: edgeWaypoints(out, 'bpmn_S_high').at(-1)!.y },
         { source: shapeBounds(out, 'bpmn_SE_mid'), targetY: edgeWaypoints(out, 'bpmn_S_mid').at(-1)!.y },
@@ -595,7 +595,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(pairs[1].targetY).toBeLessThan(pairs[2].targetY);
     });
 
-    it('uses stream labels to separate collapsed visual ports on the same DEXPI port ref', () => {
+    it('uses stream labels to separate collapsed visual ports on the same DEXPI port ref', async () => {
       const targetPort = port('T_shared', 'MaterialPort', 'In', 'MI1');
       const xml = dexpi(
         step('SE_high', 'Source', 'High feed', port('SE_high_out', 'MaterialPort', 'Out', 'MO1')) +
@@ -606,7 +606,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
           stream('S_mid', 'Stream', 'SE_mid_out', 'T_shared', 'MO1 - Stream 2 - MI2') +
           stream('S_low', 'Stream', 'SE_low_out', 'T_shared', 'MO1 - Stream 3 - MI3')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       const pairs = [
         { source: shapeBounds(out, 'bpmn_SE_high'), targetY: edgeWaypoints(out, 'bpmn_S_high').at(-1)!.y },
         { source: shapeBounds(out, 'bpmn_SE_mid'), targetY: edgeWaypoints(out, 'bpmn_S_mid').at(-1)!.y },
@@ -617,7 +617,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(pairs[1].targetY).toBeLessThan(pairs[2].targetY);
     });
 
-    it('places instrumentation below the process and data objects between instrumentation and target', () => {
+    it('places instrumentation below the process and data objects between instrumentation and target', async () => {
       const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const reactorPorts =
         port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
@@ -640,7 +640,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
           step('Sensor', 'MeasuringProcessVariable', 'TI-101', sensorPort),
         stream('S1', 'Stream', 'SE_out', 'Reactor_in') + infoStream
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       const reactor = shapeBounds(out, 'bpmn_Reactor');
       const sensor = shapeBounds(out, 'bpmn_Sensor');
       const dataObject = shapeBounds(out, 'dobj_bpmn_Sensor_bpmn_Temperature');
@@ -655,7 +655,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(out).not.toContain('dobj_bpmn_IF_temp');
     });
 
-    it('places recycle loop activities above the main path between the connected layers', () => {
+    it('places recycle loop activities above the main path between the connected layers', async () => {
       const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const reactorPorts =
         port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
@@ -679,7 +679,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
           stream('S5', 'Stream', 'Recycle_out', 'Reactor_recycle_in') +
           stream('S6', 'Stream', 'Separator_out', 'EE_in')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       const reactor = shapeBounds(out, 'bpmn_Reactor');
       const separator = shapeBounds(out, 'bpmn_Separator');
       const recycle = shapeBounds(out, 'bpmn_Recycle');
@@ -702,7 +702,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(out).toMatch(/portId="Recycle_out"[^>]*direction="Outlet"[^>]*anchorSide="left"[^>]*anchorOffset="0.35"/);
     });
 
-    it('routes backward right-to-left recycle returns through a local side corridor', () => {
+    it('routes backward right-to-left recycle returns through a local side corridor', async () => {
       const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const reactorPorts =
         port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
@@ -720,7 +720,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
           stream('S3', 'Stream', 'Branch_out', 'Reactor_recycle_in') +
           stream('S4', 'Stream', 'Branch_out', 'EE_in')
       );
-      const out = new DexpiToBpmnTransformer().transform(xml);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
       const reactor = shapeBounds(out, 'bpmn_Reactor');
       const branch = shapeBounds(out, 'bpmn_Branch');
       const recycleReturn = edgeWaypoints(out, 'bpmn_S3');
@@ -746,7 +746,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
 </bpmn:definitions>`;
 
       const dexpiXml = await new BpmnToDexpiTransformer().transform(bpmn);
-      const bpmn2 = new DexpiToBpmnTransformer().transform(dexpiXml);
+      const bpmn2 = await new DexpiToBpmnTransformer().transform(dexpiXml);
 
       // Step types are preserved through the round-trip
       expect(bpmn2).toContain('dexpiType="Pumping"');

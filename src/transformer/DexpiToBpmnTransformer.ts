@@ -15,6 +15,8 @@
  * Layout: layered left-to-right topology using BFS from Source nodes.
  */
 
+import { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';
+
 interface DexpiStep {
   id: string;
   dexpiType: string;      // e.g. "Pumping", "Source", "Sink"
@@ -72,11 +74,24 @@ const MARGIN_X = 100;
 const MARGIN_Y = 100;
 const ENERGY_BAND_GAP = 80; // vertical gap between an energy boundary event and its connected task
 
+export interface DexpiToBpmnTransformOptions {
+  /** Pre-loaded Process.xml string (for browser builds where the file isn't on disk). */
+  processXml?: string;
+}
+
 export class DexpiToBpmnTransformer {
+
+  /** DEXPI Process class registry — loaded from Process.xml. Empty until first transform(). */
+  private registry: DexpiProcessClassRegistry = DexpiProcessClassRegistry.empty();
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  transform(dexpiXml: string): string {
+  async transform(dexpiXml: string, options: DexpiToBpmnTransformOptions = {}): Promise<string> {
+    // Load DEXPI class registry (cached after first call). Used to classify
+    // instrumentation steps via the InstrumentationActivity ancestor check —
+    // no hardcoded list of subclass names.
+    this.registry = await DexpiProcessClassRegistry.load(options.processXml);
+
     const parsed = this.parseDexpi(dexpiXml);
     this.materializeBoundaryProxyEvents(parsed);
     const layout = this.computeLayout(parsed);
@@ -1810,7 +1825,7 @@ ${waypoints}
             y + dataObjHeight > box.y - 4 && y < box.y + box.h + 4
           );
 
-        let collide = intersects(dobjY);
+        const collide = intersects(dobjY);
         if (collide) {
           // Try below the colliding obstacle, then above. Prefer the side
           // closer to the instrument partner.
@@ -2024,16 +2039,18 @@ ${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
   }
 
   /**
-   * Generic rule: energy ports (Thermal/Mechanical/Electrical) and any port whose
-   * label follows the conventional energy-port naming scheme (TEI/TEO, MEI/MEO,
-   * EEI/EEO) are routed on the top or bottom edge of the owning task instead of
-   * left/right. This frees the left/right edges for material flow and matches the
-   * BPMN-for-process-engineering convention used in the DEXPI mapping paper.
+   * Generic rule: energy ports (Thermal/Mechanical/Electrical) are routed on
+   * the top or bottom edge of the owning task instead of left/right. This
+   * frees the left/right edges for material flow and matches the BPMN-for-
+   * process-engineering convention used in the DEXPI mapping paper.
+   *
+   * Detection is purely type-driven against the standardised DEXPI 2.0 port
+   * type names. Source data must use the correct port type — energy ports
+   * mistyped as MaterialPort will be treated as material ports.
    */
   private isEnergyPort(port: DexpiPort | undefined): boolean {
     if (!port) return false;
-    if (['ThermalEnergyPort', 'MechanicalEnergyPort', 'ElectricalEnergyPort'].includes(port.type)) return true;
-    return /^(TEI|TEO|MEI|MEO|EEI|EEO)\d+$/i.test(port.label || '');
+    return ['ThermalEnergyPort', 'MechanicalEnergyPort', 'ElectricalEnergyPort'].includes(port.type);
   }
 
   /**
@@ -2050,22 +2067,23 @@ ${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
     return step.ports.every(port => this.isEnergyPort(port));
   }
 
+  /**
+   * A step is "instrumentation" if its DEXPI class is the abstract
+   * InstrumentationActivity itself or any subtype of it. The set is computed
+   * dynamically from Process.xml via the registry — no hardcoded subclass list,
+   * so adding a new instrumentation class to a future DEXPI release just
+   * requires updating dexpi-schema-files/Process.xml.
+   *
+   * Fallback when the registry didn't load (e.g. browser without bundled
+   * Process.xml): match the abstract base name itself, so at least exact-match
+   * cases still work.
+   */
   private isInstrumentationStep(step: DexpiStep | undefined): boolean {
     if (!step) return false;
-
-    const instrumentationTypes = new Set([
-      'MeasuringProcessVariable',
-      'ControllingProcessVariable',
-      'ConveyingSignal',
-      'CalculatingProcessVariable',
-      'CalculatingRatio',
-      'CalculatingSplitRange',
-      'TransformingProcessVariable',
-      'InstrumentationActivity',
-    ]);
-
-    return instrumentationTypes.has(step.dexpiType) ||
-      /(?:Instrumentation|ProcessVariable|ConveyingSignal|Calculating|Transforming)/.test(step.dexpiType);
+    if (this.registry.size === 0) {
+      return step.dexpiType === 'InstrumentationActivity';
+    }
+    return this.registry.hasAncestor(step.dexpiType, 'InstrumentationActivity');
   }
 
   private _uidCounter = 0;

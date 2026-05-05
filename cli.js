@@ -56,7 +56,7 @@ async function main() {
     if (isReverse) {
       const { DexpiToBpmnTransformer } = await import('./src/transformer/DexpiToBpmnTransformer.ts');
       const t = new DexpiToBpmnTransformer();
-      outputXml = t.transform(inputXml);
+      outputXml = await t.transform(inputXml);
     } else {
       const { transformer } = await import('./src/transformer/BpmnToDexpiTransformer.ts');
       outputXml = await transformer.transform(inputXml);

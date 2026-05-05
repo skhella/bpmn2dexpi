@@ -36,7 +36,7 @@
       <bpmn:outgoing>Flow_07wd8rg</bpmn:outgoing>
       <bpmn:subProcess id="Activity_11rkrj8" name="RemovingThermalEnergy">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8"><dexpi:port id="TEI1_port" name="TEI1" type="MaterialPort" direction="Inlet" label="TEI1"/><dexpi:port portId="IPI_Temperature_Activity_11rkrj8" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5"/><dexpi:port portId="IPO_Temperature_Activity_11rkrj8" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.5"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8"><dexpi:port id="TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1"/><dexpi:port portId="IPI_Temperature_Activity_11rkrj8" name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" anchorSide="left" anchorOffset="0.5"/><dexpi:port portId="IPO_Temperature_Activity_11rkrj8" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" anchorSide="right" anchorOffset="0.5"/></dexpi:element></bpmn:extensionElements>
         <bpmn:incoming>Flow_0wulh9g</bpmn:incoming>
         <bpmn:task id="Activity_1pzszmn" name="RegulatingFlow">
           <bpmn:extensionElements>
@@ -459,7 +459,7 @@
       </bpmn:task>
       <bpmn:subProcess id="Activity_0xhunfw" name="SupplyingThermalEnergy">
         <bpmn:extensionElements>
-          <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_0xhunfw" uid="uid_Activity_0xhunfw"><dexpi:port id="TEO1 -TEI1_port" name="TEO1 -TEI1" type="MaterialPort" direction="Outlet" label="TEO1 -TEI1"/></dexpi:element></bpmn:extensionElements>
+          <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_0xhunfw" uid="uid_Activity_0xhunfw"><dexpi:port id="TEO1 -TEI1_port" name="TEO1 -TEI1" type="ThermalEnergyPort" direction="Outlet" label="TEO1 -TEI1"/></dexpi:element></bpmn:extensionElements>
         <bpmn:outgoing>Flow_0ii62nn</bpmn:outgoing>
         <bpmn:task id="Activity_0uicpy3" name="ExchangingThermalEnergy">
           <bpmn:extensionElements>
