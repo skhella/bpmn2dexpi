@@ -10,6 +10,15 @@
  * - Generic attribute parsing for any DEXPI property
  */
 
+import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
+import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
+
+// Build registry once at module load — synchronous, browser-safe (same approach
+// as DexpiRenderer / DexpiPropertiesPanel). Drives DEXPI-class classification
+// (e.g. recognising MeasuringProcessVariable as an InstrumentationActivity)
+// without hardcoded subtype lists.
+const NEO4J_REGISTRY = DexpiProcessClassRegistry.fromXml(processXmlRaw);
+
 interface ExportStats {
   nodes?: number;
   relationships?: number;
@@ -354,16 +363,28 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
         
         const attributes = extractAllAttributes(stepObj);
         
-        // Determine node type based on element type and characteristics
+        // Determine node type based on DEXPI class ancestry from Process.xml.
+        // hasAncestor returns true when the type itself OR any of its supertypes
+        // matches — so MeasuringProcessVariable, ControllingProcessVariable,
+        // ConveyingSignal, CalculatingProcessVariable etc. all correctly resolve
+        // to 'InstrumentationActivity'. Fallback to substring match only if the
+        // registry didn't load (e.g. Process.xml ?raw import failed).
         let nodeType: 'ProcessStep' | 'Source' | 'Sink' | 'InstrumentationActivity' = 'ProcessStep';
-        const normalizedType = type.toLowerCase();
-        
-        if (normalizedType.includes('source')) {
-          nodeType = 'Source';
-        } else if (normalizedType.includes('sink')) {
-          nodeType = 'Sink';
-        } else if (normalizedType.includes('instrument')) {
-          nodeType = 'InstrumentationActivity';
+        const bareName = (type.split('.').pop() || '').trim();
+
+        if (NEO4J_REGISTRY.size > 0) {
+          if (NEO4J_REGISTRY.hasAncestor(bareName, 'Source')) {
+            nodeType = 'Source';
+          } else if (NEO4J_REGISTRY.hasAncestor(bareName, 'Sink')) {
+            nodeType = 'Sink';
+          } else if (NEO4J_REGISTRY.hasAncestor(bareName, 'InstrumentationActivity')) {
+            nodeType = 'InstrumentationActivity';
+          }
+        } else {
+          const normalizedType = type.toLowerCase();
+          if (normalizedType.includes('source')) nodeType = 'Source';
+          else if (normalizedType.includes('sink')) nodeType = 'Sink';
+          else if (normalizedType.includes('instrument')) nodeType = 'InstrumentationActivity';
         }
         
         // Check if this is a navigational event

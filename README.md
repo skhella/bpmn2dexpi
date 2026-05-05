@@ -76,7 +76,7 @@ src/transformer/
 ├── DexpiOutputValidator.ts        # XSD validation (xmllint) + structural fallback
 ├── TransformerLogger.ts           # Warning/error collection
 ├── types.ts                       # Typed interfaces
-└── __tests__/                     # 60 automated tests
+└── __tests__/                     # automated tests
 
 dexpi-schema-files/
 ├── DEXPI_XML_Schema.xsd           # Official DEXPI 2.0 XML Schema
@@ -86,7 +86,7 @@ dexpi-schema-files/
 ## Testing
 
 ```bash
-npm test              # run all 60 tests
+npm test              # run the test suite
 npm run test:watch    # watch mode
 npm run test:coverage # with coverage
 ```
