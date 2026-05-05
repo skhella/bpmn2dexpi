@@ -359,7 +359,12 @@ export class BpmnToDexpiTransformer {
     if (dexpiData?.dexpiType && dexpiData.dexpiType !== 'Source') {
       return;
     }
-    
+
+    // If the source event is nested inside a bpmn:subProcess, it belongs to
+    // that subprocess's SubProcessSteps, not the root plane. Walk up the DOM
+    // to find the nearest enclosing subProcess.
+    const parentSubProcessId = this.findEnclosingSubProcessId(event);
+
     const source: InternalProcessStep = {
       id,
       name,
@@ -371,11 +376,15 @@ export class BpmnToDexpiTransformer {
         portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
       })),
       attributes: [],
-      parentId: null,
+      parentId: parentSubProcessId,
       subProcessSteps: [],
     };
 
     this.processSteps.set(id, source);
+    if (parentSubProcessId) {
+      const parent = this.processSteps.get(parentSubProcessId);
+      if (parent && !parent.subProcessSteps.includes(id)) parent.subProcessSteps.push(id);
+    }
 
     source.ports.forEach((port: DexpiPort) => {
       this.ports.set(port.portId, { ...port, stepId: id });
@@ -398,7 +407,11 @@ export class BpmnToDexpiTransformer {
     if (dexpiData?.dexpiType && dexpiData.dexpiType !== 'Sink') {
       return;
     }
-    
+
+    // If the sink event is nested inside a bpmn:subProcess, it belongs to
+    // that subprocess's SubProcessSteps, not the root plane.
+    const parentSubProcessId = this.findEnclosingSubProcessId(event);
+
     const sink: InternalProcessStep = {
       id,
       name,
@@ -410,11 +423,15 @@ export class BpmnToDexpiTransformer {
         portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
       })),
       attributes: [],
-      parentId: null,
+      parentId: parentSubProcessId,
       subProcessSteps: [],
     };
 
     this.processSteps.set(id, sink);
+    if (parentSubProcessId) {
+      const parent = this.processSteps.get(parentSubProcessId);
+      if (parent && !parent.subProcessSteps.includes(id)) parent.subProcessSteps.push(id);
+    }
 
     sink.ports.forEach((port: DexpiPort) => {
       this.ports.set(port.portId, { ...port, stepId: id });
@@ -2381,6 +2398,24 @@ export class BpmnToDexpiTransformer {
   private sanitizeId(raw: string): string {
     const clean = raw.replace(/[^A-Za-z0-9_]/g, '_');
     return /^[A-Za-z_]/.test(clean) ? clean : `u_${clean}`;
+  }
+
+  /**
+   * Walk up the DOM from a startEvent/endEvent to find the nearest
+   * enclosing bpmn:subProcess, if any. Returns its id or null if the event
+   * is at the top level of the process. Used by extractSource/extractSink
+   * to nest source/sink events in the correct subprocess plane on import.
+   */
+  private findEnclosingSubProcessId(event: Element): string | null {
+    let cur: Element | null = event.parentNode as Element | null;
+    while (cur) {
+      const local = cur.localName || cur.tagName?.split(':').pop() || '';
+      if (local.toLowerCase() === 'subprocess') {
+        return cur.getAttribute('id') || null;
+      }
+      cur = cur.parentNode as Element | null;
+    }
+    return null;
   }
 }
 
