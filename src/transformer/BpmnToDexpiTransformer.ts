@@ -346,14 +346,9 @@ export class BpmnToDexpiTransformer {
   private extractSource(event: Element): void {
     const id = event.getAttribute('id') || '';
     const name = event.getAttribute('name') || id;
-    
+
     const dexpiData = this.extractDexpiExtension(event);
-    
-    // Skip proxy events - those that represent ports on parent subprocesses
-    if (this.isProxyEvent(event)) {
-      return;
-    }
-    
+
     // For new format with dexpi:element, check if dexpiType is explicitly set to 'Source'
     // If dexpiType exists but is not 'Source', skip this event (it's a proxy port)
     if (dexpiData?.dexpiType && dexpiData.dexpiType !== 'Source') {
@@ -394,14 +389,9 @@ export class BpmnToDexpiTransformer {
   private extractSink(event: Element): void {
     const id = event.getAttribute('id') || '';
     const name = event.getAttribute('name') || id;
-    
+
     const dexpiData = this.extractDexpiExtension(event);
-    
-    // Skip proxy events - those that represent ports on parent subprocesses
-    if (this.isProxyEvent(event)) {
-      return;
-    }
-    
+
     // For new format with dexpi:element, check if dexpiType is explicitly set to 'Sink'
     // If dexpiType exists but is not 'Sink', skip this event (it's a proxy port)
     if (dexpiData?.dexpiType && dexpiData.dexpiType !== 'Sink') {
@@ -2070,8 +2060,11 @@ export class BpmnToDexpiTransformer {
       const prefixedPortRef = `${elementRef}_${portRef}`;
       if (this.ports.has(prefixedPortRef)) return prefixedPortRef;
       if (this.ports.has(portRef)) return portRef;
+      // Strict match: portId or port name must equal the given reference.
+      // (No more substring/suffix fallback — those were brittle and could
+      // bind silently to a port whose id happened to end with the same suffix.)
       const matchingPort = element.ports.find((p: DexpiPort) =>
-        p.name === portRef || p.portId === portRef || p.portId.endsWith(`_${portRef}`)
+        p.name === portRef || p.portId === portRef
       );
       return matchingPort ? matchingPort.portId : null;
     }
@@ -2207,183 +2200,6 @@ export class BpmnToDexpiTransformer {
     return tag.includes('gateway');
   }
 
-  /**
-   * Check if an event is a proxy event (represents a port on parent subprocess)
-   * Uses the same logic as DexpiRenderer.isPortProxyEvent()
-   * Also checks for events without ports that connect to activities with matching port names
-   */
-  private isProxyEvent(event: Element): boolean {
-    // Get the event's port information
-    const extensionElements = event.querySelector('extensionElements');
-    if (!extensionElements) {
-      // Check if this is an event without ports that connects to an activity
-      // (e.g., energy interface events like EEI1)
-      return this.isPortlessProxyEvent(event);
-    }
-
-    // Find the ports container
-    let portsContainer: Element | null = null;
-    for (let i = 0; i < extensionElements.children.length; i++) {
-      const child = extensionElements.children[i];
-      const localName = child.localName || child.tagName.split(':').pop() || '';
-      if (localName.toLowerCase() === 'ports') {
-        portsContainer = child;
-        break;
-      }
-    }
-
-    if (!portsContainer) {
-      // No ports container found - check portless proxy pattern
-      return this.isPortlessProxyEvent(event);
-    }
-
-    // Extract event's port name and direction
-    let eventPortName: string | null = null;
-    let eventPortDirection: string | null = null;
-
-    const portElements = portsContainer.querySelectorAll('port');
-    if (portElements.length > 0) {
-      const firstPort = portElements[0];
-      eventPortName = firstPort.getAttribute('name') || firstPort.getAttribute('label');
-      eventPortDirection = (firstPort.getAttribute('direction') || '').toLowerCase();
-    }
-
-    if (!eventPortName) return false;
-
-    // Find the parent element
-    const parentElement = event.parentElement;
-    if (!parentElement) return false;
-
-    // Check if parent is a subprocess
-    const parentTagName = (parentElement.localName || parentElement.tagName.split(':').pop() || '').toLowerCase();
-    if (parentTagName !== 'subprocess' && parentTagName !== 'process') {
-      return false;
-    }
-
-    // Get parent's port information
-    const parentExtensions = parentElement.querySelector('extensionElements');
-    if (!parentExtensions) return false;
-
-    // Find parent's ports container
-    let parentPortsContainer: Element | null = null;
-    for (let i = 0; i < parentExtensions.children.length; i++) {
-      const child = parentExtensions.children[i];
-      const localName = child.localName || child.tagName.split(':').pop() || '';
-      if (localName.toLowerCase() === 'ports') {
-        parentPortsContainer = child;
-        break;
-      }
-    }
-
-    if (!parentPortsContainer) return false;
-
-    // Check if parent has a matching port
-    const parentPorts = parentPortsContainer.querySelectorAll('port');
-    for (const parentPort of Array.from(parentPorts)) {
-      const parentPortName = parentPort.getAttribute('name') || parentPort.getAttribute('label');
-      const parentPortDirection = (parentPort.getAttribute('direction') || '').toLowerCase();
-
-      // Check if port names match
-      if (parentPortName === eventPortName) {
-        // Check direction compatibility:
-        // Event outlet -> parent inlet (event outputs to internal tasks, parent receives input)
-        // Event inlet -> parent outlet (event receives from internal tasks, parent outputs)
-        if (eventPortDirection === 'outlet' && parentPortDirection === 'inlet') {
-          return true;
-        }
-        if (eventPortDirection === 'inlet' && parentPortDirection === 'outlet') {
-          return true;
-        }
-        // If no direction specified, match by name only
-        if (!eventPortDirection || !parentPortDirection) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Check if an event without ports is a proxy by examining its connected activity
-   * Pattern: Event (e.g., "EEI1") flows to/from an activity that has a port matching the event's name
-   */
-  private isPortlessProxyEvent(event: Element): boolean {
-    const eventName = event.getAttribute('name');
-    if (!eventName) return false;
-
-    // Get event type to determine direction
-    const eventType = (event.localName || event.tagName.split(':').pop() || '').toLowerCase();
-    const isStartEvent = eventType.includes('startevent');
-    const isEndEvent = eventType.includes('endevent');
-
-    // Find the connected activity via sequence flow
-    let targetActivity: Element | null = null;
-
-    if (isStartEvent) {
-      // For start events, look at outgoing flows
-      const outgoing = event.querySelector('outgoing');
-      if (outgoing) {
-        const flowId = outgoing.textContent?.trim();
-        if (flowId) {
-          // Find the sequence flow element
-          const sequenceFlow = event.ownerDocument.querySelector(`[id="${flowId}"]`);
-          if (sequenceFlow) {
-            const targetRef = sequenceFlow.getAttribute('targetRef');
-            if (targetRef) {
-              targetActivity = event.ownerDocument.querySelector(`[id="${targetRef}"]`);
-            }
-          }
-        }
-      }
-    } else if (isEndEvent) {
-      // For end events, look at incoming flows
-      const incoming = event.querySelector('incoming');
-      if (incoming) {
-        const flowId = incoming.textContent?.trim();
-        if (flowId) {
-          const sequenceFlow = event.ownerDocument.querySelector(`[id="${flowId}"]`);
-          if (sequenceFlow) {
-            const sourceRef = sequenceFlow.getAttribute('sourceRef');
-            if (sourceRef) {
-              targetActivity = event.ownerDocument.querySelector(`[id="${sourceRef}"]`);
-            }
-          }
-        }
-      }
-    }
-
-    if (!targetActivity) return false;
-
-    // Check if the connected activity has a port matching the event's name
-    const activityExtensions = targetActivity.querySelector('extensionElements');
-    if (!activityExtensions) return false;
-
-    // Find ports container in activity
-    let portsContainer: Element | null = null;
-    for (let i = 0; i < activityExtensions.children.length; i++) {
-      const child = activityExtensions.children[i];
-      const localName = child.localName || child.tagName.split(':').pop() || '';
-      if (localName.toLowerCase() === 'ports') {
-        portsContainer = child;
-        break;
-      }
-    }
-
-    if (!portsContainer) return false;
-
-    // Check if any port name matches the event name
-    const portElements = portsContainer.querySelectorAll('port');
-    for (const port of Array.from(portElements)) {
-      const portName = port.getAttribute('name') || port.getAttribute('label');
-      if (portName === eventName) {
-        // Found a matching port - this event is a proxy
-        return true;
-      }
-    }
-
-    return false;
-  }
 
   private generateUid(): string {
     // DEXPI XSD ID pattern: [A-Za-z_][A-Za-z_0-9]* — no hyphens allowed
