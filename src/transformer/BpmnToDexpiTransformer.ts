@@ -309,13 +309,11 @@ export class BpmnToDexpiTransformer {
       });
     });
     
-    // If this is a subprocess, map parent ports to child ports using explicit
-    // subReference annotations only. Resolved in post-extraction pass in
-    // extractElements after all ports are registered. No name-based heuristics.
-    // Warn only when a child step has a port of the same type as the parent
-    // boundary port — meaning the hierarchy IS refineable at that port type
-    // and a subReference annotation is missing. If no child has a matching
-    // port type, the abstraction levels differ and no warning is needed.
+    // If this is a subprocess, just warn about missing subReference annotations
+    // here. The actual parent→child port linking happens in a post-extraction
+    // pass in extractElements (after all ports — including those of nested
+    // source/sink events — are registered). No name-based heuristics: bindings
+    // are explicit (subReference) only.
     if (isSubProcess && processStep.subProcessSteps.length > 0) {
       // Collect all port types present in child steps
       const childPortTypes = new Set<string>();
@@ -343,23 +341,29 @@ export class BpmnToDexpiTransformer {
       });
     }
   }
+
   private extractSource(event: Element): void {
     const id = event.getAttribute('id') || '';
     const name = event.getAttribute('name') || id;
-    
+
     const dexpiData = this.extractDexpiExtension(event);
-    
+
     // Skip proxy events - those that represent ports on parent subprocesses
     if (this.isProxyEvent(event)) {
       return;
     }
-    
+
     // For new format with dexpi:element, check if dexpiType is explicitly set to 'Source'
     // If dexpiType exists but is not 'Source', skip this event (it's a proxy port)
     if (dexpiData?.dexpiType && dexpiData.dexpiType !== 'Source') {
       return;
     }
-    
+
+    // Generic rule: if the source event is nested inside a bpmn:subProcess,
+    // it belongs to that subprocess's SubProcessSteps, not the root plane.
+    // Walk up the DOM to find the nearest enclosing subProcess.
+    const parentSubProcessId = this.findEnclosingSubProcessId(event);
+
     const source: InternalProcessStep = {
       id,
       name,
@@ -371,11 +375,15 @@ export class BpmnToDexpiTransformer {
         portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
       })),
       attributes: [],
-      parentId: null,
+      parentId: parentSubProcessId,
       subProcessSteps: [],
     };
 
     this.processSteps.set(id, source);
+    if (parentSubProcessId) {
+      const parent = this.processSteps.get(parentSubProcessId);
+      if (parent && !parent.subProcessSteps.includes(id)) parent.subProcessSteps.push(id);
+    }
 
     source.ports.forEach((port: DexpiPort) => {
       this.ports.set(port.portId, { ...port, stepId: id });
@@ -399,6 +407,8 @@ export class BpmnToDexpiTransformer {
       return;
     }
     
+    const parentSubProcessId = this.findEnclosingSubProcessId(event);
+
     const sink: InternalProcessStep = {
       id,
       name,
@@ -410,15 +420,36 @@ export class BpmnToDexpiTransformer {
         portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
       })),
       attributes: [],
-      parentId: null,
+      parentId: parentSubProcessId,
       subProcessSteps: [],
     };
 
     this.processSteps.set(id, sink);
+    if (parentSubProcessId) {
+      const parent = this.processSteps.get(parentSubProcessId);
+      if (parent && !parent.subProcessSteps.includes(id)) parent.subProcessSteps.push(id);
+    }
 
     sink.ports.forEach((port: DexpiPort) => {
       this.ports.set(port.portId, { ...port, stepId: id });
     });
+  }
+
+  /**
+   * Walk up the DOM from a startEvent/endEvent to find the nearest
+   * enclosing bpmn:subProcess, if any. Returns its id or null if the event
+   * is at the top level of the process.
+   */
+  private findEnclosingSubProcessId(event: Element): string | null {
+    let cur: Element | null = event.parentNode as Element | null;
+    while (cur) {
+      const local = cur.localName || cur.tagName?.split(':').pop() || '';
+      if (local.toLowerCase() === 'subprocess') {
+        return cur.getAttribute('id') || null;
+      }
+      cur = cur.parentNode as Element | null;
+    }
+    return null;
   }
 
   private extractStream(flow: Element): void {
