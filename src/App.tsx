@@ -609,22 +609,24 @@ function App() {
         const inlets  = dexpiEl.ports.filter((p: any) => p.direction === 'Inlet');
         const outlets = dexpiEl.ports.filter((p: any) => p.direction === 'Outlet');
 
-        let changed = false;
+        // Only fill in defaults for ports without an anchorSide. Ports that
+        // already carry anchor data still need an element.changed below so
+        // the renderer recomputes their live position from the current
+        // connection waypoints — otherwise the port hovers at a stale spot
+        // until the user toggles port visibility.
         dexpiEl.ports.forEach((port: any) => {
           if (port.anchorSide) return;
           const isOutlet = port.direction === 'Outlet';
           const group = isOutlet ? outlets : inlets;
           const idx = group.indexOf(port);
-          // Direct mutation — no command stack, no autosave trigger
           port.anchorSide = isOutlet ? 'right' : 'left';
           port.anchorOffset = group.length === 1 ? 0.5 : (idx + 1) / (group.length + 1);
-          changed = true;
         });
 
-        if (changed) {
-          // Fire element-changed to trigger re-render without going through modeling API
-          eventBus.fire('element.changed', { element });
-        }
+        // Always fire element.changed so the renderer re-runs and ports lock
+        // onto their current connection waypoints. Mirrors what the port-
+        // visibility toggle does.
+        eventBus.fire('element.changed', { element });
       });
     } catch (e) {
       // Never let port anchoring break the modeler

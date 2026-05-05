@@ -1562,6 +1562,34 @@ export class DexpiToBpmnTransformer {
         return [srcPoint, srcStub, mid, tgtStub, tgtPoint];
       }
 
+      // Helper: build a safe U-shape detour going above OR below all obstacles
+      // (whichever side keeps the route clear of every task body).
+      const safeUDetour = (
+        exitX: number,
+        entryX: number,
+        forceBelow?: boolean
+      ): Waypoint[] => {
+        const allYs = obstacles.flatMap(b => [b.y, b.y + b.h]);
+        const topLane = Math.min(srcY, tgtY, srcPos.y, tgtPos.y, ...allYs) - 45 - laneOffset;
+        const bottomLane = Math.max(srcY, tgtY, srcPos.y + srcPos.h, tgtPos.y + tgtPos.h, ...allYs) + 45 + laneOffset;
+        const detourY = forceBelow === true ? bottomLane
+          : forceBelow === false ? topLane
+          : (tgtPos.y + tgtPos.h / 2 > srcPos.y + srcPos.h / 2 ? bottomLane : topLane);
+        return [
+          { x: srcX, y: srcY },
+          { x: exitX, y: srcY },
+          { x: exitX, y: detourY },
+          { x: entryX, y: detourY },
+          { x: entryX, y: tgtY },
+          { x: tgtX, y: tgtY },
+        ];
+      };
+
+      // Helper: pick a clear corridor X between two candidate positions, falling
+      // back to a U-detour if the corridor route still intersects an obstacle.
+      const exitFromAnchor = (anchor: Anchor, x: number) =>
+        anchor.side === 'left' ? x - 35 - laneOffset : x + 35 + laneOffset;
+
       if (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && tgtX >= srcX + 50) {
         const bendX = Math.max(srcX + 35, tgtX - 60 - laneOffset);
         const directRoute = [
@@ -1601,23 +1629,33 @@ export class DexpiToBpmnTransformer {
       }
 
       if (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && srcX > tgtX) {
-        const corridorX = Math.max(srcX, tgtX) + 45 + laneOffset;
-        return [
+        // Backward flow (target is to the LEFT of source). Naive corridor on
+        // the right would cut back through tasks on the way to tgt; go via a
+        // safe U-shape that loops above or below every obstacle, exiting src
+        // on the right and entering tgt on the left.
+        const exitX = exitFromAnchor(srcAnchor, srcX);
+        const entryX = exitFromAnchor(tgtAnchor, tgtX);
+        const corridorRoute = [
           { x: srcX, y: srcY },
-          { x: corridorX, y: srcY },
-          { x: corridorX, y: tgtY },
+          { x: Math.max(srcX, tgtX) + 45 + laneOffset, y: srcY },
+          { x: Math.max(srcX, tgtX) + 45 + laneOffset, y: tgtY },
           { x: tgtX, y: tgtY },
         ];
+        if (!routeIntersectsObstacle(corridorRoute, obstacles)) return corridorRoute;
+        return safeUDetour(exitX, entryX);
       }
 
       if (srcAnchor.side === 'left' && tgtAnchor.side === 'right' && srcX < tgtX) {
-        const corridorX = Math.min(srcX, tgtX) - 45 - laneOffset;
-        return [
+        const exitX = exitFromAnchor(srcAnchor, srcX);
+        const entryX = exitFromAnchor(tgtAnchor, tgtX);
+        const corridorRoute = [
           { x: srcX, y: srcY },
-          { x: corridorX, y: srcY },
-          { x: corridorX, y: tgtY },
+          { x: Math.min(srcX, tgtX) - 45 - laneOffset, y: srcY },
+          { x: Math.min(srcX, tgtX) - 45 - laneOffset, y: tgtY },
           { x: tgtX, y: tgtY },
         ];
+        if (!routeIntersectsObstacle(corridorRoute, obstacles)) return corridorRoute;
+        return safeUDetour(exitX, entryX);
       }
 
       if (srcAnchor.side === tgtAnchor.side) {
@@ -1625,12 +1663,16 @@ export class DexpiToBpmnTransformer {
         const corridorX = srcAnchor.side === 'left'
           ? Math.min(srcX, tgtX) - corridorPadding
           : Math.max(srcX, tgtX) + corridorPadding;
-        return [
+        const corridorRoute = [
           { x: srcX, y: srcY },
           { x: corridorX, y: srcY },
           { x: corridorX, y: tgtY },
           { x: tgtX, y: tgtY },
         ];
+        if (!routeIntersectsObstacle(corridorRoute, obstacles)) return corridorRoute;
+        const exitX = exitFromAnchor(srcAnchor, srcX);
+        const entryX = exitFromAnchor(tgtAnchor, tgtX);
+        return safeUDetour(exitX, entryX);
       }
 
       const srcDetourX = srcAnchor.side === 'right'
