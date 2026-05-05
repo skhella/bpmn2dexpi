@@ -1389,7 +1389,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
 
   const addAttribute = () => {
     const moddle = modeler.get('moddle');
-    const newAttr = moddle.create('dexpi:StreamAttribute', {
+    const newAttr = moddle.create('dexpi:Attribute', {
       name: 'New Attribute',
       value: '',
       unit: '',
@@ -1414,7 +1414,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
     const moddle = modeler.get('moddle');
     const updatedAttrs = attributes.map((attr, i) => {
       if (i === index) {
-        return moddle.create('dexpi:StreamAttribute', {
+        return moddle.create('dexpi:Attribute', {
           name: updates.name !== undefined ? updates.name : attr.name,
           nameUri: updates.nameUri !== undefined ? updates.nameUri : attr.nameUri,
           value: updates.value !== undefined ? updates.value : attr.value,

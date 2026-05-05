@@ -47,9 +47,12 @@
         { "name": "name", "isAttr": true, "type": "String" },
         { "name": "value", "isAttr": true, "type": "String" },
         { "name": "unit", "isAttr": true, "type": "String" },
+        { "name": "unitUri", "isAttr": true, "type": "String" },
+        { "name": "nameUri", "isAttr": true, "type": "String" },
         { "name": "scope", "isAttr": true, "type": "String" },
         { "name": "range", "isAttr": true, "type": "String" },
-        { "name": "provenance", "isAttr": true, "type": "String" }
+        { "name": "provenance", "isAttr": true, "type": "String" },
+        { "name": "qualifier", "isAttr": true, "type": "String" }
       ]
     },
     {
@@ -66,20 +69,7 @@
         { "name": "materialStateReference", "isAttr": true, "type": "String" },
         { "name": "provenance", "isAttr": true, "type": "String" },
         { "name": "range", "isAttr": true, "type": "String" },
-        { "name": "attributes", "type": "StreamAttribute", "isMany": true }
-      ]
-    },
-    {
-      "name": "StreamAttribute",
-      "superClass": ["Element"],
-      "properties": [
-        { "name": "name", "isAttr": true, "type": "String" },
-        { "name": "value", "isAttr": true, "type": "String" },
-        { "name": "unit", "isAttr": true, "type": "String" },
-        { "name": "scope", "isAttr": true, "type": "String" },
-        { "name": "range", "isAttr": true, "type": "String" },
-        { "name": "provenance", "isAttr": true, "type": "String" },
-        { "name": "qualifier", "isAttr": true, "type": "String" }
+        { "name": "attributes", "type": "Attribute", "isMany": true }
       ]
     },
     {
