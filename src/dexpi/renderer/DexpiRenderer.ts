@@ -91,9 +91,15 @@ export default class DexpiRenderer extends BaseRenderer {
     const extensionElements = businessObject.extensionElements;
 
     if (extensionElements && extensionElements.values) {
-      const dexpiElement = extensionElements.values.find(
-        (e: any) => e.$type === 'dexpi:Element'
-      );
+      // Lenient match — handles dexpi:Element / dexpi:element / any local-name
+      // ending in ":element". Mirrors the match used by applyDexpiTypeColor
+      // and DexpiPropertiesPanel; keeps port discovery working when the BPMN
+      // file uses lowercase <dexpi:element> (which moddle preserves verbatim
+      // in $type if it doesn't exactly match the descriptor casing).
+      const dexpiElement = extensionElements.values.find((e: any) => {
+        const t = (e.$type || '').toString();
+        return t === 'dexpi:Element' || t === 'dexpi:element' || t.toLowerCase().endsWith(':element');
+      });
 
       if (dexpiElement && dexpiElement.ports) {
         this.drawPorts(parentNode, element, dexpiElement.ports);
