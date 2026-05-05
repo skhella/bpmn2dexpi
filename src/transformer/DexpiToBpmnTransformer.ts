@@ -332,10 +332,16 @@ export class DexpiToBpmnTransformer {
           (
             port.superPortId === parentPort.id ||
             explicitRefs.has(port.id) ||
+            // Generic rule: a user-modeled Source/Sink event nested directly
+            // inside the subprocess, with the same port label and direction
+            // as the parent boundary port, IS the visual representation of
+            // that boundary. Use it instead of auto-materializing a duplicate
+            // — even when the parent port also has explicit subReferences
+            // (the subRefs route the flow to inner tasks; the user-modeled
+            // event is the visible boundary marker).
             (portToStep.get(port.id)?.parentId === parent.id &&
               port.label === parentPort.label &&
-              !port.superPortId &&
-              explicitRefs.size === 0)
+              !port.superPortId)
           )
         )
         .map(port => {
@@ -986,7 +992,6 @@ export class DexpiToBpmnTransformer {
     proxies.forEach(proxy => {
       const port = proxy.ports[0];
       if (!port) return;
-      const isInlet = port.direction !== 'Outlet';
 
       // Find the interior task this proxy connects to.
       const connection = connections.find(conn =>
@@ -1002,20 +1007,24 @@ export class DexpiToBpmnTransformer {
       const otherPos = layout.get(otherStepId);
       if (!otherPos) return;
 
-      // Place above for inlet proxies (energy flows in from above), below for outlets.
+      // Generic rule: a Source supplies energy that flows DOWN into the
+      // consumer — draw the Source ABOVE. A Sink absorbs energy flowing UP
+      // from the producer — draw it BELOW. The proxy's own port direction
+      // doesn't matter for placement; only its role (Source vs Sink) does.
+      const placeAbove = proxy.dexpiType === 'Source';
       const w = EVENT_D;
       const h = EVENT_D;
-      const y = isInlet
+      const y = placeAbove
         ? otherPos.y - h - ENERGY_BAND_GAP
         : otherPos.y + otherPos.h + ENERGY_BAND_GAP;
 
       // Stagger horizontally if multiple proxies attach to the same task on the
       // same side, so their circles don't overlap.
-      const anchorKey = `${otherStepId}:${isInlet ? 'top' : 'bottom'}`;
+      const anchorKey = `${otherStepId}:${placeAbove ? 'top' : 'bottom'}`;
       const stack = placedByAnchor.get(anchorKey) ?? 0;
       placedByAnchor.set(anchorKey, stack + 1);
       const slotWidth = w + 24;
-      const stackOffset = (stack - (stack > 0 ? 0 : 0)) * slotWidth;
+      const stackOffset = stack * slotWidth;
       const baseX = otherPos.x + (otherPos.w - w) / 2;
       const x = baseX + (stack === 0 ? 0 : (stack % 2 === 1 ? stackOffset : -stackOffset));
 
@@ -2027,6 +2036,14 @@ ${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
   private isPortProxyStep(step: DexpiStep): boolean {
     if (step.dexpiType !== 'Source' && step.dexpiType !== 'Sink') return false;
     if (step.ports.some(port => port.superPortId)) return true;
+
+    // Generic rule: a Source/Sink that owns a real (non-mirrored) energy port
+    // represents an energy supply/sink boundary, not a visual port proxy from
+    // the BPMN exporter. Keep it visible — positionEnergyBoundaryProxies will
+    // place it above/below the connected interior task.
+    if (step.ports.some(port => this.isEnergyPort(port) && !port.superPortId)) {
+      return false;
+    }
 
     const label = step.label.trim();
     if (!label) return false;

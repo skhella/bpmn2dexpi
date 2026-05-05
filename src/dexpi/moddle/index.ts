@@ -32,6 +32,14 @@ export interface DexpiPort {
   anchorOffset?: number;
   anchorX?: number;
   anchorY?: number;
+  /**
+   * Explicit pointer to the inner descendant port that this parent boundary
+   * port maps to. Space-separated list of inner port IDs (typically just one).
+   * When present, overrides the default first-match-by-name+direction
+   * heuristic — necessary when multiple inner tasks share a port label
+   * (e.g. multiple inner tasks with port "MI1").
+   */
+  subReference?: string;
 }
 
 export interface DexpiStream {
