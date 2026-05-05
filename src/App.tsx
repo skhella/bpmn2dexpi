@@ -74,6 +74,42 @@ const initialDiagram = '<?xml version="1.0" encoding="UTF-8"?>\n' +
   '  </bpmndi:BPMNDiagram>\n' +
   '</bpmn:definitions>';
 
+/**
+ * Force the renderer to re-run drawShape on every visible element after an
+ * importXML completes. Two reasons it's needed:
+ *
+ * 1. InformationPort positions are computed from live association waypoints
+ *    in DexpiRenderer.drawShape. On the initial render during importXML the
+ *    waypoints aren't yet propagated to the elementRegistry, so ports land at
+ *    fallback (anchorX/anchorY) positions until a re-render is triggered.
+ *
+ * 2. applyDexpiTypeColor (the green/blue task fill based on
+ *    InstrumentationActivity vs ProcessStep ancestry) runs in drawShape too —
+ *    same issue, fills don't show on imported diagrams until a re-render.
+ *
+ * Firing element.changed for every visible shape forces the renderer to
+ * recompute both. Mirrors the no-op the port-visibility toggle effect runs.
+ */
+function refreshAllElementsAfterImport(bpmnModelerInstance: any): void {
+  if (!bpmnModelerInstance) return;
+  try {
+    const elementRegistry = bpmnModelerInstance.get('elementRegistry');
+    const eventBus = bpmnModelerInstance.get('eventBus');
+    const all = elementRegistry.filter((el: any) => {
+      const gfx = elementRegistry.getGraphics(el);
+      return gfx &&
+        el.type !== 'label' &&
+        el.type !== 'bpmn:DataObjectReference' &&
+        el.type !== 'bpmn:DataInputAssociation' &&
+        el.type !== 'bpmn:DataOutputAssociation' &&
+        !el.labelTarget;
+    });
+    all.forEach((element: any) => eventBus.fire('element.changed', { element }));
+  } catch (e) {
+    console.warn('refreshAllElementsAfterImport (non-fatal):', e);
+  }
+}
+
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [modeler, setModeler] = useState<BpmnModeler | null>(null);
@@ -392,7 +428,9 @@ function App() {
     const preprocessedToLoad = preprocessBpmnXml(diagramToLoad);
     bpmnModeler.importXML(preprocessedToLoad).then(() => {
       if (isDestroyed) return;
-      
+
+      refreshAllElementsAfterImport(bpmnModeler);
+
       const canvas = bpmnModeler.get('canvas') as any;
       canvas.zoom('fit-viewport');
       
@@ -416,6 +454,7 @@ function App() {
       if (savedXml) {
         localStorage.removeItem(AUTOSAVE_KEY);
         bpmnModeler.importXML(preprocessBpmnXml(initialDiagram)).then(() => {
+          refreshAllElementsAfterImport(bpmnModeler);
           setModeler(bpmnModeler);
         });
       } else {
@@ -572,6 +611,7 @@ function App() {
         const text = await file.text();
         const preprocessedText = preprocessBpmnXml(text);
         await modeler.importXML(preprocessedText);
+        refreshAllElementsAfterImport(modeler);
         // Save imported diagram immediately
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
@@ -593,6 +633,7 @@ function App() {
     if (!modeler) return;
     if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
     await modeler.importXML(preprocessBpmnXml(initialDiagram));
+    refreshAllElementsAfterImport(modeler);
     localStorage.removeItem(AUTOSAVE_KEY);
     setPlaneStack([]);
     setCurrentPlane(null);
