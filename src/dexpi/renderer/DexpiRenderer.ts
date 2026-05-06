@@ -91,15 +91,9 @@ export default class DexpiRenderer extends BaseRenderer {
     const extensionElements = businessObject.extensionElements;
 
     if (extensionElements && extensionElements.values) {
-      // Lenient match — handles dexpi:Element / dexpi:element / any local-name
-      // ending in ":element". Mirrors the match used by applyDexpiTypeColor
-      // and DexpiPropertiesPanel; keeps port discovery working when the BPMN
-      // file uses lowercase <dexpi:element> (which moddle preserves verbatim
-      // in $type if it doesn't exactly match the descriptor casing).
-      const dexpiElement = extensionElements.values.find((e: any) => {
-        const t = (e.$type || '').toString();
-        return t === 'dexpi:Element' || t === 'dexpi:element' || t.toLowerCase().endsWith(':element');
-      });
+      const dexpiElement = extensionElements.values.find(
+        (e: any) => e.$type === 'dexpi:Element'
+      );
 
       if (dexpiElement && dexpiElement.ports) {
         this.drawPorts(parentNode, element, dexpiElement.ports);
@@ -577,7 +571,14 @@ export default class DexpiRenderer extends BaseRenderer {
     let shape: SVGElement;
 
     // Different shapes for different port types
-    switch (port.portType) {
+    // Fall back to port.type when port.portType is missing — moddle parses
+    // <dexpi:port type="MaterialPort"/> as port.type = "MaterialPort" (the
+    // dexpi descriptor declares both `type` and `portType` as String attrs,
+    // and the legacy TEP example uses `type="..."`). Without the fallback
+    // every imported port falls into the default (grey) branch even though
+    // the type info is right there on the parsed object.
+    const portType = port.portType || (port as any).type;
+    switch (portType) {
       case 'MaterialPort':
         shape = svgCreate('circle');
         svgAttr(shape, {
