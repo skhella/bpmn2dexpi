@@ -860,8 +860,11 @@ export class BpmnToDexpiTransformer {
       const child = dexpiStream.children[i];
       const localName = child.localName || child.tagName.split(':').pop() || '';
       
-      if (localName.toLowerCase() === 'streamattribute') {
-        // Format 1: StreamAttribute elements
+      if (localName.toLowerCase() === 'attribute' || localName.toLowerCase() === 'streamattribute') {
+        // Unified <dexpi:Attribute> child (canonical) — also accept the
+        // legacy <dexpi:streamAttribute> name for back-compat with BPMN
+        // files saved before the moddle Attribute/StreamAttribute split
+        // was unified. The two had identical fields.
         attributes.push({
           name: child.getAttribute('name') || '',
           value: child.getAttribute('value') || '',

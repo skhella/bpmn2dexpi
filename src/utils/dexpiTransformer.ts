@@ -138,7 +138,12 @@ function transformBpmnToDexpi(bpmnData: unknown): string {
         ...(da.range && { Range: da.range }),
       },
     };
-    const attrs = nodeChildren(ds, 'dexpi:StreamAttribute');
+    // Accept both unified <dexpi:Attribute> and legacy <dexpi:StreamAttribute>
+    // for back-compat with BPMN files saved before the moddle unification.
+    const attrs = [
+      ...nodeChildren(ds, 'dexpi:Attribute'),
+      ...nodeChildren(ds, 'dexpi:StreamAttribute'),
+    ];
     if (attrs.length) {
       stream.Attributes = attrs.map(attr => {
         const aa = nodeAttr(attr);

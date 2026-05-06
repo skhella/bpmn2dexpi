@@ -54,16 +54,31 @@ export interface DexpiStream {
   materialStateReference?: string;
   provenance?: 'Measured' | 'Calculated' | 'Specified' | 'Estimated';
   range?: 'Design' | 'Normal' | 'Maximum' | 'Minimum';
-  attributes?: DexpiStreamAttribute[];
+  attributes?: DexpiAttribute[];
 }
 
-export interface DexpiStreamAttribute {
+/**
+ * Unified attribute payload — used for both step (`<dexpi:Attribute>`
+ * inside `<dexpi:Element>`) and stream (`<dexpi:Attribute>` inside
+ * `<dexpi:Stream>`) properties. DEXPI Process.xml itself has no
+ * Attribute/StreamAttribute distinction; both encode as
+ * `<Components property="X"><Object type="Core/QualifiedValue"/></Components>`.
+ */
+export interface DexpiAttribute {
   name: string;
   value: string;
   unit?: string;
+  unitUri?: string;
+  nameUri?: string;
+  scope?: string;
+  range?: string;
+  provenance?: string;
   mode?: 'Input' | 'Output' | 'InOut';
   qualifier?: string;
 }
+
+/** @deprecated Use DexpiAttribute. Kept for back-compat with older callers. */
+export type DexpiStreamAttribute = DexpiAttribute;
 
 export interface DexpiInformationFlow {
   identifier?: string;
