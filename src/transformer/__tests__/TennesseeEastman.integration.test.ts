@@ -109,10 +109,10 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
 
   it('emits ProcessStepReference on MeasuringProcessVariable + canonical/Profile split for measured variable identity', () => {
     const countMatches = (re: RegExp) => (output.match(re) ?? []).length;
-    // 17 of 18 BPMN-side instrumentation→ProcessStep links resolve to a
-    // MeasuringProcessVariable; the 18th is a ControllingProcessVariable
+    // 18 of 19 BPMN-side instrumentation→ProcessStep links resolve to a
+    // MeasuringProcessVariable; the 19th is a ControllingProcessVariable
     // (which doesn't declare ProcessStepReference per the spec).
-    expect(countMatches(/property="ProcessStepReference"/g)).toBe(17);
+    expect(countMatches(/property="ProcessStepReference"/g)).toBe(18);
 
     // The variable identity is encoded in two ways depending on whether
     // the variable name is a declared CompositionProperty on the referenced
@@ -130,7 +130,7 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     // Every instrumentation activity with a resolvable variable identity
     // gets exactly one of the two encodings — sum equals the count of
     // BPMN dataObject-mediated instrumentation flows in the fixture.
-    expect(refCount + labelCount).toBe(18);
+    expect(refCount + labelCount).toBe(19);
     // For the current TEP fixture, both encodings are exercised
     // (validates that the canonical/Profile split is actually live).
     expect(refCount).toBeGreaterThan(0);
