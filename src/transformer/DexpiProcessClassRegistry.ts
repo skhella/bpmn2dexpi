@@ -83,9 +83,20 @@ const CORE_SCHEMA_FILENAME = 'Core.xml';
 
 export class DexpiProcessClassRegistry {
   private readonly classes: Map<string, DexpiClassInfo>;
+  /**
+   * Enumeration registry: name → ordered list of literal names. Populated
+   * from `<Enumeration>` declarations across all loaded sources. Consumed
+   * by the data-type validator to verify enum-typed Data values are one
+   * of the declared literals.
+   */
+  private readonly enumerations: Map<string, string[]>;
 
-  private constructor(classes: Map<string, DexpiClassInfo>) {
+  private constructor(
+    classes: Map<string, DexpiClassInfo>,
+    enumerations: Map<string, string[]> = new Map(),
+  ) {
     this.classes = classes;
+    this.enumerations = enumerations;
   }
 
   // ── Factories ─────────────────────────────────────────────────────────────
@@ -129,10 +140,18 @@ export class DexpiProcessClassRegistry {
   ): DexpiProcessClassRegistry {
     const strict = options.strictSupertypes ?? true;
     const classes = new Map<string, DexpiClassInfo>();
+    const enumerations = new Map<string, string[]>();
     const conflicts: string[] = [];
 
     for (const source of sources) {
-      const { classes: parsed, mode } = parseSchemaXml(source);
+      const { classes: parsed, enumerations: parsedEnums, mode } = parseSchemaXml(source);
+      // Merge enumerations: later sources override earlier ones for the
+      // same name. The TEP fixture currently has no enum collisions across
+      // Process+Core; if a Profile redefines an enum, the Profile's
+      // literals win.
+      for (const [enumName, literals] of parsedEnums) {
+        enumerations.set(enumName, literals);
+      }
       for (const cls of parsed) {
         // Bare-name dedup assumes class names are globally unique across all
         // loaded DEXPI sources. This holds for DEXPI 2.0 — Process.xml + Core.xml
@@ -195,7 +214,7 @@ export class DexpiProcessClassRegistry {
       }
     }
 
-    return new DexpiProcessClassRegistry(classes);
+    return new DexpiProcessClassRegistry(classes, enumerations);
   }
 
   /**
@@ -367,7 +386,11 @@ export class DexpiProcessClassRegistry {
     for (const [k, v] of this.classes) {
       cloned.set(k, { ...v, properties: [...v.properties], superTypes: [...v.superTypes] });
     }
-    const { classes: parsed, mode } = parseSchemaXml({ name, xml });
+    const { classes: parsed, enumerations: parsedEnums, mode } = parseSchemaXml({ name, xml });
+    // Clone enums + merge new ones (later wins for same name).
+    const clonedEnums = new Map<string, string[]>();
+    for (const [k, v] of this.enumerations) clonedEnums.set(k, [...v]);
+    for (const [k, v] of parsedEnums) clonedEnums.set(k, v);
     const conflicts: string[] = [];
     for (const cls of parsed) {
       const existing = cloned.get(cls.name);
@@ -391,7 +414,24 @@ export class DexpiProcessClassRegistry {
         `DEXPI schema merge conflict — duplicate class names:\n  ${conflicts.join('\n  ')}`
       );
     }
-    return new DexpiProcessClassRegistry(cloned);
+    return new DexpiProcessClassRegistry(cloned, clonedEnums);
+  }
+
+  /**
+   * Return the declared literal names for a given enumeration, or undefined
+   * if no such enumeration is registered. Lookups are by bare name (e.g.
+   * 'QuantityProvenance', 'PortDirection') — strip the namespace prefix
+   * (e.g. '/Enumerations.QuantityProvenance' → 'QuantityProvenance') before
+   * calling.
+   */
+  getEnumerationLiterals(enumName: string): string[] | undefined {
+    const literals = this.enumerations.get(enumName);
+    return literals ? [...literals] : undefined;
+  }
+
+  /** Number of distinct enumerations registered. */
+  get enumerationCount(): number {
+    return this.enumerations.size;
   }
 }
 
@@ -412,6 +452,8 @@ type SchemaMode = 'extend' | undefined;
 
 interface ParsedSchema {
   classes: DexpiClassInfo[];
+  /** Map of enumeration name → literal names (in declaration order). */
+  enumerations: Map<string, string[]>;
   /** Root-level merge directive — see SchemaMode. */
   mode: SchemaMode;
 }
@@ -453,7 +495,23 @@ function parseSchemaXml(source: SchemaSource): ParsedSchema {
 
   extract('ConcreteClass', 'concrete');
   extract('AbstractClass', 'abstract');
-  return { classes: out, mode };
+
+  // Parse <Enumeration name="X"><EnumerationLiteral name="..."/></Enumeration>.
+  // Used by the data-type validator to verify enum-typed Data values are one
+  // of the declared literals (e.g. Provenance ∈ {Calculated, Estimated, ...}).
+  const enumerations = new Map<string, string[]>();
+  for (const el of Array.from(doc.querySelectorAll('Enumeration'))) {
+    const name = el.getAttribute('name');
+    if (!name) continue;
+    const literals: string[] = [];
+    for (const lit of Array.from(el.querySelectorAll(':scope > EnumerationLiteral'))) {
+      const litName = lit.getAttribute('name');
+      if (litName) literals.push(litName);
+    }
+    enumerations.set(name, literals);
+  }
+
+  return { classes: out, enumerations, mode };
 }
 
 /**
