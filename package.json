@@ -38,6 +38,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "transform": "node --import tsx cli.js",
+    "relayout": "node --import tsx scripts/relayout-bpmn.mjs",
+    "import-dexpi": "node --import tsx scripts/import-dexpi.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -46,6 +48,7 @@
     "bpmn-js": "^18.10.1",
     "bpmn-js-properties-panel": "^5.48.0",
     "diagram-js": "^15.6.0",
+    "elkjs": "^0.11.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "xml2js": "^0.6.2"
