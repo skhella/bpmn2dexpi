@@ -1,3 +1,12 @@
+// TODO: type-shape mismatch on composition fractions (TS errors at lines ~1242,
+// 1366, 1369, 1385, 1413). The UI treats `fractions` as plain numbers
+// (parseFloat, sum + f, fraction * 100), but `MaterialState.flow.composition.fractions`
+// is typed as `{ componentReference: string; value: number; unit?: string }[]`,
+// and the transformer's internal `FractionData` is yet a third shape
+// (`{ value: string; componentRef: string }`). Three competing representations,
+// no canonical source of truth. Fixing requires a deliberate data-model decision
+// (which shape wins?), migration of any saved models, and updates across the
+// importer/exporter — out of scope for the Profile-generator branch.
 import React from 'react';
 import type { MaterialTemplate, MaterialComponent, MaterialState } from '../dexpi/moddle/materials';
 
@@ -49,6 +58,116 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
   // eslint-disable-next-line no-use-before-define
   }, [modeler]);
 
+  // ── Carrier-aware moddle accessors ───────────────────────────────────
+  //
+  // After the Process.xml-aligned restructure, MaterialState / MaterialStateType
+  // / Composition / Stream all use DEXPI carriers (<dexpi:data property="X">,
+  // <dexpi:references property="X" uidRef="..."/>, <dexpi:components
+  // property="X"><dexpi:object>...). bpmn-moddle parses these into typed
+  // arrays (parent.data, parent.references, parent.components) when the
+  // wrapper class declares those slots; falls back to $children walking
+  // for legacy bare-name content. These helpers handle both.
+
+  /** Read a DataProperty body as text. Carrier form preferred, bare-name fallback. */
+  const readData = (parent: any, propertyName: string): string => {
+    if (!parent) return '';
+    if (Array.isArray(parent.data)) {
+      for (const d of parent.data) {
+        const prop = d.property ?? d.$attrs?.property;
+        if (prop === propertyName) return d.body ?? d.$body ?? d._ ?? '';
+      }
+    }
+    if (parent.$children) {
+      for (const c of parent.$children) {
+        const t = (c.$type || '').toLowerCase();
+        if ((t === 'dexpi:data' || t === 'data') &&
+            (c.property === propertyName || c.$attrs?.property === propertyName)) {
+          return c.body ?? c.$body ?? c._ ?? '';
+        }
+      }
+      const bare = parent.$children.find((c: any) => c.$type === propertyName);
+      if (bare) return bare.$body || '';
+    }
+    return '';
+  };
+
+  /** Read a ReferenceProperty's uidRef. Carrier form preferred, bare-name fallback. */
+  const readRef = (parent: any, propertyName: string): string => {
+    if (!parent) return '';
+    if (Array.isArray(parent.references)) {
+      for (const r of parent.references) {
+        const prop = r.property ?? r.$attrs?.property;
+        if (prop === propertyName) {
+          return r.uidRef ?? r.$attrs?.uidRef ??
+            (r.objects ?? '').replace(/^#/, '') ?? '';
+        }
+      }
+    }
+    if (parent.$children) {
+      for (const c of parent.$children) {
+        const t = (c.$type || '').toLowerCase();
+        if ((t === 'dexpi:references' || t === 'references') &&
+            (c.property === propertyName || c.$attrs?.property === propertyName)) {
+          return c.uidRef ?? c.$attrs?.uidRef ?? '';
+        }
+        if (c.$type === propertyName) return c.uidRef ?? c.$attrs?.uidRef ?? '';
+      }
+    }
+    return '';
+  };
+
+  /**
+   * Locate the inner <dexpi:object> of a Components carrier with the given
+   * property name. Used to read QualifiedValue payloads.
+   */
+  const readComponentsObject = (parent: any, propertyName: string): any => {
+    if (!parent) return null;
+    if (Array.isArray(parent.components)) {
+      for (const carrier of parent.components) {
+        const prop = carrier.property ?? carrier.$attrs?.property;
+        if (prop !== propertyName) continue;
+        const obj = (carrier.objects ?? carrier.$children ?? []).find((o: any) =>
+          (o.$type || '').toLowerCase().includes('object')
+        );
+        if (obj) return obj;
+      }
+    }
+    if (parent.$children) {
+      for (const carrier of parent.$children) {
+        const t = (carrier.$type || '').toLowerCase();
+        if ((t === 'dexpi:components' || t === 'components') &&
+            (carrier.property ?? carrier.$attrs?.property) === propertyName) {
+          const obj = (carrier.$children ?? []).find((o: any) =>
+            (o.$type || '').toLowerCase().includes('object')
+          );
+          if (obj) return obj;
+        }
+      }
+    }
+    return null;
+  };
+
+  /**
+   * Read a QualifiedValue's typed Values + Unit. Returns multi-valued vector
+   * for PhysicalQuantityVector targets; for scalar QualifiedValue,
+   * `values[0]` is the single value.
+   */
+  const readQualifiedValueVector = (qvObj: any): { values: string[]; unit: string } => {
+    if (!qvObj) return { values: [], unit: '' };
+    const dataList = qvObj.data ?? qvObj.$children ?? [];
+    const values: string[] = [];
+    let unit = '';
+    for (const d of dataList) {
+      const t = (d.$type || '').toLowerCase();
+      if (t && t !== 'dexpi:data' && t !== 'data') continue;
+      const prop = d.property ?? d.$attrs?.property;
+      const body = d.body ?? d.$body ?? d._ ?? '';
+      if (prop === 'Value' || prop === 'Values') values.push(body);
+      else if (prop === 'Unit') unit = body;
+    }
+    return { values, unit };
+  };
+
   const loadMaterialData = () => {
     const elementRegistry = modeler.get('elementRegistry');
     const allElements = elementRegistry.getAll();
@@ -62,37 +181,108 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     const loadedTemplates: MaterialTemplate[] = [];
     const loadedComponents: MaterialComponent[] = [];
 
-    // Helper functions to extract text from $children structure
+    // Helper functions to extract text from a moddle parent. Prefers
+    // carrier-wrapped form first via the typed `data` array bpmn-moddle
+    // now exposes for classes that declared `data` as a child slot
+    // (MaterialState, MaterialStateType, Stream, etc.); falls back to
+    // walking $children for legacy bare-name <X>v</X> content.
     const getChildText = (parent: any, childType: string): string => {
-      const child = parent.$children?.find((c: any) => c.$type === childType);
-      return child?.$body || '';
+      if (!parent) return '';
+      // Typed accessor (preferred for carrier-form parents)
+      if (Array.isArray(parent.data)) {
+        for (const d of parent.data) {
+          const prop = d.property ?? d.$attrs?.property;
+          if (prop === childType) return d.body ?? d.$body ?? d._ ?? '';
+        }
+      }
+      // $children form fallback (carriers under opaque pass-through, or
+      // legacy bare-name children).
+      if (parent.$children) {
+        for (const c of parent.$children) {
+          const t = (c.$type || '').toLowerCase();
+          if ((t === 'dexpi:data' || t === 'data') &&
+              (c.property === childType || c.$attrs?.property === childType)) {
+            return c.body ?? c.$body ?? c._ ?? '';
+          }
+        }
+        const bareChild = parent.$children.find((c: any) => c.$type === childType);
+        if (bareChild) return bareChild.$body || '';
+      }
+      return '';
     };
-    
+
     const getChildValue = (parent: any, childType: string): number => {
-      const child = parent.$children?.find((c: any) => c.$type === childType);
-      return parseInt(child?.$body) || 0;
+      const text = getChildText(parent, childType);
+      return parseInt(text) || 0;
     };
 
     if (templatesDataObj?.businessObject?.extensionElements?.values) {
       templatesDataObj.businessObject.extensionElements.values.forEach((val: any) => {
         if (val.$type === 'MaterialTemplate' || val.$type?.includes('MaterialTemplate')) {
-          // Extract component UIDs from ListOfMaterialComponents in $children
-          const listOfComponents = val.$children?.find((c: any) => 
-            c.$type === 'ListOfMaterialComponents' || c.$type?.includes('ListOfMaterialComponents')
-          );
-          
+          // Component refs: canonical form is <dexpi:references
+          // property="ListOfComponents" objects="#X #Y..."/> or uidRef
+          // (space-separated multi-valued). Legacy form is the bare-name
+          // <ListOfMaterialComponents> wrapper with
+          // <MaterialComponentIdentifier uidRef="..."/> children. We accept
+          // both for back-compat with older saves.
           const componentRefs: string[] = [];
-          if (listOfComponents?.$children) {
-            listOfComponents.$children.forEach((child: any) => {
-              if (child.$type === 'MaterialComponentIdentifier' || child.$type?.includes('MaterialComponentIdentifier')) {
-                const uidRef = child.uidRef || child.$attrs?.uidRef;
-                if (uidRef) {
-                  componentRefs.push(uidRef);
+          // Carrier form: typed `references` array on dexpi:MaterialTemplate.
+          if (Array.isArray(val.references)) {
+            for (const r of val.references) {
+              if ((r.property ?? r.$attrs?.property) === 'ListOfComponents') {
+                const ids = r.objects ?? r.uidRef ?? '';
+                for (const tok of ids.split(/\s+/).filter(Boolean)) {
+                  componentRefs.push(tok.replace(/^#/, ''));
                 }
               }
-            });
+            }
           }
-          
+          // Legacy bare-name fallback.
+          if (componentRefs.length === 0) {
+            const listOfComponents = val.$children?.find((c: any) =>
+              c.$type === 'ListOfComponents' ||
+              c.$type === 'ListOfMaterialComponents' ||
+              c.$type?.includes('ListOfMaterialComponents')
+            );
+            if (listOfComponents?.$children) {
+              listOfComponents.$children.forEach((child: any) => {
+                if (child.$type === 'Component' ||
+                    child.$type === 'MaterialComponentIdentifier' ||
+                    child.$type?.includes('MaterialComponentIdentifier')) {
+                  const uidRef = child.uidRef || child.$attrs?.uidRef;
+                  if (uidRef) componentRefs.push(uidRef);
+                }
+              });
+            }
+          }
+
+          // PhaseLabel: canonical is repeated <dexpi:data property="PhaseLabel">v</dexpi:data>
+          // siblings; legacy was <ListOfPhases><PhaseIdentifier Identifier="X"/>...
+          const phases: string[] = [];
+          if (Array.isArray(val.data)) {
+            for (const d of val.data) {
+              if ((d.property ?? d.$attrs?.property) === 'PhaseLabel') {
+                const body = d.body ?? d.$body ?? d._ ?? '';
+                if (body) phases.push(body);
+              }
+            }
+          }
+          if (phases.length === 0 && val.$children) {
+            for (const c of val.$children) {
+              if (c.$type === 'PhaseLabel') {
+                const body = c.$body || c.body || '';
+                if (body) phases.push(body);
+              } else if (c.$type === 'ListOfPhases' && c.$children) {
+                for (const p of c.$children) {
+                  if ((p.$type || '').toLowerCase().includes('phaseidentifier')) {
+                    const id = p.Identifier ?? p.$attrs?.Identifier;
+                    if (id) phases.push(id);
+                  }
+                }
+              }
+            }
+          }
+
           const template = {
             uid: val.uid || '',
             identifier: getChildText(val, 'Identifier'),
@@ -101,7 +291,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             numberOfComponents: getChildValue(val, 'NumberOfMaterialComponents'),
             numberOfPhases: getChildValue(val, 'NumberOfPhases'),
             componentRefs: componentRefs,
-            phases: val.ListOfPhases?.PhaseIdentifier?.map((p: any) => p.Identifier) || []
+            phases,
           };
           loadedTemplates.push(template);
         }
@@ -134,29 +324,145 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     const groupedStates: { [key: string]: MaterialState[] } = {};
     const initialExpandedState: { [key: string]: boolean } = {};
 
-    // First, build a map of which streams reference which states
+    // Build maps of which streams reference which states + which template
+    // each state's host stream uses. The MaterialTemplate reference lives
+    // on the Stream (canonical direction); when an editor needs to display
+    // per-component fractions for a state, we look up the state's host
+    // stream's template to align fraction indices with component uids.
     const streamsByState: { [uid: string]: string[] } = {};
+    const templateByState: { [uid: string]: string } = {};
     allElements.forEach((el: any) => {
       if (el.type === 'bpmn:SequenceFlow' && el.businessObject?.extensionElements?.values) {
         el.businessObject.extensionElements.values.forEach((ext: any) => {
           if (ext.$type === 'Stream' || ext.$type?.includes('Stream')) {
-            const stateRef = ext.$children?.find((c: any) => c.$type === 'MaterialStateReference')?.uidRef;
+            const stateRef = readRef(ext, 'MaterialStateReference');
             if (stateRef) {
-              if (!streamsByState[stateRef]) {
-                streamsByState[stateRef] = [];
-              }
-              const streamName = el.businessObject.name || ext.$children?.find((c: any) => c.$type === 'Identifier')?.$body || el.id;
+              if (!streamsByState[stateRef]) streamsByState[stateRef] = [];
+              const streamName = el.businessObject.name || readData(ext, 'Identifier') || el.id;
               streamsByState[stateRef].push(streamName);
+              const templateRef = readRef(ext, 'MaterialTemplateReference');
+              if (templateRef && !templateByState[stateRef]) {
+                templateByState[stateRef] = templateRef;
+              }
             }
           }
         });
       }
     });
 
+    /**
+     * Build a MaterialState record by following the Process.xml-aligned
+     * MaterialState → MaterialStateType → Composition chain. siblings is
+     * the array of all DataObject extension entries within the same scope
+     * (Case or extensionElements directly), used to resolve uid references.
+     */
+    const buildState = (stateVal: any, siblings: any[], groupName: string): MaterialState => {
+      const stateTypeUid = readRef(stateVal, 'State');
+      const stateType = stateTypeUid
+        ? siblings.find((v: any) => v.uid === stateTypeUid)
+        : null;
+      const compositionUid = stateType ? readRef(stateType, 'Composition') : '';
+      const composition = compositionUid
+        ? siblings.find((v: any) => v.uid === compositionUid)
+        : null;
+
+      // MoleFlow scalar lives on MaterialStateType (Profile-extension fill
+      // for DEXPI 2.0's vocabulary gap). Read via the Components carrier.
+      let moleFlow: { value: number; unit: string } | undefined;
+      if (stateType) {
+        const moleFlowQv = readComponentsObject(stateType, 'MoleFlow');
+        if (moleFlowQv) {
+          const { values, unit } = readQualifiedValueVector(moleFlowQv);
+          if (values[0]) moleFlow = { value: parseFloat(values[0]) || 0, unit };
+        }
+      }
+
+      // Composition's per-component fractions live on Composition.MoleFractiona
+      // (sic — Process.xml typo) / MassFractions / VolumeFractions, encoded
+      // as a multi-valued PhysicalQuantityVector inside QualifiedValue.
+      // Each fraction is paired with its MaterialComponent uid via the
+      // host Stream's MaterialTemplateReference (lookup at index N matches
+      // the template's ListOfComponents at index N).
+      let basis = '';
+      let fractionUnit = 'Fraction';
+      let rawFractionValues: number[] = [];
+      let display = '';
+      if (composition) {
+        display = readData(composition, 'Display');
+        for (const [propName, basisLabel] of [
+          ['MoleFractiona', 'Mole'],
+          ['MassFractions', 'Mass'],
+          ['VolumeFractions', 'Volume'],
+        ] as const) {
+          const qv = readComponentsObject(composition, propName);
+          if (qv) {
+            basis = basisLabel;
+            const { values, unit } = readQualifiedValueVector(qv);
+            rawFractionValues = values.map(v => parseFloat(v) || 0);
+            if (unit) fractionUnit = unit;
+            break;
+          }
+        }
+      }
+      // Legacy inline-Flow fallback (for fixtures saved before the
+      // MaterialState restructure). Runs BEFORE the rich-object mapping
+      // so it can contribute raw values to rawFractionValues, which then
+      // get paired with component refs in a single mapping step below.
+      if (!moleFlow || rawFractionValues.length === 0) {
+        const flowChild = stateVal.$children?.find((c: any) => c.$type === 'Flow');
+        if (flowChild) {
+          const moleFlowChild = flowChild.$children?.find((c: any) => c.$type === 'MoleFlow');
+          if (moleFlowChild && !moleFlow) {
+            moleFlow = {
+              value: parseFloat(moleFlowChild.$children?.find((c: any) => c.$type === 'Value')?.$body || '0'),
+              unit: moleFlowChild.$children?.find((c: any) => c.$type === 'Unit')?.$body || '',
+            };
+          }
+          const compositionChild = flowChild.$children?.find((c: any) => c.$type === 'Composition');
+          if (compositionChild && rawFractionValues.length === 0) {
+            display = display || compositionChild.$children?.find((c: any) => c.$type === 'Display')?.$body || '';
+            basis = basis || compositionChild.$children?.find((c: any) => c.$type === 'Basis')?.$body || '';
+            rawFractionValues = (compositionChild.$children
+              ?.filter((c: any) => c.$type === 'Fraction')
+              .map((f: any) =>
+                parseFloat(f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0'))) || [];
+          }
+        }
+      }
+
+      // Resolve component refs for this state via the host stream's template.
+      const templateUid = templateByState[stateVal.uid];
+      const template = templateUid
+        ? loadedTemplates.find(t => t.uid === templateUid)
+        : undefined;
+      const componentRefs = template?.componentRefs || [];
+      const fractions = rawFractionValues.map((value, i) => ({
+        componentReference: componentRefs[i] || '',
+        value,
+        unit: fractionUnit,
+      }));
+
+      return {
+        uid: stateVal.uid || '',
+        identifier: readData(stateVal, 'Identifier') || getChildText(stateVal, 'Identifier'),
+        label: readData(stateVal, 'Label') || getChildText(stateVal, 'Label'),
+        description: readData(stateVal, 'Description') || getChildText(stateVal, 'Description'),
+        flow: (moleFlow || fractions.length > 0) ? {
+          moleFlow,
+          composition: (display || fractions.length > 0) ? { basis, display, fractions } : undefined,
+        } : undefined,
+        templateRef: undefined, // No longer carried on MaterialState (redundant inverse ref dropped during restructure)
+        streamRef: undefined,   // Same (Stream → MaterialStateReference is the canonical direction)
+        referencedByStreams: streamsByState[stateVal.uid] || [],
+        // Track the case for grouping; used by the caller to push into groupedStates.
+        ...(groupName ? { _caseName: groupName } : {}),
+      } as MaterialState;
+    };
+
     allStateDataObjs.forEach((statesDataObj: any) => {
       if (statesDataObj?.businessObject?.extensionElements?.values) {
         const extValues = statesDataObj.businessObject.extensionElements.values;
-        
+
         // Check if we have new Case structure or legacy direct MaterialStates
         const hasCaseElements = extValues.some((v: any) => v.$type === 'Case' || v.$type === 'dexpi:Case');
         
@@ -173,52 +479,17 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                 initialExpandedState[groupName] = true;
               }
 
-              // Extract MaterialStates from this Case
-              const statesInCase = val.$children?.filter((c: any) => c.$type === 'MaterialState' || c.$type?.includes('MaterialState')) || [];
+              // Extract MaterialStates from this Case. Siblings for State /
+              // Composition uid resolution are the Case's own children
+              // (where MaterialStateType + Composition blocks live alongside
+              // the MaterialStates).
+              const caseSiblings = val.$children || [];
+              const statesInCase = caseSiblings.filter((c: any) =>
+                (c.$type === 'MaterialState' ||
+                  (c.$type?.includes('MaterialState') && !c.$type?.includes('MaterialStateType')))
+              );
               statesInCase.forEach((stateVal: any) => {
-                const flowChild = stateVal.$children?.find((c: any) => c.$type === 'Flow');
-                const moleFlowChild = flowChild?.$children?.find((c: any) => c.$type === 'MoleFlow');
-                const compositionChild = flowChild?.$children?.find((c: any) => c.$type === 'Composition');
-                const templateRefUid = stateVal.$children?.find((c: any) => c.$type === 'TemplateReference')?.uidRef;
-                
-                // Load fraction values from BPMN (without component references, just values)
-                const fractionValues = compositionChild?.$children
-                  ?.filter((c: any) => c.$type === 'Fraction')
-                  .map((f: any) => f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0') || [];
-                
-                // Build fractions array by matching with template components
-                let fractions: number[] = [];
-                if (templateRefUid) {
-                  const template = loadedTemplates.find(t => t.uid === templateRefUid);
-                  if (template && template.componentRefs && template.componentRefs.length > 0) {
-                    // Match fraction values (by position) with template component refs
-                    fractions = template.componentRefs.map((_componentRef, index) => 
-                      parseFloat(fractionValues[index]) || 0
-                    );
-                  }
-                }
-                
-                const state: MaterialState = {
-                  uid: stateVal.uid || '',
-                  identifier: getChildText(stateVal, 'Identifier'),
-                  label: getChildText(stateVal, 'Label'),
-                  description: getChildText(stateVal, 'Description'),
-                  flow: flowChild ? {
-                    moleFlow: moleFlowChild ? {
-                      value: parseFloat(moleFlowChild.$children?.find((c: any) => c.$type === 'Value')?.$body || '0'),
-                      unit: moleFlowChild.$children?.find((c: any) => c.$type === 'Unit')?.$body || ''
-                    } : undefined,
-                    composition: compositionChild || fractions.length > 0 ? {
-                      basis: compositionChild?.$children?.find((c: any) => c.$type === 'Basis')?.$body || '',
-                      display: compositionChild?.$children?.find((c: any) => c.$type === 'Display')?.$body || '',
-                      fractions: fractions
-                    } : undefined
-                  } : undefined,
-                  templateRef: templateRefUid,
-                  streamRef: stateVal.$children?.find((c: any) => c.$type === 'StreamReference')?.uidRef,
-                  referencedByStreams: streamsByState[stateVal.uid] || []
-                };
-                
+                const state = buildState(stateVal, caseSiblings, groupName);
                 loadedStates.push(state);
                 groupedStates[groupName].push(state);
               });
@@ -238,52 +509,13 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             initialExpandedState[groupName] = true;
           }
 
-          // Extract MaterialStates directly from extensionElements
+          // Extract MaterialStates directly from extensionElements. Sibling
+          // resolution scope is the DataObject's full extension values
+          // array (where MaterialStateType + Composition entries also live).
           extValues.forEach((val: any) => {
-            if (val.$type === 'MaterialState' || val.$type?.includes('MaterialState')) {
-              const flowChild = val.$children?.find((c: any) => c.$type === 'Flow');
-              const moleFlowChild = flowChild?.$children?.find((c: any) => c.$type === 'MoleFlow');
-              const compositionChild = flowChild?.$children?.find((c: any) => c.$type === 'Composition');
-              const templateRefUid = val.$children?.find((c: any) => c.$type === 'TemplateReference')?.uidRef;
-              
-              // Load fraction values from BPMN (without component references, just values)
-              const fractionValues = compositionChild?.$children
-                ?.filter((c: any) => c.$type === 'Fraction')
-                .map((f: any) => f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0') || [];
-              
-              // Build fractions array by matching with template components
-              let fractions: number[] = [];
-              if (templateRefUid) {
-                const template = loadedTemplates.find(t => t.uid === templateRefUid);
-                if (template && template.componentRefs && template.componentRefs.length > 0) {
-                  // Match fraction values (by position) with template component refs
-                  fractions = template.componentRefs.map((_componentRef, index) => 
-                    parseFloat(fractionValues[index]) || 0
-                  );
-                }
-              }
-              
-              const state: MaterialState = {
-                uid: val.uid || '',
-                identifier: getChildText(val, 'Identifier'),
-                label: getChildText(val, 'Label'),
-                description: getChildText(val, 'Description'),
-                flow: flowChild ? {
-                  moleFlow: moleFlowChild ? {
-                    value: parseFloat(moleFlowChild.$children?.find((c: any) => c.$type === 'Value')?.$body || '0'),
-                    unit: moleFlowChild.$children?.find((c: any) => c.$type === 'Unit')?.$body || ''
-                  } : undefined,
-                  composition: compositionChild || fractions.length > 0 ? {
-                    basis: compositionChild?.$children?.find((c: any) => c.$type === 'Basis')?.$body || '',
-                    display: compositionChild?.$children?.find((c: any) => c.$type === 'Display')?.$body || '',
-                    fractions: fractions
-                  } : undefined
-                } : undefined,
-                templateRef: templateRefUid,
-                streamRef: val.$children?.find((c: any) => c.$type === 'StreamReference')?.uidRef,
-                referencedByStreams: streamsByState[val.uid] || []
-              };
-              
+            if (val.$type === 'MaterialState' ||
+                (val.$type?.includes('MaterialState') && !val.$type?.includes('MaterialStateType'))) {
+              const state = buildState(val, extValues, groupName);
               loadedStates.push(state);
               groupedStates[groupName].push(state);
             }

@@ -9,7 +9,10 @@ import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { transformer } from './transformer/BpmnToDexpiTransformer';
+import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
+import { generateProfileFromDexpiXml } from './transformer/DexpiProfileGenerator';
 import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
+import coreXmlRaw from '../dexpi-schema-files/Core.xml?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
 import logoImg from './assets/cropped_logo_B2P.png';
@@ -119,6 +122,45 @@ function App() {
   const [planeStack, setPlaneStack] = useState<string[]>([]);
   const [showPorts, setShowPorts] = useState<boolean>(false);
   const [showMaterialLibrary, setShowMaterialLibrary] = useState<boolean>(false);
+  // Strict-mode property-name fidelity validation toggle. Off by default
+  // (DEXPI 2.0's permissive philosophy: any XSD-valid output is exchangeable,
+  // so the user-facing default is XSD-only). When on, the next DEXPI export
+  // additionally validates property names against Process.xml + Core.xml and
+  // surfaces violations as warnings — but the export file is still produced
+  // unconditionally.
+  const [strictMode, setStrictMode] = useState<boolean>(false);
+
+  // Loaded DEXPI Profile extensions (per-session only — not persisted to
+  // localStorage; users must re-import after page reload). Each entry is
+  // one Profile XML in the same DEXPI metamodel grammar Process.xml uses.
+  // Profile classes are recognized as valid dexpiType targets in both
+  // strict and non-strict mode, so importing a Profile silences the
+  // "not a recognised DEXPI 2.0 Process class" warning for its classes.
+  const [loadedProfiles, setLoadedProfiles] = useState<{ name: string; xml: string }[]>([]);
+  // Hidden file-input ref for the "Import DEXPI Profile" button.
+  const profileFileInputRef = useRef<HTMLInputElement>(null);
+  // Popover state for the consolidated DEXPI menu (Strict + Import / Generate
+  // Profile + loaded-profile chips + Clear). The toolbar got crowded once
+  // every Profile-related control was top-level; collapsing them behind
+  // one menu button keeps the header readable while leaving Export DEXPI
+  // as the primary call-to-action.
+  const [showDexpiMenu, setShowDexpiMenu] = useState<boolean>(false);
+  // Same pattern for the consolidated Exports menu (Export BPMN / Export
+  // SVG / Neo4j). Export DEXPI XML stays as the primary toolbar action
+  // since it's the headline workflow; the secondary exports go behind one
+  // menu button so the toolbar isn't a row of single-purpose buttons.
+  const [showExportsMenu, setShowExportsMenu] = useState<boolean>(false);
+
+  // Strict-mode export-time warning modal. Populated by handleExportDexpi
+  // when strict mode is on and the property-name validator finds
+  // violations. Per the design contract the export still succeeds (file is
+  // already downloaded by the time this populates); the modal exists so
+  // the user knows the deliverable has fidelity gaps and can take a
+  // one-click action (Generate Profile) to close them.
+  const [strictWarning, setStrictWarning] = useState<{
+    totalCount: number;
+    groups: { key: string; count: number; sample: string }[];
+  } | null>(null);
   const [materialLibraryTab, setMaterialLibraryTab] = useState<'templates' | 'components' | 'states'>('templates');
   const [selectedMaterialItem, setSelectedMaterialItem] = useState<{type: 'template' | 'component' | 'state', data: any} | null>(null);
   const [showNeo4jModal, setShowNeo4jModal] = useState(false);
@@ -517,11 +559,24 @@ function App() {
         projectName: 'DEXPI Process Model',
         projectDescription: 'Generated from BPMN.io',
         author: 'bpmn2dexpi',
-        processXml: processXmlRaw
+        processXml: processXmlRaw,
+        // Strict mode needs Core.xml in the registry too so the validator
+        // can walk supertype chains across Process → Core. Always pass it
+        // so flipping the toggle without a re-import works.
+        coreXml: coreXmlRaw,
+        // Per-session DEXPI Profile extensions; empty array if none loaded.
+        // Profile classes are recognized as dexpiType targets in both
+        // strict and non-strict mode.
+        profileXmls: loadedProfiles,
+        strict: strictMode,
       });
-      
-      
-      // Step 3: Download DEXPI XML
+
+
+      // Step 3: Download DEXPI XML — happens unconditionally. Strict-mode
+      // findings (if any) surface as a warning afterwards but never block
+      // file production: DEXPI 2.0 permissive philosophy says any XSD-valid
+      // output is exchangeable, and we don't want strict mode to gate users
+      // out of getting a deliverable.
       const blob = new Blob([dexpiXml], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -529,8 +584,31 @@ function App() {
       a.download = 'process-model-dexpi.xml';
       a.click();
       URL.revokeObjectURL(url);
-      
-      setValidationMessage('DEXPI XML exported successfully! Check console for details.');
+
+      // Surface strict-mode property-name validation results, if any.
+      const v = transformer.lastPropertyNameValidation;
+      if (strictMode && v && !v.valid) {
+        // Group identical "ClassName.PropertyName" prefixes so the modal
+        // shows a small list of unique violations with counts rather than
+        // every single occurrence. Same shape as the CLI output.
+        const groups = new Map<string, { count: number; sample: string }>();
+        for (const err of v.errors) {
+          const colon = err.indexOf(':');
+          const key = colon >= 0 ? err.slice(0, colon) : err;
+          const sample = colon >= 0 ? err.slice(colon + 1).trim() : '';
+          const g = groups.get(key);
+          if (g) g.count++;
+          else groups.set(key, { count: 1, sample });
+        }
+        const groupList = Array.from(groups, ([key, { count, sample }]) => ({ key, count, sample }));
+        groupList.sort((a, b) => a.key.localeCompare(b.key));
+        setStrictWarning({ totalCount: v.errors.length, groups: groupList });
+        setValidationMessage('DEXPI XML exported with strict-mode warnings — see dialog.');
+        console.warn('DEXPI strict-mode property-name fidelity findings:');
+        for (const err of v.errors) console.warn(`  ✗ ${err}`);
+      } else {
+        setValidationMessage('DEXPI XML exported successfully!');
+      }
     } catch (err) {
       console.error('DEXPI transformation failed:', err);
       setValidationMessage('DEXPI export failed: ' + (err as Error).message);
@@ -596,6 +674,113 @@ function App() {
     } finally {
       setNeo4jExporting(false);
       setNeo4jProgress(null);
+    }
+  };
+
+  /**
+   * DEXPI Profile import — per-session only.
+   *
+   * Pre-flight: build a strict registry from Process.xml + Core.xml +
+   * already-loaded Profiles + the candidate Profile. The registry's
+   * conflict (duplicate class names) and unresolved-supertype checks run
+   * synchronously; on failure we surface the exact registry error to the
+   * user and DO NOT add the Profile to state.
+   *
+   * On success, append to loadedProfiles. Subsequent DEXPI exports include
+   * the Profile automatically. Profiles are NOT persisted to localStorage —
+   * a page reload clears them and the user must re-import.
+   */
+  const handleImportProfile = (file: File) => {
+    file.text().then(xml => {
+      const candidate = { name: file.name, xml };
+      try {
+        DexpiProcessClassRegistry.fromXmlSources([
+          { name: 'Process.xml', xml: processXmlRaw },
+          { name: 'Core.xml', xml: coreXmlRaw },
+          ...loadedProfiles,
+          candidate,
+        ]);
+      } catch (err) {
+        // Registry already produces clear, actionable messages naming the
+        // conflicting class or unresolved supertype — surface verbatim.
+        setValidationMessage(`✗ Profile "${file.name}" rejected: ${(err as Error).message}`);
+        return;
+      }
+      setLoadedProfiles(prev => [...prev, candidate]);
+      setValidationMessage(`✓ Profile "${file.name}" loaded (per-session).`);
+    }).catch(err => {
+      setValidationMessage(`✗ Profile "${file.name}" read failed: ${err.message}`);
+    });
+  };
+
+  const handleClearProfiles = () => {
+    setLoadedProfiles([]);
+    setValidationMessage('Profiles cleared.');
+  };
+
+  /**
+   * Generate a DEXPI Profile from the current model — walks the emitted
+   * DEXPI XML + the source BPMN's extension elements, identifies every
+   * (class, property) gap not resolved by the currently loaded schemas
+   * (Process.xml + Core.xml + already-imported Profiles), and downloads
+   * a Profile XML that fills them. Iterates internally until convergence
+   * so deeply-nested project extensions are captured in one pass.
+   *
+   * The download happens unconditionally; output is deterministic so
+   * users can commit the file to source control. Generated Profiles are
+   * NOT auto-loaded into the current session — the user is expected to
+   * re-import via the Import Profile button if they want strict-mode
+   * validation to pass against this model in this session. That keeps
+   * generation observable / reviewable rather than silent.
+   */
+  const handleGenerateProfile = async () => {
+    if (!modeler) return;
+    try {
+      const result = await modeler.saveXML({ format: true });
+      const bpmnXml = result.xml;
+      if (!bpmnXml) {
+        setValidationMessage('No BPMN XML to analyze.');
+        return;
+      }
+      const xmlForTransform = preprocessBpmnXml(bpmnXml);
+      // Run a regular (non-strict) transform to obtain the emitted DEXPI XML
+      // we'll walk for gaps. profileXmls is included so the generator only
+      // surfaces NEW gaps not already covered by loaded Profiles.
+      const dexpiXml = await transformer.transform(xmlForTransform, {
+        projectName: 'DEXPI Process Model',
+        author: 'bpmn2dexpi',
+        processXml: processXmlRaw,
+        coreXml: coreXmlRaw,
+        profileXmls: loadedProfiles,
+      });
+      const reg = DexpiProcessClassRegistry.fromXmlSources([
+        { name: 'Process.xml', xml: processXmlRaw },
+        { name: 'Core.xml', xml: coreXmlRaw },
+        ...loadedProfiles,
+      ]);
+      const generated = generateProfileFromDexpiXml(dexpiXml, reg, { bpmnXml: xmlForTransform });
+
+      const blob = new Blob([generated.xml], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'generated-profile.xml';
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setValidationMessage(
+        generated.declarations === 0
+          ? '✓ Generated empty Profile (no fidelity gaps found in current model).'
+          : `✓ Generated Profile downloaded: ${generated.classCount} class${
+              generated.classCount === 1 ? '' : 'es'
+            }, ${generated.declarations} declaration${
+              generated.declarations === 1 ? '' : 's'
+            }, converged in ${generated.iterationsUsed} pass${
+              generated.iterationsUsed === 1 ? '' : 'es'
+            }. Re-import to apply in this session.`
+      );
+    } catch (err) {
+      setValidationMessage(`Profile generation failed: ${(err as Error).message}`);
     }
   };
 
@@ -675,11 +860,216 @@ function App() {
           </button>
           <button onClick={handleNewDiagram} className="btn" title="Start a new empty diagram">New</button>
           <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
-          <button onClick={handleExportBpmn} className="btn">Export BPMN</button>
-          <button onClick={handleExportSvg} className="btn">Export SVG</button>
-          <button onClick={() => setShowNeo4jModal(true)} className="btn btn-neo4j" title="Export to Neo4j Graph Database">
-            🔗 Neo4j
-          </button>
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              onClick={() => setShowExportsMenu(v => !v)}
+              className={`btn ${showExportsMenu ? 'btn-active' : ''}`}
+              title="Export BPMN, SVG, or to Neo4j"
+            >
+              Exports ▾
+            </button>
+            {showExportsMenu && (
+              <>
+                <div
+                  onClick={() => setShowExportsMenu(false)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'transparent' }}
+                />
+                <div
+                  role="menu"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    right: 0,
+                    zIndex: 101,
+                    minWidth: '200px',
+                    background: '#fff',
+                    color: '#222',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                    padding: '0.4em',
+                    fontSize: '0.85em',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25em',
+                  }}
+                >
+                  <button
+                    onClick={() => { handleExportBpmn(); setShowExportsMenu(false); }}
+                    className="btn"
+                    style={{ textAlign: 'left' }}
+                  >
+                    Export BPMN
+                  </button>
+                  <button
+                    onClick={() => { handleExportSvg(); setShowExportsMenu(false); }}
+                    className="btn"
+                    style={{ textAlign: 'left' }}
+                  >
+                    Export SVG
+                  </button>
+                  <button
+                    onClick={() => { setShowNeo4jModal(true); setShowExportsMenu(false); }}
+                    className="btn btn-neo4j"
+                    style={{ textAlign: 'left' }}
+                    title="Export to Neo4j Graph Database"
+                  >
+                    🔗 Neo4j
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          <input
+            ref={profileFileInputRef}
+            type="file"
+            accept=".xml"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImportProfile(f);
+              // Reset value so re-importing the same file re-fires onChange.
+              e.target.value = '';
+            }}
+          />
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              onClick={() => setShowDexpiMenu(v => !v)}
+              className={`btn ${showDexpiMenu ? 'btn-active' : ''}`}
+              title="Strict-mode validation, Profile import, Profile generation"
+            >
+              {/* Surface a small "active" indicator when strict is on or
+                  any Profile is loaded, so users know there's session-state
+                  configured without opening the popover. */}
+              DEXPI {(strictMode || loadedProfiles.length > 0) ? '●' : ''} ▾
+            </button>
+            {showDexpiMenu && (
+              <>
+                {/* Click-outside-to-close backdrop. Transparent so it doesn't
+                    visually intrude; sized to cover the viewport. */}
+                <div
+                  onClick={() => setShowDexpiMenu(false)}
+                  style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 100,
+                    background: 'transparent',
+                  }}
+                />
+                <div
+                  role="menu"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    right: 0,
+                    zIndex: 101,
+                    minWidth: '300px',
+                    background: '#fff',
+                    color: '#222',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                    padding: '0.75em',
+                    fontSize: '0.85em',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.6em',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: '#222' }}>Validate on DEXPI XML export</div>
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'flex-start',
+                      gap: '0.45em',
+                      cursor: 'pointer',
+                      color: '#222',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={strictMode}
+                      onChange={(e) => setStrictMode(e.target.checked)}
+                      style={{ margin: '3px 0 0 0' }}
+                    />
+                    <span>
+                      Strict property-name validation
+                      <div style={{ color: '#666', fontStyle: 'italic', fontSize: '0.9em', marginTop: '2px' }}>
+                        On Export DEXPI XML, additionally check that every property
+                        name resolves against Process.xml + Core.xml + loaded Profiles.
+                        Findings surface as warnings; export is never blocked.
+                      </div>
+                    </span>
+                  </label>
+                  <hr style={{ border: 'none', borderTop: '1px solid #eee', margin: 0 }} />
+                  <div style={{ fontWeight: 600, color: '#222' }}>DEXPI Profiles</div>
+                  <div style={{ color: '#666', fontStyle: 'italic', fontSize: '0.9em' }}>
+                    A DEXPI Profile is an XML file declaring project-specific
+                    classes / properties beyond Process.xml + Core.xml.
+                    <strong> Import</strong> loads one into this session;
+                    <strong> Generate</strong> walks the current model and
+                    produces a Profile that closes every property-name
+                    fidelity gap — re-import the downloaded file to apply it.
+                    Generate works whether or not strict mode is on.
+                  </div>
+                  {loadedProfiles.length === 0 ? (
+                    <div style={{ color: '#666', fontStyle: 'italic' }}>
+                      No Profiles loaded. Profiles are per-session — re-import after page reload.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25em' }}>
+                      {loadedProfiles.map(p => (
+                        <span
+                          key={p.name}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35em',
+                            fontSize: '0.85em',
+                            padding: '0.15em 0.5em',
+                            background: '#e6f4ea',
+                            border: '1px solid #b6dfb6',
+                            borderRadius: '0.5em',
+                          }}
+                          title={`Profile loaded: ${p.name}`}
+                        >
+                          📄 {p.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '0.4em', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => { profileFileInputRef.current?.click(); setShowDexpiMenu(false); }}
+                      className="btn"
+                      style={{ flex: '1 1 auto' }}
+                      title="Load a DEXPI Profile (project-specific extension schema)."
+                    >
+                      Import Profile
+                    </button>
+                    <button
+                      onClick={() => { handleGenerateProfile(); setShowDexpiMenu(false); }}
+                      className="btn"
+                      style={{ flex: '1 1 auto' }}
+                      title="Generate a DEXPI Profile from the current model that fills every metamodel-fidelity gap. Re-import the downloaded file to apply it."
+                    >
+                      Generate Profile
+                    </button>
+                    {loadedProfiles.length > 0 && (
+                      <button
+                        onClick={() => { handleClearProfiles(); setShowDexpiMenu(false); }}
+                        className="btn"
+                        style={{ flex: '0 0 auto' }}
+                        title="Unload all imported DEXPI Profiles"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           <button onClick={handleExportDexpi} className="btn btn-primary">Export DEXPI XML</button>
         </div>
       </header>
@@ -721,7 +1111,7 @@ function App() {
               onClose={() => setSelectedMaterialItem(null)}
             />
           ) : selectedElement && selectedElement.type !== 'bpmn:SequenceFlow' && selectedElement.type !== 'bpmn:Association' && selectedElement.type !== 'bpmn:DataOutputAssociation' && selectedElement.type !== 'bpmn:DataInputAssociation' ? (
-            <DexpiPropertiesPanel element={selectedElement} modeler={modeler} />
+            <DexpiPropertiesPanel element={selectedElement} modeler={modeler} loadedProfiles={loadedProfiles} />
           ) : selectedElement && (selectedElement.type === 'bpmn:SequenceFlow' || selectedElement.type === 'bpmn:Association' || selectedElement.type === 'bpmn:DataOutputAssociation' || selectedElement.type === 'bpmn:DataInputAssociation') ? (
             <StreamPropertiesPanel element={selectedElement} modeler={modeler} />
           ) : (
@@ -736,6 +1126,100 @@ function App() {
         <div className="validation-message">
           {validationMessage}
           <button onClick={() => setValidationMessage('')} className="btn-close">×</button>
+        </div>
+      )}
+
+      {strictWarning && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="strict-warning-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={(e) => {
+            // Click on backdrop (not the dialog) dismisses.
+            if (e.target === e.currentTarget) setStrictWarning(null);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#222',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              padding: '1.25em',
+              maxWidth: '560px',
+              width: '90%',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85em',
+            }}
+          >
+            <h3 id="strict-warning-title" style={{ margin: 0, color: '#b26a00', display: 'flex', alignItems: 'center', gap: '0.4em' }}>
+              ⚠ Strict-mode validation warnings
+            </h3>
+            <div style={{ fontSize: '0.9em', color: '#444' }}>
+              The DEXPI XML was exported successfully — DEXPI 2.0's permissive
+              philosophy means XSD-valid output is exchangeable. However,
+              strict-mode property-name validation found{' '}
+              <strong>{strictWarning.totalCount} occurrence{strictWarning.totalCount === 1 ? '' : 's'}</strong>{' '}
+              of {strictWarning.groups.length} unique{' '}
+              fidelity gap{strictWarning.groups.length === 1 ? '' : 's'} against
+              Process.xml + Core.xml{loadedProfiles.length > 0 ? ' + the loaded Profile(s)' : ''}.
+            </div>
+            <div
+              style={{
+                background: '#fff8e1',
+                border: '1px solid #ffe082',
+                borderRadius: '4px',
+                padding: '0.6em 0.75em',
+                fontSize: '0.85em',
+                maxHeight: '260px',
+                overflowY: 'auto',
+              }}
+            >
+              {strictWarning.groups.map(g => (
+                <div key={g.key} style={{ marginBottom: '0.4em' }}>
+                  <code style={{ color: '#b26a00', fontWeight: 600 }}>✗ {g.key}</code>
+                  {g.count > 1 && <span style={{ color: '#666' }}> &nbsp;×{g.count}</span>}
+                  {g.sample && (
+                    <div style={{ color: '#555', fontSize: '0.85em', marginLeft: '1.2em' }}>
+                      e.g. <code>{g.sample}</code>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: '0.85em', color: '#444' }}>
+              These typically indicate project-specific extensions or schema
+              gaps. Generate Profile walks the model and produces a Profile
+              XML that closes every fidelity gap; re-import the downloaded
+              file (or load it in another session) to make strict mode
+              accept this model.
+            </div>
+            <div style={{ display: 'flex', gap: '0.5em', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setStrictWarning(null)}
+                className="btn"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={() => { setStrictWarning(null); handleGenerateProfile(); }}
+                className="btn btn-primary"
+              >
+                Generate Profile
+              </button>
+            </div>
+          </div>
         </div>
       )}
       

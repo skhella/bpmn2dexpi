@@ -35,7 +35,15 @@ export interface MaterialState {
     composition?: {
       basis: string;
       display: string;
-      fractions: number[];
+      /**
+       * Per-component fraction entries. Each entry pairs a value with the
+       * MaterialComponent it refers to (componentReference is the
+       * MaterialComponent uid), in the same order as the
+       * MaterialTemplate's ListOfComponents. Editors render each row as
+       * "Component | Fraction value | Unit"; consumers that only need
+       * the numeric vector can map(f => f.value).
+       */
+      fractions: { componentReference: string; value: number; unit?: string }[];
     };
   };
   temperature?: { value: number; unit: string };

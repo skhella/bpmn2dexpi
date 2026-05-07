@@ -79,6 +79,64 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(output).toContain('Process.Sink');
   });
 
+  // Belt-and-braces against silent-extraction regressions: if the BPMN reader
+  // ever fails to descend into <dexpi:MaterialState> et al. (e.g. another
+  // namespace-prefix mismatch like the querySelectorAll-vs-XML-prefix bug),
+  // the XSD test still passes because zero MaterialStates is structurally
+  // valid. This count assertion fails fast with a clear signal.
+  it('emits MaterialState / MaterialStateType / Composition counts matching the BPMN fixture', () => {
+    const countTypeAttr = (cls: string) =>
+      (output.match(new RegExp(`type="Process/Process\\.${cls}"`, 'g')) ?? []).length;
+    expect(countTypeAttr('MaterialState')).toBe(11);
+    expect(countTypeAttr('MaterialStateType')).toBe(11);
+    expect(countTypeAttr('Composition')).toBe(11);
+    expect(countTypeAttr('MaterialTemplate')).toBeGreaterThanOrEqual(1);
+    expect(countTypeAttr('MaterialComponent')).toBeGreaterThanOrEqual(8);
+  });
+
+  // DEXPI 2.0 schema-correct instrumentation handling: InstrumentationActivity
+  // is a sibling of ProcessStep (both inherit from ConceptualObject) and does
+  // not own a Ports composition. Emitting <Object type="Process/Process.InformationPort">
+  // under an instrumentation task — or an InformationFlow whose Source/Target
+  // points at one — would violate the spec. The transformer drops both and
+  // expresses the relationship through ProcessStepReference (on
+  // MeasuringProcessVariable, the only subclass that declares it) plus a
+  // Profile-extension MeasuredVariableLabel for the variable identity.
+  it('emits no InformationPorts or InformationFlows for instrumentation paths (DEXPI 2.0)', () => {
+    expect(output).not.toMatch(/type="Process\/Process\.InformationPort"/);
+    expect(output).not.toMatch(/type="Process\/Process\.InformationFlow"/);
+  });
+
+  it('emits ProcessStepReference on MeasuringProcessVariable + canonical/Profile split for measured variable identity', () => {
+    const countMatches = (re: RegExp) => (output.match(re) ?? []).length;
+    // 17 of 18 BPMN-side instrumentation→ProcessStep links resolve to a
+    // MeasuringProcessVariable; the 18th is a ControllingProcessVariable
+    // (which doesn't declare ProcessStepReference per the spec).
+    expect(countMatches(/property="ProcessStepReference"/g)).toBe(17);
+
+    // The variable identity is encoded in two ways depending on whether
+    // the variable name is a declared CompositionProperty on the referenced
+    // ProcessStep's class (registry-driven, walks supertype chain):
+    //   - Canonical: emit <References property="MeasuredVariableReference"/>
+    //     pointing at a materialised QualifiedValue parameter slot on the
+    //     ProcessStep. Used when ProcessStep.<VarName> exists in the
+    //     supertype chain (e.g. Temperature, Pressure on any ProcessStep).
+    //   - Profile-extension: emit <Data property="MeasuredVariableLabel">
+    //     on the InstrumentationActivity. Used for genuine vocabulary gaps
+    //     (e.g. Composition has no parameter-slot home anywhere on
+    //     ProcessStep) — the Profile generator captures these.
+    const refCount = countMatches(/property="MeasuredVariableReference"/g);
+    const labelCount = countMatches(/property="MeasuredVariableLabel"/g);
+    // Every instrumentation activity with a resolvable variable identity
+    // gets exactly one of the two encodings — sum equals the count of
+    // BPMN dataObject-mediated instrumentation flows in the fixture.
+    expect(refCount + labelCount).toBe(18);
+    // For the current TEP fixture, both encodings are exercised
+    // (validates that the canonical/Profile split is actually live).
+    expect(refCount).toBeGreaterThan(0);
+    expect(labelCount).toBeGreaterThan(0);
+  });
+
   it('logs no unannotated warnings for fully-annotated TEP (R1-C3)', () => {
     // TEP example file is fully annotated with dexpi:element, so the transformer
     // uses Mode 1 (dexpi-validated) for all elements — no unannotated warnings expected.

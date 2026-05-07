@@ -146,6 +146,20 @@ export default class DexpiPaletteProvider {
           dragstart: createShapeAction('bpmn:SubProcess', { isExpanded: false }),
           click: createShapeAction('bpmn:SubProcess', { isExpanded: false })
         }
+      },
+      // Data object: BPMN 2.0 represents auxiliary information artifacts
+      // as DataObjectReference. In our DEXPI mapping, we attach material
+      // catalog entries (MaterialTemplate / MaterialState / MaterialComponent)
+      // to DataObjectReferences via extensionElements — the data object
+      // becomes the BPMN-side host for the DEXPI material library.
+      'create.data-object': {
+        group: 'data-object',
+        className: 'bpmn-icon-data-object',
+        title: 'Data Object / DEXPI: MaterialTemplate / DEXPI: MaterialState',
+        action: {
+          dragstart: createShapeAction('bpmn:DataObjectReference'),
+          click: createShapeAction('bpmn:DataObjectReference')
+        }
       }
     };
   }

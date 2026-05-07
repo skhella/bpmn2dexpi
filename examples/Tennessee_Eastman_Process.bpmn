@@ -100,7 +100,6 @@
               <dexpi:port id="Activity_0iie89x_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
               <dexpi:port id="Activity_0iie89x_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
               <dexpi:port id="Activity_0iie89x_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
-              <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_0iie89x_IPI_Temperature_port" />
             </dexpi:element>
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_04ncgwf</bpmn:incoming>
@@ -119,14 +118,20 @@
         <bpmn:task id="Activity_18ratv8" name="MeasuringProcessVariable">
           <bpmn:extensionElements>
             <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_18ratv8" uid="uid_Activity_18ratv8">
-              <dexpi:port id="Activity_18ratv8_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" />
             </dexpi:element>
           </bpmn:extensionElements>
           <bpmn:dataOutputAssociation id="DataOutputAssociation_167r9am">
             <bpmn:targetRef>DataObjectReference_1hkzsql</bpmn:targetRef>
           </bpmn:dataOutputAssociation>
         </bpmn:task>
-        <bpmn:dataObjectReference id="DataObjectReference_1hkzsql" name="Temperature" dataObjectRef="DataObject_1mlaa5n" />
+        <bpmn:dataObjectReference id="DataObjectReference_1hkzsql" name="Temperature" dataObjectRef="DataObject_1mlaa5n">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
         <bpmn:dataObject id="DataObject_1mlaa5n" />
       </bpmn:subProcess>
       <bpmn:startEvent id="Event_15gcv4n" name="MI5">
@@ -174,7 +179,6 @@
           <dexpi:element dexpiType="DrivingByMotor" identifier="Activity_1d6n7np" uid="uid_Activity_1d6n7np">
             <dexpi:port id="Activity_1d6n7np_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
             <dexpi:port id="Activity_1d6n7np_MEO1_port" name="MEO1" type="MechanicalEnergyPort" direction="Outlet" label="MEO1" />
-            <dexpi:port id="Activity_1d6n7np_IPI_RotationalFrequency_port" name="IPI_RotationalFrequency" type="InformationPort" direction="Inlet" label="RotationalFrequency" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0gji0fb</bpmn:incoming>
@@ -194,7 +198,6 @@
         <bpmn:extensionElements>
           <dexpi:element dexpiType="Sink" identifier="Event_062k0v7" uid="uid_Event_062k0v7">
             <dexpi:port id="Event_062k0v7_MO1_port" name="MO1" type="MaterialPort" direction="Inlet" label="MO1" superReference="Activity_07878z5_MO1_port" />
-            <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" id="Event_062k0v7_IPI_Pressure_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_1hd54gp</bpmn:incoming>
@@ -211,10 +214,6 @@
             <dexpi:port id="Activity_0msgfdr_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_0msgfdr_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_0msgfdr_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
-            <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" id="Activity_0msgfdr_IPI_Composition_port" />
-            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" id="Activity_0msgfdr_IPI_Level_port" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_0msgfdr_IPI_MassFlow_port" />
-            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_0msgfdr_IPI_Temperature_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_11ko4yy</bpmn:incoming>
@@ -274,19 +273,22 @@
       </bpmn:task>
       <bpmn:sequenceFlow id="Flow_0etbhjc" name="MO1 - Stream 6 - MI1" sourceRef="Activity_16sydhz" targetRef="Activity_0msgfdr">
         <bpmn:extensionElements>
-          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" />
-          <Stream Identifier="6" name="Reactor feed">
-            <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-            <MaterialStateReference uidRef="uuid_MS_S6" />
-            <MassFlow>
-              <Value>48015.4</Value>
-              <Unit>KilogramPerHour</Unit>
-            </MassFlow>
-            <Temperature>
-              <Value>86.1</Value>
-              <Unit>degC</Unit>
-            </Temperature>
-          </Stream>
+          <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" identifier="6" name="Reactor feed">
+            <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+            <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S6"/>
+            <dexpi:components property="MassFlow">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Value">48015.4</dexpi:data>
+                <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+            <dexpi:components property="Temperature">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Value">86.1</dexpi:data>
+                <dexpi:data property="Unit">degC</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </dexpi:Stream>
         </bpmn:extensionElements>
       </bpmn:sequenceFlow>
       <bpmn:sequenceFlow id="Flow_0em311i" name="MI1 - MI1" sourceRef="Event_1npicji" targetRef="Activity_16sydhz">
@@ -317,14 +319,20 @@
       <bpmn:task id="Activity_07twnf1" name="ControllingProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="ControllingProcessVariable" identifier="Activity_07twnf1" uid="uid_Activity_07twnf1">
-            <dexpi:port name="IPO_RotationalFrequency" type="InformationPort" direction="Outlet" label="RotationalFrequency" id="Activity_07twnf1_IPO_RotationalFrequency_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1nqcm2o">
           <bpmn:targetRef>DataObjectReference_1en8e3c</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
-      <bpmn:dataObjectReference id="DataObjectReference_1en8e3c" name="RotationalFrequency" dataObjectRef="DataObject_1g16uwy" />
+      <bpmn:dataObjectReference id="DataObjectReference_1en8e3c" name="RotationalFrequency" dataObjectRef="DataObject_1g16uwy">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1g16uwy" />
       <bpmn:startEvent id="Event_01fem2h" name="EEI1">
         <bpmn:extensionElements>
@@ -337,7 +345,6 @@
       <bpmn:task id="Activity_1qz2q4q" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1qz2q4q" uid="uid_Activity_1qz2q4q">
-            <dexpi:port id="Activity_1qz2q4q_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1j8ae8a">
@@ -347,7 +354,6 @@
       <bpmn:task id="Activity_0tg7cm0" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0tg7cm0" uid="uid_Activity_0tg7cm0">
-            <dexpi:port id="Activity_0tg7cm0_IPO_Composition_port" name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1f2u15l">
@@ -357,7 +363,6 @@
       <bpmn:task id="Activity_15ct9gk" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_15ct9gk" uid="uid_Activity_15ct9gk">
-            <dexpi:port id="Activity_15ct9gk_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0lpy7bs">
@@ -367,7 +372,6 @@
       <bpmn:task id="Activity_101s6y2" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_101s6y2" uid="uid_Activity_101s6y2">
-            <dexpi:port id="Activity_101s6y2_IPO_Level_port" name="IPO_Level" type="InformationPort" direction="Outlet" label="Level" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_00wu1ze">
@@ -377,22 +381,56 @@
       <bpmn:task id="Activity_072h89n" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_072h89n" uid="uid_Activity_072h89n">
-            <dexpi:port id="Activity_072h89n_IPO_Pressure_port" name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_09660uw">
           <bpmn:targetRef>DataObjectReference_06451do</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
-      <bpmn:dataObjectReference id="DataObjectReference_0nl1j2n" name="MassFlow" dataObjectRef="DataObject_1bgb0nr" />
+      <bpmn:dataObjectReference id="DataObjectReference_0nl1j2n" name="MassFlow" dataObjectRef="DataObject_1bgb0nr">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1bgb0nr" />
-      <bpmn:dataObjectReference id="DataObjectReference_10911pm" name="Composition" dataObjectRef="DataObject_0bx1zzj" />
+      <bpmn:dataObjectReference id="DataObjectReference_10911pm" name="Composition" dataObjectRef="DataObject_0bx1zzj">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0bx1zzj" />
-      <bpmn:dataObjectReference id="DataObjectReference_1tuga5x" name="Temperature" dataObjectRef="DataObject_1c2qezm" />
+      <bpmn:dataObjectReference id="DataObjectReference_1tuga5x" name="Temperature" dataObjectRef="DataObject_1c2qezm">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1c2qezm" />
-      <bpmn:dataObjectReference id="DataObjectReference_0yc0qz3" name="Level" dataObjectRef="DataObject_004040c" />
+      <bpmn:dataObjectReference id="DataObjectReference_0yc0qz3" name="Level" dataObjectRef="DataObject_004040c">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_004040c" />
-      <bpmn:dataObjectReference id="DataObjectReference_06451do" name="Pressure" dataObjectRef="DataObject_0onczzy" />
+      <bpmn:dataObjectReference id="DataObjectReference_06451do" name="Pressure" dataObjectRef="DataObject_0onczzy">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0onczzy" />
     </bpmn:subProcess>
     <bpmn:subProcess id="Activity_148nxrl" name="Separating">
@@ -414,8 +452,6 @@
             <dexpi:port id="Activity_0x085ms_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_0x085ms_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_0x085ms_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" id="Activity_0x085ms_IPI_Level_port" />
-            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_0x085ms_IPI_Temperature_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0kavtkx</bpmn:incoming>
@@ -437,8 +473,6 @@
             <dexpi:port id="Activity_1ozs40z_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_1ozs40z_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1ozs40z_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_1ozs40z_IPI_MassFlow_port" />
-            <dexpi:port name="IPI_Pressure" type="InformationPort" direction="Inlet" label="Pressure" id="Activity_1ozs40z_IPI_Pressure_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_09m76dx</bpmn:incoming>
@@ -471,7 +505,6 @@
             <dexpi:port id="Activity_11jo3tg_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_11jo3tg_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
             <dexpi:port id="Activity_11jo3tg_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_11jo3tg_IPI_MassFlow_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0ny5wle</bpmn:incoming>
@@ -567,7 +600,6 @@
       <bpmn:task id="Activity_09ul91z" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_09ul91z" uid="uid_Activity_09ul91z">
-            <dexpi:port id="Activity_09ul91z_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1jyfssp">
@@ -577,7 +609,6 @@
       <bpmn:task id="Activity_09g9kks" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_09g9kks" uid="uid_Activity_09g9kks">
-            <dexpi:port id="Activity_09g9kks_IPO_Level_port" name="IPO_Level" type="InformationPort" direction="Outlet" label="Level" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_03w45lc">
@@ -587,7 +618,6 @@
       <bpmn:task id="Activity_0zpct04" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0zpct04" uid="uid_Activity_0zpct04">
-            <dexpi:port id="Activity_0zpct04_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0vtalp3">
@@ -597,32 +627,65 @@
       <bpmn:task id="Activity_1jl445f" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1jl445f" uid="uid_Activity_1jl445f">
-            <dexpi:port id="Activity_1jl445f_IPO_Pressure_port" name="IPO_Pressure" type="InformationPort" direction="Outlet" label="Pressure" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_02aq8dq">
           <bpmn:targetRef>DataObjectReference_062zdx6</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
-      <bpmn:dataObjectReference id="DataObjectReference_17j9mpn" name="Temperature" dataObjectRef="DataObject_18lyf9j" />
+      <bpmn:dataObjectReference id="DataObjectReference_17j9mpn" name="Temperature" dataObjectRef="DataObject_18lyf9j">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_18lyf9j" />
-      <bpmn:dataObjectReference id="DataObjectReference_1hdlnkz" name="Level" dataObjectRef="DataObject_1iz0sb2" />
+      <bpmn:dataObjectReference id="DataObjectReference_1hdlnkz" name="Level" dataObjectRef="DataObject_1iz0sb2">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1iz0sb2" />
-      <bpmn:dataObjectReference id="DataObjectReference_062zdx6" name="Pressure" dataObjectRef="DataObject_024kdr8" />
+      <bpmn:dataObjectReference id="DataObjectReference_062zdx6" name="Pressure" dataObjectRef="DataObject_024kdr8">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_024kdr8" />
-      <bpmn:dataObjectReference id="DataObjectReference_0bgjkij" name="MassFlow" dataObjectRef="DataObject_1kedu24" />
+      <bpmn:dataObjectReference id="DataObjectReference_0bgjkij" name="Flow" dataObjectRef="DataObject_1kedu24">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1kedu24" />
       <bpmn:task id="Activity_0o7v7ax" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0o7v7ax" uid="uid_Activity_0o7v7ax">
-            <dexpi:port id="Activity_0o7v7ax_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0p6j82j">
           <bpmn:targetRef>DataObjectReference_1tv2egy</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
-      <bpmn:dataObjectReference id="DataObjectReference_1tv2egy" name="MassFlow" dataObjectRef="DataObject_0ttu44a" />
+      <bpmn:dataObjectReference id="DataObjectReference_1tv2egy" name="MassFlow" dataObjectRef="DataObject_0ttu44a">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0ttu44a" />
     </bpmn:subProcess>
     <bpmn:subProcess id="Activity_1h23lzf" name="StrippingDistilling">
@@ -673,9 +736,6 @@
             <dexpi:port id="Activity_1kyou8x_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_1kyou8x_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1kyou8x_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-            <dexpi:port name="IPI_Level" type="InformationPort" direction="Inlet" label="Level" id="Activity_1kyou8x_IPI_Level_port" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_1kyou8x_IPI_MassFlow_port" />
-            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_1kyou8x_IPI_Temperature_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0xyvyyt</bpmn:incoming>
@@ -754,7 +814,6 @@
           <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_17bqtl6" uid="uid_Activity_17bqtl6">
             <dexpi:port id="Activity_17bqtl6_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_17bqtl6_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:port name="IPI_Composition" type="InformationPort" direction="Inlet" label="Composition" id="Activity_17bqtl6_IPI_Composition_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0agl4n2</bpmn:incoming>
@@ -878,7 +937,6 @@
       <bpmn:task id="Activity_1ggf4yj" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1ggf4yj" uid="uid_Activity_1ggf4yj">
-            <dexpi:port id="Activity_1ggf4yj_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1d0arma">
@@ -888,7 +946,6 @@
       <bpmn:task id="Activity_0r3bi8v" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0r3bi8v" uid="uid_Activity_0r3bi8v">
-            <dexpi:port id="Activity_0r3bi8v_IPO_Level_port" name="IPO_Level" type="InformationPort" direction="Outlet" label="Level" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0e29xbo">
@@ -898,7 +955,6 @@
       <bpmn:task id="Activity_1h809d1" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1h809d1" uid="uid_Activity_1h809d1">
-            <dexpi:port id="Activity_1h809d1_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0fm288d">
@@ -908,20 +964,47 @@
       <bpmn:task id="Activity_1ah3e15" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1ah3e15" uid="uid_Activity_1ah3e15">
-            <dexpi:port id="Activity_1ah3e15_IPO_Composition_port" name="IPO_Composition" type="InformationPort" direction="Outlet" label="Composition" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1vfdbvu">
           <bpmn:targetRef>DataObjectReference_1vk8nhv</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
-      <bpmn:dataObjectReference id="DataObjectReference_0mlmmqg" name="Temperature" dataObjectRef="DataObject_0hum65i" />
+      <bpmn:dataObjectReference id="DataObjectReference_0mlmmqg" name="Temperature" dataObjectRef="DataObject_0hum65i">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0hum65i" />
-      <bpmn:dataObjectReference id="DataObjectReference_1kiv6wz" name="Level" dataObjectRef="DataObject_0pe0tra" />
+      <bpmn:dataObjectReference id="DataObjectReference_1kiv6wz" name="Level" dataObjectRef="DataObject_0pe0tra">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0pe0tra" />
-      <bpmn:dataObjectReference id="DataObjectReference_0yrw4gr" name="MassFlow" dataObjectRef="DataObject_0a5vvm0" />
+      <bpmn:dataObjectReference id="DataObjectReference_0yrw4gr" name="Flow" dataObjectRef="DataObject_0a5vvm0">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0a5vvm0" />
-      <bpmn:dataObjectReference id="DataObjectReference_1vk8nhv" name="Composition" dataObjectRef="DataObject_03oo3c1" />
+      <bpmn:dataObjectReference id="DataObjectReference_1vk8nhv" name="Composition" dataObjectRef="DataObject_03oo3c1">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_03oo3c1" />
     </bpmn:subProcess>
     <bpmn:subProcess id="Activity_0yezzw8" name="Compressing">
@@ -969,7 +1052,6 @@
             <dexpi:port id="Activity_02gkcfc_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
             <dexpi:port id="Activity_02gkcfc_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_02gkcfc_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:port name="IPI_Duty" type="InformationPort" direction="Inlet" label="Duty" id="Activity_02gkcfc_IPI_Duty_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_1gic2ao</bpmn:incoming>
@@ -987,7 +1069,6 @@
             <dexpi:port id="Activity_00hgxpv_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_00hgxpv_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_00hgxpv_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO2" />
-            <dexpi:port name="IPI_MassFlow" type="InformationPort" direction="Inlet" label="MassFlow" id="Activity_00hgxpv_IPI_MassFlow_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_00cotc8</bpmn:incoming>
@@ -1045,7 +1126,6 @@
       <bpmn:task id="Activity_03icv4t" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_03icv4t" uid="uid_Activity_03icv4t">
-            <dexpi:port id="Activity_03icv4t_IPO_Duty_port" name="IPO_Duty" type="InformationPort" direction="Outlet" label="Duty" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1b71iwc">
@@ -1055,16 +1135,29 @@
       <bpmn:task id="Activity_1u8l6hb" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1u8l6hb" uid="uid_Activity_1u8l6hb">
-            <dexpi:port id="Activity_1u8l6hb_IPO_MassFlow_port" name="IPO_MassFlow" type="InformationPort" direction="Outlet" label="MassFlow" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_1ugtlhy">
           <bpmn:targetRef>DataObjectReference_07pbeoh</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
-      <bpmn:dataObjectReference id="DataObjectReference_1423urb" name="Duty" dataObjectRef="DataObject_0qoy00a" />
+      <bpmn:dataObjectReference id="DataObjectReference_1423urb" name="Duty" dataObjectRef="DataObject_0qoy00a">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0qoy00a" />
-      <bpmn:dataObjectReference id="DataObjectReference_07pbeoh" name="MassFlow" dataObjectRef="DataObject_0jroxws" />
+      <bpmn:dataObjectReference id="DataObjectReference_07pbeoh" name="Flow" dataObjectRef="DataObject_0jroxws">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0jroxws" />
       <bpmn:startEvent id="Event_1mp0d4h" name="EEI1">
         <bpmn:extensionElements>
@@ -1131,7 +1224,6 @@
             <dexpi:port id="Activity_1rs6esf_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1rs6esf_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
             <dexpi:port id="Activity_1rs6esf_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
-            <dexpi:port name="IPI_Temperature" type="InformationPort" direction="Inlet" label="Temperature" id="Activity_1rs6esf_IPI_Temperature_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0tv8sn4</bpmn:incoming>
@@ -1147,14 +1239,20 @@
       <bpmn:task id="Activity_0gc2qjt" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0gc2qjt" uid="uid_Activity_0gc2qjt">
-            <dexpi:port id="Activity_0gc2qjt_IPO_Temperature_port" name="IPO_Temperature" type="InformationPort" direction="Outlet" label="Temperature" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:dataOutputAssociation id="DataOutputAssociation_0bco7ur">
           <bpmn:targetRef>DataObjectReference_0gzlyr5</bpmn:targetRef>
         </bpmn:dataOutputAssociation>
       </bpmn:task>
-      <bpmn:dataObjectReference id="DataObjectReference_0gzlyr5" name="Temperature" dataObjectRef="DataObject_0wus8pw" />
+      <bpmn:dataObjectReference id="DataObjectReference_0gzlyr5" name="Temperature" dataObjectRef="DataObject_0wus8pw">
+        <bpmn:extensionElements>
+          <QualifiedValue Provenance="Estimated" Range="Nominal">
+            <Value/>
+            <Unit/>
+          </QualifiedValue>
+        </bpmn:extensionElements>
+      </bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0wus8pw" />
       <bpmn:sequenceFlow id="Flow_1wfrjse" name="MO2 - MI1" sourceRef="Activity_1rs6esf" targetRef="Activity_061upw8">
         <bpmn:extensionElements>
@@ -1200,121 +1298,158 @@
     </bpmn:subProcess>
     <bpmn:sequenceFlow id="Flow_10zldqj" name="MO1 - Stream 4 - MI1" sourceRef="StartEvent_1" targetRef="Activity_1h23lzf">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" />
-        <Stream Identifier="4" name="C Feed">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S4" Provenance="Specified" Range="Nominal" />
-          <MassFlow Provenance="Specified" Range="Nominal">
-            <Value>6419.4</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature Provenance="Specified" Range="Nominal">
-            <Value>45.0</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" identifier="4" name="C Feed">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S4"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">6419.4</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+              <dexpi:data property="Provenance">Specified</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">45.0</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Provenance">Specified</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1j96ab6" name="MO1 - Stream 1 - MI1" sourceRef="Event_11q5mwu" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" />
-        <Stream Identifier="1" name="A Feed">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S1" Provenance="Specified" Range="Nominal" />
-          <MassFlow Provenance="Specified" Range="Nominal">
-            <Value>22.4</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature Provenance="Specified" Range="Nominal">
-            <Value>45.0</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" identifier="1" name="A Feed">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S1"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">22.4</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+              <dexpi:data property="Provenance">Specified</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">45.0</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Provenance">Specified</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_0jep6f0" name="MO1 - Stream 2 - MI2" sourceRef="Event_04126je" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI2_port" />
-        <Stream Identifier="2" name="D Feed">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S2" Provenance="Specified" Range="Nominal" />
-          <MassFlow Provenance="Specified" Range="Nominal">
-            <Value>3664.0</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature Provenance="Specified" Range="Nominal">
-            <Value>45.0</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI2_port" identifier="2" name="D Feed">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S2"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">3664.0</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+              <dexpi:data property="Provenance">Specified</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">45.0</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Provenance">Specified</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_109uz3k" name="MO1 - Stream 3 - MI3" sourceRef="Event_0qb64fh" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI3_port" />
-        <Stream Identifier="3" name="E Feed">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S3" Provenance="Specified" Range="Nominal" />
-          <MassFlow Provenance="Specified" Range="Nominal">
-            <Value>4509.3</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature Provenance="Specified" Range="Nominal">
-            <Value>45.0</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI3_port" identifier="3" name="E Feed">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S3"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">4509.3</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+              <dexpi:data property="Provenance">Specified</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">45.0</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Provenance">Specified</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1a07km3" name="MO1 - Stream 5 - MI4" sourceRef="Activity_1h23lzf" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI4_port" />
-        <Stream Identifier="5" name="Strp Ovhd">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S5" />
-          <MassFlow>
-            <Value>8978.6</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature>
-            <Value>65.7</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI4_port" identifier="5" name="Strp Ovhd">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S5"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">8978.6</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">65.7</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_09zyhyl" name="MO1 - Stream 8 - MI5" sourceRef="Activity_0yezzw8" targetRef="Activity_07878z5">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI5_port" />
-        <Stream Identifier="8" name="Recycle">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S8" />
-          <MassFlow>
-            <Value>30840.0</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature>
-            <Value>102.9</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI5_port" identifier="8" name="Recycle">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S8"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">30840.0</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">102.9</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_07wd8rg" name="MO1 - Stream 7 - MI1" sourceRef="Activity_07878z5" targetRef="Activity_13e86yb">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" />
-        <Stream Identifier="7" name="Reactor Product">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S7" />
-          <MassFlow>
-            <Value>48015.4</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature>
-            <Value>120.4</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" identifier="7" name="Reactor Product">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S7"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">48015.4</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">120.4</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1eezxa7" name="MO1 - MI1" sourceRef="Activity_13e86yb" targetRef="Activity_148nxrl">
@@ -1324,19 +1459,26 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1frta97" name="MO1 - Stream 9 - MI1" sourceRef="Activity_148nxrl" targetRef="Event_0g1h7bs">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" />
-        <Stream Identifier="9" name="Purge" Provenance="Set" Range="Nominal">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S9" />
-          <MassFlow>
-            <Value>386.5</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature>
-            <Value>80.1</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO1_port" targetPortRef="MI1_port" identifier="9" name="Purge">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S9"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">386.5</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+              <dexpi:data property="Provenance">Set</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">80.1</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Provenance">Set</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_11f0gdt" name="MO3 - MI1" sourceRef="Activity_148nxrl" targetRef="Activity_0yezzw8">
@@ -1346,753 +1488,685 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1t9aonq" name="MO2 - Stream 10 - MI2" sourceRef="Activity_148nxrl" targetRef="Activity_1h23lzf">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI2_port" />
-        <Stream Identifier="10" name="Separation liquid">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S10" />
-          <MassFlow>
-            <Value>16788.9</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature>
-            <Value>80.1</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI2_port" identifier="10" name="Separation liquid">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S10"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">16788.9</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">80.1</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1781g4y" name="MO2 - Stream 11 -  MI1" sourceRef="Activity_1h23lzf" targetRef="Event_1hvcrvf">
       <bpmn:extensionElements>
-        <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI1_port" />
-        <Stream Identifier="11" name="Product">
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <MaterialStateReference uidRef="uuid_MS_S11" Provenance="Specified" Range="Nominal" />
-          <MassFlow Provenance="Simulated" Range="Nominal">
-            <Value>14288.6</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <MassFlow Provenance="Specified" Range="Nominal">
-            <Value>1476.0</Value>
-            <Unit>KilogramPerHour</Unit>
-          </MassFlow>
-          <Temperature Provenance="Estimated" Range="Nominal">
-            <Value>65.7</Value>
-            <Unit>degC</Unit>
-          </Temperature>
-        </Stream>
+        <dexpi:Stream sourcePortRef="MO2_port" targetPortRef="MI1_port" identifier="11" name="Product">
+          <dexpi:references property="MaterialTemplateReference" uidRef="uuid_TEP_MaterialTemplate"/>
+          <dexpi:references property="MaterialStateReference" uidRef="uuid_MS_S11"/>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">14288.6</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+              <dexpi:data property="Provenance">Calculated</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="MassFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">1476.0</dexpi:data>
+              <dexpi:data property="Unit">KilogramPerHour</dexpi:data>
+              <dexpi:data property="Provenance">Specified</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="Temperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">65.7</dexpi:data>
+              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Provenance">Estimated</dexpi:data>
+              <dexpi:data property="Range">Nominal</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:dataObjectReference id="DataObjectReference_1a0wq0s" name="MaterialTemplates" dataObjectRef="DataObject_0j3icgz">
       <bpmn:extensionElements>
-        <MaterialTemplate uid="uuid_Water_MaterialTemplate">
-          <Identifier>WaterTemplate</Identifier>
-          <Label>Water</Label>
-          <Description>Material Template for Water</Description>
-          <NumberOfMaterialComponents>1</NumberOfMaterialComponents>
-          <NumberOfPhases>2</NumberOfPhases>
-          <ListOfMaterialComponents>
-            <MaterialComponentIdentifier Identifier="H2O" uidRef="uuid_Component_H2O" />
-          </ListOfMaterialComponents>
-          <ListOfPhases>
-            <PhaseIdentifier Identifier="Liquid" />
-            <PhaseIdentifier Identifier="Vapour" />
-          </ListOfPhases>
-        </MaterialTemplate>
-        <MaterialComponent xsi:type="PureMaterialComponent" uid="uuid_Component_H2O">
-          <Identifier>H2O</Identifier>
-          <Description>Water</Description>
-          <Label>Water</Label>
-          <ChEBI_identifier>CHEBI:15377</ChEBI_identifier>
-          <IUPAC_identifier>XLYOFNOQVPJJNP-UHFFFAOYSA-N</IUPAC_identifier>
-        </MaterialComponent>
-        <MaterialTemplate uid="uuid_TEP_MaterialTemplate">
-          <Identifier>TEMaterial</Identifier>
-          <Label>Tennessee Eastman Material</Label>
-          <Description>Material Template for Tennessee Eastman Process</Description>
-          <NumberOfMaterialComponents>8</NumberOfMaterialComponents>
-          <NumberOfPhases>2</NumberOfPhases>
-          <ListOfMaterialComponents>
-            <MaterialComponentIdentifier uidRef="uuid_ComponentA_TEP" Identifier="A" />
-            <MaterialComponentIdentifier uidRef="uuid_ComponentB_TEP" Identifier="B" />
-            <MaterialComponentIdentifier uidRef="uuid_ComponentC_TEP" Identifier="C" />
-            <MaterialComponentIdentifier uidRef="uuid_ComponentD_TEP" Identifier="D" />
-            <MaterialComponentIdentifier uidRef="uuid_ComponentE_TEP" Identifier="E" />
-            <MaterialComponentIdentifier uidRef="uuid_ComponentF_TEP" Identifier="F" />
-            <MaterialComponentIdentifier uidRef="uuid_ComponentG_TEP" Identifier="G" />
-            <MaterialComponentIdentifier uidRef="uuid_ComponentH_TEP" Identifier="H" />
-          </ListOfMaterialComponents>
-          <ListOfPhases>
-            <PhaseIdentifier Identifier="Liquid" />
-            <PhaseIdentifier Identifier="Vapour" />
-          </ListOfPhases>
-        </MaterialTemplate>
-        <MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentA_TEP">
-          <Identifier>A</Identifier>
-          <Description>Component A</Description>
-          <Label>A</Label>
-          <ProjectReference>Tennessee Eastman Anonymised Component</ProjectReference>
-          <PhysicalProperties referenceTemperature="100" temperatureUnitIRI="http://qudt.org/vocab/unit/DEG_C">
-            <MolecularWeight unitIRI="http://qudt.org/vocab/unit/GM-PER-MOL">2.0</MolecularWeight>
-            <VapourHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">14.6</VapourHeatCapacity>
-            <IsEffectivelyNoncondensable>true</IsEffectivelyNoncondensable>
-          </PhysicalProperties>
-        </MaterialComponent>
-        <MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentB_TEP">
-          <Identifier>B</Identifier>
-          <Description>Component B</Description>
-          <Label>B</Label>
-          <ProjectReference>Tennessee Eastman Anonymised Component</ProjectReference>
-          <PhysicalProperties referenceTemperature="100" temperatureUnitIRI="http://qudt.org/vocab/unit/DEG_C">
-            <MolecularWeight unitIRI="http://qudt.org/vocab/unit/GM-PER-MOL">25.4</MolecularWeight>
-            <VapourHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">2.04</VapourHeatCapacity>
-            <IsEffectivelyNoncondensable>true</IsEffectivelyNoncondensable>
-          </PhysicalProperties>
-        </MaterialComponent>
-        <MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentC_TEP">
-          <Identifier>C</Identifier>
-          <Description>Component C</Description>
-          <Label>C</Label>
-          <ProjectReference>Tennessee Eastman Anonymised Component</ProjectReference>
-          <PhysicalProperties referenceTemperature="100" temperatureUnitIRI="http://qudt.org/vocab/unit/DEG_C">
-            <MolecularWeight unitIRI="http://qudt.org/vocab/unit/GM-PER-MOL">28.0</MolecularWeight>
-            <VapourHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">1.05</VapourHeatCapacity>
-            <IsEffectivelyNoncondensable>true</IsEffectivelyNoncondensable>
-          </PhysicalProperties>
-        </MaterialComponent>
-        <MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentD_TEP">
-          <Identifier>D</Identifier>
-          <Description>Component D</Description>
-          <Label>D</Label>
-          <ProjectReference>Tennessee Eastman Anonymised Component</ProjectReference>
-          <PhysicalProperties referenceTemperature="100" temperatureUnitIRI="http://qudt.org/vocab/unit/DEG_C">
-            <MolecularWeight unitIRI="http://qudt.org/vocab/unit/GM-PER-MOL">32.0</MolecularWeight>
-            <LiquidDensity unitIRI="http://qudt.org/vocab/unit/KiloGM-PER-M3">299</LiquidDensity>
-            <LiquidHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">7.66</LiquidHeatCapacity>
-            <VapourHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">1.85</VapourHeatCapacity>
-            <HeatOfVaporization unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM">202</HeatOfVaporization>
-          </PhysicalProperties>
-          <VaporPressure equation="Antoine" resultUnitIRI="http://qudt.org/vocab/unit/PA">
-            <A unitIRI="http://qudt.org/vocab/unit/UNITLESS">20.81</A>
-            <B unitIRI="http://qudt.org/vocab/unit/UNITLESS">-1444.0</B>
-            <C unitIRI="http://qudt.org/vocab/unit/DEG_C">259</C>
-          </VaporPressure>
-        </MaterialComponent>
-        <MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentE_TEP">
-          <Identifier>E</Identifier>
-          <Description>Component E</Description>
-          <Label>E</Label>
-          <ProjectReference>Tennessee Eastman Anonymised Component</ProjectReference>
-          <PhysicalProperties referenceTemperature="100" temperatureUnitIRI="http://qudt.org/vocab/unit/DEG_C">
-            <MolecularWeight unitIRI="http://qudt.org/vocab/unit/GM-PER-MOL">46.0</MolecularWeight>
-            <LiquidDensity unitIRI="http://qudt.org/vocab/unit/KiloGM-PER-M3">365</LiquidDensity>
-            <LiquidHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">4.17</LiquidHeatCapacity>
-            <VapourHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">1.87</VapourHeatCapacity>
-            <HeatOfVaporization unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM">372</HeatOfVaporization>
-          </PhysicalProperties>
-          <VaporPressure equation="Antoine" resultUnitIRI="http://qudt.org/vocab/unit/PA">
-            <A unitIRI="http://qudt.org/vocab/unit/UNITLESS">21.24</A>
-            <B unitIRI="http://qudt.org/vocab/unit/UNITLESS">-2114.0</B>
-            <C unitIRI="http://qudt.org/vocab/unit/DEG_C">266</C>
-          </VaporPressure>
-        </MaterialComponent>
-        <MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentF_TEP">
-          <Identifier>F</Identifier>
-          <Description>Component F</Description>
-          <Label>F</Label>
-          <ProjectReference>Tennessee Eastman Anonymised Component</ProjectReference>
-          <PhysicalProperties referenceTemperature="100" temperatureUnitIRI="http://qudt.org/vocab/unit/DEG_C">
-            <MolecularWeight unitIRI="http://qudt.org/vocab/unit/GM-PER-MOL">48.0</MolecularWeight>
-            <LiquidDensity unitIRI="http://qudt.org/vocab/unit/KiloGM-PER-M3">328</LiquidDensity>
-            <LiquidHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">4.45</LiquidHeatCapacity>
-            <VapourHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">2.02</VapourHeatCapacity>
-            <HeatOfVaporization unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM">372</HeatOfVaporization>
-          </PhysicalProperties>
-          <VaporPressure equation="Antoine" resultUnitIRI="http://qudt.org/vocab/unit/PA">
-            <A unitIRI="http://qudt.org/vocab/unit/UNITLESS">21.24</A>
-            <B unitIRI="http://qudt.org/vocab/unit/UNITLESS">-2144.0</B>
-            <C unitIRI="http://qudt.org/vocab/unit/DEG_C">266</C>
-          </VaporPressure>
-        </MaterialComponent>
-        <MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentG_TEP">
-          <Identifier>G</Identifier>
-          <Description>Component G</Description>
-          <Label>G</Label>
-          <ProjectReference>Tennessee Eastman Anonymised Component</ProjectReference>
-          <PhysicalProperties referenceTemperature="100" temperatureUnitIRI="http://qudt.org/vocab/unit/DEG_C">
-            <MolecularWeight unitIRI="http://qudt.org/vocab/unit/GM-PER-MOL">62.0</MolecularWeight>
-            <LiquidDensity unitIRI="http://qudt.org/vocab/unit/KiloGM-PER-M3">612</LiquidDensity>
-            <LiquidHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">2.55</LiquidHeatCapacity>
-            <VapourHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">0.712</VapourHeatCapacity>
-            <HeatOfVaporization unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM">523</HeatOfVaporization>
-          </PhysicalProperties>
-          <VaporPressure equation="Antoine" resultUnitIRI="http://qudt.org/vocab/unit/PA">
-            <A unitIRI="http://qudt.org/vocab/unit/UNITLESS">21.32</A>
-            <B unitIRI="http://qudt.org/vocab/unit/UNITLESS">-2748.0</B>
-            <C unitIRI="http://qudt.org/vocab/unit/DEG_C">233</C>
-          </VaporPressure>
-        </MaterialComponent>
-        <MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentH_TEP">
-          <Identifier>H</Identifier>
-          <Description>Component H</Description>
-          <Label>H</Label>
-          <ProjectReference>Tennessee Eastman Anonymised Component</ProjectReference>
-          <PhysicalProperties referenceTemperature="100" temperatureUnitIRI="http://qudt.org/vocab/unit/DEG_C">
-            <MolecularWeight unitIRI="http://qudt.org/vocab/unit/GM-PER-MOL">76.0</MolecularWeight>
-            <LiquidDensity unitIRI="http://qudt.org/vocab/unit/KiloGM-PER-M3">617</LiquidDensity>
-            <LiquidHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">2.45</LiquidHeatCapacity>
-            <VapourHeatCapacity unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K">0.628</VapourHeatCapacity>
-            <HeatOfVaporization unitIRI="http://qudt.org/vocab/unit/KiloJ-PER-KiloGM">486</HeatOfVaporization>
-          </PhysicalProperties>
-          <VaporPressure equation="Antoine" resultUnitIRI="http://qudt.org/vocab/unit/PA">
-            <A unitIRI="http://qudt.org/vocab/unit/UNITLESS">22.10</A>
-            <B unitIRI="http://qudt.org/vocab/unit/UNITLESS">-3318.0</B>
-            <C unitIRI="http://qudt.org/vocab/unit/DEG_C">250</C>
-          </VaporPressure>
-        </MaterialComponent>
+        <dexpi:MaterialTemplate uid="uuid_Water_MaterialTemplate">
+          <dexpi:data property="Identifier">WaterTemplate</dexpi:data>
+          <dexpi:data property="Label">Water</dexpi:data>
+          <dexpi:data property="Description">Material Template for Water</dexpi:data>
+          <dexpi:data property="NumberOfMaterialComponents">1</dexpi:data>
+          <dexpi:data property="NumberOfPhases">2</dexpi:data>
+          <dexpi:references property="ListOfComponents" objects="#uuid_Component_H2O"/>
+          <dexpi:data property="PhaseLabel">Liquid</dexpi:data>
+          <dexpi:data property="PhaseLabel">Vapour</dexpi:data>
+        </dexpi:MaterialTemplate>
+        <dexpi:MaterialComponent xsi:type="PureMaterialComponent" uid="uuid_Component_H2O">
+          <dexpi:data property="Identifier">H2O</dexpi:data>
+          <dexpi:data property="Description">Water</dexpi:data>
+          <dexpi:data property="Label">Water</dexpi:data>
+          <dexpi:data property="ChEBI_identifier">CHEBI:15377</dexpi:data>
+          <dexpi:data property="IUPAC_identifier">XLYOFNOQVPJJNP-UHFFFAOYSA-N</dexpi:data>
+        </dexpi:MaterialComponent>
+        <dexpi:MaterialTemplate uid="uuid_TEP_MaterialTemplate">
+          <dexpi:data property="Identifier">TEMaterial</dexpi:data>
+          <dexpi:data property="Label">Tennessee Eastman Material</dexpi:data>
+          <dexpi:data property="Description">Material Template for Tennessee Eastman Process</dexpi:data>
+          <dexpi:data property="NumberOfMaterialComponents">8</dexpi:data>
+          <dexpi:data property="NumberOfPhases">2</dexpi:data>
+          <dexpi:references property="ListOfComponents" objects="#uuid_ComponentA_TEP #uuid_ComponentB_TEP #uuid_ComponentC_TEP #uuid_ComponentD_TEP #uuid_ComponentE_TEP #uuid_ComponentF_TEP #uuid_ComponentG_TEP #uuid_ComponentH_TEP"/>
+          <dexpi:data property="PhaseLabel">Liquid</dexpi:data>
+          <dexpi:data property="PhaseLabel">Vapour</dexpi:data>
+        </dexpi:MaterialTemplate>
+        <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentA_TEP">
+          <dexpi:data property="Identifier">A</dexpi:data>
+          <dexpi:data property="Description">Component A</dexpi:data>
+          <dexpi:data property="Label">A</dexpi:data>
+          <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
+          <dexpi:components property="PhysicalProperties">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="referenceTemperature">100</dexpi:data>
+                <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+                <dexpi:data property="MolecularWeight">2.0</dexpi:data>
+                <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity">14.6</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="IsEffectivelyNoncondensable">true</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:MaterialComponent>
+        <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentB_TEP">
+          <dexpi:data property="Identifier">B</dexpi:data>
+          <dexpi:data property="Description">Component B</dexpi:data>
+          <dexpi:data property="Label">B</dexpi:data>
+          <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
+          <dexpi:components property="PhysicalProperties">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="referenceTemperature">100</dexpi:data>
+                <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+                <dexpi:data property="MolecularWeight">25.4</dexpi:data>
+                <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity">2.04</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="IsEffectivelyNoncondensable">true</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:MaterialComponent>
+        <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentC_TEP">
+          <dexpi:data property="Identifier">C</dexpi:data>
+          <dexpi:data property="Description">Component C</dexpi:data>
+          <dexpi:data property="Label">C</dexpi:data>
+          <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
+          <dexpi:components property="PhysicalProperties">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="referenceTemperature">100</dexpi:data>
+                <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+                <dexpi:data property="MolecularWeight">28.0</dexpi:data>
+                <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity">1.05</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="IsEffectivelyNoncondensable">true</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:MaterialComponent>
+        <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentD_TEP">
+          <dexpi:data property="Identifier">D</dexpi:data>
+          <dexpi:data property="Description">Component D</dexpi:data>
+          <dexpi:data property="Label">D</dexpi:data>
+          <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
+          <dexpi:components property="PhysicalProperties">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="referenceTemperature">100</dexpi:data>
+                <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+                <dexpi:data property="MolecularWeight">32.0</dexpi:data>
+                <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+                <dexpi:data property="LiquidDensity">299</dexpi:data>
+                <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity">7.66</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity">1.85</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="HeatOfVaporization">202</dexpi:data>
+                <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VaporPressure">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="equation">Antoine</dexpi:data>
+                <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
+                <dexpi:data property="A">20.81</dexpi:data>
+                <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="B">-1444.0</dexpi:data>
+                <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="C">259</dexpi:data>
+                <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:MaterialComponent>
+        <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentE_TEP">
+          <dexpi:data property="Identifier">E</dexpi:data>
+          <dexpi:data property="Description">Component E</dexpi:data>
+          <dexpi:data property="Label">E</dexpi:data>
+          <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
+          <dexpi:components property="PhysicalProperties">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="referenceTemperature">100</dexpi:data>
+                <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+                <dexpi:data property="MolecularWeight">46.0</dexpi:data>
+                <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+                <dexpi:data property="LiquidDensity">365</dexpi:data>
+                <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity">4.17</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity">1.87</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="HeatOfVaporization">372</dexpi:data>
+                <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VaporPressure">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="equation">Antoine</dexpi:data>
+                <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
+                <dexpi:data property="A">21.24</dexpi:data>
+                <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="B">-2114.0</dexpi:data>
+                <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="C">266</dexpi:data>
+                <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:MaterialComponent>
+        <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentF_TEP">
+          <dexpi:data property="Identifier">F</dexpi:data>
+          <dexpi:data property="Description">Component F</dexpi:data>
+          <dexpi:data property="Label">F</dexpi:data>
+          <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
+          <dexpi:components property="PhysicalProperties">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="referenceTemperature">100</dexpi:data>
+                <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+                <dexpi:data property="MolecularWeight">48.0</dexpi:data>
+                <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+                <dexpi:data property="LiquidDensity">328</dexpi:data>
+                <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity">4.45</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity">2.02</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="HeatOfVaporization">372</dexpi:data>
+                <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VaporPressure">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="equation">Antoine</dexpi:data>
+                <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
+                <dexpi:data property="A">21.24</dexpi:data>
+                <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="B">-2144.0</dexpi:data>
+                <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="C">266</dexpi:data>
+                <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:MaterialComponent>
+        <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentG_TEP">
+          <dexpi:data property="Identifier">G</dexpi:data>
+          <dexpi:data property="Description">Component G</dexpi:data>
+          <dexpi:data property="Label">G</dexpi:data>
+          <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
+          <dexpi:components property="PhysicalProperties">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="referenceTemperature">100</dexpi:data>
+                <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+                <dexpi:data property="MolecularWeight">62.0</dexpi:data>
+                <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+                <dexpi:data property="LiquidDensity">612</dexpi:data>
+                <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity">2.55</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity">0.712</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="HeatOfVaporization">523</dexpi:data>
+                <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VaporPressure">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="equation">Antoine</dexpi:data>
+                <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
+                <dexpi:data property="A">21.32</dexpi:data>
+                <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="B">-2748.0</dexpi:data>
+                <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="C">233</dexpi:data>
+                <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:MaterialComponent>
+        <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentH_TEP">
+          <dexpi:data property="Identifier">H</dexpi:data>
+          <dexpi:data property="Description">Component H</dexpi:data>
+          <dexpi:data property="Label">H</dexpi:data>
+          <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
+          <dexpi:components property="PhysicalProperties">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="referenceTemperature">100</dexpi:data>
+                <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+                <dexpi:data property="MolecularWeight">76.0</dexpi:data>
+                <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+                <dexpi:data property="LiquidDensity">617</dexpi:data>
+                <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity">2.45</dexpi:data>
+                <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity">0.628</dexpi:data>
+                <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+                <dexpi:data property="HeatOfVaporization">486</dexpi:data>
+                <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VaporPressure">
+            <dexpi:object type="Core/ConceptualObject">
+                <dexpi:data property="equation">Antoine</dexpi:data>
+                <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
+                <dexpi:data property="A">22.10</dexpi:data>
+                <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="B">-3318.0</dexpi:data>
+                <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+                <dexpi:data property="C">250</dexpi:data>
+                <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:MaterialComponent>
       </bpmn:extensionElements>
     </bpmn:dataObjectReference>
     <bpmn:dataObject id="DataObject_0j3icgz" />
     <bpmn:dataObjectReference id="DataObjectReference_1vk4gi5" name="Base Case MaterialStates" dataObjectRef="DataObject_0tvldfq">
       <bpmn:extensionElements>
-        <MaterialState uid="uuid_MS_S1">
-          <Identifier>1</Identifier>
-          <Label>A Feed</Label>
-          <Description />
-          <Flow>
-            <MoleFlow>
-              <Value>11.2</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.99990</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00010</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_1j96ab6" />
-        </MaterialState>
-        <MaterialState uid="uuid_MS_S2">
-          <Identifier>2</Identifier>
-          <Label>D Feed</Label>
-          <Description />
-          <Flow>
-            <MoleFlow>
-              <Value>114.5</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00010</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.99990</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_0jep6f0" />
-        </MaterialState>
-        <MaterialState uid="uuid_MS_S3">
-          <Identifier>3</Identifier>
-          <Label>E Feed</Label>
-          <Description />
-          <Flow>
-            <MoleFlow>
-              <Value>98.0</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.99990</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00010</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_109uz3k" />
-        </MaterialState>
-        <MaterialState uid="uuid_MS_S7">
-          <Identifier>7</Identifier>
-          <Label>Reactor Product</Label>
-          <Description>Reactor Product</Description>
-          <Flow>
-            <MoleFlow>
-              <Value>1476.0</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.27164</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.11393</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.19763</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.01075</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.17722</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.02159</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.12302</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.08423</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_07wd8rg" />
-        </MaterialState>
-        <MaterialState uid="uuid_MS_S4">
-          <Identifier>4</Identifier>
-          <Label>C Feed</Label>
-          <Description>C Feed</Description>
-          <Flow>
-            <MoleFlow>
-              <Value>417.5</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.48500</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00500</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.51000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_10zldqj" />
-        </MaterialState>
-        <MaterialState uid="uuid_MS_S11">
-          <Identifier>11</Identifier>
-          <Label>Product</Label>
-          <Description>Separation liquid</Description>
-          <Flow>
-            <MoleFlow>
-              <Value>211.3</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.00479</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00009</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.01008</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00018</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00836</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00099</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.53724</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.43828</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_1781g4y" />
-        </MaterialState>
-        <MaterialState uid="uuid_MS_S5">
-          <Identifier>5</Identifier>
-          <Label>Strp Ovhd</Label>
-          <Description>Stripper overhead</Description>
-          <Flow>
-            <MoleFlow>
-              <Value>465.7</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.43263</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00444</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.45264</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00116</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.07256</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00885</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.01964</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00808</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_1a07km3" />
-        </MaterialState>
-        <MaterialState uid="uuid_MS_S10">
-          <Identifier>10</Identifier>
-          <Label>Separation liquid</Label>
-          <Description>Separation liquid</Description>
-          <Flow>
-            <MoleFlow>
-              <Value>259.5</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00000</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.00222</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.13704</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.01669</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.47269</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.37136</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_1t9aonq" />
-        </MaterialState>
-        <MaterialState uid="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f">
-          <Identifier>9</Identifier>
-          <Label>Purge</Label>
-          <Description>Purge</Description>
-          <Flow>
-            <MoleFlow>
-              <Value>15.1</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.32958</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.13823</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.23978</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.01257</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.18579</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.02263</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.04844</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.02299</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_1frta97" />
-        </MaterialState>
-        <MaterialState uid="uuid_MS_S8">
-          <Identifier>8</Identifier>
-          <Label>Recycle</Label>
-          <Description />
-          <Flow>
-            <MoleFlow>
-              <Value>1201.5</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.32958</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.13823</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.23978</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.01257</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.18579</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.02263</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.04844</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.02299</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_09zyhyl" />
-        </MaterialState>
-        <MaterialState uid="uuid_MS_S6">
-          <Identifier>6</Identifier>
-          <Label>Reactor Feed</Label>
-          <Description />
-          <Flow>
-            <MoleFlow>
-              <Value>1890.8</Value>
-              <Unit>KilomolePerHour</Unit>
-            </MoleFlow>
-            <Composition>
-              <Basis>Mole</Basis>
-              <Display>Fraction</Display>
-              <Fraction>
-                <Value>0.32188</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.08893</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.26383</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.06882</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.18776</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.01657</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.03561</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-              <Fraction>
-                <Value>0.01659</Value>
-                <Unit>Fraction</Unit>
-              </Fraction>
-            </Composition>
-          </Flow>
-          <TemplateReference uidRef="uuid_TEP_MaterialTemplate" />
-          <StreamReference uidRef="Flow_0etbhjc" />
-        </MaterialState>
+        <dexpi:MaterialState uid="uuid_MS_S1">
+          <dexpi:data property="Identifier">1</dexpi:data>
+          <dexpi:data property="Label">A Feed</dexpi:data>
+          <dexpi:data property="Description"/>
+          <dexpi:references property="State" uidRef="uuid_MS_S1_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S1_MST">
+          <dexpi:data property="Identifier">1-State</dexpi:data>
+          <dexpi:data property="Label">A Feed State</dexpi:data>
+          <dexpi:data property="Description">State-type for A Feed</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">11.2</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S1_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S1_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.99990</dexpi:data>
+              <dexpi:data property="Values">0.00010</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S2">
+          <dexpi:data property="Identifier">2</dexpi:data>
+          <dexpi:data property="Label">D Feed</dexpi:data>
+          <dexpi:data property="Description"/>
+          <dexpi:references property="State" uidRef="uuid_MS_S2_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S2_MST">
+          <dexpi:data property="Identifier">2-State</dexpi:data>
+          <dexpi:data property="Label">D Feed State</dexpi:data>
+          <dexpi:data property="Description">State-type for D Feed</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">114.5</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S2_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S2_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00010</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.99990</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S3">
+          <dexpi:data property="Identifier">3</dexpi:data>
+          <dexpi:data property="Label">E Feed</dexpi:data>
+          <dexpi:data property="Description"/>
+          <dexpi:references property="State" uidRef="uuid_MS_S3_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S3_MST">
+          <dexpi:data property="Identifier">3-State</dexpi:data>
+          <dexpi:data property="Label">E Feed State</dexpi:data>
+          <dexpi:data property="Description">State-type for E Feed</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">98.0</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S3_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S3_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.99990</dexpi:data>
+              <dexpi:data property="Values">0.00010</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S7">
+          <dexpi:data property="Identifier">7</dexpi:data>
+          <dexpi:data property="Label">Reactor Product</dexpi:data>
+          <dexpi:data property="Description">Reactor Product</dexpi:data>
+          <dexpi:references property="State" uidRef="uuid_MS_S7_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S7_MST">
+          <dexpi:data property="Identifier">7-State</dexpi:data>
+          <dexpi:data property="Label">Reactor Product State</dexpi:data>
+          <dexpi:data property="Description">State-type for Reactor Product</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">1476.0</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S7_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S7_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.27164</dexpi:data>
+              <dexpi:data property="Values">0.11393</dexpi:data>
+              <dexpi:data property="Values">0.19763</dexpi:data>
+              <dexpi:data property="Values">0.01075</dexpi:data>
+              <dexpi:data property="Values">0.17722</dexpi:data>
+              <dexpi:data property="Values">0.02159</dexpi:data>
+              <dexpi:data property="Values">0.12302</dexpi:data>
+              <dexpi:data property="Values">0.08423</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S4">
+          <dexpi:data property="Identifier">4</dexpi:data>
+          <dexpi:data property="Label">C Feed</dexpi:data>
+          <dexpi:data property="Description">C Feed</dexpi:data>
+          <dexpi:references property="State" uidRef="uuid_MS_S4_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S4_MST">
+          <dexpi:data property="Identifier">4-State</dexpi:data>
+          <dexpi:data property="Label">C Feed State</dexpi:data>
+          <dexpi:data property="Description">State-type for C Feed</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">417.5</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S4_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S4_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.48500</dexpi:data>
+              <dexpi:data property="Values">0.00500</dexpi:data>
+              <dexpi:data property="Values">0.51000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S11">
+          <dexpi:data property="Identifier">11</dexpi:data>
+          <dexpi:data property="Label">Product</dexpi:data>
+          <dexpi:data property="Description">Separation liquid</dexpi:data>
+          <dexpi:references property="State" uidRef="uuid_MS_S11_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S11_MST">
+          <dexpi:data property="Identifier">11-State</dexpi:data>
+          <dexpi:data property="Label">Product State</dexpi:data>
+          <dexpi:data property="Description">State-type for Product</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">211.3</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S11_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S11_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.00479</dexpi:data>
+              <dexpi:data property="Values">0.00009</dexpi:data>
+              <dexpi:data property="Values">0.01008</dexpi:data>
+              <dexpi:data property="Values">0.00018</dexpi:data>
+              <dexpi:data property="Values">0.00836</dexpi:data>
+              <dexpi:data property="Values">0.00099</dexpi:data>
+              <dexpi:data property="Values">0.53724</dexpi:data>
+              <dexpi:data property="Values">0.43828</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S5">
+          <dexpi:data property="Identifier">5</dexpi:data>
+          <dexpi:data property="Label">Strp Ovhd</dexpi:data>
+          <dexpi:data property="Description">Stripper overhead</dexpi:data>
+          <dexpi:references property="State" uidRef="uuid_MS_S5_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S5_MST">
+          <dexpi:data property="Identifier">5-State</dexpi:data>
+          <dexpi:data property="Label">Strp Ovhd State</dexpi:data>
+          <dexpi:data property="Description">State-type for Strp Ovhd</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">465.7</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S5_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S5_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.43263</dexpi:data>
+              <dexpi:data property="Values">0.00444</dexpi:data>
+              <dexpi:data property="Values">0.45264</dexpi:data>
+              <dexpi:data property="Values">0.00116</dexpi:data>
+              <dexpi:data property="Values">0.07256</dexpi:data>
+              <dexpi:data property="Values">0.00885</dexpi:data>
+              <dexpi:data property="Values">0.01964</dexpi:data>
+              <dexpi:data property="Values">0.00808</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S10">
+          <dexpi:data property="Identifier">10</dexpi:data>
+          <dexpi:data property="Label">Separation liquid</dexpi:data>
+          <dexpi:data property="Description">Separation liquid</dexpi:data>
+          <dexpi:references property="State" uidRef="uuid_MS_S10_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S10_MST">
+          <dexpi:data property="Identifier">10-State</dexpi:data>
+          <dexpi:data property="Label">Separation liquid State</dexpi:data>
+          <dexpi:data property="Description">State-type for Separation liquid</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">259.5</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S10_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S10_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00000</dexpi:data>
+              <dexpi:data property="Values">0.00222</dexpi:data>
+              <dexpi:data property="Values">0.13704</dexpi:data>
+              <dexpi:data property="Values">0.01669</dexpi:data>
+              <dexpi:data property="Values">0.47269</dexpi:data>
+              <dexpi:data property="Values">0.37136</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f">
+          <dexpi:data property="Identifier">9</dexpi:data>
+          <dexpi:data property="Label">Purge</dexpi:data>
+          <dexpi:data property="Description">Purge</dexpi:data>
+          <dexpi:references property="State" uidRef="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f_MST">
+          <dexpi:data property="Identifier">9-State</dexpi:data>
+          <dexpi:data property="Label">Purge State</dexpi:data>
+          <dexpi:data property="Description">State-type for Purge</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">15.1</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.32958</dexpi:data>
+              <dexpi:data property="Values">0.13823</dexpi:data>
+              <dexpi:data property="Values">0.23978</dexpi:data>
+              <dexpi:data property="Values">0.01257</dexpi:data>
+              <dexpi:data property="Values">0.18579</dexpi:data>
+              <dexpi:data property="Values">0.02263</dexpi:data>
+              <dexpi:data property="Values">0.04844</dexpi:data>
+              <dexpi:data property="Values">0.02299</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S8">
+          <dexpi:data property="Identifier">8</dexpi:data>
+          <dexpi:data property="Label">Recycle</dexpi:data>
+          <dexpi:data property="Description"/>
+          <dexpi:references property="State" uidRef="uuid_MS_S8_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S8_MST">
+          <dexpi:data property="Identifier">8-State</dexpi:data>
+          <dexpi:data property="Label">Recycle State</dexpi:data>
+          <dexpi:data property="Description">State-type for Recycle</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">1201.5</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S8_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S8_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.32958</dexpi:data>
+              <dexpi:data property="Values">0.13823</dexpi:data>
+              <dexpi:data property="Values">0.23978</dexpi:data>
+              <dexpi:data property="Values">0.01257</dexpi:data>
+              <dexpi:data property="Values">0.18579</dexpi:data>
+              <dexpi:data property="Values">0.02263</dexpi:data>
+              <dexpi:data property="Values">0.04844</dexpi:data>
+              <dexpi:data property="Values">0.02299</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S6">
+          <dexpi:data property="Identifier">6</dexpi:data>
+          <dexpi:data property="Label">Reactor Feed</dexpi:data>
+          <dexpi:data property="Description"/>
+          <dexpi:references property="State" uidRef="uuid_MS_S6_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S6_MST">
+          <dexpi:data property="Identifier">6-State</dexpi:data>
+          <dexpi:data property="Label">Reactor Feed State</dexpi:data>
+          <dexpi:data property="Description">State-type for Reactor Feed</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">1890.8</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S6_Composition"/>
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S6_Composition">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Values">0.32188</dexpi:data>
+              <dexpi:data property="Values">0.08893</dexpi:data>
+              <dexpi:data property="Values">0.26383</dexpi:data>
+              <dexpi:data property="Values">0.06882</dexpi:data>
+              <dexpi:data property="Values">0.18776</dexpi:data>
+              <dexpi:data property="Values">0.01657</dexpi:data>
+              <dexpi:data property="Values">0.03561</dexpi:data>
+              <dexpi:data property="Values">0.01659</dexpi:data>
+              <dexpi:data property="Unit">Fraction</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
       </bpmn:extensionElements>
     </bpmn:dataObjectReference>
     <bpmn:dataObject id="DataObject_0tvldfq" />

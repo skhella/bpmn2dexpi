@@ -1,23 +1,21 @@
 <img src="./src/assets/noncropped_logo.png" alt="BPMN2DEXPI Logo" width="400" />
 
-A web-based tool for creating DEXPI 2.0-compliant block flow and process flow diagrams. Model chemical processes visually using BPMN 2.0 and export to DEXPI 2.0 XML — validated against the official DEXPI XML Schema.
+A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DEXPI 2.0–compliant block flow and process flow diagrams, validated against the official DEXPI XML Schema.
 
 ## Features
 
-- **Visual Modeling**: Drag-and-drop BPMN 2.0 editor with DEXPI-aware palette
-- **DEXPI 2.0 Export**: XSD-validated output against the official DEXPI XML Schema, with a structural fallback in browser contexts (validation result includes a `mode` field indicating which path ran)
-- **Material Library**: Define materials, compositions, and thermodynamic states
-- **Port System**: Typed ports (Material, Energy, Information) with hierarchy support
-- **Stream Properties**: Typed streams (Material, Thermal/Mechanical/Electrical Energy, Information) with flow rates, compositions, and qualified parameters
-- **CLI Tool**: Batch convert BPMN files to DEXPI 2.0 XML from terminal or Python
-- **Neo4j Export**: Export process graphs directly to a Neo4j graph database
-- **RDL Extension**: Steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri`
+- **Visual modeling** — drag-and-drop BPMN 2.0 editor with a DEXPI-aware palette
+- **DEXPI 2.0 export** — XSD-validated output, with a structural fallback in browser contexts
+- **Material library** — materials, compositions, and thermodynamic states
+- **Typed ports & streams** — Material / Energy / Information, with flow rates, compositions, and qualified parameters
+- **CLI tool** — batch-convert BPMN to DEXPI 2.0 XML from the terminal or Python
+- **Neo4j export** — push process graphs directly to a Neo4j graph database
 
 ## Prerequisites
 
 - **Node.js** 18+ (recommended: 20 LTS)
 - **npm** 9+
-- **xmllint** (for XSD validation in Node and CLI contexts — `libxml2-utils` on Linux, `brew install libxml2` on macOS). In browser contexts, validation falls back to a structural check of key DEXPI 2.0 object-model invariants.
+- **xmllint** (for XSD validation in Node/CLI — `libxml2-utils` on Linux, `brew install libxml2` on macOS). Browser contexts use a structural fallback.
 
 ## Quick Start
 
@@ -28,7 +26,7 @@ npm install
 npm run dev        # web app at http://localhost:5173
 ```
 
-### CLI
+## CLI
 
 ```bash
 npm run transform input.bpmn output.xml
@@ -38,7 +36,7 @@ npm install -g bpmn2dexpi
 bpmn2dexpi input.bpmn output.xml
 ```
 
-### Python
+## Python
 
 ```python
 from bpmn2dexpi import transform
@@ -47,27 +45,17 @@ transform('input.bpmn', 'output.xml')   # save to file
 xml = transform('input.bpmn')           # get as string
 ```
 
-See [CLI_USAGE.md](./CLI_USAGE.md) for more examples.
+See [CLI_USAGE.md](./CLI_USAGE.md) for more.
 
 ## Web Interface
 
-1. Open `http://localhost:5173`
-2. Drag process elements from the palette
-3. Connect elements with typed flows (Material, Energy, Information)
-4. Configure ports and stream properties in the properties panel
-5. Export to DEXPI 2.0 XML or Neo4j
+Open `http://localhost:5173`, drag elements from the palette, connect with typed flows, configure ports and stream properties in the side panel, and export to DEXPI 2.0 XML or Neo4j.
 
 <img src="./examples/Web-Interface-Screenshot.png" alt="Web Interface Screenshot" width="90%" />
 
-## Neo4j Export
-
-1. Click **Export to Neo4j** in the toolbar
-2. Enter your connection details (`bolt://localhost:7687` or Aura URI)
-3. Click Export
-
 ## Architecture
 
-The transformer is a standalone, framework-independent TypeScript module — importable independently of the React frontend:
+The transformer is a standalone, framework-independent TypeScript module — usable independently of the React frontend:
 
 ```
 src/transformer/
@@ -83,6 +71,37 @@ dexpi-schema-files/
 └── Process.xml                    # DEXPI 2.0 Process model (replace to update)
 ```
 
+## Validation
+
+DEXPI 2.0 is intentionally permissive: any output conforming to the official XSD is exchangeable. The tool offers two validation paths:
+
+- **XSD validation** (always on) — output validates against the bundled `DEXPI_XML_Schema.xsd` via xmllint in Node/CLI, or a structural fallback in the browser. Property names are treated as opaque strings.
+- **Strict information-model fidelity** (opt-in) — additionally checks every `Data` / `Components` / `References` `property=` attribute against the wrapping class's declared properties in `Process.xml` + `Core.xml` (walking supertypes), and verifies the carrier element matches the declared kind (data / reference / composition).
+
+Strict-mode findings never block file production. They surface as warnings (UI / console) or a non-zero CLI exit code, but the deliverable always lands on disk.
+
+Enable strict mode via the **Strict** checkbox in the export dialog, the `--strict` CLI flag, or `{ strict: true }` on `transformer.transform()`.
+
+## Extension mechanisms
+
+Two complementary ways to handle process content beyond the core DEXPI 2.0 vocabulary:
+
+**Profiles** — declare project-specific classes or property extensions in a Profile XML using DEXPI's metamodel grammar. Loaded Profiles populate the type dropdown and are recognized under strict-mode validation. A reference Profile lives in `examples/profiles/sample-extension.xml`; the TEP-derived `examples/profiles/tep-generated.xml` shows a worked example.
+
+**External URI references** — process steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri` annotation.
+
+### Loading and generating Profiles
+
+- **UI** — *Import Profile* loads an XML file; *Generate Profile* walks the current model and emits a Profile XML that closes any strict-mode gaps.
+- **CLI** — `--profile FILE` (repeatable) loads Profiles; `--generate-profile FILE` writes a Profile derived from the input model.
+- **Library API** — pass `profileXmls: [{ name, xml }]` to `transformer.transform()`.
+
+The generator is deterministic (alphabetical output, no timestamps — safe to commit) and uses conservative type defaults.
+
+Profiles are runtime-only — they live for the current CLI process or browser session and are not persisted.
+
+The Profile-level `mode="extend"` marker and its merge-on-conflict semantics are bpmn2dexpi-specific — they follow the conceptual extensibility approach DEXPI 2.0 is being designed for, but the precise idiom is not yet standardized. Generated Profiles may need migration when DEXPI publishes its canonical Profile mechanism.
+
 ## Testing
 
 ```bash
@@ -91,33 +110,26 @@ npm run test:watch    # watch mode
 npm run test:coverage # with coverage
 ```
 
-Covers unit tests (transformer logic, class registry, output validation) and an end-to-end integration benchmark using the Tennessee Eastman process PFD. The integration suite requires `xmllint` — see Prerequisites.
-
-CI runs on Node.js 18, 20, and 22 via GitHub Actions on every push and pull request.
+Unit tests (transformer, registry, validation) plus an end-to-end integration benchmark using the Tennessee Eastman PFD. CI runs on Node.js 18 / 20 / 22 via GitHub Actions.
 
 ## Based on Research
 
 This tool implements the representation methodology described in:
 
-> Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke.
-> *Representing DEXPI Process in BPMN 2.0 for Graphical Modeling and Exchange of Block Flow and Process Flow Diagrams* (under review, Digital Chemical Engineering, 2026).
+> Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke. *Representing DEXPI Process in BPMN 2.0 for Graphical Modeling and Exchange of Block Flow and Process Flow Diagrams* (under review, Digital Chemical Engineering, 2026).
 
 ## Technology
 
-- **Frontend**: React 19, TypeScript
-- **Diagramming**: [bpmn.io](https://bpmn.io) (bpmn-js)
-- **Build**: Vite 7
-- **Testing**: Vitest
-- **Schema**: [DEXPI 2.0](https://dexpi.gitlab.io/-/Specification)
+React 19, TypeScript, [bpmn.io](https://bpmn.io/) (bpmn-js), Vite 7, Vitest. Schema: [DEXPI 2.0](https://dexpi.gitlab.io/-/Specification).
 
 ## License
 
 MIT — see [LICENSE](./LICENSE).
 
-**bpmn-js** is licensed under the bpmn.io License (modified MIT). The bpmn.io watermark must remain visible and unmodified.
+bpmn-js is licensed under the bpmn.io License (modified MIT). The bpmn.io watermark must remain visible and unmodified.
 
-**DEXPI Specification** is licensed under CC BY 4.0.
+DEXPI Specification is licensed under CC BY 4.0.
 
 ---
 
-*v0.1.0*
+v0.1.0

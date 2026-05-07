@@ -10,12 +10,28 @@ import type {
   StreamAttribute,
   TransformOptions,
   StepTypingResult,
+  ValidationResult,
 } from './types';
 import { TransformerLogger } from './TransformerLogger';
 import { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';
+import {
+  validateEmittedDexpiXml as validateDexpiPropertyNamesImpl,
+  failuresToValidationResult as failuresToValidationResultImpl,
+} from './DexpiPropertyNameValidator';
 
 export type { TransformOptions } from './types';
 export { validateDexpiOutput } from './DexpiOutputValidator';
+export { validateEmittedDexpiXml as validateDexpiPropertyNames } from './DexpiPropertyNameValidator';
+export { failuresToValidationResult, formatFailures } from './DexpiPropertyNameValidator';
+
+/**
+ * DEXPI BPMN-extension namespace URI. Mirrors dexpi/moddle/dexpi.json's
+ * `uri` and the xmlns:dexpi declaration in fixtures and tests. Used by
+ * findByLocalName() to resolve <dexpi:*> elements by namespace+localName,
+ * which is the explicit, prefix-independent way to walk the extensionElements
+ * tree (CSS type selectors match qualified name in XML and would miss us).
+ */
+const DEXPI_NS = 'http://dexpi.org/schema/bpmn-extension';
 
 export class BpmnToDexpiTransformer {
   private processSteps: Map<string, InternalProcessStep> = new Map();
@@ -31,14 +47,48 @@ export class BpmnToDexpiTransformer {
   /** Warnings and errors collected during the last call to transform(). */
   readonly logger = new TransformerLogger();
 
+  /**
+   * Property-name validation result from the most recent transform() call,
+   * populated only when strict mode is on. Strict-mode failures never block
+   * file production (DEXPI 2.0 permissive philosophy); they sit here for
+   * the caller (CLI, UI) to surface to the user as warnings.
+   */
+  lastPropertyNameValidation: ValidationResult | undefined;
+
   async transform(bpmnXml: string, options: TransformOptions = {}): Promise<string> {
-    
+
     // Clear state and log from previous transformations
     this.logger.reset();
+    this.lastPropertyNameValidation = undefined;
 
-    // Load DEXPI class registry from Process.xml (fast — cached after first call)
-    // In browser: caller passes options.processXml. In Node: reads from disk.
-    this.registry = await DexpiProcessClassRegistry.load(options.processXml);
+    // Load DEXPI class registry. We always include any user-supplied
+    // DEXPI Profile extensions so Profile classes (e.g. BiologicalReactor)
+    // are recognized as valid dexpiType targets in both strict and
+    // non-strict modes — without this, non-strict transforms would log a
+    // "not a recognised DEXPI 2.0 Process class" warning for every Profile
+    // class. In strict mode we additionally include Core.xml so the
+    // property-name validator can walk the full supertype chain
+    // (Process → Core).
+    const wantProfiles = (options.profileXmls?.length ?? 0) > 0;
+    if (options.strict || wantProfiles) {
+      const sources: { name: string; xml: string }[] = [];
+      if (options.processXml) {
+        sources.push({ name: 'Process.xml', xml: options.processXml });
+      }
+      if (options.coreXml) {
+        sources.push({ name: 'Core.xml', xml: options.coreXml });
+      }
+      if (sources.length > 0) {
+        sources.push(...(options.profileXmls ?? []));
+        this.registry = DexpiProcessClassRegistry.fromXmlSources(sources);
+      } else {
+        this.registry = await DexpiProcessClassRegistry.loadDefault({
+          extensions: options.profileXmls,
+        });
+      }
+    } else {
+      this.registry = await DexpiProcessClassRegistry.load(options.processXml);
+    }
     if (this.registry.size === 0) {
       this.logger.warn(
         'Could not load dexpi-schema-files/Process.xml — class validation disabled. ' +
@@ -66,7 +116,18 @@ export class BpmnToDexpiTransformer {
     
     // Generate XML
     const xml = this.generateXml(dexpiModel);
-    
+
+    // Strict-mode property-name fidelity validation runs against the
+    // already-generated XML so it never delays or blocks output. Failures
+    // are stored on the transformer for the caller to surface; the file
+    // still gets produced — DEXPI 2.0's permissive philosophy says any
+    // XSD-valid output is exchangeable, and we don't want strict mode to
+    // gate users out of getting a deliverable.
+    if (options.strict && this.registry.size > 0) {
+      const failures = validateDexpiPropertyNamesImpl(xml, 'transformer output', this.registry);
+      this.lastPropertyNameValidation = failuresToValidationResultImpl(failures);
+    }
+
     return xml;
   }
 
@@ -167,22 +228,22 @@ export class BpmnToDexpiTransformer {
   private registry: DexpiProcessClassRegistry = DexpiProcessClassRegistry.empty();
 
   /**
-   * Resolve the DEXPI type for a process step — three-mode system:
-   *
    * Resolve the DEXPI type for a process step — two-mode system:
    *
    * Mode 1 'dexpi-validated':
-   *   dexpiType annotation present AND class is in the official Process.xml registry.
-   *   Clean output, no warning.
+   *   dexpiType annotation present AND class is in the official Process.xml
+   *   registry. Clean output, no warning.
    *
    * Mode 2 'unvalidated':
    *   Either no dexpiType annotation, OR annotation not found in the registry.
    *   Both cases export as generic 'ProcessStep'. customUri stored if provided.
-   *   A "did you mean?" hint is emitted when the annotation is a near-miss.
+   *   A "did you mean?" hint is emitted when the annotation is a near-miss —
+   *   the suggestion is advisory text only, never used to assign the class.
    */
   private resolveStepType(
     annotatedType: string | undefined,
     customUri: string | undefined,
+    customSuperType: string | undefined,
     taskName: string,
     taskId: string
   ): StepTypingResult {
@@ -199,9 +260,12 @@ export class BpmnToDexpiTransformer {
     const suggestion = annotatedType ? this.findClosestDexpiClass(annotatedType) : undefined;
 
     if (annotatedType) {
+      const superHint = customSuperType
+        ? ` (custom class with supertype "${customSuperType}" — pair with a generated Profile to declare the class)`
+        : '';
       this.logger.warn(
         `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a recognised ` +
-        `DEXPI 2.0 Process class — exporting as generic ProcessStep.` +
+        `DEXPI 2.0 Process class — exporting as generic ProcessStep${superHint}.` +
         (suggestion ? ` Did you mean "${suggestion}"?` : '')
       );
     } else {
@@ -216,6 +280,7 @@ export class BpmnToDexpiTransformer {
       dexpiClass: 'ProcessStep',
       mode: 'unvalidated',
       customUri,
+      customSuperType,
       suggestedDexpiClass: suggestion,
     };
   }
@@ -243,16 +308,18 @@ export class BpmnToDexpiTransformer {
     const typing = this.resolveStepType(
       dexpiData?.dexpiType,
       dexpiData?.customUri,
+      dexpiData?.customSuperType,
       name,
       id
     );
-    
+
     const processStep: InternalProcessStep = {
       id,
       name,
       type: typing.dexpiClass,
       typingMode: typing.mode,
       customUri: typing.customUri,
+      customSuperType: typing.customSuperType,
       suggestedDexpiClass: typing.suggestedDexpiClass,
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
@@ -590,6 +657,49 @@ export class BpmnToDexpiTransformer {
           informationVariantLabel: name,  // DataObject name → InformationVariant
         };
         this.informationFlows.set(flowId, flow);
+
+        // Schema-correct instrumentation references (DEXPI 2.0 Specification PDF
+        // pp.876, 900): InstrumentationActivity has no Ports composition; its
+        // connection to the process is expressed via ProcessStepReference and
+        // MeasuredVariableReference. We derive these from the BPMN topology:
+        // the dataObject's name carries the variable identity, and the OTHER
+        // endpoint of the dataObject pattern is the related ProcessStep when
+        // it is one. Populate the InstrumentationActivity record on each end
+        // that is itself an InstrumentationActivity descendant.
+        const sourceStep = this.processSteps.get(source);
+        const targetStep = target ? this.processSteps.get(target) : undefined;
+        const isInstr = (s: InternalProcessStep | undefined): boolean => {
+          if (!s) return false;
+          if (this.registry.size === 0) return false;
+          const bare = s.type.replace(/^Process\./, '');
+          return this.registry.hasAncestor(bare, 'InstrumentationActivity');
+        };
+        const remember = (psStep: InternalProcessStep, varName: string) => {
+          if (!psStep.measuredParameters) psStep.measuredParameters = new Set<string>();
+          psStep.measuredParameters.add(varName);
+        };
+        if (isInstr(sourceStep) && targetStep && !isInstr(targetStep)) {
+          // MeasuringActivity → DataObject → ProcessStep:
+          // source instrumentation references the target ProcessStep.
+          sourceStep!.processStepRef = target!;
+          sourceStep!.measuredVariable = name;
+          remember(targetStep, name);
+        }
+        if (targetStep && isInstr(targetStep) && sourceStep && !isInstr(sourceStep)) {
+          // ProcessStep → DataObject → ControllingActivity (or similar):
+          // target instrumentation references the source ProcessStep.
+          targetStep.processStepRef = source;
+          targetStep.measuredVariable = name;
+          remember(sourceStep, name);
+        }
+        // instr-to-instr: neither endpoint is a ProcessStep — no
+        // ProcessStepReference to derive. Both activities still carry the
+        // measuredVariable from the dataObject name; the spec captures the
+        // relationship by their shared InstrumentationSystemActivity context.
+        if (isInstr(sourceStep) && isInstr(targetStep)) {
+          if (!sourceStep!.measuredVariable) sourceStep!.measuredVariable = name;
+          if (!targetStep!.measuredVariable) targetStep!.measuredVariable = name;
+        }
       });
     });
   }
@@ -602,7 +712,7 @@ export class BpmnToDexpiTransformer {
     if (!extensionElements) return;
 
     // Extract MaterialTemplates
-    const templates = Array.from(extensionElements.querySelectorAll('MaterialTemplate'));
+    const templates = this.findByLocalName(extensionElements, 'MaterialTemplate');
     templates.forEach(template => {
       const uid = template.getAttribute('uid') || this.generateUid();
       const identifier = this.getChildText(template, 'Identifier');
@@ -611,31 +721,62 @@ export class BpmnToDexpiTransformer {
       const numberOfComponents = this.getChildText(template, 'NumberOfMaterialComponents');
       const numberOfPhases = this.getChildText(template, 'NumberOfPhases');
 
-      // Extract component references from ListOfMaterialComponents
-      const listOfComponents = Array.from(template.children).find((c: Element) => 
-        c.tagName === 'ListOfMaterialComponents' || c.localName === 'ListOfMaterialComponents'
-      );
+      // Extract component references. Carrier-wrapped form is preferred:
+      //   <dexpi:references property="ListOfComponents" objects="#X #Y ..."/>
+      // (kind=reference, recorded explicitly via the carrier element name).
+      // Legacy bare-name forms are kept for back-compat with already-saved
+      // BPMN files: <ListOfComponents> wrapping <Component uidRef=...> or
+      // the older <ListOfMaterialComponents><MaterialComponentIdentifier>.
       const componentRefs: string[] = [];
-      if (listOfComponents) {
-        const identifiers = Array.from(listOfComponents.querySelectorAll('MaterialComponentIdentifier'));
-        identifiers.forEach((id: Element) => {
-          const uidRef = id.getAttribute('uidRef');
-          if (uidRef) componentRefs.push(uidRef);
-        });
+      // Carrier form: <dexpi:references property="ListOfComponents" objects="#X #Y..."/>
+      // or uidRef="X Y..." (space-separated multi-valued refs).
+      for (const c of Array.from(template.children) as Element[]) {
+        if ((c.localName || '').toLowerCase() === 'references' &&
+            c.getAttribute('property') === 'ListOfComponents') {
+          const objects = c.getAttribute('objects') || c.getAttribute('uidRef') || '';
+          for (const tok of objects.split(/\s+/).filter(Boolean)) {
+            componentRefs.push(tok.replace(/^#/, ''));
+          }
+        }
+      }
+      if (componentRefs.length === 0) {
+        // Legacy bare-name fallback.
+        const listOfComponents = Array.from(template.children).find((c: Element) =>
+          c.localName === 'ListOfComponents' || c.localName === 'ListOfMaterialComponents'
+        );
+        if (listOfComponents) {
+          const refs = Array.from(listOfComponents.children).filter((c: Element) =>
+            c.localName === 'Component' || c.localName === 'MaterialComponentIdentifier'
+          );
+          refs.forEach((id: Element) => {
+            const uidRef = id.getAttribute('uidRef');
+            if (uidRef) componentRefs.push(uidRef);
+          });
+        }
       }
 
-      // Extract phases from ListOfPhases
-      const listOfPhases = Array.from(template.children).find((c: Element) => 
-        c.tagName === 'ListOfPhases' || c.localName === 'ListOfPhases'
-      );
+      // Extract phase labels. Carrier-wrapped form is preferred:
+      //   <dexpi:data property="PhaseLabel">Liquid</dexpi:data>  (×N siblings)
+      // (kind=data, multi-valued DataProperty). Legacy bare-name fallbacks:
+      //   <PhaseLabel>Liquid</PhaseLabel>  (siblings, pre-carrier canonical)
+      //   <ListOfPhases><PhaseIdentifier Identifier="..."/></ListOfPhases>
+      // (folk wrapper from before the PhaseLabel rename).
       const phases: string[] = [];
-      if (listOfPhases) {
-        const phaseIdentifiers = Array.from(listOfPhases.querySelectorAll('PhaseIdentifier'));
-        phaseIdentifiers.forEach((p: Element) => {
-          const identifier = p.getAttribute('Identifier') || this.getChildText(p, 'Identifier');
-          if (identifier) phases.push(identifier);
-        });
-      }
+      Array.from(template.children).forEach((c: Element) => {
+        const ll = (c.localName || '').toLowerCase();
+        if (ll === 'data' && c.getAttribute('property') === 'PhaseLabel') {
+          const text = c.textContent?.trim();
+          if (text) phases.push(text);
+        } else if (c.localName === 'PhaseLabel') {
+          const text = c.textContent?.trim();
+          if (text) phases.push(text);
+        } else if (c.localName === 'ListOfPhases') {
+          this.findByLocalName(c, 'PhaseIdentifier').forEach((p: Element) => {
+            const identifier = p.getAttribute('Identifier') || this.getChildText(p, 'Identifier');
+            if (identifier) phases.push(identifier);
+          });
+        }
+      });
 
       this.materialTemplates.set(uid, {
         uid,
@@ -650,7 +791,7 @@ export class BpmnToDexpiTransformer {
     });
 
     // Extract MaterialComponents
-    const components = Array.from(extensionElements.querySelectorAll('MaterialComponent'));
+    const components = this.findByLocalName(extensionElements, 'MaterialComponent');
     components.forEach(component => {
       const uid = component.getAttribute('uid') || this.generateUid();
       const identifier = this.getChildText(component, 'Identifier');
@@ -673,7 +814,7 @@ export class BpmnToDexpiTransformer {
     });
 
     // Extract MaterialStates from Case elements (new structure) or direct children (legacy)
-    const cases = Array.from(extensionElements.querySelectorAll('Case'));
+    const cases = this.findByLocalName(extensionElements, 'Case');
     const hasNewStructure = cases.length > 0;
     
     if (hasNewStructure) {
@@ -691,14 +832,14 @@ export class BpmnToDexpiTransformer {
         }
 
         // Extract MaterialStates within this Case
-        const states = Array.from(caseElement.querySelectorAll('MaterialState'));
+        const states = this.findByLocalName(caseElement, 'MaterialState');
         states.forEach(state => {
           this.extractMaterialState(state, caseName || name);
         });
       });
     } else {
       // LEGACY STRUCTURE: MaterialStates directly in extensionElements
-      const states = Array.from(extensionElements.querySelectorAll('MaterialState'));
+      const states = this.findByLocalName(extensionElements, 'MaterialState');
       states.forEach(state => {
         this.extractMaterialState(state, name);
       });
@@ -707,43 +848,131 @@ export class BpmnToDexpiTransformer {
 
   private extractMaterialState(state: Element, caseName: string): void {
     const uid = state.getAttribute('uid') || this.generateUid();
-        const identifier = this.getChildText(state, 'Identifier');
-        const label = this.getChildText(state, 'Label');
-        const description = this.getChildText(state, 'Description');
-        const templateRef = this.getChildValue(state, 'TemplateReference', 'uidRef');
+    const identifier = this.getChildText(state, 'Identifier');
+    const label = this.getChildText(state, 'Label');
+    const description = this.getChildText(state, 'Description');
+    const templateRef = this.getChildValue(state, 'TemplateReference', 'uidRef');
 
-        // Extract Flow data
-        const flowElement = Array.from(state.children).find((c: Element) => c.tagName === 'Flow' || c.localName === 'Flow');
-        let flow: import('./types').FlowData | null = null;
-        
-        if (flowElement) {
-          const moleFlowElement = Array.from(flowElement.children).find((c: Element) => c.tagName === 'MoleFlow' || c.localName === 'MoleFlow');
-          const compositionElement = Array.from(flowElement.children).find((c: Element) => c.tagName === 'Composition' || c.localName === 'Composition');
-          
-          flow = {};
-          
-          if (moleFlowElement) {
-            flow.moleFlow = {
-              value: this.getChildText(moleFlowElement as Element, 'Value'),
-              unit: this.getChildText(moleFlowElement as Element, 'Unit')
-            };
-          }
-          
-          if (compositionElement) {
-            const fractions = Array.from((compositionElement as Element).querySelectorAll('Fraction'));
+    // Restructured form (Process.xml-aligned): MaterialState references a
+    // sibling MaterialStateType via <dexpi:references property="State"
+    // uidRef="..."/>; the MaterialStateType holds MoleFlow + a Composition
+    // reference; the Composition holds Display + MoleFractions/MassFractions.
+    // Read this chain when present.
+    const stateTypeRefUid = this.getChildValue(state, 'State', 'uidRef');
+    let flow: import('./types').FlowData | null = null;
+    let resolvedStateTypeUid: string | undefined;
+
+    if (stateTypeRefUid) {
+      // Find the sibling MaterialStateType by uid in the same extensionElements.
+      const root = state.parentElement;
+      let mst: Element | undefined;
+      if (root) {
+        mst = Array.from(root.children).find((c: Element) =>
+          c.localName === 'MaterialStateType' && c.getAttribute('uid') === stateTypeRefUid
+        ) as Element | undefined;
+      }
+      if (mst) {
+        resolvedStateTypeUid = stateTypeRefUid;
+        flow = {};
+        // State-level scalar MoleFlow lives on MaterialStateType. DEXPI
+        // 2.0's MaterialStateType has scalar MassFlow / VolumeFlow but no
+        // scalar MoleFlow — a real vocabulary gap. We Profile-extend
+        // MaterialStateType with a scalar MoleFlow (parallel to its
+        // existing scalar MassFlow); the Profile generator captures this
+        // as a genuine project-specific extension. Composition's MoleFlow
+        // (Process.xml line 426) is a different concept: a multi-valued
+        // PER-COMPONENT vector keyed to the MaterialTemplate's component
+        // list, NOT a state-level scalar.
+        const moleFlowQv = this.findCarrierComponentsQualifiedValue(mst, 'MoleFlow');
+        if (moleFlowQv) {
+          flow.moleFlow = {
+            value: this.getChildText(moleFlowQv, 'Value'),
+            unit: this.getChildText(moleFlowQv, 'Unit'),
+          };
+        }
+        // Composition reference → resolve to Composition sibling block.
+        const compRefUid = this.getChildValue(mst, 'Composition', 'uidRef');
+        if (compRefUid) {
+          const comp = Array.from(root!.children).find((c: Element) =>
+            c.localName === 'Composition' && c.getAttribute('uid') === compRefUid
+          ) as Element | undefined;
+          if (comp) {
+            const display = this.getChildText(comp, 'Display');
+            // Composition's fractions properties per Process.xml are
+            // MoleFractiona (sic — typo for MoleFractions in the published
+            // schema; faithful reproduction here, flagged upstream),
+            // MassFractions, VolumeFractions. Each is a CompositionProperty
+            // wrapping a QualifiedValue<PhysicalQuantityVector> whose
+            // Values DataProperty is multi-valued (one <dexpi:data
+            // property="Values">v</dexpi:data> per component).
+            const fractionsQv =
+              this.findCarrierComponentsQualifiedValue(comp, 'MoleFractiona') ??
+              this.findCarrierComponentsQualifiedValue(comp, 'MassFractions') ??
+              this.findCarrierComponentsQualifiedValue(comp, 'VolumeFractions');
+            const basis = fractionsQv
+              ? (this.findCarrierComponentsPropertyName(comp, 'MoleFractiona')
+                  ? 'Mole'
+                  : this.findCarrierComponentsPropertyName(comp, 'MassFractions')
+                    ? 'Mass'
+                    : 'Volume')
+              : '';
+            const values: { value: string }[] = [];
+            if (fractionsQv) {
+              for (const c of Array.from(fractionsQv.children) as Element[]) {
+                if ((c.localName || '').toLowerCase() === 'data' &&
+                    c.getAttribute('property') === 'Values') {
+                  values.push({ value: (c.textContent ?? '').trim() });
+                }
+              }
+            }
             flow.composition = {
-              basis: this.getChildText(compositionElement as Element, 'Basis'),
-              display: this.getChildText(compositionElement as Element, 'Display'),
-              fractions: fractions.map(f => ({
-                value: this.getChildText(f, 'Value'),
-                componentRef: this.getChildText(f, 'ComponentReference')
-              }))
+              basis,
+              display,
+              fractions: values.map(v => ({ value: v.value, componentRef: '' })),
             };
           }
         }
+      }
+    }
 
-    // Create MaterialStateType with flow data
-    const stateTypeUid = `${uid}_Type`;
+    // Legacy inline-Flow fallback for fixtures saved before the
+    // MaterialState→MaterialStateType→Composition restructure.
+    if (!flow) {
+      const flowElement = Array.from(state.children).find((c: Element) =>
+        c.tagName === 'Flow' || c.localName === 'Flow'
+      );
+      if (flowElement) {
+        const moleFlowElement = Array.from(flowElement.children).find((c: Element) =>
+          c.tagName === 'MoleFlow' || c.localName === 'MoleFlow'
+        );
+        const compositionElement = Array.from(flowElement.children).find((c: Element) =>
+          c.tagName === 'Composition' || c.localName === 'Composition'
+        );
+        flow = {};
+        if (moleFlowElement) {
+          flow.moleFlow = {
+            value: this.getChildText(moleFlowElement as Element, 'Value'),
+            unit: this.getChildText(moleFlowElement as Element, 'Unit'),
+          };
+        }
+        if (compositionElement) {
+          const fractions = this.findByLocalName(compositionElement as Element, 'Fraction');
+          flow.composition = {
+            basis: this.getChildText(compositionElement as Element, 'Basis'),
+            display: this.getChildText(compositionElement as Element, 'Display'),
+            fractions: fractions.map(f => ({
+              value: this.getChildText(f, 'Value'),
+              componentRef: this.getChildText(f, 'ComponentReference'),
+            })),
+          };
+        }
+      }
+    }
+
+    // Synthesize a MaterialStateType internal record. Prefer the resolved
+    // uid from the State reference; fall back to a derived uid for legacy
+    // inline-Flow fixtures (the old "${uid}_Type" convention).
+    const stateTypeUid = resolvedStateTypeUid ?? `${uid}_Type`;
     if (flow) {
       this.materialStateTypes.set(stateTypeUid, {
         uid: stateTypeUid,
@@ -751,30 +980,139 @@ export class BpmnToDexpiTransformer {
         label: `${label} - Flow Data`,
         description: `Flow data for ${label}`,
         templateRef,
-        flow
+        flow,
       });
     }
 
-    // Create MaterialState with metadata and reference to MaterialStateType
     this.materialStates.set(uid, {
       uid,
       identifier,
       label: caseName ? `${caseName} - ${label}` : label,
       description,
       caseName: caseName,
-      stateTypeRef: flow ? stateTypeUid : undefined
+      stateTypeRef: flow ? stateTypeUid : undefined,
     });
   }
 
+  /**
+   * Find a Components carrier with property="X" inside `parent`, and return
+   * its inner <dexpi:object type="Core/QualifiedValue"> element. Returns
+   * undefined if not present. Used to descend through the
+   * MaterialStateType → MoleFlow → QualifiedValue chain and similar paths.
+   */
+  /**
+   * Descendant lookup by local name. parseBpmn() strips bpmn:/bpmn2: prefixes
+   * but leaves dexpi: intact, so CSS type-selector lookups via
+   * querySelectorAll('MaterialState') match by qualified name and silently
+   * miss <dexpi:MaterialState>. The natural alternative
+   * getElementsByTagNameNS(DEXPI_NS, ...) is unreliable across DOM engines
+   * (happy-dom, used by the test suite, does not resolve declared XML
+   * namespace prefixes — empty result for both the DEXPI URI and the '*'
+   * wildcard). A manual depth-first walk over child elements, comparing
+   * localName, is the only approach that works identically in browsers
+   * and in happy-dom. The walk is bounded — only DEXPI extensionElements
+   * subtrees are traversed in practice.
+   *
+   * Match constraint: element's namespaceURI is DEXPI or null. Real
+   * browsers populate namespaceURI from the xmlns:dexpi declaration so
+   * stray look-alikes in unrelated namespaces are still excluded; in
+   * happy-dom namespaceURI is null and the localName test alone applies.
+   */
+  private findByLocalName(parent: Element, localName: string): Element[] {
+    const out: Element[] = [];
+    const walk = (node: Element): void => {
+      for (const child of Array.from(node.children) as Element[]) {
+        if (child.localName === localName) {
+          const ns = child.namespaceURI;
+          if (!ns || ns === DEXPI_NS) out.push(child);
+        }
+        walk(child);
+      }
+    };
+    walk(parent);
+    return out;
+  }
+
+  private findCarrierComponentsQualifiedValue(parent: Element, propertyName: string): Element | undefined {
+    for (const c of Array.from(parent.children) as Element[]) {
+      if ((c.localName || '').toLowerCase() === 'components' &&
+          c.getAttribute('property') === propertyName) {
+        const obj = Array.from(c.children).find((o: Element) =>
+          (o.localName || '').toLowerCase() === 'object'
+        );
+        if (obj) return obj as Element;
+      }
+    }
+    return undefined;
+  }
+
+  /** Returns true if parent has a <dexpi:components property="X"> child. */
+  private findCarrierComponentsPropertyName(parent: Element, propertyName: string): boolean {
+    for (const c of Array.from(parent.children) as Element[]) {
+      if ((c.localName || '').toLowerCase() === 'components' &&
+          c.getAttribute('property') === propertyName) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Read a DataProperty value from a DEXPI rich-content element. Prefers
+   * the carrier-wrapped form
+   *   <dexpi:data property="Identifier">X</dexpi:data>
+   * (kind recorded explicitly via the carrier element name), and falls
+   * back to the legacy bare-name form
+   *   <Identifier>X</Identifier>
+   * for content saved before the carrier migration. Both shapes coexist
+   * during the migration window; the bare-name fallback is kept as a
+   * defensive read-path for hand-authored legacy BPMN files and is not
+   * exercised by the canonical TEP fixture or the UI write paths.
+   */
   private getChildText(parent: Element, childName: string): string {
-    const child = Array.from(parent.children).find((c: Element) => 
+    // Carrier form first.
+    for (const c of Array.from(parent.children) as Element[]) {
+      if ((c.localName === 'data' || c.localName === 'Data') &&
+          c.getAttribute('property') === childName) {
+        return (c.textContent ?? '').trim();
+      }
+    }
+    // Bare-name fallback.
+    const child = Array.from(parent.children).find((c: Element) =>
       c.tagName === childName || c.localName === childName
     );
     return child?.textContent || '';
   }
 
+  /**
+   * Read a ReferenceProperty's target attribute from a DEXPI rich-content
+   * element. Prefers carrier-wrapped form
+   *   <dexpi:references property="MaterialTemplateReference" uidRef="X"/>
+   * (kind = reference, recorded explicitly), and accepts the DEXPI XSD
+   * `objects="#X"` form alongside `uidRef`. Falls back to legacy bare-name
+   *   <MaterialTemplateReference uidRef="X"/>
+   * for content saved before the carrier migration.
+   */
   private getChildValue(parent: Element, childName: string, attrName: string): string {
-    const child = Array.from(parent.children).find((c: Element) => 
+    // Carrier form first (References).
+    for (const c of Array.from(parent.children) as Element[]) {
+      if ((c.localName === 'references' || c.localName === 'References') &&
+          c.getAttribute('property') === childName) {
+        // For uidRef requests, also accept the DEXPI XSD `objects="#X"`
+        // form so the reader is symmetric with the standalone DEXPI XML
+        // shape (which uses `objects=`) without forcing every carrier
+        // author to know that.
+        const direct = c.getAttribute(attrName);
+        if (direct) return direct;
+        if (attrName === 'uidRef') {
+          const objects = c.getAttribute('objects');
+          if (objects) return objects.replace(/^#/, '');
+        }
+        return '';
+      }
+    }
+    // Bare-name fallback.
+    const child = Array.from(parent.children).find((c: Element) =>
       c.tagName === childName || c.localName === childName
     );
     return child?.getAttribute(attrName) || '';
@@ -815,6 +1153,11 @@ export class BpmnToDexpiTransformer {
         // Used when dexpiType is not a standard DEXPI class (mode 2 typing).
         // Example: <dexpi:element dexpiType="MyStep" customUri="https://my-rdl.org/MyStep"/>
         customUri: dexpiElement.getAttribute('customUri') || undefined,
+        // customSuperType: user-chosen DEXPI parent class for a custom dexpiType.
+        // Picked from the registry (Process + Core + already-loaded Profiles) in the
+        // panel UI. Consumed by the Profile generator when synthesising a
+        // <ConcreteClass> declaration for the custom class.
+        customSuperType: dexpiElement.getAttribute('customSuperType') || undefined,
         identifier: dexpiElement.getAttribute('identifier') || undefined,
         uid: dexpiElement.getAttribute('uid') || undefined,
         hierarchyLevel: dexpiElement.getAttribute('hierarchyLevel') || undefined,
@@ -859,12 +1202,66 @@ export class BpmnToDexpiTransformer {
     for (let i = 0; i < dexpiStream.children.length; i++) {
       const child = dexpiStream.children[i];
       const localName = child.localName || child.tagName.split(':').pop() || '';
-      
-      if (localName.toLowerCase() === 'attribute' || localName.toLowerCase() === 'streamattribute') {
-        // Unified <dexpi:Attribute> child (canonical) — also accept the
-        // legacy <dexpi:streamAttribute> name for back-compat with BPMN
-        // files saved before the moddle Attribute/StreamAttribute split
-        // was unified. The two had identical fields.
+      const ll = localName.toLowerCase();
+
+      // ── Carrier-wrapped form (preferred) ────────────────────────────────
+      // <dexpi:references property="X" uidRef="..."/>
+      // <dexpi:components property="X"><dexpi:object type="Core/QualifiedValue">
+      //   <dexpi:data property="Value">...</dexpi:data>
+      //   <dexpi:data property="Unit">...</dexpi:data>
+      //   <dexpi:data property="Provenance">...</dexpi:data>
+      //   <dexpi:data property="Range">...</dexpi:data>
+      // </dexpi:object></dexpi:components>
+      // The carrier element name encodes kind explicitly (Data → DataProperty,
+      // References → ReferenceProperty, Components → CompositionProperty),
+      // so the reader doesn't need shape inference.
+      if (ll === 'references') {
+        const propertyName = child.getAttribute('property') || '';
+        const target = child.getAttribute('uidRef') ||
+          (child.getAttribute('objects') || '').replace(/^#/, '') || undefined;
+        if (propertyName === 'MaterialStateReference') materialStateRef = target;
+        else if (propertyName === 'MaterialTemplateReference') templateRef = target;
+        // Other ReferenceProperty values on Stream pass through unrecognized.
+        continue;
+      }
+      if (ll === 'components') {
+        const propertyName = child.getAttribute('property') || '';
+        // Look for the inner <dexpi:object type="Core/QualifiedValue">.
+        const obj = Array.from(child.children).find((o: Element) =>
+          (o.localName || '').toLowerCase() === 'object'
+        );
+        if (!obj) continue;
+        // Extract QualifiedValue's <dexpi:data property="X">v</dexpi:data> entries.
+        const readData = (name: string): string => {
+          for (const d of Array.from(obj.children) as Element[]) {
+            if ((d.localName || '').toLowerCase() === 'data' &&
+                d.getAttribute('property') === name) {
+              return (d.textContent ?? '').trim();
+            }
+          }
+          return '';
+        };
+        const value = readData('Value');
+        if (!value) continue; // CompositionProperty with no value is uninteresting
+        attributes.push({
+          name: propertyName,
+          value,
+          unit: readData('Unit'),
+          scope: readData('Scope') || 'Design',
+          range: readData('Range') || 'Nominal',
+          provenance: readData('Provenance') || 'Calculated',
+          qualifier: readData('Qualifier') || 'Average',
+        });
+        continue;
+      }
+
+      // ── Legacy bare-name fallbacks (kept so already-saved BPMN files
+      // continue to round-trip during the migration window) ───────────────
+      if (ll === 'attribute' || ll === 'streamattribute') {
+        // Unified <dexpi:Attribute> child (canonical pre-carrier) — also
+        // accepts the legacy <dexpi:streamAttribute> name for back-compat
+        // with BPMN files saved before the moddle Attribute/StreamAttribute
+        // split was unified. Identical fields.
         attributes.push({
           name: child.getAttribute('name') || '',
           value: child.getAttribute('value') || '',
@@ -874,20 +1271,22 @@ export class BpmnToDexpiTransformer {
           provenance: child.getAttribute('provenance') || 'Calculated',
           qualifier: child.getAttribute('qualifier') || 'Average'
         });
-      } else if (localName.toLowerCase() === 'materialstatereference') {
+      } else if (ll === 'materialstatereference') {
         materialStateRef = child.getAttribute('uidRef') || undefined;
-      } else if (localName.toLowerCase() === 'templatereference') {
+      } else if (ll === 'materialtemplatereference' || ll === 'templatereference') {
+        // Legacy bare-name reference to MaterialTemplate. The folk name
+        // TemplateReference is also accepted for files saved before the
+        // canonical-name rename to MaterialTemplateReference.
         templateRef = child.getAttribute('uidRef') || undefined;
       } else {
-        // Format 2: Direct property elements like Temperature, Pressure, MassFlow, etc.
-        // These have Value/Unit child elements
+        // Legacy bare-name CompositionProperty form: <MassFlow><Value/><Unit/>...
         const valueElement = child.querySelector('Value');
         const unitElement = child.querySelector('Unit');
         const scopeElement = child.querySelector('Scope');
         const rangeElement = child.querySelector('Range');
         const provenanceElement = child.querySelector('Provenance');
         const qualifierElement = child.querySelector('Qualifier');
-        
+
         if (valueElement) {
           const propertyName = localName.charAt(0).toUpperCase() + localName.slice(1);
           attributes.push({
@@ -919,13 +1318,49 @@ export class BpmnToDexpiTransformer {
 
   private extractAttributesFromElement(dexpiElement: Element): StreamAttribute[] {
     const attributes: StreamAttribute[] = [];
-    
-    // Iterate through children to find attribute elements
+
+    // Iterate through children to find attribute / property carriers.
     for (let i = 0; i < dexpiElement.children.length; i++) {
       const child = dexpiElement.children[i];
       const localName = child.localName || child.tagName.split(':').pop() || '';
-      
-      if (localName.toLowerCase() === 'attribute') {
+      const ll = localName.toLowerCase();
+
+      // Carrier-wrapped CompositionProperty form (preferred):
+      //   <dexpi:components property="X">
+      //     <dexpi:object type="Core/QualifiedValue">
+      //       <dexpi:data property="Value">v</dexpi:data> ...
+      //     </dexpi:object>
+      //   </dexpi:components>
+      if (ll === 'components') {
+        const propertyName = child.getAttribute('property') || '';
+        const obj = Array.from(child.children).find((o: Element) =>
+          (o.localName || '').toLowerCase() === 'object'
+        );
+        if (!obj) continue;
+        const readData = (name: string): string => {
+          for (const d of Array.from(obj.children) as Element[]) {
+            if ((d.localName || '').toLowerCase() === 'data' &&
+                d.getAttribute('property') === name) {
+              return (d.textContent ?? '').trim();
+            }
+          }
+          return '';
+        };
+        const value = readData('Value');
+        if (!value) continue;
+        attributes.push({
+          name: propertyName,
+          value,
+          unit: readData('Unit'),
+          scope: readData('Scope') || 'Design',
+          range: readData('Range') || 'Nominal',
+          provenance: readData('Provenance') || 'Calculated',
+        });
+        continue;
+      }
+
+      // Legacy bare-name <dexpi:Attribute name=... value=... unit=.../> form.
+      if (ll === 'attribute') {
         attributes.push({
           name: child.getAttribute('name') || '',
           value: child.getAttribute('value') || '',
@@ -1125,11 +1560,31 @@ export class BpmnToDexpiTransformer {
         },
         'Object': this.buildMaterialStates()
       };
-      
+
       if (Array.isArray(processModelObject.Components)) {
         processModelObject.Components.push(statesComponent);
       } else {
         processModelObject.Components = [processModelObject.Components, statesComponent];
+      }
+    }
+
+    // Add Compositions collection (one per MaterialStateType that carries
+    // composition data). Per Process.xml, ProcessModel.Compositions is the
+    // CompositionProperty container; MaterialStateType.Composition is the
+    // ReferenceProperty that points back into this collection.
+    const compositionObjects = this.buildCompositions();
+    if (compositionObjects.length > 0) {
+      if (!processModelObject.Components) {
+        processModelObject.Components = [];
+      }
+      const compositionsComponent = {
+        '$': { 'property': 'Compositions' },
+        'Object': compositionObjects,
+      };
+      if (Array.isArray(processModelObject.Components)) {
+        processModelObject.Components.push(compositionsComponent);
+      } else {
+        processModelObject.Components = [processModelObject.Components, compositionsComponent];
       }
     }
 
@@ -1246,8 +1701,109 @@ export class BpmnToDexpiTransformer {
         }
       }
 
-      // Add ports as composition properties
-      if (step.ports && step.ports.length > 0) {
+      // Schema-correct instrumentation handling (DEXPI 2.0 Specification PDF
+      // pp.876, 900, 910, 917): InstrumentationActivity and its subclasses
+      // (MeasuringProcessVariable, ControllingProcessVariable, ConveyingSignal,
+      // CalculatingProcessVariable) inherit from Core/ConceptualObject, not
+      // ProcessStep. They do NOT own a Ports CompositionProperty — only
+      // ProcessStep does. The connection of an instrumentation activity to
+      // the process is expressed via reference properties: ProcessStepReference,
+      // ProcessStepDetailReference, ConnectionReference, MeasuredVariableReference,
+      // plus the signal-level composition properties InputValue / OutputValue /
+      // MeasuredVariable / Setpoint. We translate accordingly: the BPMN-side
+      // <dexpi:port> annotations on instrumentation tasks are dropped at emit
+      // time and replaced by the schema-correct References derived from the
+      // BPMN dataObject topology (extractDataObjectInformationFlows populates
+      // step.processStepRef / step.measuredVariable for each instrumentation
+      // task). InformationFlows mediated by an instrumentation activity are
+      // suppressed elsewhere; the relationship is captured by these References.
+      const bareStepType = step.type?.replace(/^Process\./, '');
+      const isInstrumentationActivity =
+        this.registry.size > 0 &&
+        bareStepType !== undefined &&
+        this.registry.hasAncestor(bareStepType, 'InstrumentationActivity');
+      if (isInstrumentationActivity) {
+        // Schema asymmetry, intentional and registry-driven (not heuristic):
+        // MeasuringProcessVariable declares ProcessStepReference (DEXPI 2.0
+        // Spec p.900); the other InstrumentationActivity subclasses
+        // (ControllingProcessVariable p.794, ConveyingSignal,
+        // CalculatingProcessVariable) do not declare any ProcessStep ref.
+        // Emit ProcessStepReference only when the registry confirms the
+        // class actually owns it. For the other subclasses the relationship
+        // to the controlled / signalled step is captured topologically in
+        // the source BPMN (round-trip recovers it) and in the variable label.
+        const ownedProperties = this.registry.size > 0 && bareStepType
+          ? new Set(this.registry.getProperties(bareStepType).map(p => p.name))
+          : new Set<string>();
+        // step.processStepRef is a BPMN element id (e.g. "Activity_18ratv8");
+        // the corresponding emitted ProcessStep Object uses its sanitized
+        // uid as the DEXPI id (e.g. "uid_Activity_18ratv8"). Resolve the BPMN
+        // id back to the InternalProcessStep so the reference target matches
+        // the actual emitted Object id.
+        const refStep = step.processStepRef ? this.processSteps.get(step.processStepRef) : undefined;
+        const refStepEmittedId = refStep ? this.sanitizeId(refStep.uid) : undefined;
+        if (refStepEmittedId && ownedProperties.has('ProcessStepReference')) {
+          if (!dexpiStep.References) dexpiStep.References = [];
+          (dexpiStep.References as Record<string, unknown>[]).push({
+            '$': {
+              'property': 'ProcessStepReference',
+              'objects': `#${refStepEmittedId}`,
+            },
+          });
+        }
+        // Choose between schema-correct MeasuredVariableReference and a
+        // Profile-extension MeasuredVariableLabel based on whether the
+        // referenced ProcessStep's class actually declares the measured
+        // variable as a CompositionProperty (DEXPI 2.0 Spec p.900: "The
+        // measured variable is identified by reference to a parameter in
+        // any process step or port"). The decision is registry-driven and
+        // walks the full supertype chain — Temperature / Pressure are
+        // declared on ProcessStep itself, while Duty lives on
+        // ExchangingThermalEnergy, Level on StoringInSilo,
+        // RotationalFrequency on Agitating / Agglomerating /
+        // SupplyingMechanicalEnergy, etc. (Composition has no
+        // parameter-slot home anywhere on ProcessStep, since DEXPI's
+        // Composition is itself a complex class.) Variables whose name
+        // is not declared on the referenced step's class are surfaced as
+        // genuine vocabulary gaps via MeasuredVariableLabel; the Profile
+        // generator picks them up. ControllingProcessVariable does not
+        // declare MeasuredVariableReference itself (Spec p.794), so we
+        // registry-gate this emission too — same pattern as
+        // ProcessStepReference above.
+        const refStepProps = refStep && this.registry.size > 0
+          ? new Set(this.registry.getProperties(refStep.type.replace(/^Process\./, '')).map(p => p.name))
+          : new Set<string>();
+        const variableIsCanonical = !!step.measuredVariable && refStepProps.has(step.measuredVariable);
+        if (
+          refStepEmittedId &&
+          step.measuredVariable &&
+          variableIsCanonical &&
+          ownedProperties.has('MeasuredVariableReference')
+        ) {
+          if (!dexpiStep.References) dexpiStep.References = [];
+          (dexpiStep.References as Record<string, unknown>[]).push({
+            '$': {
+              'property': 'MeasuredVariableReference',
+              'objects': `#${refStepEmittedId}_${this.sanitizeId(step.measuredVariable)}`,
+            },
+          });
+        } else if (step.measuredVariable) {
+          // Profile-extension fallback: variable has no canonical slot on
+          // the referenced step's class. Carry the variable identity as a
+          // MeasuredVariableLabel Data property — strict-mode flags it,
+          // Profile generator captures it.
+          if (!Array.isArray(dexpiStep.Data)) {
+            dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
+          }
+          (dexpiStep.Data as Record<string, unknown>[]).push({
+            '$': { 'property': 'MeasuredVariableLabel' },
+            'String': step.measuredVariable,
+          });
+        }
+      }
+
+      // Ports composition for non-instrumentation steps.
+      if (!isInstrumentationActivity && step.ports && step.ports.length > 0) {
         const portObjects: Record<string, unknown>[] = [];
         
         step.ports.forEach((port: DexpiPort) => {
@@ -1278,15 +1834,14 @@ export class BpmnToDexpiTransformer {
             ]
           };
 
-          // Add Label if present
-          if (port.name) {
-            (portObject.Data as Record<string, unknown>[]).push({
-              '$': {
-                'property': 'Label'
-              },
-              'String': port.name
-            });
-          }
+          // Port has no Label DataProperty per Process.xml — its named
+          // properties are Identifier / Description / NominalDirection /
+          // SubReference / SuperReference / ConnectorReference. The
+          // BPMN-side <dexpi:port label="..."> attribute is kept on the
+          // BPMN moddle for UI display, but is not emitted into DEXPI XML
+          // as a Label property because no such property exists on Port.
+          // The short port name (e.g. "MI1") is captured by Identifier
+          // already (assigned above to safePortId).
 
           portObjects.push(portObject);
         });
@@ -1308,17 +1863,22 @@ export class BpmnToDexpiTransformer {
             });
           }
           
-          // Add SubReference if this port has child ports
+          // Add SubReference if this port has child ports.
+          // Per Process.xml, Port.SubReference is a CompositionProperty
+          // (target /Process.Port). We satisfy the composition contract
+          // without duplicating the port object by emitting an
+          // ObjectReference shell — DEXPI XSD permits <Components> to hold
+          // either inline <Object> or <ObjectReference object="#..."/>
+          // (XSD line 769-792). The actual port object continues to live
+          // in the inner step's ListOfPorts (single-ownership invariant).
           if (portData?.childPortIds && portData.childPortIds.length > 0) {
-            if (!portObject.References) portObject.References = [];
-            const childRefs = portData.childPortIds
-              .map((childId: string) => `#${this.sanitizeId(childId)}`)
-              .join(' ');
-            (portObject.References as Record<string, unknown>[]).push({
-              '$': {
-                'property': 'SubReference',
-                'objects': childRefs
-              }
+            if (!portObject.Components) portObject.Components = [];
+            const childObjects = portData.childPortIds.map((childId: string) => ({
+              '$': { 'object': `#${this.sanitizeId(childId)}` },
+            }));
+            (portObject.Components as Record<string, unknown>[]).push({
+              '$': { 'property': 'SubReference' },
+              'ObjectReference': childObjects,
             });
           }
         });
@@ -1459,6 +2019,62 @@ export class BpmnToDexpiTransformer {
           },
           'String': step.hierarchyLevel
         });
+      }
+
+      // Materialise QualifiedValue parameter slots for variables that
+      // downstream InstrumentationActivities reference via
+      // MeasuredVariableReference (DEXPI 2.0 Spec p.900: "The measured
+      // variable is identified by reference to a parameter in any process
+      // step or port"). One Components carrier per name; the wrapped
+      // QualifiedValue carries no value (the actual measurement lives on
+      // the InstrumentationActivity's OutputValue / MeasuredVariable
+      // composition slots), only an id stable enough for the reference to
+      // resolve. The id convention `<sanitized_step_uid>_<varName>` is
+      // matched by the MeasuredVariableReference emit above.
+      // Canonical names (Temperature, Pressure, AmbientTemperature,
+      // AmbientPressure) align with ProcessStep's declared composition
+      // properties — strict-mode reports nothing. Non-canonical names
+      // (Level, MassFlow, RotationalFrequency, Composition, Duty, ...)
+      // are flagged as Profile-extension findings the Profile generator
+      // captures — exactly the vocabulary-gap mechanism the spec's open
+      // type binding `<QualifiedValue with Type → Undefined | PhysicalQuantity>`
+      // anticipates. We emit only on non-instrumentation steps; emitting
+      // a measurable parameter on an InstrumentationActivity would itself
+      // be a schema violation (no Components composition declared).
+      if (!isInstrumentationActivity && step.measuredParameters && step.measuredParameters.size > 0) {
+        // Materialise QualifiedValue parameter slots only for variables
+        // whose name is a declared CompositionProperty on this step's
+        // class (registry-driven; walks the supertype chain). Non-canonical
+        // names are not fabricated as Components on the ProcessStep — the
+        // upstream InstrumentationActivity carries them as a
+        // MeasuredVariableLabel Profile-extension Data property instead.
+        // This keeps the ProcessStep's emitted shape clean of Profile-
+        // extension Components and confines vocabulary gaps to the
+        // instrumentation side.
+        const ownProps = this.registry.size > 0 && bareStepType
+          ? new Set(this.registry.getProperties(bareStepType).map(p => p.name))
+          : new Set<string>();
+        const canonicalVars = [...step.measuredParameters].filter(v => ownProps.has(v));
+        if (canonicalVars.length > 0) {
+          if (!dexpiStep.Components) {
+            dexpiStep.Components = [];
+          } else if (!Array.isArray(dexpiStep.Components)) {
+            dexpiStep.Components = [dexpiStep.Components as Record<string, unknown>];
+          }
+          const stepEmittedId = this.sanitizeId(step.uid);
+          for (const varName of canonicalVars) {
+            const safeVar = this.sanitizeId(varName);
+            (dexpiStep.Components as Record<string, unknown>[]).push({
+              '$': { 'property': varName },
+              'Object': {
+                '$': {
+                  'id': `${stepEmittedId}_${safeVar}`,
+                  'type': 'Core/QualifiedValue',
+                },
+              },
+            });
+          }
+        }
       }
 
       return dexpiStep;
@@ -1665,7 +2281,23 @@ export class BpmnToDexpiTransformer {
   private buildInformationFlows(): Record<string, unknown>[] {
     const flowElements: Record<string, unknown>[] = [];
 
+    const isInstr = (stepId: string): boolean => {
+      const s = this.processSteps.get(stepId);
+      if (!s || this.registry.size === 0) return false;
+      return this.registry.hasAncestor(s.type.replace(/^Process\./, ''), 'InstrumentationActivity');
+    };
+
     this.informationFlows.forEach((flow) => {
+      // Schema-correct: an InformationFlow's Source/Target are InformationPorts,
+      // which only exist on ProcessSteps and ProcessConnections. If either
+      // endpoint is an InstrumentationActivity descendant, the relationship
+      // belongs on the InstrumentationActivity itself via ProcessStepReference
+      // / MeasuredVariableReference (emitted in buildProcessStepObject) and
+      // does NOT round-trip through an InformationFlow object. Skip emission.
+      if (isInstr(flow.sourceRef) || isInstr(flow.targetRef)) {
+        return;
+      }
+
       // Match ports by the variable identity (DataObject name carried in flow.name).
       // Element with port labelled "Temperature" wins for a Temperature flow.
       const sourcePort = this.findPortForConnection(
@@ -1705,20 +2337,18 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add InformationVariant if this flow was stitched through a DataObject
-      // (DataObject name = the measured/controlled variable)
-      if (flow.informationVariantLabel) {
-        dexpiFlow.Components = [{
-          '$': { 'property': 'InformationValue' },
-          'Object': {
-            '$': { 'type': 'Process/Process.InformationVariant' },
-            'Data': [{
-              '$': { 'property': 'Label' },
-              'String': flow.informationVariantLabel
-            }]
-          }
-        }];
-      }
+      // The DataObject name (which was historically attached here as a
+      // Label DataProperty on an InformationVariant child) is already
+      // surfaced as the InformationFlow's own Label above (line 1737).
+      // InformationVariant per Process.xml carries only typed values
+      // (BooleanValue / DoubleValue / IntegerValue / VariantType /
+      // VectorSize) — it has no Label DataProperty, so emitting one here
+      // produced a strict-mode property-name fidelity violation. We drop
+      // the embedded InformationVariant entirely; the variable name
+      // continues to reach DEXPI consumers through the flow's Label.
+      // Mapping the variable identity onto MeasuredVariableReference (the
+      // schema-correct location on MeasuringProcessVariable) is a
+      // separate semantic-fidelity concern; flagged in PR description.
 
       flowElements.push(dexpiFlow);
     });
@@ -1785,27 +2415,32 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add ListOfMaterialComponents if present
+      // Add ListOfComponents if present. Canonical name per Process.xml
+      // line 2439: ListOfComponents is the ReferenceProperty on
+      // MaterialTemplate (target type = ListOfMaterialComponents class).
       if (template.componentRefs && template.componentRefs.length > 0) {
         if (!dexpiTemplate.References) {
           dexpiTemplate.References = [];
         }
         (dexpiTemplate.References as Record<string, unknown>[]).push({
           '$': {
-            'property': 'ListOfMaterialComponents',
+            'property': 'ListOfComponents',
             'objects': template.componentRefs.map((ref: string) => `#${this.sanitizeId(ref)}`).join(' ')
           }
         });
       }
 
-      // Add ListOfPhases if present
+      // Add PhaseLabel entries — one <Data property="PhaseLabel"> per phase.
+      // PhaseLabel is a multi-valued DataProperty on MaterialTemplate per
+      // Process.xml line 2448; the legacy single <Data property="ListOfPhases">
+      // joined-string emit deviated from the schema and is replaced here.
       if (template.phases && template.phases.length > 0) {
-        (dexpiTemplate.Data as Record<string, unknown>[]).push({
-          '$': {
-            'property': 'ListOfPhases'
-          },
-          'String': template.phases.join(', ')
-        });
+        for (const phase of template.phases) {
+          (dexpiTemplate.Data as Record<string, unknown>[]).push({
+            '$': { 'property': 'PhaseLabel' },
+            'String': phase
+          });
+        }
       }
 
       templates.push(dexpiTemplate);
@@ -1989,7 +2624,15 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add MoleFlow as QualifiedValue — wrapped in Components per XSD (Object has no property attr)
+      // State-level scalar MoleFlow on MaterialStateType. This is
+      // Profile-extension territory: DEXPI 2.0's MaterialStateType
+      // declares scalar MassFlow / VolumeFlow but no scalar MoleFlow —
+      // a real vocabulary gap that the Profile mechanism fills. The
+      // strict-mode validator surfaces this as a fidelity finding; the
+      // Profile generator captures it as MaterialStateType.MoleFlow
+      // alongside the genuine CustomMaterialComponent extensions.
+      // Composition.MoleFlow is a different concept (multi-valued
+      // per-component vector); not used by TEP at the state level.
       if (stateType.flow?.moleFlow) {
         if (!dexpiStateType.Components) {
           dexpiStateType.Components = [];
@@ -1999,40 +2642,28 @@ export class BpmnToDexpiTransformer {
           'Object': [{
             '$': { 'type': 'Core/QualifiedValue' },
             'Data': [
-              {
-                '$': { 'property': 'Value' },
-                'Double': parseFloat(stateType.flow.moleFlow.value) || 0
-              },
-              {
-                '$': { 'property': 'Unit' },
-                'String': stateType.flow.moleFlow.unit
-              }
-            ]
-          }]
+              { '$': { 'property': 'Value' }, 'Double': parseFloat(stateType.flow.moleFlow.value) || 0 },
+              { '$': { 'property': 'Unit' }, 'String': stateType.flow.moleFlow.unit },
+            ],
+          }],
         });
       }
 
-      // Add Composition — wrapped in Components per XSD
+      // MaterialStateType.Composition is a ReferenceProperty per Process.xml
+      // (target: /Process.Composition). Emit the reference here; the
+      // referenced Composition Object is materialised under
+      // ProcessModel.Compositions (CompositionProperty container) with a
+      // deterministic id derived from the state type's uid.
       if (stateType.flow?.composition) {
-        const composition = stateType.flow.composition;
-        if (!dexpiStateType.Components) {
-          dexpiStateType.Components = [];
+        if (!dexpiStateType.References) {
+          dexpiStateType.References = [];
         }
-
-        const compositionData: Record<string, unknown>[] = [];
-        if (composition.basis) {
-          compositionData.push({ '$': { 'property': 'Basis' }, 'String': composition.basis });
-        }
-        if (composition.display) {
-          compositionData.push({ '$': { 'property': 'Display' }, 'String': composition.display });
-        }
-
-        (dexpiStateType.Components as Record<string, unknown>[]).push({
-          '$': { 'property': 'Composition' },
-          'Object': [{
-            '$': { 'type': 'Process/Process.Composition' },
-            'Data': compositionData
-          }]
+        const compositionId = this.sanitizeId(`${stateType.uid}_Composition`);
+        (dexpiStateType.References as Record<string, unknown>[]).push({
+          '$': {
+            'property': 'Composition',
+            'objects': `#${compositionId}`,
+          },
         });
       }
 
@@ -2040,6 +2671,45 @@ export class BpmnToDexpiTransformer {
     });
 
     return stateTypes;
+  }
+
+  /**
+   * Materialise top-level Composition objects (DEXPI 2.0 ProcessModel.Compositions).
+   * One Composition per MaterialStateType that carries composition data; the
+   * id is derived deterministically from the state type's uid so the
+   * MaterialStateType's `<References property="Composition" objects="#...">`
+   * resolves locally.
+   *
+   * Per Process.xml, Composition declares Display + per-component fractions
+   * vectors (MoleFractiona [sic] / MassFractions / VolumeFractions). Display
+   * is the only piece carried through the InternalMaterialStateType today;
+   * the per-component vectors are not yet exercised by the canonical TEP
+   * fixture.
+   */
+  private buildCompositions(): Record<string, unknown>[] {
+    const out: Record<string, unknown>[] = [];
+    this.materialStateTypes.forEach((stateType) => {
+      if (!stateType.flow?.composition) return;
+      const compositionId = this.sanitizeId(`${stateType.uid}_Composition`);
+      const compositionData: Record<string, unknown>[] = [];
+      if (stateType.flow.composition.display) {
+        compositionData.push({
+          '$': { 'property': 'Display' },
+          'String': stateType.flow.composition.display,
+        });
+      }
+      const compositionObj: Record<string, unknown> = {
+        '$': {
+          'id': compositionId,
+          'type': 'Process/Process.Composition',
+        },
+      };
+      if (compositionData.length > 0) {
+        compositionObj.Data = compositionData;
+      }
+      out.push(compositionObj);
+    });
+    return out;
   }
 
   private findPortForConnection(

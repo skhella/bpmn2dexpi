@@ -5,34 +5,90 @@ import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegis
 // Vite ?raw import — bundles Process.xml as a string at build time (no runtime fetch needed)
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
 
-// Build registry once at module load — synchronous, browser-safe
+// Build registry once at module load — synchronous, browser-safe. This is
+// the *base* registry (Process.xml only); when the user has imported DEXPI
+// Profiles, the panel rebuilds an augmented registry on demand via
+// useStepClasses() below, so Profile-declared classes (e.g. BiologicalReactor)
+// surface in the dexpiType dropdown alongside the standard DEXPI 2.0 classes.
 const DEXPI_REGISTRY = DexpiProcessClassRegistry.fromXml(processXmlRaw);
 
-/** All concrete DEXPI Process step classes grouped for the dropdown. */
-const STEP_CLASSES = DEXPI_REGISTRY.concreteClasses().filter(c =>
-  // Exclude non-step classes (ports, flows, templates, etc.)
-  !['MaterialPort', 'EnergyPort', 'InformationPort', 'ThermalEnergyPort',
-    'MechanicalEnergyPort', 'ElectricalEnergyPort', 'MaterialFlow', 'EnergyFlow',
-    'ElectricalEnergyFlow', 'MechanicalEnergyFlow', 'ThermalEnergyFlow',
-    'InformationFlow', 'InformationVariant', 'MaterialTemplate', 'MaterialState',
-    'MaterialStateType', 'ListOfMaterialComponents', 'MaterialComponent',
-    'PureMaterialComponent', 'CustomMaterialComponent', 'Composition',
-    'ProcessModel', 'Stream'].includes(c)
-  // Source and Sink are excluded per representation methodology:
-  // they map exclusively to StartEvent and EndEvent, never to Task elements
-  && c !== 'Source' && c !== 'Sink'
-);
+/**
+ * Names that are concrete classes in the registry but should NOT appear in
+ * the *task* dexpiType dropdown — they're either non-step classes (ports,
+ * flows, templates), or have dedicated event mappings that bypass tasks
+ * (Source/Sink → StartEvent/EndEvent per the representation methodology).
+ */
+const NON_TASK_CLASSES = new Set<string>([
+  'MaterialPort', 'EnergyPort', 'InformationPort', 'ThermalEnergyPort',
+  'MechanicalEnergyPort', 'ElectricalEnergyPort', 'MaterialFlow', 'EnergyFlow',
+  'ElectricalEnergyFlow', 'MechanicalEnergyFlow', 'ThermalEnergyFlow',
+  'InformationFlow', 'InformationVariant', 'MaterialTemplate', 'MaterialState',
+  'MaterialStateType', 'ListOfMaterialComponents', 'MaterialComponent',
+  'PureMaterialComponent', 'CustomMaterialComponent', 'Composition',
+  'ProcessModel', 'Stream', 'Source', 'Sink',
+]);
+
+function filterTaskClasses(allConcrete: string[]): string[] {
+  return allConcrete.filter(c => !NON_TASK_CLASSES.has(c));
+}
+
+/** Default class list (no Profiles loaded) — derived from Process.xml only. */
+const STEP_CLASSES = filterTaskClasses(DEXPI_REGISTRY.concreteClasses());
 
 interface DexpiPropertiesPanelProps {
   element: any;
   modeler: any;
+  /**
+   * DEXPI Profiles loaded in the current session. When non-empty, the
+   * dexpiType dropdown is augmented with Profile-declared concrete
+   * classes so users can pick (e.g.) BiologicalReactor without having
+   * to fall through the Custom / external RDL escape hatch. The base
+   * Process.xml registry is the static fallback when this prop is
+   * undefined or empty.
+   */
+  loadedProfiles?: { name: string; xml: string }[];
 }
 
-export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ element, modeler }) => {
+export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ element, modeler, loadedProfiles }) => {
+  // Augmented class list: Process.xml + any loaded Profiles. Recomputed
+  // when the Profile list changes; profile-loading errors here would have
+  // already been caught in App.handleImportProfile, so this is a hot path
+  // that should never throw — wrap defensively just in case.
+  const dropdownClasses = React.useMemo<string[]>(() => {
+    if (!loadedProfiles || loadedProfiles.length === 0) return STEP_CLASSES;
+    try {
+      const augmented = DexpiProcessClassRegistry.fromXmlSources([
+        { name: 'Process.xml', xml: processXmlRaw },
+        ...loadedProfiles,
+      ], { strictSupertypes: false });
+      return filterTaskClasses(augmented.concreteClasses());
+    } catch {
+      // Defensive: if a Profile that passed import-time validation now fails
+      // to merge with the panel's reduced source set, fall back to the base
+      // class list rather than break the dropdown entirely.
+      return STEP_CLASSES;
+    }
+  }, [loadedProfiles]);
+  // Likewise, broaden the "is custom?" check so a Profile-declared class
+  // is recognized as standard rather than triggering the Custom-type UI.
+  const isKnownClass = React.useCallback((name: string): boolean => {
+    if (DEXPI_REGISTRY.isValidClass(name)) return true;
+    if (loadedProfiles) {
+      for (const p of loadedProfiles) {
+        // Cheap textual match avoids rebuilding the full registry just to
+        // test class membership; sufficient because Profile XML class names
+        // appear as `name="..."` attributes on ConcreteClass / AbstractClass.
+        const re = new RegExp(`<(?:Concrete|Abstract)Class[^>]*\\bname="${name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}"`);
+        if (re.test(p.xml)) return true;
+      }
+    }
+    return false;
+  }, [loadedProfiles]);
   const [dexpiType, setDexpiType] = React.useState<string>('');
   const [identifier, setIdentifier] = React.useState<string>('');
   const [uid, setUid] = React.useState<string>('');
   const [customUri, setCustomUri] = React.useState<string>('');
+  const [customSuperType, setCustomSuperType] = React.useState<string>('');
   const [elementName, setElementName] = React.useState<string>('');
   const [ports, setPorts] = React.useState<DexpiPort[]>([]);
   const [hasData, setHasData] = React.useState<boolean>(false);
@@ -180,8 +236,9 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       setIdentifier(ident);
       setUid(u);
       setCustomUri(dexpiElement?.customUri || '');
+      setCustomSuperType(dexpiElement?.customSuperType || '');
       // Detect if loaded type is a custom (non-DEXPI) type
-      const isCustom = !!dtype && !DEXPI_REGISTRY.isValidClass(dtype) && dtype !== 'Source' && dtype !== 'Sink';
+      const isCustom = !!dtype && !isKnownClass(dtype) && dtype !== 'Source' && dtype !== 'Sink';
       setIsCustomType(isCustom);
       setCustomTypeName(isCustom ? dtype : '');
       setElementName(businessObject.name || '');
@@ -234,11 +291,13 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
     if (newType === '__custom__') {
       setIsCustomType(true);
       setCustomTypeName('');
+      setCustomSuperType('');
     } else {
       setIsCustomType(false);
       setCustomTypeName('');
+      setCustomSuperType('');
       setDexpiType(newType);
-      updateDexpiElement({ dexpiType: newType, customUri: undefined });
+      updateDexpiElement({ dexpiType: newType, customUri: undefined, customSuperType: undefined });
 
       // Auto-fill element name with the DEXPI type if name is empty or still generic
       const isGenericName = !elementName ||
@@ -481,7 +540,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       <h3>DEXPI Properties</h3>
       
       {/* Status banner */}
-      {hasData && dexpiType && DEXPI_REGISTRY.isValidClass(dexpiType) && !isCustomType && (
+      {hasData && dexpiType && isKnownClass(dexpiType) && !isCustomType && (
         <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', marginBottom: '12px', fontSize: '0.85rem' }}>
           ✓ DEXPI type: <strong>{dexpiType}</strong>
         </div>
@@ -533,11 +592,16 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
               elementType === 'bpmn:ReceiveTask' ||
               elementType === 'bpmn:CallActivity') && (
               <>
-                {/* Populated from dexpi-schema-files/Process.xml — replace file to update */}
-                {STEP_CLASSES.map(cls => (
+                {/* Populated from dexpi-schema-files/Process.xml + any
+                    DEXPI Profiles loaded in the current session. The
+                    Custom / external RDL escape hatch below is an
+                    *instance-level* annotation (via customUri) that's
+                    complementary to Profile-declared classes — both
+                    paths remain available. */}
+                {dropdownClasses.map(cls => (
                   <option key={cls} value={cls}>{cls}</option>
                 ))}
-                <option value="__custom__">— Custom / external RDL type...</option>
+                <option value="__custom__">— Custom...</option>
               </>
             )}
             {(elementType === 'bpmn:StartEvent' || elementType === 'bpmn:IntermediateCatchEvent') && (
@@ -547,18 +611,6 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
               <option value="Sink">Sink</option>
             )}
           </select>
-        </label>
-      </div>
-
-      <div className="property-group">
-        <label>
-          UID:
-          <input 
-            type="text" 
-            value={uid} 
-            onChange={handleUidChange}
-            placeholder="Enter unique ID..."
-          />
         </label>
       </div>
 
@@ -578,11 +630,11 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
         </label>
       </div>
 
-      {/* Custom type — shown when user selects "Custom / external RDL type..." */}
+      {/* Custom type — shown when user selects "Custom..." */}
       {isCustomType && (
         <div className="property-group">
           <label>
-            Custom type name:
+            Custom class name:
             <input
               type="text"
               value={customTypeName}
@@ -591,9 +643,32 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
               autoFocus
             />
           </label>
-          <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
-            Output will use <code>ProcessStep</code> as DEXPI type. Add a URI below to reference the class definition.
-          </div>
+          {customTypeName && (
+            <label style={{ marginTop: '8px', display: 'block' }}>
+              Supertype (parent DEXPI class):
+              <select
+                value={customSuperType}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomSuperType(val);
+                  updateDexpiElement({ customSuperType: val || undefined });
+                }}
+              >
+                <option value="">Select parent class...</option>
+                {dropdownClasses.map(cls => (
+                  <option key={cls} value={cls}>{cls}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {customTypeName && (
+            <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
+              Pick the closest DEXPI class your custom class extends. The Profile generator
+              emits <code>&lt;ConcreteClass name="{customTypeName}" superTypes="..."/&gt;</code>
+              with this supertype; loading the generated Profile makes the class known to the
+              registry on subsequent transforms.
+            </div>
+          )}
           {customTypeName && (
             <label style={{ marginTop: '8px', display: 'block' }}>
               Reference URI (optional):
@@ -665,6 +740,33 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           </label>
         </div>
       )}
+
+      {/* Advanced — internal-serialization fields users rarely need to edit.
+          UID is the XML id attribute used as a cross-reference target (other
+          elements point to this object via <References objects="#X"/>);
+          changing it after the fact can break references in saved files. */}
+      <details className="property-group" style={{ marginTop: '0.5em' }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.9em' }}>
+          Advanced
+        </summary>
+        <div style={{ marginTop: '0.5em' }}>
+          <label>
+            UID:
+            <input
+              type="text"
+              value={uid}
+              onChange={handleUidChange}
+              placeholder="Enter unique ID..."
+            />
+          </label>
+          <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
+            Internal cross-reference id used in the DEXPI XML serialization
+            (the <code>id="..."</code> attribute on the emitted{' '}
+            <code>&lt;Object&gt;</code>). Stable; only edit if you need a
+            specific id for compatibility with another tool.
+          </div>
+        </div>
+      </details>
 
       <div className="property-group">
         <h4>Ports ({ports.length})</h4>
@@ -787,30 +889,100 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                     onChange={(e) => {
                       const selectedChildPortId = e.target.value;
                       const modeling = modeler.get('modeling');
+                      const elementRegistry = modeler.get('elementRegistry');
+                      const previousChildPortId = port.subReference;
+
+                      // Build a list of every (flowElement, port) tuple
+                      // under this subprocess so we can detect existing
+                      // cross-links and clean them up atomically.
+                      type Tup = { fe: any; cp: any };
+                      const flowEls2: any[] = element.businessObject.flowElements || [];
+                      const allChildPorts: Tup[] = [];
+                      flowEls2.forEach((fe: any) => {
+                        if (!fe.extensionElements?.values) return;
+                        const dexpiEl = fe.extensionElements.values.find(
+                          (v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element'
+                        );
+                        if (!dexpiEl) return;
+                        const fePorts: any[] = dexpiEl.ports ||
+                          dexpiEl.$children?.filter((c: any) =>
+                            (c.$type || '').toLowerCase().includes('port')) || [];
+                        fePorts.forEach((cp: any) => allChildPorts.push({ fe, cp }));
+                      });
+
+                      // Conflict detection: is the selected child port
+                      // already linked to a DIFFERENT parent port? If so,
+                      // confirm before overwriting; on confirm, clear the
+                      // OTHER parent port's subReference so the link
+                      // stays 1:1.
+                      if (selectedChildPortId) {
+                        const target = allChildPorts.find(
+                          ({ cp }) => (cp.portId || cp.id) === selectedChildPortId
+                        );
+                        const existingParentRef = target?.cp.superReference;
+                        if (existingParentRef && existingParentRef !== port.portId) {
+                          const proceed = window.confirm(
+                            `Child port "${selectedChildPortId}" is already linked to ` +
+                            `parent port "${existingParentRef}". ` +
+                            `Reassigning will break that link. Proceed?`
+                          );
+                          if (!proceed) {
+                            // Force the React-controlled select to fall
+                            // back to the previous value by re-setting
+                            // state. updatePort below would also do this,
+                            // but bailing here prevents the writes.
+                            return;
+                          }
+                          // Clean up: find the OTHER parent port (on this
+                          // same subprocess) that referenced this child
+                          // and clear its subReference.
+                          if (ports) {
+                            const stalePeer = ports.find(
+                              (p2: any) => p2.subReference === selectedChildPortId &&
+                                p2.portId !== port.portId
+                            );
+                            if (stalePeer) {
+                              updatePort(stalePeer.portId, { subReference: undefined });
+                            }
+                          }
+                        }
+                      }
 
                       // Write subReference on this (parent) port
                       updatePort(port.portId, { subReference: selectedChildPortId || undefined });
 
+                      // Stale-cleanup: clear superReference on the previously-
+                      // linked child port if the user changed selection or
+                      // deselected.
+                      if (previousChildPortId && previousChildPortId !== selectedChildPortId) {
+                        const oldChild = allChildPorts.find(
+                          ({ cp }) => (cp.portId || cp.id) === previousChildPortId
+                        );
+                        if (oldChild?.cp.superReference === port.portId) {
+                          oldChild.cp.superReference = undefined;
+                          const oldChildShape = elementRegistry.get(oldChild.fe.id);
+                          if (oldChildShape) {
+                            modeling.updateProperties(oldChildShape, {
+                              extensionElements: oldChild.fe.extensionElements,
+                            });
+                          }
+                        }
+                      }
+
                       // Write superReference on the selected child port
                       if (selectedChildPortId) {
-                        const flowEls2: any[] = element.businessObject.flowElements || [];
-                        flowEls2.forEach((fe: any) => {
-                          if (!fe.extensionElements?.values) return;
-                          const dexpiEl = fe.extensionElements.values.find(
-                            (v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element'
-                          );
-                          if (!dexpiEl) return;
-                          const fePorts: any[] = dexpiEl.ports || dexpiEl.$children?.filter((c: any) =>
-                            (c.$type || '').toLowerCase().includes('port')) || [];
-                          const target = fePorts.find((cp: any) => (cp.portId || cp.id) === selectedChildPortId);
-                          if (target) {
-                            target.superReference = port.portId;
-                            modeling.updateProperties(
-                              modeler.get('elementRegistry').get(fe.id),
-                              { extensionElements: fe.extensionElements }
-                            );
+                        const target = allChildPorts.find(
+                          ({ cp }) => (cp.portId || cp.id) === selectedChildPortId
+                        );
+                        if (target) {
+                          target.cp.superReference = port.portId;
+                          const targetShape = elementRegistry.get(target.fe.id);
+                          if (targetShape) {
+                            modeling.updateProperties(targetShape, {
+                              extensionElements: target.fe.extensionElements,
+                            });
                           }
-                        });
+                        }
                       }
                     }}
                     style={{ fontSize: '0.85em' }}
@@ -823,6 +995,155 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                   {port.subReference && (
                     <span style={{ fontSize: '0.8em', color: '#4a7c4e', marginTop: '2px', display: 'block' }}>
                       ✓ Linked → {port.subReference}
+                    </span>
+                  )}
+                </label>
+              );
+            })()}
+
+            {/* SuperReference — editable from the child side. Symmetric
+                with the SubReference editor on the parent SubProcess: a
+                user can establish or change the parent ↔ child boundary
+                link from either direction. Both writes (superReference
+                on this child port + subReference on the parent boundary
+                port) happen atomically here, mirroring the parent-side
+                editor. Shown only when this element has a SubProcess
+                parent (top-level steps have no boundary to link to). */}
+            {port.portType !== 'InformationPort' && (() => {
+              const parentBO = element.businessObject?.$parent;
+              if (!parentBO) return null;
+              const parentType = parentBO.$type || '';
+              if (parentType !== 'bpmn:SubProcess') return null;
+
+              // Mirror of the SubReference direction rule from the parent
+              // side: child Outlet ↔ parent Inlet, child Inlet ↔ parent
+              // Outlet (the same stream entering / exiting the subprocess
+              // boundary).
+              const compatDir = port.direction === 'Inlet' ? 'Outlet' : 'Inlet';
+              const parentExt = parentBO.extensionElements?.values || [];
+              const parentDexpiEl = parentExt.find(
+                (v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element'
+              );
+              if (!parentDexpiEl) return null;
+              const parentPorts: any[] = parentDexpiEl.ports ||
+                parentDexpiEl.$children?.filter((c: any) =>
+                  (c.$type || '').toLowerCase().includes('port')) || [];
+              const candidates: { portId: string; label: string }[] = [];
+              parentPorts.forEach((pp: any) => {
+                if (pp.portType !== port.portType && pp.type !== port.portType) return;
+                if (pp.direction !== compatDir) return;
+                const ppId = pp.portId || pp.id || '';
+                const ppName = pp.name || pp.label || ppId;
+                const parentName = parentBO.name || parentBO.id || '';
+                candidates.push({ portId: ppId, label: `${parentName} › ${ppName}` });
+              });
+              if (candidates.length === 0) return null;
+
+              return (
+                <label style={{ marginTop: '4px', display: 'block' }}>
+                  Link to parent port (superReference):
+                  <select
+                    value={(port as any).superReference || ''}
+                    onChange={(e) => {
+                      const selectedParentPortId = e.target.value;
+                      const modeling = modeler.get('modeling');
+                      const previousParentPortId = (port as any).superReference;
+
+                      // Conflict detection: is the selected parent port
+                      // already linked (subReference) to a DIFFERENT child
+                      // port? If so, confirm before overwriting. On
+                      // confirm, the previously-linked child's
+                      // superReference will be cleared below as part of
+                      // the parentPorts pass so the link stays 1:1.
+                      if (selectedParentPortId) {
+                        const target = parentPorts.find((pp: any) =>
+                          (pp.portId || pp.id) === selectedParentPortId
+                        );
+                        const existingChildRef = target?.subReference;
+                        if (existingChildRef && existingChildRef !== port.portId) {
+                          const proceed = window.confirm(
+                            `Parent port "${selectedParentPortId}" is already linked to ` +
+                            `child port "${existingChildRef}". ` +
+                            `Reassigning will break that link. Proceed?`
+                          );
+                          if (!proceed) return;
+                          // Clear superReference on the previously-linked
+                          // child port (look it up among siblings of this
+                          // child element). Walks the same flowElements
+                          // list the parent SubProcess sees.
+                          const flowEls: any[] = parentBO.flowElements || [];
+                          flowEls.forEach((fe: any) => {
+                            if (!fe.extensionElements?.values) return;
+                            const dexpiEl = fe.extensionElements.values.find(
+                              (v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element'
+                            );
+                            if (!dexpiEl) return;
+                            const fePorts: any[] = dexpiEl.ports ||
+                              dexpiEl.$children?.filter((c: any) =>
+                                (c.$type || '').toLowerCase().includes('port')) || [];
+                            const stalePeer = fePorts.find((cp: any) =>
+                              (cp.portId || cp.id) === existingChildRef
+                            );
+                            if (stalePeer && stalePeer.superReference === selectedParentPortId) {
+                              stalePeer.superReference = undefined;
+                              const peerShape = modeler.get('elementRegistry').get(fe.id);
+                              if (peerShape) {
+                                modeling.updateProperties(peerShape, {
+                                  extensionElements: fe.extensionElements,
+                                });
+                              }
+                            }
+                          });
+                        }
+                      }
+
+                      // Write superReference on this (child) port.
+                      updatePort(port.portId, {
+                        superReference: selectedParentPortId || undefined,
+                      } as any);
+
+                      // Write subReference on the selected parent boundary
+                      // port, and clear it on the previously-linked parent
+                      // port (if any) so the link stays 1:1 in both
+                      // directions. Mirrors the parent-side editor's
+                      // semantics.
+                      let parentTouched = false;
+                      parentPorts.forEach((pp: any) => {
+                        const ppId = pp.portId || pp.id;
+                        if (ppId === previousParentPortId &&
+                            previousParentPortId !== selectedParentPortId) {
+                          if (pp.subReference === port.portId) {
+                            pp.subReference = undefined;
+                            parentTouched = true;
+                          }
+                        }
+                        if (selectedParentPortId && ppId === selectedParentPortId) {
+                          pp.subReference = port.portId;
+                          parentTouched = true;
+                        }
+                      });
+                      if (parentTouched) {
+                        const parentShape = modeler.get('elementRegistry').get(parentBO.id);
+                        if (parentShape) {
+                          modeling.updateProperties(parentShape, {
+                            extensionElements: parentBO.extensionElements,
+                          });
+                        }
+                      }
+                    }}
+                    style={{ fontSize: '0.85em' }}
+                  >
+                    <option value="">— None (no formal link) —</option>
+                    {candidates.map(c => (
+                      <option key={c.portId} value={c.portId}>{c.label}</option>
+                    ))}
+                  </select>
+                  {(port as any).superReference && (
+                    <span style={{
+                      fontSize: '0.8em', color: '#4a7c4e',
+                      marginTop: '2px', display: 'block',
+                    }}>
+                      ✓ Bound to parent → {(port as any).superReference}
                     </span>
                   )}
                 </label>
@@ -1099,6 +1420,46 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
   const [materialTemplate, setMaterialTemplate] = React.useState<any>(null);
   const [allMaterialStates, setAllMaterialStates] = React.useState<any[]>([]);
   const [currentStateUidRef, setCurrentStateUidRef] = React.useState<string>('');
+  // uid → moddle element index across all DataObject extension entries.
+  // Used to follow Process.xml-aligned MaterialState → MaterialStateType →
+  // Composition reference chains: the state has a State ref whose uidRef
+  // points at a MaterialStateType, which has a Composition ref to a
+  // Composition object, which carries the actual Flow / Fractions data.
+  const [extensionByUid, setExtensionByUid] = React.useState<Map<string, any>>(new Map());
+
+  /**
+   * Read a DataProperty's body text from a moddle DEXPI parent. Prefers
+   * the typed `data` array bpmn-moddle exposes for carrier-form parents
+   * (<dexpi:data property="X">v</dexpi:data>); falls back to walking
+   * $children for legacy bare-name <X>v</X> children. Returns 'N/A' if
+   * the property isn't found — keeps the panel renders defensively
+   * non-undefined.
+   */
+  const readDexpiData = React.useCallback((parent: any, propertyName: string): string => {
+    if (!parent) return 'N/A';
+    if (Array.isArray(parent.data)) {
+      for (const d of parent.data) {
+        const prop = d.property ?? d.$attrs?.property;
+        if (prop === propertyName) {
+          const body = d.body ?? d.$body ?? d._ ?? '';
+          if (body) return body;
+        }
+      }
+    }
+    if (parent.$children) {
+      for (const c of parent.$children) {
+        const t = (c.$type || '').toLowerCase();
+        if ((t === 'dexpi:data' || t === 'data') &&
+            (c.property === propertyName || c.$attrs?.property === propertyName)) {
+          const body = c.body ?? c.$body ?? c._ ?? '';
+          if (body) return body;
+        }
+      }
+      const bare = parent.$children.find((c: any) => c.$type === propertyName);
+      if (bare?.$body) return bare.$body;
+    }
+    return 'N/A';
+  }, []);
 
   React.useEffect(() => {
     // Load all material states for dropdown
@@ -1110,16 +1471,28 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
     );
     
     const states: any[] = [];
+    // Cross-reference map: every DataObject extension entry by uid, used
+    // to follow MaterialState → MaterialStateType → Composition reference
+    // chains at render time. Built once per panel load; the data is small
+    // enough that this isn't a performance concern.
+    const byUid = new Map<string, any>();
     stateDataObjs.forEach((dataObj: any) => {
       if (dataObj?.businessObject?.extensionElements?.values) {
         dataObj.businessObject.extensionElements.values.forEach((val: any) => {
-          if (val.$type === 'MaterialState' || val.$type?.includes('MaterialState')) {
+          if (val.uid) byUid.set(val.uid, val);
+          // Filter MaterialState entries (and *only* MaterialState, not
+          // MaterialStateType) — only the actual states should appear in
+          // the dropdown.
+          if (val.$type === 'MaterialState' ||
+              (val.$type && val.$type.includes('MaterialState') &&
+               !val.$type.includes('MaterialStateType'))) {
             states.push(val);
           }
         });
       }
     });
     setAllMaterialStates(states);
+    setExtensionByUid(byUid);
 
     if (element && element.type === 'bpmn:SequenceFlow') {
       const businessObject = element.businessObject;
@@ -1130,16 +1503,50 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
         extensionElements.values.forEach((_val: any, _idx: number) => {
         });
         
-        // Look for dexpi:Stream with various possible type names, or legacy <Stream>
-        const dexpiStream = extensionElements.values.find(
+        // The TEP fixture (and any DEXPI-shape BPMN export) carries TWO
+        // Stream-like extension elements under each sequenceFlow:
+        //
+        //   1. <dexpi:Stream sourcePortRef="..." targetPortRef="..."/>
+        //      The port-binding marker (always present, has only the
+        //      port refs as attributes; no children).
+        //   2. <Stream Identifier="6" name="...">  ...rich content...
+        //      The DEXPI Process-XML-shape stream attributes block: name,
+        //      Identifier, MassFlow / Temperature / Pressure children,
+        //      MaterialStateReference, MaterialTemplateReference, etc.
+        //      Only present when the model actually carries property values.
+        //
+        // We need both: the rich block for attributes / state ref / template
+        // ref, and the binding marker for sourcePortRef / targetPortRef. The
+        // previous code did a single find() and got whichever sibling came
+        // first — usually the binding marker — and never saw the rich data.
+        const streamCandidates: any[] = extensionElements.values.filter(
           (e: any) => {
             const type = e.$type || '';
-            return type === 'dexpi:Stream' || 
-                   type === 'dexpi:stream' || 
-                   type === 'Stream' ||  // Legacy format
+            return type === 'dexpi:Stream' ||
+                   type === 'dexpi:stream' ||
+                   type === 'Stream' ||
                    type.toLowerCase().includes('stream');
           }
         );
+        // Rich content has either children or a name / Identifier attribute;
+        // binding marker has only sourcePortRef / targetPortRef.
+        const isRichStream = (s: any) =>
+          (Array.isArray(s.$children) && s.$children.length > 0) ||
+          s.name || s.Identifier;
+        const richStream = streamCandidates.find(isRichStream);
+        const bindingStream = streamCandidates.find(
+          (s: any) => !isRichStream(s) && (s.sourcePortRef || s.targetPortRef)
+        );
+        // Synthesize a unified view for the downstream code: prefer rich
+        // attributes when present, fall back to the binding marker for
+        // port refs. If only one exists, use that.
+        const dexpiStream = richStream
+          ? {
+              ...richStream,
+              sourcePortRef: richStream.sourcePortRef ?? bindingStream?.sourcePortRef,
+              targetPortRef: richStream.targetPortRef ?? bindingStream?.targetPortRef,
+            }
+          : bindingStream || streamCandidates[0];
         
         
         if (dexpiStream) {
@@ -1224,13 +1631,65 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           if (typeof dexpiStream.get === 'function') {
             attrs = dexpiStream.get('attributes') || attrs;
           }
-          
-          // Check if this is legacy format with XML child elements
-          // Legacy format: <Stream><MassFlow><Value>...</Value><Unit>...</Unit></MassFlow></Stream>
+
+          // Carrier-wrapped CompositionProperty form (preferred):
+          //   <dexpi:components property="X">
+          //     <dexpi:object type="Core/QualifiedValue">
+          //       <dexpi:data property="Value">v</dexpi:data>
+          //       <dexpi:data property="Unit">u</dexpi:data>
+          //       ...optional Provenance/Range/Scope...
+          //     </dexpi:object>
+          //   </dexpi:components>
+          // bpmn-moddle parses these as typed arrays (Stream.components,
+          // Components.objects, Object.data). We read directly from the
+          // typed accessors; if for any reason the typed slots are empty
+          // we fall back to the $children walk below for legacy / opaque
+          // pass-through content.
+          if (attrs.length === 0) {
+            const carrierAttrs = (dexpiStream.components || []).map((carrier: any) => {
+              const propertyName = carrier.property ?? carrier.$attrs?.property ?? 'Unknown';
+              const obj = (carrier.objects || carrier.$children || []).find((o: any) =>
+                (o.$type || '').toLowerCase().includes('object')
+              );
+              const readData = (name: string): string => {
+                const dataChildren = obj?.data || obj?.$children || [];
+                for (const d of dataChildren) {
+                  const prop = d.property ?? d.$attrs?.property;
+                  if (prop === name) return d.body ?? d.$body ?? d._ ?? '';
+                }
+                return '';
+              };
+              return {
+                name: propertyName,
+                value: readData('Value'),
+                unit: readData('Unit'),
+                scope: readData('Scope') || 'Design',
+                range: readData('Range') || 'Nominal',
+                provenance: readData('Provenance') || 'Calculated',
+                qualifier: readData('Qualifier') || 'Average',
+              };
+            }).filter((a: any) => a.value);
+            if (carrierAttrs.length > 0) attrs = carrierAttrs;
+          }
+
+          // Legacy bare-name format (kept as fallback for files saved
+          // before the carrier migration): <Stream><MassFlow><Value/>...
           if (attrs.length === 0 && dexpiStream.$children) {
-            
+
+            // Reference-shaped children (point at MaterialState / MaterialTemplate
+            // by uidRef) are NOT property values; they're handled separately
+            // below. The legacy folk name was TemplateReference; the canonical
+            // DEXPI name is MaterialTemplateReference (per Process.xml line
+            // 4387, the property on Stream is MaterialTemplateReference). We
+            // accept both so older saves still round-trip.
+            const REFERENCE_TYPES = new Set([
+              'MaterialStateReference',
+              'MaterialTemplateReference',
+              'TemplateReference', // legacy folk name; back-compat
+              'StreamReference',
+            ]);
             attrs = dexpiStream.$children
-              .filter((child: any) => child.$type !== 'TemplateReference' && child.$type !== 'MaterialStateReference')
+              .filter((child: any) => !REFERENCE_TYPES.has(child.$type))
               .map((child: any) => {
                 // Child is like <MassFlow>..., extract name from $type
                 const attributeName = child.$type || 'Unknown';
@@ -1282,11 +1741,35 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           // Stream data already set above with port refs - don't overwrite!
           setAttributes(Array.isArray(attrs) ? attrs : []);
           
-          // Extract MaterialStateReference and TemplateReference
-          if (dexpiStream.$children) {
-            const stateRef = dexpiStream.$children.find((c: any) => c.$type === 'MaterialStateReference');
-            const templateRef = dexpiStream.$children.find((c: any) => c.$type === 'TemplateReference');
-            
+          // Extract MaterialStateReference and MaterialTemplateReference.
+          // Prefer the typed dexpi:references array bpmn-moddle now exposes
+          // (Stream.references); fall back to walking $children for legacy
+          // bare-name forms <MaterialStateReference uidRef="..."/>.
+          {
+            const findRef = (propertyName: string): any => {
+              // Typed accessor (carrier-wrapped form)
+              const fromTyped = (dexpiStream.references || []).find((r: any) => {
+                const prop = r.property ?? r.$attrs?.property;
+                return prop === propertyName;
+              });
+              if (fromTyped) return fromTyped;
+              // Legacy fallbacks
+              if (dexpiStream.$children) {
+                for (const c of dexpiStream.$children as any[]) {
+                  const t = (c.$type || '').toLowerCase();
+                  if ((t === 'dexpi:references' || t === 'references') &&
+                      (c.property ?? c.$attrs?.property) === propertyName) {
+                    return c;
+                  }
+                  if (c.$type === propertyName) return c;
+                }
+              }
+              return null;
+            };
+            const stateRef = findRef('MaterialStateReference');
+            const templateRef =
+              findRef('MaterialTemplateReference') ?? findRef('TemplateReference');
+
             if (stateRef?.uidRef) {
               setCurrentStateUidRef(stateRef.uidRef);
               // Find the actual MaterialState from DataObjectReference elements
@@ -1585,8 +2068,8 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           >
             <option value="">-- No State --</option>
             {allMaterialStates.map((state: any) => {
-              const label = state.$children?.find((c: any) => c.$type === 'Label')?.$body || 'N/A';
-              const identifier = state.$children?.find((c: any) => c.$type === 'Identifier')?.$body || 'N/A';
+              const label = readDexpiData(state, 'Label');
+              const identifier = readDexpiData(state, 'Identifier');
               return (
                 <option key={state.uid} value={state.uid}>
                   {label} ({identifier})
@@ -1597,8 +2080,8 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
         </label>
         {materialState && (
         <div style={{ fontSize: '0.9rem' }}>
-          <div><strong>Label:</strong> {materialState.$children?.find((c: any) => c.$type === 'Label')?.$body || 'N/A'}</div>
-          <div><strong>Identifier:</strong> {materialState.$children?.find((c: any) => c.$type === 'Identifier')?.$body || 'N/A'}</div>
+          <div><strong>Label:</strong> {readDexpiData(materialState, 'Label')}</div>
+          <div><strong>Identifier:</strong> {readDexpiData(materialState, 'Identifier')}</div>
           <div><strong>UID:</strong> <code style={{ background: 'rgba(0,0,0,0.1)', padding: '2px 6px', borderRadius: '3px', fontSize: '0.85em' }}>{materialState.uid}</code></div>
             {(materialState._refProvenance || materialState._refRange) && (
               <div style={{ marginTop: '8px', padding: '6px', background: 'rgba(255,255,255,0.7)', borderRadius: '3px', fontSize: '0.85rem' }}>
@@ -1606,14 +2089,187 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 {materialState._refRange && <div><strong>Reference Range:</strong> {materialState._refRange}</div>}
               </div>
             )}
-            {materialState.$children?.find((c: any) => c.$type === 'Flow') && (
+            {(() => {
+              // Resolve the Process.xml-aligned chain at render time:
+              //   MaterialState.State → MaterialStateType.Composition → Composition
+              // State + Composition references are stored as carrier
+              // entries (<dexpi:references property="State" uidRef="X"/>);
+              // their resolved moddle objects live in extensionByUid.
+              // Falls back to the legacy inline-Flow shape when carriers
+              // are absent (older saved BPMN files).
+              const refUid = (typeName: string) => {
+                // Typed accessor first
+                if (Array.isArray(materialState.references)) {
+                  const r = materialState.references.find((x: any) =>
+                    (x.property ?? x.$attrs?.property) === typeName
+                  );
+                  if (r) return r.uidRef ?? r.$attrs?.uidRef;
+                }
+                // $children fallback
+                const ref = (materialState.$children ?? []).find((c: any) => {
+                  const ll = (c.$type || '').toLowerCase();
+                  return (ll === 'dexpi:references' || ll === 'references') &&
+                    (c.property === typeName || c.$attrs?.property === typeName);
+                });
+                return ref?.uidRef ?? ref?.$attrs?.uidRef;
+              };
+              const stateTypeUid = refUid('State');
+              const stateType = stateTypeUid ? extensionByUid.get(stateTypeUid) : null;
+              let composition: any = null;
+              if (stateType) {
+                // Typed accessor first
+                let compUid: string | undefined;
+                if (Array.isArray(stateType.references)) {
+                  const r = stateType.references.find((x: any) =>
+                    (x.property ?? x.$attrs?.property) === 'Composition'
+                  );
+                  if (r) compUid = r.uidRef ?? r.$attrs?.uidRef;
+                }
+                // $children fallback
+                if (!compUid && stateType.$children) {
+                  const compRef = stateType.$children.find((c: any) => {
+                    const ll = (c.$type || '').toLowerCase();
+                    return (ll === 'dexpi:references' || ll === 'references') &&
+                      (c.property === 'Composition' || c.$attrs?.property === 'Composition');
+                  });
+                  compUid = compRef?.uidRef ?? compRef?.$attrs?.uidRef;
+                }
+                if (compUid) composition = extensionByUid.get(compUid);
+              }
+              // State-level scalar MoleFlow lives on MaterialStateType
+              // (Profile-extension parallel to the schema's scalar
+              // MassFlow / VolumeFlow); Composition.MoleFlow is a
+              // different concept (per-component vector) that TEP
+              // doesn't use at the state-total level.
+
+              // Helper: read a Components-carrier QualifiedValue for a
+              // given property name ('MoleFlow', 'MoleFractiona', etc.)
+              const readQualifiedValue = (parent: any, propName: string): { values: string[]; unit: string } | null => {
+                if (!parent) return null;
+                // Locate the Components carrier by property name. Prefer
+                // typed accessor; fall back to $children walking.
+                let carrier: any | null = null;
+                if (Array.isArray(parent.components)) {
+                  carrier = parent.components.find((c: any) =>
+                    (c.property ?? c.$attrs?.property) === propName
+                  ) ?? null;
+                }
+                if (!carrier && parent.$children) {
+                  carrier = parent.$children.find((c: any) => {
+                    const ll = (c.$type || '').toLowerCase();
+                    return (ll === 'dexpi:components' || ll === 'components') &&
+                      ((c.property ?? c.$attrs?.property) === propName);
+                  }) ?? null;
+                }
+                if (!carrier) return null;
+                // Carrier's inner Object: typed `objects` array first.
+                const objList = carrier.objects ?? carrier.$children ?? [];
+                const obj = objList.find((o: any) =>
+                  (o.$type || '').toLowerCase().includes('object')
+                );
+                if (!obj) return null;
+                // Object's data entries: typed `data` first, $children fallback.
+                const dataList = obj.data ?? obj.$children ?? [];
+                const values: string[] = [];
+                let unit = '';
+                for (const d of dataList) {
+                  const ll = (d.$type || '').toLowerCase();
+                  // Typed-data entries don't carry a $type prefix the same
+                  // way pass-through ones do; allow either.
+                  if (ll && ll !== 'dexpi:data' && ll !== 'data') continue;
+                  const prop = d.property ?? d.$attrs?.property;
+                  const body = d.body ?? d.$body ?? d._ ?? '';
+                  if (prop === 'Value' || prop === 'Values') {
+                    values.push(body);
+                  } else if (prop === 'Unit') {
+                    unit = body;
+                  }
+                }
+                return { values, unit };
+              };
+
+              // Legacy inline-Flow fallback for fixtures saved before the
+              // restructure — reuse the previous shape's reads here so
+              // older BPMN files still render some Flow info.
+              const flowChild = (materialState.$children ?? []).find((c: any) => c.$type === 'Flow');
+              const legacyMoleFlow = flowChild?.$children?.find((c: any) => c.$type === 'MoleFlow');
+              const legacyComposition = flowChild?.$children?.find((c: any) => c.$type === 'Composition');
+
+              const moleFlow = stateType
+                ? readQualifiedValue(stateType, 'MoleFlow')
+                : (legacyMoleFlow ? {
+                    values: [legacyMoleFlow.$children?.find((c: any) => c.$type === 'Value')?.$body || ''],
+                    unit: legacyMoleFlow.$children?.find((c: any) => c.$type === 'Unit')?.$body || '',
+                  } : null);
+
+              const fractions = composition
+                ? (readQualifiedValue(composition, 'MoleFractiona') ??
+                   readQualifiedValue(composition, 'MassFractions') ??
+                   readQualifiedValue(composition, 'VolumeFractions'))
+                : null;
+              const legacyFractions = legacyComposition?.$children?.filter((c: any) => c.$type === 'Fraction') ?? [];
+              const fractionValues = fractions?.values ??
+                legacyFractions.map((f: any) =>
+                  f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0');
+              const readDisplay = (parent: any): string | undefined => {
+                if (!parent) return undefined;
+                if (Array.isArray(parent.data)) {
+                  const d = parent.data.find((x: any) =>
+                    (x.property ?? x.$attrs?.property) === 'Display'
+                  );
+                  if (d) return d.body ?? d.$body ?? d._ ?? undefined;
+                }
+                if (parent.$children) {
+                  const d = parent.$children.find((c: any) => {
+                    const ll = (c.$type || '').toLowerCase();
+                    return (ll === 'dexpi:data' || ll === 'data') &&
+                      ((c.property ?? c.$attrs?.property) === 'Display');
+                  });
+                  if (d) return d.body ?? d.$body ?? undefined;
+                }
+                return undefined;
+              };
+              const display = composition
+                ? readDisplay(composition)
+                : legacyComposition?.$children?.find((c: any) => c.$type === 'Display')?.$body;
+
+              if (!moleFlow && fractionValues.length === 0) return null;
+
+              return (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #90caf9' }}>
+                  <strong>Flow Properties:</strong>
+                  {moleFlow && (
+                    <div>• Mole Flow: {moleFlow.values[0]} {moleFlow.unit}</div>
+                  )}
+                  {fractionValues.length > 0 && (
+                    <div style={{ marginTop: '8px' }}>
+                      <strong>Composition:</strong>
+                      <div style={{ marginLeft: '12px', fontSize: '0.85rem' }}>
+                        {display && <div>Display: {display}</div>}
+                        <div style={{ marginTop: '4px' }}>
+                          <strong>Fractions:</strong>
+                          {fractionValues.map((v: string, idx: number) => {
+                            const value = parseFloat(v) || 0;
+                            return <div key={idx}>  Component {idx + 1}: {(value * 100).toFixed(2)}%</div>;
+                          })}
+                          <div style={{ marginTop: '2px', fontWeight: 'bold' }}>
+                            Total: {(fractionValues.reduce((sum: number, v: string) => sum + (parseFloat(v) || 0), 0) * 100).toFixed(2)}%
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            {false && materialState.$children?.find((c: any) => c.$type === 'Flow') && (
               <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #90caf9' }}>
                 <strong>Flow Properties:</strong>
                 {(() => {
                   const flowChild = materialState.$children.find((c: any) => c.$type === 'Flow');
                   const moleFlowChild = flowChild?.$children?.find((c: any) => c.$type === 'MoleFlow');
                   const compositionChild = flowChild?.$children?.find((c: any) => c.$type === 'Composition');
-                  
+
                   return (
                     <>
                       {moleFlowChild && (
@@ -1662,10 +2318,10 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
         <div className="property-group" style={{ background: '#f3e5f5', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
           <h4 style={{ margin: '0 0 8px 0', color: '#7b1fa2' }}>🧪 Material Template</h4>
           <div style={{ fontSize: '0.9rem' }}>
-            <div><strong>Label:</strong> {materialTemplate.$children?.find((c: any) => c.$type === 'Label')?.$body || 'N/A'}</div>
-            <div><strong>Identifier:</strong> {materialTemplate.$children?.find((c: any) => c.$type === 'Identifier')?.$body || 'N/A'}</div>
-            <div><strong>Components:</strong> {materialTemplate.$children?.find((c: any) => c.$type === 'NumberOfMaterialComponents')?.$body || 'N/A'}</div>
-            <div><strong>Phases:</strong> {materialTemplate.$children?.find((c: any) => c.$type === 'NumberOfPhases')?.$body || 'N/A'}</div>
+            <div><strong>Label:</strong> {readDexpiData(materialTemplate, 'Label')}</div>
+            <div><strong>Identifier:</strong> {readDexpiData(materialTemplate, 'Identifier')}</div>
+            <div><strong>Components:</strong> {readDexpiData(materialTemplate, 'NumberOfMaterialComponents')}</div>
+            <div><strong>Phases:</strong> {readDexpiData(materialTemplate, 'NumberOfPhases')}</div>
           </div>
         </div>
       )}

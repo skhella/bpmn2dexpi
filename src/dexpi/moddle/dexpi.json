@@ -14,11 +14,15 @@
       "properties": [
         { "name": "dexpiType", "isAttr": true, "type": "String" },
         { "name": "customUri", "isAttr": true, "type": "String" },
+        { "name": "customSuperType", "isAttr": true, "type": "String" },
         { "name": "identifier", "isAttr": true, "type": "String" },
         { "name": "uid", "isAttr": true, "type": "String" },
         { "name": "hierarchyLevel", "isAttr": true, "type": "String" },
         { "name": "ports", "type": "Port", "isMany": true },
-        { "name": "attributes", "type": "Attribute", "isMany": true }
+        { "name": "attributes", "type": "Attribute", "isMany": true },
+        { "name": "data", "type": "Data", "isMany": true },
+        { "name": "references", "type": "References", "isMany": true },
+        { "name": "components", "type": "Components", "isMany": true }
       ]
     },
     {
@@ -69,7 +73,10 @@
         { "name": "materialStateReference", "isAttr": true, "type": "String" },
         { "name": "provenance", "isAttr": true, "type": "String" },
         { "name": "range", "isAttr": true, "type": "String" },
-        { "name": "attributes", "type": "Attribute", "isMany": true }
+        { "name": "attributes", "type": "Attribute", "isMany": true },
+        { "name": "data", "type": "Data", "isMany": true },
+        { "name": "references", "type": "References", "isMany": true },
+        { "name": "components", "type": "Components", "isMany": true }
       ]
     },
     {
@@ -92,7 +99,10 @@
         { "name": "identifier", "isAttr": true, "type": "String" },
         { "name": "name", "isAttr": true, "type": "String" },
         { "name": "uid", "isAttr": true, "type": "String" },
-        { "name": "componentList", "type": "Component", "isMany": true }
+        { "name": "componentList", "type": "Component", "isMany": true },
+        { "name": "data", "type": "Data", "isMany": true },
+        { "name": "references", "type": "References", "isMany": true },
+        { "name": "components", "type": "Components", "isMany": true }
       ]
     },
     {
@@ -102,6 +112,17 @@
         { "name": "name", "isAttr": true, "type": "String" },
         { "name": "casNumber", "isAttr": true, "type": "String" },
         { "name": "fraction", "isAttr": true, "type": "Number" }
+      ]
+    },
+    {
+      "name": "MaterialComponent",
+      "superClass": ["Element"],
+      "meta": { "allowedIn": ["bpmn:Process", "bpmn:Collaboration"] },
+      "properties": [
+        { "name": "uid", "isAttr": true, "type": "String" },
+        { "name": "data", "type": "Data", "isMany": true },
+        { "name": "references", "type": "References", "isMany": true },
+        { "name": "components", "type": "Components", "isMany": true }
       ]
     },
     {
@@ -115,7 +136,32 @@
         { "name": "templateRef", "isAttr": true, "type": "String" },
         { "name": "provenance", "isAttr": true, "type": "String" },
         { "name": "range", "isAttr": true, "type": "String" },
-        { "name": "properties", "type": "StateProperty", "isMany": true }
+        { "name": "properties", "type": "StateProperty", "isMany": true },
+        { "name": "data", "type": "Data", "isMany": true },
+        { "name": "references", "type": "References", "isMany": true },
+        { "name": "components", "type": "Components", "isMany": true }
+      ]
+    },
+    {
+      "name": "MaterialStateType",
+      "superClass": ["Element"],
+      "meta": { "allowedIn": ["bpmn:Process", "bpmn:Collaboration"] },
+      "properties": [
+        { "name": "uid", "isAttr": true, "type": "String" },
+        { "name": "data", "type": "Data", "isMany": true },
+        { "name": "references", "type": "References", "isMany": true },
+        { "name": "components", "type": "Components", "isMany": true }
+      ]
+    },
+    {
+      "name": "Composition",
+      "superClass": ["Element"],
+      "meta": { "allowedIn": ["bpmn:Process", "bpmn:Collaboration"] },
+      "properties": [
+        { "name": "uid", "isAttr": true, "type": "String" },
+        { "name": "data", "type": "Data", "isMany": true },
+        { "name": "references", "type": "References", "isMany": true },
+        { "name": "components", "type": "Components", "isMany": true }
       ]
     },
     {
@@ -141,6 +187,42 @@
       "superClass": ["Element"],
       "properties": [
         { "name": "body", "type": "String", "isBody": true }
+      ]
+    },
+    {
+      "name": "Data",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "property", "isAttr": true, "type": "String" },
+        { "name": "body", "type": "String", "isBody": true }
+      ]
+    },
+    {
+      "name": "References",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "property", "isAttr": true, "type": "String" },
+        { "name": "uidRef", "isAttr": true, "type": "String" },
+        { "name": "objects", "isAttr": true, "type": "String" }
+      ]
+    },
+    {
+      "name": "Components",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "property", "isAttr": true, "type": "String" },
+        { "name": "objects", "type": "Object", "isMany": true }
+      ]
+    },
+    {
+      "name": "Object",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "id", "isAttr": true, "type": "String" },
+        { "name": "type", "isAttr": true, "type": "String" },
+        { "name": "data", "type": "Data", "isMany": true },
+        { "name": "components", "type": "Components", "isMany": true },
+        { "name": "references", "type": "References", "isMany": true }
       ]
     }
   ],

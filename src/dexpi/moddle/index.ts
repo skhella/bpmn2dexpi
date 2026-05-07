@@ -1,5 +1,28 @@
 import dexpiDescriptor from './dexpi.json';
 
+/**
+ * The dexpi.json moddle declares four DEXPI *carrier* types — Data,
+ * References, Components, Object — that serialize (per the file's
+ * `tagAlias: lowerCase`) as `<dexpi:data property="X">v</dexpi:data>`,
+ * `<dexpi:references property="X" uidRef="..."/>`, and so on.
+ *
+ * They mirror the carrier elements DEXPI's standalone Process XML uses
+ * (`<Data>`, `<References>`, `<Components>`, `<Object>`) and let property
+ * kind (DataProperty / ReferenceProperty / CompositionProperty) be
+ * recorded EXPLICITLY at write time rather than inferred from element
+ * shape at read time — which is what the validator's
+ * inferKindFromBpmnElement() heuristic does for legacy bare-name content.
+ *
+ * Using the `dexpi:` prefix is required by BPMN 2.0's `tExtensionElements
+ * xsd:any namespace="##other"` rule. Under the strict reading of `##other`
+ * (W3C XSD 1.1, which excludes both the target namespace and the absent
+ * namespace), unprefixed elements inside `<bpmn:extensionElements>` are
+ * not BPMN 2.0 compliant. Wire-form differs from DEXPI Process XSD only
+ * by this namespace prefix; semantics are identical.
+ *
+ * If DEXPI publishes a canonical Profile / extension namespace, migration
+ * is a single-attribute change in dexpi.json.
+ */
 export default dexpiDescriptor;
 
 export interface DexpiElement {
@@ -8,6 +31,15 @@ export interface DexpiElement {
    *  Used when dexpiType is not a standard DEXPI 2.0 Process class.
    *  Example: customUri="https://data.15926.org/rdl/R1234" */
   customUri?: string;
+  /**
+   * For Custom (non-registry) dexpiType values: the user-chosen DEXPI parent
+   * class that the custom class extends. Picked from the registry dropdown
+   * in the panel (Process + Core + already-loaded Profiles). Consumed by the
+   * Profile generator when emitting <ConcreteClass superTypes="..."/> for
+   * the custom class. When empty, the generator falls back to
+   * Core/ConceptualObject — the most permissive root.
+   */
+  customSuperType?: string;
   identifier?: string;
   uid?: string;
   hierarchyLevel?: string;

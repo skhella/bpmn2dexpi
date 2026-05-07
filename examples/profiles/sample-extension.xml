@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sample DEXPI Profile (extension schema) for bpmn2dexpi.
+
+  A DEXPI Profile is one or more project-specific class declarations in the
+  same DEXPI metamodel grammar Process.xml uses. When loaded into the
+  schema registry alongside the bundled Process.xml + Core.xml, the
+  Profile's classes become recognized targets for dexpiType annotations
+  in BPMN models, and the Profile's properties are accepted by the
+  strict-mode property-name validator.
+
+  This sample declares one custom class (BiologicalReactor) extending
+  ReactingChemicals from Process.xml, with a single project-specific
+  DataProperty (ResidenceTime). The intent is to be the simplest possible
+  illustration; real Profiles can declare arbitrarily many classes,
+  reference any combination of Process.xml / Core.xml supertypes, and
+  carry DataProperty / ReferenceProperty / CompositionProperty entries.
+
+  Conflict rules (enforced at registry load time, surfaced as clear errors
+  in CLI and UI):
+
+    1. A Profile class name must NOT collide with any class name already
+       declared in Process.xml, Core.xml, or another loaded Profile.
+       Conflicts are rejected — the Profile cannot be loaded until it is
+       renamed or the conflicting Profile is unloaded.
+
+    2. Every supertype reference in the Profile must resolve to a class in
+       a loaded schema (Process / Core / Profile). Unresolved references
+       are rejected — the Profile cannot be loaded until the supertype is
+       fixed or the schema providing it is loaded first.
+
+  CLI: bpmn2dexpi (with the profile flag) examples/profiles/sample-extension.xml input.bpmn output.xml
+  UI:  click "Import DEXPI Profile" and pick this file.
+
+  Profiles are runtime-only state. They live for the duration of the
+  current process / browser session and must be re-imported after a page
+  reload.
+-->
+<Model name="SampleExtension" uri="https://example.org/profiles/sample-extension">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+
+  <ConcreteClass name="BiologicalReactor" superTypes="/Process.ReactingChemicals">
+    <DataProperty name="ResidenceTime" isOrdered="false" isUnique="false" lower="0" upper="1">
+      <DataTypeReference type="Builtin/Double"/>
+      <Data property="MetaData/description">
+        <String>Mean fluid residence time in the reactor vessel, expressed
+in hours. Project-specific; not part of DEXPI 2.0.</String>
+      </Data>
+    </DataProperty>
+  </ConcreteClass>
+</Model>

@@ -13,6 +13,7 @@ export interface InternalProcessStep {
   type: string;             // DEXPI class name, e.g. "ReactingChemicals"
   typingMode?: StepTypingMode; // how the type was determined
   customUri?: string;          // external RDL URI (unvalidated only, if provided)
+  customSuperType?: string;    // user-chosen DEXPI parent class for Custom-typed steps
   suggestedDexpiClass?: string; // closest DEXPI class suggestion (unvalidated only)
   identifier: string;
   uid: string;
@@ -21,6 +22,33 @@ export interface InternalProcessStep {
   attributes: Array<{ name: string; value: string; unit?: string; scope?: string; range?: string; provenance?: string; qualifier?: string; nameUri?: string; unitUri?: string }>;
   parentId: string | null;
   subProcessSteps: string[]; // child step IDs
+
+  /**
+   * For InstrumentationActivity descendants only.
+   * Per DEXPI 2.0 (Process.xml + Specification PDF p.876, p.900): InstrumentationActivity
+   * is a sibling of ProcessStep, not a subclass. It does not own a Ports composition;
+   * its connection to the process is expressed through reference properties
+   * (ProcessStepReference, MeasuredVariableReference, ConnectionReference,
+   * ProcessStepDetailReference). These fields hold the BPMN-derived values that get
+   * emitted as those References on export. Populated by extractDataObjectInformationFlows.
+   */
+  processStepRef?: string;       // → ProcessStep (the measured / controlled step)
+  measuredVariable?: string;     // variable identity (e.g. "Temperature", "Pressure")
+
+  /**
+   * For ProcessSteps only.
+   * Set of measured-variable names that downstream InstrumentationActivities reference
+   * via this step's QualifiedValue parameter slots. On emission, each entry triggers
+   * a <Components property="<VarName>"> carrier wrapping a Core/QualifiedValue Object
+   * with id `<step_uid>_<VarName>` — the target of MeasuredVariableReference per
+   * DEXPI 2.0 Spec PDF p.900: "The measured variable is identified by reference
+   * to a parameter in any process step or port." Canonical names (Temperature,
+   * Pressure, AmbientTemperature, AmbientPressure) align with ProcessStep's declared
+   * composition properties; non-canonical names (Level, MassFlow, RotationalFrequency,
+   * Composition, Duty, ...) are emitted as Profile-extension parameter slots and
+   * surfaced by strict-mode for the Profile generator.
+   */
+  measuredParameters?: Set<string>;
 }
 
 // ── Port record (enriched with step back-reference) ──────────────────────────
@@ -187,6 +215,37 @@ export interface TransformOptions {
    * reading dexpi-schema-files/Process.xml from disk if omitted.
    */
   processXml?: string;
+  /**
+   * Optional raw Core.xml content. Same browser-vs-Node fallback as
+   * processXml. Required when strict-mode property-name validation is on
+   * because supertype walking crosses Process → Core (e.g. Stream inherits
+   * Identifier/Label/Source/Target from ProcessConnection → ConceptualObject).
+   */
+  coreXml?: string;
+  /**
+   * Optional DEXPI Profile extensions to merge into the schema registry.
+   * Each entry is one extension XML in the same DEXPI metamodel grammar
+   * Process.xml uses; entries may add new ConcreteClass / AbstractClass
+   * declarations or extend existing classes with extra DataProperty /
+   * ReferenceProperty / CompositionProperty entries. Conflicts (duplicate
+   * class names) and unresolved supertypes are surfaced as load-time
+   * errors via DexpiProcessClassRegistry.fromXmlSources().
+   */
+  profileXmls?: { name: string; xml: string }[];
+  /**
+   * Strict-mode validation toggle. Default false (DEXPI 2.0's permissive
+   * philosophy: any XSD-valid output is exchangeable, so the user-facing
+   * default is XSD-only). When true, the transformer additionally runs
+   * property-name fidelity validation against the merged schema registry
+   * after producing the DEXPI XML; results are surfaced via
+   * BpmnToDexpiTransformer.lastPropertyNameValidation.
+   *
+   * Strict-mode failures NEVER block file production — output is written
+   * the same way it is in non-strict mode. The CI test suite hard-codes
+   * strict=true regardless of this default; see
+   * DexpiPropertyNameCompliance.unit.test.ts.
+   */
+  strict?: boolean;
 }
 
 // ── Validation result ─────────────────────────────────────────────────────────
@@ -197,7 +256,7 @@ export interface TransformOptions {
  * 'structural' — browser-safe fallback that checks the key DEXPI 2.0 object-model
  *                invariants without invoking xmllint.
  */
-export type ValidationMode = 'xsd' | 'structural';
+export type ValidationMode = 'xsd' | 'structural' | 'property-names';
 
 export interface ValidationResult {
   valid: boolean;
@@ -233,6 +292,10 @@ export interface StepTypingResult {
   mode: StepTypingMode;
   /** Optional URI referencing an external RDL class — stored in DEXPI output as ReferenceUri. */
   customUri?: string;
+  /** User-chosen DEXPI parent class for unvalidated/Custom-typed steps; consumed
+   *  by the Profile generator when it synthesises a ConcreteClass declaration
+   *  for the custom class. Falls through to ProcessStep when omitted. */
+  customSuperType?: string;
   /** Closest DEXPI class suggestion shown as a hint (never affects output). */
   suggestedDexpiClass?: string;
 }

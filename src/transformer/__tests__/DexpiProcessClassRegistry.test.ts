@@ -66,6 +66,216 @@ describe('DexpiProcessClassRegistry', () => {
   });
 });
 
+// ── Multi-source loading: Process+Core, extensions, conflict, missing ─────
+
+describe('DexpiProcessClassRegistry multi-source loading', () => {
+  const CORE_XML_PATH = join(__dirname, '../../../dexpi-schema-files/Core.xml');
+  const processXml = readFileSync(PROCESS_XML_PATH, 'utf-8');
+  const coreXml = readFileSync(CORE_XML_PATH, 'utf-8');
+
+  it('loads Process.xml + Core.xml together with strict supertype validation', () => {
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+    ]);
+    // Process classes available
+    expect(reg.isValidClass('Stream')).toBe(true);
+    expect(reg.isValidClass('Pumping')).toBe(true);
+    // Core classes available too
+    expect(reg.isValidClass('ConceptualObject')).toBe(true);
+    expect(reg.isValidClass('QualifiedValue')).toBe(true);
+  });
+
+  it('getProperties() walks the full supertype chain across Process → Core', () => {
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+    ]);
+    const props = reg.getProperties('Stream');
+    const propNames = props.map(p => p.name);
+    // Stream's own CompositionProperties
+    expect(propNames).toContain('MassFlow');
+    expect(propNames).toContain('Temperature');
+    expect(propNames).toContain('Pressure');
+    expect(propNames).toContain('VolumeFlow');
+    // Inherited from ProcessConnection
+    expect(propNames).toContain('Identifier');
+    expect(propNames).toContain('Label');
+    expect(propNames).toContain('Description');
+    expect(propNames).toContain('Source');
+    expect(propNames).toContain('Target');
+  });
+
+  it('loads an extension that adds a class extending a Process class', () => {
+    const extension = {
+      name: 'BiologicalReactor.xml',
+      xml: `<Model name="BioExt" uri="https://test/bio">
+        <ConcreteClass name="BiologicalReactor" superTypes="/Process.ReactingChemicals">
+          <DataProperty name="ResidenceTime" lower="0" upper="1">
+            <DataTypeReference type="Builtin/Double"/>
+          </DataProperty>
+        </ConcreteClass>
+      </Model>`,
+    };
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+      extension,
+    ]);
+    expect(reg.isValidClass('BiologicalReactor')).toBe(true);
+    expect(reg.hasAncestor('BiologicalReactor', 'ReactingChemicals')).toBe(true);
+    expect(reg.hasAncestor('BiologicalReactor', 'ProcessStep')).toBe(true);
+    // Extension property is on the class
+    const props = reg.getProperties('BiologicalReactor');
+    expect(props.find(p => p.name === 'ResidenceTime')).toBeDefined();
+    // The dropdown includes user-extension concrete classes
+    expect(reg.concreteClasses()).toContain('BiologicalReactor');
+  });
+
+  it('rejects a malformed extension referencing an unknown supertype', () => {
+    const malformed = {
+      name: 'Broken.xml',
+      xml: `<Model name="Broken" uri="https://test/broken">
+        <ConcreteClass name="Bogus" superTypes="/Process.NonExistentParent"/>
+      </Model>`,
+    };
+    expect(() =>
+      DexpiProcessClassRegistry.fromXmlSources([
+        { name: 'Process.xml', xml: processXml },
+        { name: 'Core.xml', xml: coreXml },
+        malformed,
+      ])
+    ).toThrow(/unresolved supertype.*NonExistentParent/is);
+  });
+
+  it('rejects two sources declaring the same class name', () => {
+    const dupe = {
+      name: 'Dupe.xml',
+      xml: `<Model name="Dupe" uri="https://test/dupe">
+        <ConcreteClass name="Pumping" superTypes="Core/ConceptualObject"/>
+      </Model>`,
+    };
+    expect(() =>
+      DexpiProcessClassRegistry.fromXmlSources([
+        { name: 'Process.xml', xml: processXml },
+        { name: 'Core.xml', xml: coreXml },
+        dupe,
+      ])
+    ).toThrow(/duplicate class names.*Pumping/is);
+  });
+});
+
+// ── Profile mode="extend" merge semantics ─────────────────────────────────
+
+describe('DexpiProcessClassRegistry profile mode="extend"', () => {
+  const CORE_XML_PATH = join(__dirname, '../../../dexpi-schema-files/Core.xml');
+  const processXml = readFileSync(PROCESS_XML_PATH, 'utf-8');
+  const coreXml = readFileSync(CORE_XML_PATH, 'utf-8');
+
+  it('merges new properties into existing class instead of rejecting', () => {
+    const extendingProfile = {
+      name: 'extending.xml',
+      xml: `<?xml version="1.0" encoding="UTF-8"?>
+        <Profile mode="extend" uri="https://test/extending">
+          <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
+            <DataProperty name="Basis" lower="0" upper="1">
+              <DataTypeReference type="Builtin/String"/>
+            </DataProperty>
+          </ConcreteClass>
+        </Profile>`,
+    };
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+      extendingProfile,
+    ]);
+    // Extension property is now visible on the existing Process.xml class.
+    const props = reg.getProperties('Composition').map(p => p.name);
+    expect(props).toContain('Basis');
+    // Original class properties are still present.
+    expect(props).toContain('Display');
+    expect(props).toContain('MassFlow');
+    // sourceFile of Composition stays as Process.xml — extend doesn't
+    // re-attribute the class to the Profile.
+    expect(reg.getClass('Composition')!.sourceFile).toBe('Process.xml');
+  });
+
+  it('without mode="extend" still rejects conflicts (back-compat)', () => {
+    const conflictingProfile = {
+      name: 'conflicting.xml',
+      xml: `<?xml version="1.0" encoding="UTF-8"?>
+        <Model name="Conflicting" uri="https://test/conflicting">
+          <ConcreteClass name="Composition" superTypes="Core/ConceptualObject"/>
+        </Model>`,
+    };
+    expect(() =>
+      DexpiProcessClassRegistry.fromXmlSources([
+        { name: 'Process.xml', xml: processXml },
+        { name: 'Core.xml', xml: coreXml },
+        conflictingProfile,
+      ])
+    ).toThrow(/duplicate class names.*Composition/is);
+  });
+
+  it('extend Profile can also add genuinely new classes alongside extensions', () => {
+    const mixedProfile = {
+      name: 'mixed.xml',
+      xml: `<?xml version="1.0" encoding="UTF-8"?>
+        <Profile mode="extend" uri="https://test/mixed">
+          <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
+            <DataProperty name="Basis" lower="0" upper="1">
+              <DataTypeReference type="Builtin/String"/>
+            </DataProperty>
+          </ConcreteClass>
+          <ConcreteClass name="BiologicalReactor" superTypes="/Process.ReactingChemicals">
+            <DataProperty name="ResidenceTime" lower="0" upper="1">
+              <DataTypeReference type="Builtin/Double"/>
+            </DataProperty>
+          </ConcreteClass>
+        </Profile>`,
+    };
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+      mixedProfile,
+    ]);
+    // Extension landed on existing class.
+    expect(reg.getProperties('Composition').map(p => p.name)).toContain('Basis');
+    // New class was added normally (not merged anywhere).
+    expect(reg.isValidClass('BiologicalReactor')).toBe(true);
+    expect(reg.hasAncestor('BiologicalReactor', 'ProcessStep')).toBe(true);
+  });
+
+  it('extend Profile silently skips properties already on the existing class', () => {
+    // Composition already has Display from Process.xml — re-declaring
+    // it in an extend Profile should not error and should not duplicate.
+    const profile = {
+      name: 'redundant.xml',
+      xml: `<?xml version="1.0" encoding="UTF-8"?>
+        <Profile mode="extend" uri="https://test/redundant">
+          <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
+            <DataProperty name="Display" lower="0" upper="1">
+              <DataTypeReference type="Builtin/String"/>
+            </DataProperty>
+            <DataProperty name="Basis" lower="0" upper="1">
+              <DataTypeReference type="Builtin/String"/>
+            </DataProperty>
+          </ConcreteClass>
+        </Profile>`,
+    };
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+      profile,
+    ]);
+    // Display appears once (existing wins; extend doesn't shadow).
+    const displays = reg.getProperties('Composition').filter(p => p.name === 'Display');
+    expect(displays).toHaveLength(1);
+    // The new property was still added.
+    expect(reg.getProperties('Composition').map(p => p.name)).toContain('Basis');
+  });
+});
+
 // ── Three-mode typing integration tests ───────────────────────────────────
 
 /** Minimal valid BPMN wrapper */

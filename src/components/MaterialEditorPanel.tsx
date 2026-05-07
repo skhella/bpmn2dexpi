@@ -341,7 +341,13 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
                       <input
                         type="number"
                         step="0.0001"
-                        value={fraction.value || ''}
+                        // ?? not || — a real 0 is not "missing data"; PFD
+                        // composition tables conventionally show explicit
+                        // zeros for components that aren't present, and
+                        // the row's existence implies the component is in
+                        // the template's ListOfComponents whether or not
+                        // its fraction is non-zero.
+                        value={fraction.value ?? ''}
                         onChange={(e) => {
                           const newFractions = [...edited.flow.composition.fractions];
                           newFractions[index] = { ...newFractions[index], value: e.target.value };

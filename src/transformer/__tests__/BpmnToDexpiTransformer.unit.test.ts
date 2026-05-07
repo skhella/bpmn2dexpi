@@ -291,20 +291,23 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
 
 // ── InformationFlow (Association) tests ───────────────────────────────────
 describe('InformationFlow extraction from associations', () => {
-  it('extracts an annotated association as InformationFlow in DEXPI output', async () => {
+  it('skips InformationFlow emission when an instrumentation activity is involved (DEXPI 2.0 schema-correct)', async () => {
+    // Per DEXPI 2.0 (Spec PDF p.876, p.910, p.917): InstrumentationActivity is
+    // a sibling of ProcessStep, not a subclass; only ProcessStep declares the
+    // Ports composition, and InformationFlow Source/Target must point at
+    // InformationPorts which only exist on ProcessSteps. So a flow whose
+    // endpoints are an InstrumentationActivity cannot be modelled as an
+    // InformationFlow object — it's expressed via the InstrumentationActivity's
+    // ProcessStepReference / Setpoint / OutputValue / etc. instead.
     const xml = bpmn(`
       <task id="T1" name="MeasuringProcessVariable">
         <extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="T1" uid="uid_T1">
-            <dexpi:port portId="T1_IO1" name="IO1" portType="InformationPort" direction="Outlet"/>
-          </dexpi:element>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="T1" uid="uid_T1"/>
         </extensionElements>
       </task>
       <task id="T2" name="ReactingChemicals">
         <extensionElements>
-          <dexpi:element dexpiType="ReactingChemicals" identifier="T2" uid="uid_T2">
-            <dexpi:port portId="T2_IO1" name="IO1" portType="InformationPort" direction="Inlet"/>
-          </dexpi:element>
+          <dexpi:element dexpiType="ReactingChemicals" identifier="T2" uid="uid_T2"/>
         </extensionElements>
       </task>
       <association id="A1" name="signal" sourceRef="T1" targetRef="T2">
@@ -321,10 +324,8 @@ describe('InformationFlow extraction from associations', () => {
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(xml);
 
-    expect(out).toContain('Process/Process.InformationFlow');
-    expect(out).toContain('IF-001');
-    // The InformationFlow should be separate from MaterialFlow streams
-    expect((out.match(/Process\/Process\.InformationFlow/g) || []).length).toBeGreaterThanOrEqual(1);
+    expect(out).not.toContain('Process/Process.InformationFlow');
+    expect(out).not.toContain('IF-001');
   });
 
   it('ignores plain associations without InformationFlow annotation', async () => {
@@ -346,16 +347,22 @@ describe('InformationFlow extraction from associations', () => {
     expect(out).not.toContain('InformationFlow');
   });
 
-  it('warns when InformationFlow has no InformationPorts on source/target', async () => {
+  it('warns when a ProcessStep-to-ProcessStep InformationFlow has no InformationPorts on either end', async () => {
+    // For genuine ProcessStep-to-ProcessStep information links (no
+    // instrumentation activity in between), InformationFlow remains the
+    // schema-correct DEXPI representation, with Source/Target pointing
+    // at InformationPorts on the two ProcessSteps. When the source BPMN
+    // forgets to define those ports, the transformer emits a warning so
+    // the user can repair the model.
     const xml = bpmn(`
-      <task id="T1" name="MeasuringProcessVariable">
+      <task id="T1" name="ReactingChemicals">
         <extensionElements>
-          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="T1" uid="uid_T1"/>
+          <dexpi:element dexpiType="ReactingChemicals" identifier="T1" uid="uid_T1"/>
         </extensionElements>
       </task>
-      <task id="T2" name="ReactingChemicals">
+      <task id="T2" name="Separating">
         <extensionElements>
-          <dexpi:element dexpiType="ReactingChemicals" identifier="T2" uid="uid_T2"/>
+          <dexpi:element dexpiType="Separating" identifier="T2" uid="uid_T2"/>
         </extensionElements>
       </task>
       <association id="A1" sourceRef="T1" targetRef="T2">
