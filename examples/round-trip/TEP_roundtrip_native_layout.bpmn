@@ -1,0 +1,2338 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:dexpi="http://dexpi.org/schema/bpmn-extension" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_imported" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn2dexpi-importer" exporterVersion="1.0">
+  <bpmn:process id="Process_imported" isExecutable="false">
+    <bpmn:subProcess id="bpmn_uid_Activity_07878z5" name="ReactingChemicals">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="ReactingChemicals" identifier="Activity_07878z5" uid="uid_Activity_07878z5">
+          <dexpi:port portId="Activity_07878z5_MI1_port" name="Activity_07878z5_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_07878z5_MI1_port" anchorSide="left" anchorOffset="0.28" subReference="Event_1npicji_MI1_port"/>
+          <dexpi:port portId="Activity_07878z5_MI2_port" name="Activity_07878z5_MI2_port" portType="MaterialPort" direction="Inlet" label="Activity_07878z5_MI2_port" anchorSide="left" anchorOffset="0.50" subReference="Event_1p0vvqc_MI2_port"/>
+          <dexpi:port portId="Activity_07878z5_MI3_port" name="Activity_07878z5_MI3_port" portType="MaterialPort" direction="Inlet" label="Activity_07878z5_MI3_port" anchorSide="left" anchorOffset="0.72" subReference="Event_17fqava_MI3_port"/>
+          <dexpi:port portId="Activity_07878z5_MI4_port" name="Activity_07878z5_MI4_port" portType="MaterialPort" direction="Inlet" label="Activity_07878z5_MI4_port" anchorSide="left" anchorOffset="0.88" subReference="Event_13mofb0_MI4_port"/>
+          <dexpi:port portId="Activity_07878z5_MI5_port" name="Activity_07878z5_MI5_port" portType="MaterialPort" direction="Inlet" label="Activity_07878z5_MI5_port" anchorSide="left" anchorOffset="0.12" subReference="Event_15gcv4n_MI5_port"/>
+          <dexpi:port portId="Activity_07878z5_MO1_port" name="Activity_07878z5_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_07878z5_MO1_port" anchorSide="right" anchorOffset="0.50" subReference="Event_062k0v7_MO1_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:incoming>bpmn_u_MOW17DOY_ahha1g3i</bpmn:incoming>
+      <bpmn:incoming>bpmn_u_MOW17DOY_7krz3d4m</bpmn:incoming>
+      <bpmn:incoming>bpmn_u_MOW17DOY_ql9a03gc</bpmn:incoming>
+      <bpmn:incoming>bpmn_u_MOW17DOY_8z7cdnv8</bpmn:incoming>
+      <bpmn:incoming>bpmn_u_MOW17DOY_3y6srk7g</bpmn:incoming>
+      <bpmn:outgoing>bpmn_u_MOW17DOZ_qfjj7rm7</bpmn:outgoing>
+      <bpmn:subProcess id="bpmn_uid_Activity_11rkrj8" name="RemovingThermalEnergy">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8">
+            <dexpi:port portId="Activity_11rkrj8_TEI1_port" name="Activity_11rkrj8_TEI1_port" portType="ThermalEnergyPort" direction="Inlet" label="Activity_11rkrj8_TEI1_port" anchorSide="top" anchorOffset="0.12"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOV_uqqwyf25</bpmn:incoming>
+        <bpmn:task id="bpmn_uid_Activity_1pzszmn" name="RegulatingFlow">
+          <bpmn:extensionElements>
+            <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_1pzszmn" uid="uid_Activity_1pzszmn">
+              <dexpi:port portId="Activity_1pzszmn_MI1_port" name="Activity_1pzszmn_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_1pzszmn_MI1_port" anchorSide="left" anchorOffset="0.88"/>
+              <dexpi:port portId="Activity_1pzszmn_MO1_port" name="Activity_1pzszmn_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_1pzszmn_MO1_port" anchorSide="right" anchorOffset="0.88"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
+          <bpmn:incoming>bpmn_u_MOW17DOV_p52zizpp</bpmn:incoming>
+          <bpmn:outgoing>bpmn_u_MOW17DOV_t5kh97hs</bpmn:outgoing>
+        </bpmn:task>
+        <bpmn:task id="bpmn_uid_Activity_03d7qhp" name="RemovingThermalEnergy">
+          <bpmn:extensionElements>
+            <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_03d7qhp" uid="uid_Activity_03d7qhp">
+              <dexpi:port portId="Activity_03d7qhp_MI1_port" name="Activity_03d7qhp_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_03d7qhp_MI1_port" anchorSide="left" anchorOffset="0.12"/>
+              <dexpi:port portId="Activity_03d7qhp_MO1_port" name="Activity_03d7qhp_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_03d7qhp_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+              <dexpi:port portId="Activity_03d7qhp_TEI1_port" name="Activity_03d7qhp_TEI1_port" portType="ThermalEnergyPort" direction="Inlet" label="Activity_03d7qhp_TEI1_port" anchorSide="top" anchorOffset="0.50"/>
+              <dexpi:port portId="Activity_03d7qhp_TEO1_port" name="Activity_03d7qhp_TEO1_port" portType="ThermalEnergyPort" direction="Outlet" label="Activity_03d7qhp_TEO1_port" anchorSide="bottom" anchorOffset="0.50"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
+          <bpmn:incoming>bpmn_u_MOW17DOV_t5kh97hs</bpmn:incoming>
+          <bpmn:outgoing>bpmn_u_MOW17DOV_s5wlmhur</bpmn:outgoing>
+        </bpmn:task>
+        <bpmn:task id="bpmn_uid_Activity_0iie89x" name="ExchangingThermalEnergy">
+          <bpmn:extensionElements>
+            <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0iie89x" uid="uid_Activity_0iie89x">
+              <dexpi:port portId="Activity_0iie89x_MI1_port" name="Activity_0iie89x_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0iie89x_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+              <dexpi:port portId="Activity_0iie89x_MO1_port" name="Activity_0iie89x_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0iie89x_MO1_port" anchorSide="right" anchorOffset="0.12"/>
+              <dexpi:port portId="Activity_0iie89x_TEI1_port" name="Activity_0iie89x_TEI1_port" portType="ThermalEnergyPort" direction="Inlet" label="Activity_0iie89x_TEI1_port" anchorSide="top" anchorOffset="0.50" superReference="Activity_11rkrj8_TEI1_port"/>
+              <dexpi:port portId="Activity_0iie89x_TEO1_port" name="Activity_0iie89x_TEO1_port" portType="ThermalEnergyPort" direction="Outlet" label="Activity_0iie89x_TEO1_port" anchorSide="bottom" anchorOffset="0.50"/>
+              <dexpi:Attribute name="Temperature" value=""/>
+            </dexpi:element>
+          </bpmn:extensionElements>
+          <bpmn:incoming>bpmn_u_MOW17DOV_s5wlmhur</bpmn:incoming>
+          <bpmn:outgoing>bpmn_u_MOW17DOV_p52zizpp</bpmn:outgoing>
+        </bpmn:task>
+        <bpmn:task id="bpmn_uid_Activity_18ratv8" name="MeasuringProcessVariable">
+          <bpmn:extensionElements>
+            <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_18ratv8" uid="uid_Activity_18ratv8">
+          </dexpi:element>
+          </bpmn:extensionElements>
+        </bpmn:task>
+        <bpmn:sequenceFlow id="bpmn_u_MOW17DOV_t5kh97hs" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_1pzszmn" targetRef="bpmn_uid_Activity_03d7qhp">
+          <bpmn:extensionElements>
+            <dexpi:Stream uid="u_MOW17DOV_t5kh97hs" identifier="Flow_0wbkd91" sourcePortRef="Activity_1pzszmn_MO1_port" targetPortRef="Activity_03d7qhp_MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
+        <bpmn:sequenceFlow id="bpmn_u_MOW17DOV_s5wlmhur" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_03d7qhp" targetRef="bpmn_uid_Activity_0iie89x">
+          <bpmn:extensionElements>
+            <dexpi:Stream uid="u_MOW17DOV_s5wlmhur" identifier="Flow_04ncgwf" sourcePortRef="Activity_03d7qhp_MO1_port" targetPortRef="Activity_0iie89x_MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
+        <bpmn:sequenceFlow id="bpmn_u_MOW17DOV_p52zizpp" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_0iie89x" targetRef="bpmn_uid_Activity_1pzszmn">
+          <bpmn:extensionElements>
+            <dexpi:Stream uid="u_MOW17DOV_p52zizpp" identifier="Flow_1b869xp" sourcePortRef="Activity_0iie89x_MO1_port" targetPortRef="Activity_1pzszmn_MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
+        <bpmn:dataObjectReference id="dobj_instr_uid_Activity_18ratv8_Temperature" name="Temperature" dataObjectRef="DataObject_dobj_instr_uid_Activity_18ratv8_Temperature"/>
+        <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_18ratv8_Temperature"/>
+        <bpmn:association id="assocOut_dobj_instr_uid_Activity_18ratv8_Temperature" sourceRef="bpmn_uid_Activity_18ratv8" targetRef="dobj_instr_uid_Activity_18ratv8_Temperature" associationDirection="One"/>
+        <bpmn:association id="assocIn_dobj_instr_uid_Activity_18ratv8_Temperature" sourceRef="dobj_instr_uid_Activity_18ratv8_Temperature" targetRef="bpmn_uid_Activity_0iie89x" associationDirection="One"/>
+      </bpmn:subProcess>
+      <bpmn:task id="bpmn_uid_Activity_1d6n7np" name="DrivingByMotor">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="DrivingByMotor" identifier="Activity_1d6n7np" uid="uid_Activity_1d6n7np">
+            <dexpi:port portId="Activity_1d6n7np_EEI1_port" name="Activity_1d6n7np_EEI1_port" portType="ElectricalEnergyPort" direction="Inlet" label="Activity_1d6n7np_EEI1_port" anchorSide="top" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_1d6n7np_MEO1_port" name="Activity_1d6n7np_MEO1_port" portType="MechanicalEnergyPort" direction="Outlet" label="Activity_1d6n7np_MEO1_port" anchorSide="bottom" anchorOffset="0.12"/>
+            <dexpi:Attribute name="RotationalFrequency" value=""/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOV_xskb70hq</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOV_ju34b2ct</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0msgfdr" name="ReactingChemicals">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="ReactingChemicals" identifier="Activity_0msgfdr" uid="uid_Activity_0msgfdr">
+            <dexpi:port portId="Activity_0msgfdr_MEI1_port" name="Activity_0msgfdr_MEI1_port" portType="MechanicalEnergyPort" direction="Inlet" label="Activity_0msgfdr_MEI1_port" anchorSide="top" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_0msgfdr_MI1_port" name="Activity_0msgfdr_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0msgfdr_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_0msgfdr_MO1_port" name="Activity_0msgfdr_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0msgfdr_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_0msgfdr_TEO1_port" name="Activity_0msgfdr_TEO1_port" portType="ThermalEnergyPort" direction="Outlet" label="Activity_0msgfdr_TEO1_port" anchorSide="bottom" anchorOffset="0.88"/>
+            <dexpi:Attribute name="Temperature" value=""/>
+            <dexpi:Attribute name="Pressure" value=""/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOV_ju34b2ct</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOW_i5ltrg74</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOV_vhm85w7k</bpmn:outgoing>
+        <bpmn:outgoing>bpmn_u_MOW17DOV_uqqwyf25</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_16sydhz" name="TransportingFluids">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="TransportingFluids" identifier="Activity_16sydhz" uid="uid_Activity_16sydhz">
+            <dexpi:port portId="Activity_16sydhz_MI1_port" name="Activity_16sydhz_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_16sydhz_MI1_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_16sydhz_MI2_port" name="Activity_16sydhz_MI2_port" portType="MaterialPort" direction="Inlet" label="Activity_16sydhz_MI2_port" anchorSide="left" anchorOffset="0.28"/>
+            <dexpi:port portId="Activity_16sydhz_MI3_port" name="Activity_16sydhz_MI3_port" portType="MaterialPort" direction="Inlet" label="Activity_16sydhz_MI3_port" anchorSide="left" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_16sydhz_MI4_port" name="Activity_16sydhz_MI4_port" portType="MaterialPort" direction="Inlet" label="Activity_16sydhz_MI4_port" anchorSide="left" anchorOffset="0.72"/>
+            <dexpi:port portId="Activity_16sydhz_MI5_port" name="Activity_16sydhz_MI5_port" portType="MaterialPort" direction="Inlet" label="Activity_16sydhz_MI5_port" anchorSide="left" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_16sydhz_MO1_port" name="Activity_16sydhz_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_16sydhz_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_lvl4r8mo</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOW_lv09w59t</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOW_lfri88c5</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOW_57tsdrq0</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOW_pw6ezu7j</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_i5ltrg74</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_07twnf1" name="ControllingProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="ControllingProcessVariable" identifier="Activity_07twnf1" uid="uid_Activity_07twnf1">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1qz2q4q" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1qz2q4q" uid="uid_Activity_1qz2q4q">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0tg7cm0" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0tg7cm0" uid="uid_Activity_0tg7cm0">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_15ct9gk" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_15ct9gk" uid="uid_Activity_15ct9gk">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_101s6y2" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_101s6y2" uid="uid_Activity_101s6y2">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_072h89n" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_072h89n" uid="uid_Activity_072h89n">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:startEvent id="bpmn_uid_Event_15gcv4n" name="MI5">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_15gcv4n" uid="uid_Event_15gcv4n">
+            <dexpi:port portId="Event_15gcv4n_MI5_port" name="Event_15gcv4n_MI5_port" portType="MaterialPort" direction="Outlet" label="Event_15gcv4n_MI5_port" anchorSide="right" anchorOffset="0.12" superReference="Activity_07878z5_MI5_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_pw6ezu7j</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:startEvent id="bpmn_uid_Event_13mofb0" name="MI4">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_13mofb0" uid="uid_Event_13mofb0">
+            <dexpi:port portId="Event_13mofb0_MI4_port" name="Event_13mofb0_MI4_port" portType="MaterialPort" direction="Outlet" label="Event_13mofb0_MI4_port" anchorSide="right" anchorOffset="0.12" superReference="Activity_07878z5_MI4_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_57tsdrq0</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:startEvent id="bpmn_uid_Event_17fqava" name="MI3">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_17fqava" uid="uid_Event_17fqava">
+            <dexpi:port portId="Event_17fqava_MI3_port" name="Event_17fqava_MI3_port" portType="MaterialPort" direction="Outlet" label="Event_17fqava_MI3_port" anchorSide="right" anchorOffset="0.50" superReference="Activity_07878z5_MI3_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_lfri88c5</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:startEvent id="bpmn_uid_Event_1p0vvqc" name="MI2">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1p0vvqc" uid="uid_Event_1p0vvqc">
+            <dexpi:port portId="Event_1p0vvqc_MI2_port" name="Event_1p0vvqc_MI2_port" portType="MaterialPort" direction="Outlet" label="Event_1p0vvqc_MI2_port" anchorSide="right" anchorOffset="0.88" superReference="Activity_07878z5_MI2_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_lv09w59t</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:startEvent id="bpmn_uid_Event_1npicji" name="MI1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1npicji" uid="uid_Event_1npicji">
+            <dexpi:port portId="Event_1npicji_MI1_port" name="Event_1npicji_MI1_port" portType="MaterialPort" direction="Outlet" label="Event_1npicji_MI1_port" anchorSide="right" anchorOffset="0.88" superReference="Activity_07878z5_MI1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_lvl4r8mo</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:startEvent id="bpmn_uid_Event_01fem2h" name="EEI1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_01fem2h" uid="uid_Event_01fem2h">
+            <dexpi:port portId="Event_01fem2h_EEI1_port" name="Event_01fem2h_EEI1_port" portType="ElectricalEnergyPort" direction="Outlet" label="Event_01fem2h_EEI1_port" anchorSide="bottom" anchorOffset="0.50"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOV_xskb70hq</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:endEvent id="bpmn_uid_Event_062k0v7" name="MO1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_062k0v7" uid="uid_Event_062k0v7">
+            <dexpi:port portId="Event_062k0v7_MO1_port" name="Event_062k0v7_MO1_port" portType="MaterialPort" direction="Inlet" label="Event_062k0v7_MO1_port" anchorSide="left" anchorOffset="0.50" superReference="Activity_07878z5_MO1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOV_vhm85w7k</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOV_xskb70hq" name="EEI1 - EEI1" sourceRef="bpmn_uid_Event_01fem2h" targetRef="bpmn_uid_Activity_1d6n7np">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOV_xskb70hq" identifier="Flow_0gji0fb" streamType="ElectricalEnergyFlow" sourcePortRef="Event_01fem2h_EEI1_port" targetPortRef="Activity_1d6n7np_EEI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOV_vhm85w7k" name="MO1 - MO1" sourceRef="bpmn_uid_Activity_0msgfdr" targetRef="bpmn_uid_Event_062k0v7">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOV_vhm85w7k" identifier="Flow_1hd54gp" sourcePortRef="Activity_0msgfdr_MO1_port" targetPortRef="Event_062k0v7_MO1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOV_uqqwyf25" name="TEO1 - TEI1" sourceRef="bpmn_uid_Activity_0msgfdr" targetRef="bpmn_uid_Activity_11rkrj8">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOV_uqqwyf25" identifier="Flow_0wulh9g" streamType="ThermalEnergyFlow" sourcePortRef="Activity_0msgfdr_TEO1_port" targetPortRef="Activity_11rkrj8_TEI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOV_ju34b2ct" name="MEO1 - MEI1" sourceRef="bpmn_uid_Activity_1d6n7np" targetRef="bpmn_uid_Activity_0msgfdr">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOV_ju34b2ct" identifier="Flow_11ko4yy" streamType="MechanicalEnergyFlow" sourcePortRef="Activity_1d6n7np_MEO1_port" targetPortRef="Activity_0msgfdr_MEI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_i5ltrg74" name="MO1 - Stream 6 - MI1" sourceRef="bpmn_uid_Activity_16sydhz" targetRef="bpmn_uid_Activity_0msgfdr">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_i5ltrg74" identifier="6" sourcePortRef="Activity_16sydhz_MO1_port" targetPortRef="Activity_0msgfdr_MI1_port" materialStateReference="uuid_MS_S6">
+            <dexpi:Attribute name="MassFlow" value="48015.4" unit="KilogramPerHour" provenance="Calculated" range="Nominal"/>
+            <dexpi:Attribute name="Temperature" value="86.1" unit="degC" provenance="Calculated" range="Nominal"/>
+          </dexpi:Stream>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_lvl4r8mo" name="MI1 - MI1" sourceRef="bpmn_uid_Event_1npicji" targetRef="bpmn_uid_Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_lvl4r8mo" identifier="Flow_0em311i" sourcePortRef="Event_1npicji_MI1_port" targetPortRef="Activity_16sydhz_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_lv09w59t" name="MI2 - MI2" sourceRef="bpmn_uid_Event_1p0vvqc" targetRef="bpmn_uid_Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_lv09w59t" identifier="Flow_0lp976q" sourcePortRef="Event_1p0vvqc_MI2_port" targetPortRef="Activity_16sydhz_MI2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_lfri88c5" name="MI3 - MI3" sourceRef="bpmn_uid_Event_17fqava" targetRef="bpmn_uid_Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_lfri88c5" identifier="Flow_0sk9xqb" sourcePortRef="Event_17fqava_MI3_port" targetPortRef="Activity_16sydhz_MI3_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_57tsdrq0" name="MI4 - MI4" sourceRef="bpmn_uid_Event_13mofb0" targetRef="bpmn_uid_Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_57tsdrq0" identifier="Flow_0ey8rro" sourcePortRef="Event_13mofb0_MI4_port" targetPortRef="Activity_16sydhz_MI4_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_pw6ezu7j" name="MI5 - MI5" sourceRef="bpmn_uid_Event_15gcv4n" targetRef="bpmn_uid_Activity_16sydhz">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_pw6ezu7j" identifier="Flow_1cam6h1" sourcePortRef="Event_15gcv4n_MI5_port" targetPortRef="Activity_16sydhz_MI5_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_1qz2q4q_MassFlow" name="MassFlow" dataObjectRef="DataObject_dobj_instr_uid_Activity_1qz2q4q_MassFlow"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_1qz2q4q_MassFlow"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_1qz2q4q_MassFlow" sourceRef="bpmn_uid_Activity_1qz2q4q" targetRef="dobj_instr_uid_Activity_1qz2q4q_MassFlow" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_1qz2q4q_MassFlow" sourceRef="dobj_instr_uid_Activity_1qz2q4q_MassFlow" targetRef="bpmn_uid_Activity_0msgfdr" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_0tg7cm0_Composition" name="Composition" dataObjectRef="DataObject_dobj_instr_uid_Activity_0tg7cm0_Composition"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_0tg7cm0_Composition"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_0tg7cm0_Composition" sourceRef="bpmn_uid_Activity_0tg7cm0" targetRef="dobj_instr_uid_Activity_0tg7cm0_Composition" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_0tg7cm0_Composition" sourceRef="dobj_instr_uid_Activity_0tg7cm0_Composition" targetRef="bpmn_uid_Activity_0msgfdr" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_15ct9gk_Temperature" name="Temperature" dataObjectRef="DataObject_dobj_instr_uid_Activity_15ct9gk_Temperature"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_15ct9gk_Temperature"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_15ct9gk_Temperature" sourceRef="bpmn_uid_Activity_15ct9gk" targetRef="dobj_instr_uid_Activity_15ct9gk_Temperature" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_15ct9gk_Temperature" sourceRef="dobj_instr_uid_Activity_15ct9gk_Temperature" targetRef="bpmn_uid_Activity_0msgfdr" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_101s6y2_Level" name="Level" dataObjectRef="DataObject_dobj_instr_uid_Activity_101s6y2_Level"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_101s6y2_Level"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_101s6y2_Level" sourceRef="bpmn_uid_Activity_101s6y2" targetRef="dobj_instr_uid_Activity_101s6y2_Level" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_101s6y2_Level" sourceRef="dobj_instr_uid_Activity_101s6y2_Level" targetRef="bpmn_uid_Activity_0msgfdr" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_072h89n_Pressure" name="Pressure" dataObjectRef="DataObject_dobj_instr_uid_Activity_072h89n_Pressure"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_072h89n_Pressure"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_072h89n_Pressure" sourceRef="bpmn_uid_Activity_072h89n" targetRef="dobj_instr_uid_Activity_072h89n_Pressure" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_072h89n_Pressure" sourceRef="dobj_instr_uid_Activity_072h89n_Pressure" targetRef="bpmn_uid_Activity_0msgfdr" associationDirection="One"/>
+    </bpmn:subProcess>
+    <bpmn:subProcess id="bpmn_uid_Activity_148nxrl" name="Separating">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Separating" identifier="Activity_148nxrl" uid="uid_Activity_148nxrl">
+          <dexpi:port portId="Activity_148nxrl_MI1_port" name="Activity_148nxrl_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_148nxrl_MI1_port" anchorSide="left" anchorOffset="0.50" subReference="Event_1f801tk_MI1_port"/>
+          <dexpi:port portId="Activity_148nxrl_MO1_port" name="Activity_148nxrl_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_148nxrl_MO1_port" anchorSide="right" anchorOffset="0.50" subReference="Event_0ztd5pv_MO1_port"/>
+          <dexpi:port portId="Activity_148nxrl_MO2_port" name="Activity_148nxrl_MO2_port" portType="MaterialPort" direction="Outlet" label="Activity_148nxrl_MO2_port" anchorSide="right" anchorOffset="0.88" subReference="Event_1f01vwi_MO2_port"/>
+          <dexpi:port portId="Activity_148nxrl_MO3_port" name="Activity_148nxrl_MO3_port" portType="MaterialPort" direction="Outlet" label="Activity_148nxrl_MO3_port" anchorSide="right" anchorOffset="0.12" subReference="Event_0rjd6py_MO3_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:incoming>bpmn_u_MOW17DOZ_8ahyg36e</bpmn:incoming>
+      <bpmn:outgoing>bpmn_u_MOW17DOZ_0ehpaanr</bpmn:outgoing>
+      <bpmn:outgoing>bpmn_u_MOW17DOZ_ix4pks3a</bpmn:outgoing>
+      <bpmn:outgoing>bpmn_u_MOW17DOZ_gsowa943</bpmn:outgoing>
+      <bpmn:task id="bpmn_uid_Activity_0x085ms" name="SeparatingByPhaseSeparation">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="SeparatingByPhaseSeparation" identifier="Activity_0x085ms" uid="uid_Activity_0x085ms">
+            <dexpi:port portId="Activity_0x085ms_MI1_port" name="Activity_0x085ms_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0x085ms_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_0x085ms_MO1_port" name="Activity_0x085ms_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0x085ms_MO1_port" anchorSide="right" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_0x085ms_MO2_port" name="Activity_0x085ms_MO2_port" portType="MaterialPort" direction="Outlet" label="Activity_0x085ms_MO2_port" anchorSide="right" anchorOffset="0.12"/>
+            <dexpi:Attribute name="Temperature" value=""/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_qceur26c</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_toguz1im</bpmn:outgoing>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_9jslkge1</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1ozs40z" name="SplittingMaterial">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="SplittingMaterial" identifier="Activity_1ozs40z" uid="uid_Activity_1ozs40z">
+            <dexpi:port portId="Activity_1ozs40z_MI1_port" name="Activity_1ozs40z_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_1ozs40z_MI1_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_1ozs40z_MO1_port" name="Activity_1ozs40z_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_1ozs40z_MO1_port" anchorSide="right" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_1ozs40z_MO2_port" name="Activity_1ozs40z_MO2_port" portType="MaterialPort" direction="Outlet" label="Activity_1ozs40z_MO2_port" anchorSide="right" anchorOffset="0.88"/>
+            <dexpi:Attribute name="Pressure" value=""/>
+            <dexpi:Attribute name="Flow" value=""/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_toguz1im</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_bkxme9na</bpmn:outgoing>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_7p9zj9i0</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0pq2475" name="RegulatingFlow">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_0pq2475" uid="uid_Activity_0pq2475">
+            <dexpi:port portId="Activity_0pq2475_MI1_port" name="Activity_0pq2475_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0pq2475_MI1_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_0pq2475_MO1_port" name="Activity_0pq2475_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0pq2475_MO1_port" anchorSide="right" anchorOffset="0.12"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_bkxme9na</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_98ck8dxc</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_11jo3tg" name="Pumping">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Pumping" identifier="Activity_11jo3tg" uid="uid_Activity_11jo3tg">
+            <dexpi:port portId="Activity_11jo3tg_MI1_port" name="Activity_11jo3tg_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_11jo3tg_MI1_port" anchorSide="left" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_11jo3tg_MO1_port" name="Activity_11jo3tg_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_11jo3tg_MO1_port" anchorSide="right" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_11jo3tg_EEI1_port" name="Activity_11jo3tg_EEI1_port" portType="ElectricalEnergyPort" direction="Inlet" label="Activity_11jo3tg_EEI1_port" anchorSide="top" anchorOffset="0.33"/>
+            <dexpi:port portId="Activity_11jo3tg_MEI1_port" name="Activity_11jo3tg_MEI1_port" portType="MechanicalEnergyPort" direction="Inlet" label="Activity_11jo3tg_MEI1_port" anchorSide="top" anchorOffset="0.67"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_9jslkge1</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_9gh8q84d</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1g6kz8f" name="RegulatingFlow">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_1g6kz8f" uid="uid_Activity_1g6kz8f">
+            <dexpi:port portId="Activity_1g6kz8f_MI1_port" name="Activity_1g6kz8f_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_1g6kz8f_MI1_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_1g6kz8f_MO1_port" name="Activity_1g6kz8f_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_1g6kz8f_MO1_port" anchorSide="right" anchorOffset="0.88"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_9gh8q84d</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_eplkm30g</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_09ul91z" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_09ul91z" uid="uid_Activity_09ul91z">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_09g9kks" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_09g9kks" uid="uid_Activity_09g9kks">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0zpct04" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0zpct04" uid="uid_Activity_0zpct04">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1jl445f" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1jl445f" uid="uid_Activity_1jl445f">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0o7v7ax" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0o7v7ax" uid="uid_Activity_0o7v7ax">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:startEvent id="bpmn_uid_Event_1f801tk" name="MI1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1f801tk" uid="uid_Event_1f801tk">
+            <dexpi:port portId="Event_1f801tk_MI1_port" name="Event_1f801tk_MI1_port" portType="MaterialPort" direction="Outlet" label="Event_1f801tk_MI1_port" anchorSide="right" anchorOffset="0.50" superReference="Activity_148nxrl_MI1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_qceur26c</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:endEvent id="bpmn_uid_Event_0rjd6py" name="MO3">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_0rjd6py" uid="uid_Event_0rjd6py">
+            <dexpi:port portId="Event_0rjd6py_MO3_port" name="Event_0rjd6py_MO3_port" portType="MaterialPort" direction="Inlet" label="Event_0rjd6py_MO3_port" anchorSide="left" anchorOffset="0.88" superReference="Activity_148nxrl_MO3_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_7p9zj9i0</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="bpmn_uid_Event_0ztd5pv" name="MO1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_0ztd5pv" uid="uid_Event_0ztd5pv">
+            <dexpi:port portId="Event_0ztd5pv_MO1_port" name="Event_0ztd5pv_MO1_port" portType="MaterialPort" direction="Inlet" label="Event_0ztd5pv_MO1_port" anchorSide="left" anchorOffset="0.88" superReference="Activity_148nxrl_MO1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_98ck8dxc</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="bpmn_uid_Event_1f01vwi" name="MO2">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_1f01vwi" uid="uid_Event_1f01vwi">
+            <dexpi:port portId="Event_1f01vwi_MO2_port" name="Event_1f01vwi_MO2_port" portType="MaterialPort" direction="Inlet" label="Event_1f01vwi_MO2_port" anchorSide="left" anchorOffset="0.12" superReference="Activity_148nxrl_MO2_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_eplkm30g</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_qceur26c" name="MI1 - MI1" sourceRef="bpmn_uid_Event_1f801tk" targetRef="bpmn_uid_Activity_0x085ms">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_qceur26c" identifier="Flow_0kavtkx" sourcePortRef="Event_1f801tk_MI1_port" targetPortRef="Activity_0x085ms_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_toguz1im" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_0x085ms" targetRef="bpmn_uid_Activity_1ozs40z">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_toguz1im" identifier="Flow_09m76dx" sourcePortRef="Activity_0x085ms_MO1_port" targetPortRef="Activity_1ozs40z_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_9jslkge1" name="MO2 - MI1" sourceRef="bpmn_uid_Activity_0x085ms" targetRef="bpmn_uid_Activity_11jo3tg">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_9jslkge1" identifier="Flow_0ny5wle" sourcePortRef="Activity_0x085ms_MO2_port" targetPortRef="Activity_11jo3tg_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_bkxme9na" name="MO2 - MI1" sourceRef="bpmn_uid_Activity_1ozs40z" targetRef="bpmn_uid_Activity_0pq2475">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_bkxme9na" identifier="Flow_0abomlp" sourcePortRef="Activity_1ozs40z_MO2_port" targetPortRef="Activity_0pq2475_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_7p9zj9i0" name="MO1 - MO3" sourceRef="bpmn_uid_Activity_1ozs40z" targetRef="bpmn_uid_Event_0rjd6py">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_7p9zj9i0" identifier="Flow_1ynvptb" sourcePortRef="Activity_1ozs40z_MO1_port" targetPortRef="Event_0rjd6py_MO3_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_98ck8dxc" name="MO1 - MO1" sourceRef="bpmn_uid_Activity_0pq2475" targetRef="bpmn_uid_Event_0ztd5pv">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_98ck8dxc" identifier="Flow_0lglh82" sourcePortRef="Activity_0pq2475_MO1_port" targetPortRef="Event_0ztd5pv_MO1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_9gh8q84d" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_11jo3tg" targetRef="bpmn_uid_Activity_1g6kz8f">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_9gh8q84d" identifier="Flow_1alxw5e" sourcePortRef="Activity_11jo3tg_MO1_port" targetPortRef="Activity_1g6kz8f_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_eplkm30g" name="MO1 - MO2" sourceRef="bpmn_uid_Activity_1g6kz8f" targetRef="bpmn_uid_Event_1f01vwi">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_eplkm30g" identifier="Flow_0g6xxqk" sourcePortRef="Activity_1g6kz8f_MO1_port" targetPortRef="Event_1f01vwi_MO2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_09ul91z_Temperature" name="Temperature" dataObjectRef="DataObject_dobj_instr_uid_Activity_09ul91z_Temperature"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_09ul91z_Temperature"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_09ul91z_Temperature" sourceRef="bpmn_uid_Activity_09ul91z" targetRef="dobj_instr_uid_Activity_09ul91z_Temperature" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_09ul91z_Temperature" sourceRef="dobj_instr_uid_Activity_09ul91z_Temperature" targetRef="bpmn_uid_Activity_0x085ms" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_09g9kks_Level" name="Level" dataObjectRef="DataObject_dobj_instr_uid_Activity_09g9kks_Level"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_09g9kks_Level"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_09g9kks_Level" sourceRef="bpmn_uid_Activity_09g9kks" targetRef="dobj_instr_uid_Activity_09g9kks_Level" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_09g9kks_Level" sourceRef="dobj_instr_uid_Activity_09g9kks_Level" targetRef="bpmn_uid_Activity_0x085ms" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_0zpct04_Flow" name="Flow" dataObjectRef="DataObject_dobj_instr_uid_Activity_0zpct04_Flow"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_0zpct04_Flow"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_0zpct04_Flow" sourceRef="bpmn_uid_Activity_0zpct04" targetRef="dobj_instr_uid_Activity_0zpct04_Flow" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_0zpct04_Flow" sourceRef="dobj_instr_uid_Activity_0zpct04_Flow" targetRef="bpmn_uid_Activity_1ozs40z" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_1jl445f_Pressure" name="Pressure" dataObjectRef="DataObject_dobj_instr_uid_Activity_1jl445f_Pressure"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_1jl445f_Pressure"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_1jl445f_Pressure" sourceRef="bpmn_uid_Activity_1jl445f" targetRef="dobj_instr_uid_Activity_1jl445f_Pressure" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_1jl445f_Pressure" sourceRef="dobj_instr_uid_Activity_1jl445f_Pressure" targetRef="bpmn_uid_Activity_1ozs40z" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_0o7v7ax_MassFlow" name="MassFlow" dataObjectRef="DataObject_dobj_instr_uid_Activity_0o7v7ax_MassFlow"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_0o7v7ax_MassFlow"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_0o7v7ax_MassFlow" sourceRef="bpmn_uid_Activity_0o7v7ax" targetRef="dobj_instr_uid_Activity_0o7v7ax_MassFlow" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_0o7v7ax_MassFlow" sourceRef="dobj_instr_uid_Activity_0o7v7ax_MassFlow" targetRef="bpmn_uid_Activity_11jo3tg" associationDirection="One"/>
+    </bpmn:subProcess>
+    <bpmn:subProcess id="bpmn_uid_Activity_1h23lzf" name="StrippingDistilling">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="StrippingDistilling" identifier="Activity_1h23lzf" uid="uid_Activity_1h23lzf">
+          <dexpi:port portId="Activity_1h23lzf_MI1_port" name="Activity_1h23lzf_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_1h23lzf_MI1_port" anchorSide="left" anchorOffset="0.50" subReference="Event_0h1gv72_MI1_port"/>
+          <dexpi:port portId="Activity_1h23lzf_MI2_port" name="Activity_1h23lzf_MI2_port" portType="MaterialPort" direction="Inlet" label="Activity_1h23lzf_MI2_port" anchorSide="left" anchorOffset="0.12" subReference="Event_0xub7hl_MI2_port"/>
+          <dexpi:port portId="Activity_1h23lzf_MO1_port" name="Activity_1h23lzf_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_1h23lzf_MO1_port" anchorSide="right" anchorOffset="0.12" subReference="Event_1gcqtzr_MO1_port"/>
+          <dexpi:port portId="Activity_1h23lzf_MO2_port" name="Activity_1h23lzf_MO2_port" portType="MaterialPort" direction="Outlet" label="Activity_1h23lzf_MO2_port" anchorSide="right" anchorOffset="0.50" subReference="Event_1w0hjx9_MO2_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:incoming>bpmn_u_MOW17DOX_nsfk1hcc</bpmn:incoming>
+      <bpmn:incoming>bpmn_u_MOW17DOZ_gsowa943</bpmn:incoming>
+      <bpmn:outgoing>bpmn_u_MOW17DOY_8z7cdnv8</bpmn:outgoing>
+      <bpmn:outgoing>bpmn_u_MOW17DOZ_e40aoqbp</bpmn:outgoing>
+      <bpmn:task id="bpmn_uid_Activity_0uxjdkn" name="StrippingDistilling">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="StrippingDistilling" identifier="Activity_0uxjdkn" uid="uid_Activity_0uxjdkn">
+            <dexpi:port portId="Activity_0uxjdkn_MI1_port" name="Activity_0uxjdkn_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0uxjdkn_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_0uxjdkn_MI2_port" name="Activity_0uxjdkn_MI2_port" portType="MaterialPort" direction="Inlet" label="Activity_0uxjdkn_MI2_port" anchorSide="left" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_0uxjdkn_MI3_port" name="Activity_0uxjdkn_MI3_port" portType="MaterialPort" direction="Inlet" label="Activity_0uxjdkn_MI3_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_0uxjdkn_MO1_port" name="Activity_0uxjdkn_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0uxjdkn_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_0uxjdkn_MO2_port" name="Activity_0uxjdkn_MO2_port" portType="MaterialPort" direction="Outlet" label="Activity_0uxjdkn_MO2_port" anchorSide="right" anchorOffset="0.66"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_bpmcqi5t</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOW_vm2cc4e5</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOW_czs65pb7</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_74jiwmgp</bpmn:outgoing>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_e1lhge85</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1uqovub" name="ExchangingThermalEnergy">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_1uqovub" uid="uid_Activity_1uqovub">
+            <dexpi:port portId="Activity_1uqovub_MI1_port" name="Activity_1uqovub_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_1uqovub_MI1_port" anchorSide="right" anchorOffset="0.65"/>
+            <dexpi:port portId="Activity_1uqovub_MO1_port" name="Activity_1uqovub_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_1uqovub_MO1_port" anchorSide="left" anchorOffset="0.35"/>
+            <dexpi:port portId="Activity_1uqovub_TEI1_port" name="Activity_1uqovub_TEI1_port" portType="ThermalEnergyPort" direction="Inlet" label="Activity_1uqovub_TEI1_port" anchorSide="top" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_1uqovub_TEO1_port" name="Activity_1uqovub_TEO1_port" portType="ThermalEnergyPort" direction="Outlet" label="Activity_1uqovub_TEO1_port" anchorSide="bottom" anchorOffset="0.50"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_ljuofwan</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOX_ab5qvi1w</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_czs65pb7</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1kyou8x" name="SplittingMaterial">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="SplittingMaterial" identifier="Activity_1kyou8x" uid="uid_Activity_1kyou8x">
+            <dexpi:port portId="Activity_1kyou8x_MI1_port" name="Activity_1kyou8x_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_1kyou8x_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_1kyou8x_MO1_port" name="Activity_1kyou8x_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_1kyou8x_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_1kyou8x_MO2_port" name="Activity_1kyou8x_MO2_port" portType="MaterialPort" direction="Outlet" label="Activity_1kyou8x_MO2_port" anchorSide="right" anchorOffset="0.12"/>
+            <dexpi:Attribute name="Flow" value=""/>
+            <dexpi:Attribute name="Temperature" value=""/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_74jiwmgp</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_ljuofwan</bpmn:outgoing>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_w9ofi0gg</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0dvp1ez" name="RegulatingFlow">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_0dvp1ez" uid="uid_Activity_0dvp1ez">
+            <dexpi:port portId="Activity_0dvp1ez_MI1_port" name="Activity_0dvp1ez_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0dvp1ez_MI1_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_0dvp1ez_MO1_port" name="Activity_0dvp1ez_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0dvp1ez_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_5ynb277o</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_vm2cc4e5</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1atxmzx" name="Pumping">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Pumping" identifier="Activity_1atxmzx" uid="uid_Activity_1atxmzx">
+            <dexpi:port portId="Activity_1atxmzx_MI1_port" name="Activity_1atxmzx_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_1atxmzx_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_1atxmzx_MO1_port" name="Activity_1atxmzx_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_1atxmzx_MO1_port" anchorSide="right" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_1atxmzx_EEI1_port" name="Activity_1atxmzx_EEI1_port" portType="ElectricalEnergyPort" direction="Inlet" label="Activity_1atxmzx_EEI1_port" anchorSide="top" anchorOffset="0.33"/>
+            <dexpi:port portId="Activity_1atxmzx_MEI1_port" name="Activity_1atxmzx_MEI1_port" portType="MechanicalEnergyPort" direction="Inlet" label="Activity_1atxmzx_MEI1_port" anchorSide="top" anchorOffset="0.67"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_w9ofi0gg</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_3ggtcgtg</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_17bqtl6" name="RegulatingFlow">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_17bqtl6" uid="uid_Activity_17bqtl6">
+            <dexpi:port portId="Activity_17bqtl6_MI1_port" name="Activity_17bqtl6_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_17bqtl6_MI1_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_17bqtl6_MO1_port" name="Activity_17bqtl6_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_17bqtl6_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_3ggtcgtg</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_817wjwen</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:subProcess id="bpmn_uid_Activity_0xhunfw" name="SupplyingThermalEnergy">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_0xhunfw" uid="uid_Activity_0xhunfw">
+            <dexpi:port portId="Activity_0xhunfw_TEO1_port" name="Activity_0xhunfw_TEO1_port" portType="ThermalEnergyPort" direction="Outlet" label="Activity_0xhunfw_TEO1_port" anchorSide="bottom" anchorOffset="0.12"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_ab5qvi1w</bpmn:outgoing>
+        <bpmn:task id="bpmn_uid_Activity_0uicpy3" name="ExchangingThermalEnergy">
+          <bpmn:extensionElements>
+            <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0uicpy3" uid="uid_Activity_0uicpy3">
+              <dexpi:port portId="Activity_0uicpy3_MI1_port" name="Activity_0uicpy3_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0uicpy3_MI1_port" anchorSide="left" anchorOffset="0.88"/>
+              <dexpi:port portId="Activity_0uicpy3_MO1_port" name="Activity_0uicpy3_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0uicpy3_MO1_port" anchorSide="right" anchorOffset="0.88"/>
+              <dexpi:port portId="Activity_0uicpy3_TEI1_port" name="Activity_0uicpy3_TEI1_port" portType="ThermalEnergyPort" direction="Inlet" label="Activity_0uicpy3_TEI1_port" anchorSide="top" anchorOffset="0.50"/>
+              <dexpi:port portId="Activity_0uicpy3_TEO1_port" name="Activity_0uicpy3_TEO1_port" portType="ThermalEnergyPort" direction="Outlet" label="Activity_0uicpy3_TEO1_port" anchorSide="bottom" anchorOffset="0.50"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
+          <bpmn:incoming>bpmn_u_MOW17DOW_4tyui1rf</bpmn:incoming>
+          <bpmn:outgoing>bpmn_u_MOW17DOW_6etsacu3</bpmn:outgoing>
+        </bpmn:task>
+        <bpmn:task id="bpmn_uid_Activity_1nyhzy8" name="SupplyingThermalEnergy">
+          <bpmn:extensionElements>
+            <dexpi:element dexpiType="SupplyingThermalEnergy" identifier="Activity_1nyhzy8" uid="uid_Activity_1nyhzy8">
+              <dexpi:port portId="Activity_1nyhzy8_MI1_port" name="Activity_1nyhzy8_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_1nyhzy8_MI1_port" anchorSide="left" anchorOffset="0.12"/>
+              <dexpi:port portId="Activity_1nyhzy8_MO1_port" name="Activity_1nyhzy8_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_1nyhzy8_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
+          <bpmn:incoming>bpmn_u_MOW17DOW_6etsacu3</bpmn:incoming>
+          <bpmn:outgoing>bpmn_u_MOW17DOW_ai8g4p9y</bpmn:outgoing>
+        </bpmn:task>
+        <bpmn:task id="bpmn_uid_Activity_0b0nu52" name="RegulatingFlow">
+          <bpmn:extensionElements>
+            <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_0b0nu52" uid="uid_Activity_0b0nu52">
+              <dexpi:port portId="Activity_0b0nu52_MI1_port" name="Activity_0b0nu52_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0b0nu52_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+              <dexpi:port portId="Activity_0b0nu52_MO1_port" name="Activity_0b0nu52_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0b0nu52_MO1_port" anchorSide="right" anchorOffset="0.12"/>
+            </dexpi:element>
+          </bpmn:extensionElements>
+          <bpmn:incoming>bpmn_u_MOW17DOW_ai8g4p9y</bpmn:incoming>
+          <bpmn:outgoing>bpmn_u_MOW17DOW_4tyui1rf</bpmn:outgoing>
+        </bpmn:task>
+        <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_4tyui1rf" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_0b0nu52" targetRef="bpmn_uid_Activity_0uicpy3">
+          <bpmn:extensionElements>
+            <dexpi:Stream uid="u_MOW17DOW_4tyui1rf" identifier="Flow_0oulgq8" sourcePortRef="Activity_0b0nu52_MO1_port" targetPortRef="Activity_0uicpy3_MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
+        <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_6etsacu3" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_0uicpy3" targetRef="bpmn_uid_Activity_1nyhzy8">
+          <bpmn:extensionElements>
+            <dexpi:Stream uid="u_MOW17DOW_6etsacu3" identifier="Flow_1dz905k" sourcePortRef="Activity_0uicpy3_MO1_port" targetPortRef="Activity_1nyhzy8_MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
+        <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_ai8g4p9y" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_1nyhzy8" targetRef="bpmn_uid_Activity_0b0nu52">
+          <bpmn:extensionElements>
+            <dexpi:Stream uid="u_MOW17DOW_ai8g4p9y" identifier="Flow_0jts504" sourcePortRef="Activity_1nyhzy8_MO1_port" targetPortRef="Activity_0b0nu52_MI1_port"/>
+          </bpmn:extensionElements>
+        </bpmn:sequenceFlow>
+      </bpmn:subProcess>
+      <bpmn:task id="bpmn_uid_Activity_1ggf4yj" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1ggf4yj" uid="uid_Activity_1ggf4yj">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0r3bi8v" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0r3bi8v" uid="uid_Activity_0r3bi8v">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1h809d1" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1h809d1" uid="uid_Activity_1h809d1">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1ah3e15" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1ah3e15" uid="uid_Activity_1ah3e15">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:startEvent id="bpmn_uid_Event_0h1gv72" name="MI1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_0h1gv72" uid="uid_Event_0h1gv72">
+            <dexpi:port portId="Event_0h1gv72_MI1_port" name="Event_0h1gv72_MI1_port" portType="MaterialPort" direction="Outlet" label="Event_0h1gv72_MI1_port" anchorSide="right" anchorOffset="0.88" superReference="Activity_1h23lzf_MI1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_5ynb277o</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:startEvent id="bpmn_uid_Event_0xub7hl" name="MI2">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_0xub7hl" uid="uid_Event_0xub7hl">
+            <dexpi:port portId="Event_0xub7hl_MI2_port" name="Event_0xub7hl_MI2_port" portType="MaterialPort" direction="Outlet" label="Event_0xub7hl_MI2_port" anchorSide="right" anchorOffset="0.12" superReference="Activity_1h23lzf_MI2_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOW_bpmcqi5t</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:endEvent id="bpmn_uid_Event_1gcqtzr" name="MO1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_1gcqtzr" uid="uid_Event_1gcqtzr">
+            <dexpi:port portId="Event_1gcqtzr_MO1_port" name="Event_1gcqtzr_MO1_port" portType="MaterialPort" direction="Inlet" label="Event_1gcqtzr_MO1_port" anchorSide="left" anchorOffset="0.50" superReference="Activity_1h23lzf_MO1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOW_e1lhge85</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="bpmn_uid_Event_1w0hjx9" name="MO2">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_1w0hjx9" uid="uid_Event_1w0hjx9">
+            <dexpi:port portId="Event_1w0hjx9_MO2_port" name="Event_1w0hjx9_MO2_port" portType="MaterialPort" direction="Inlet" label="Event_1w0hjx9_MO2_port" anchorSide="left" anchorOffset="0.50" superReference="Activity_1h23lzf_MO2_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_817wjwen</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_bpmcqi5t" name="MI2 - MI2" sourceRef="bpmn_uid_Event_0xub7hl" targetRef="bpmn_uid_Activity_0uxjdkn">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_bpmcqi5t" identifier="Flow_0i60ys0" sourcePortRef="Event_0xub7hl_MI2_port" targetPortRef="Activity_0uxjdkn_MI2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_vm2cc4e5" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_0dvp1ez" targetRef="bpmn_uid_Activity_0uxjdkn">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_vm2cc4e5" identifier="Flow_17ox75z" sourcePortRef="Activity_0dvp1ez_MO1_port" targetPortRef="Activity_0uxjdkn_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_czs65pb7" name="MO1 - MI3" sourceRef="bpmn_uid_Activity_1uqovub" targetRef="bpmn_uid_Activity_0uxjdkn">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_czs65pb7" identifier="Flow_0idmwg8" sourcePortRef="Activity_1uqovub_MO1_port" targetPortRef="Activity_0uxjdkn_MI3_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_74jiwmgp" name="MO2 - MI1" sourceRef="bpmn_uid_Activity_0uxjdkn" targetRef="bpmn_uid_Activity_1kyou8x">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_74jiwmgp" identifier="Flow_0xyvyyt" sourcePortRef="Activity_0uxjdkn_MO2_port" targetPortRef="Activity_1kyou8x_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOW_e1lhge85" name="MO1 - MO1" sourceRef="bpmn_uid_Activity_0uxjdkn" targetRef="bpmn_uid_Event_1gcqtzr">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOW_e1lhge85" identifier="Flow_1iwrfte" sourcePortRef="Activity_0uxjdkn_MO1_port" targetPortRef="Event_1gcqtzr_MO1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_ljuofwan" name="MO2 - MI1" sourceRef="bpmn_uid_Activity_1kyou8x" targetRef="bpmn_uid_Activity_1uqovub">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_ljuofwan" identifier="Flow_16mvdb6" sourcePortRef="Activity_1kyou8x_MO2_port" targetPortRef="Activity_1uqovub_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_ab5qvi1w" name="TEO1 - TEI1" sourceRef="bpmn_uid_Activity_0xhunfw" targetRef="bpmn_uid_Activity_1uqovub">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_ab5qvi1w" identifier="Flow_0ii62nn" streamType="ThermalEnergyFlow" sourcePortRef="Activity_0xhunfw_TEO1_port" targetPortRef="Activity_1uqovub_TEI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_w9ofi0gg" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_1kyou8x" targetRef="bpmn_uid_Activity_1atxmzx">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_w9ofi0gg" identifier="Flow_1xayaxu" sourcePortRef="Activity_1kyou8x_MO1_port" targetPortRef="Activity_1atxmzx_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_5ynb277o" name="MI1 - MI1" sourceRef="bpmn_uid_Event_0h1gv72" targetRef="bpmn_uid_Activity_0dvp1ez">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_5ynb277o" identifier="Flow_0y79tc9" sourcePortRef="Event_0h1gv72_MI1_port" targetPortRef="Activity_0dvp1ez_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_817wjwen" name="MO1 - MO2" sourceRef="bpmn_uid_Activity_17bqtl6" targetRef="bpmn_uid_Event_1w0hjx9">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_817wjwen" identifier="Flow_1queo8p" sourcePortRef="Activity_17bqtl6_MO1_port" targetPortRef="Event_1w0hjx9_MO2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_3ggtcgtg" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_1atxmzx" targetRef="bpmn_uid_Activity_17bqtl6">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_3ggtcgtg" identifier="Flow_0agl4n2" sourcePortRef="Activity_1atxmzx_MO1_port" targetPortRef="Activity_17bqtl6_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_1ggf4yj_Temperature" name="Temperature" dataObjectRef="DataObject_dobj_instr_uid_Activity_1ggf4yj_Temperature"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_1ggf4yj_Temperature"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_1ggf4yj_Temperature" sourceRef="bpmn_uid_Activity_1ggf4yj" targetRef="dobj_instr_uid_Activity_1ggf4yj_Temperature" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_1ggf4yj_Temperature" sourceRef="dobj_instr_uid_Activity_1ggf4yj_Temperature" targetRef="bpmn_uid_Activity_1kyou8x" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_0r3bi8v_Level" name="Level" dataObjectRef="DataObject_dobj_instr_uid_Activity_0r3bi8v_Level"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_0r3bi8v_Level"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_0r3bi8v_Level" sourceRef="bpmn_uid_Activity_0r3bi8v" targetRef="dobj_instr_uid_Activity_0r3bi8v_Level" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_0r3bi8v_Level" sourceRef="dobj_instr_uid_Activity_0r3bi8v_Level" targetRef="bpmn_uid_Activity_1kyou8x" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_1h809d1_Flow" name="Flow" dataObjectRef="DataObject_dobj_instr_uid_Activity_1h809d1_Flow"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_1h809d1_Flow"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_1h809d1_Flow" sourceRef="bpmn_uid_Activity_1h809d1" targetRef="dobj_instr_uid_Activity_1h809d1_Flow" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_1h809d1_Flow" sourceRef="dobj_instr_uid_Activity_1h809d1_Flow" targetRef="bpmn_uid_Activity_1kyou8x" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_1ah3e15_Composition" name="Composition" dataObjectRef="DataObject_dobj_instr_uid_Activity_1ah3e15_Composition"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_1ah3e15_Composition"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_1ah3e15_Composition" sourceRef="bpmn_uid_Activity_1ah3e15" targetRef="dobj_instr_uid_Activity_1ah3e15_Composition" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_1ah3e15_Composition" sourceRef="dobj_instr_uid_Activity_1ah3e15_Composition" targetRef="bpmn_uid_Activity_17bqtl6" associationDirection="One"/>
+    </bpmn:subProcess>
+    <bpmn:subProcess id="bpmn_uid_Activity_0yezzw8" name="Compressing">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Compressing" identifier="Activity_0yezzw8" uid="uid_Activity_0yezzw8">
+          <dexpi:port portId="Activity_0yezzw8_MI1_port" name="Activity_0yezzw8_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0yezzw8_MI1_port" anchorSide="right" anchorOffset="0.65" subReference="Event_1g1zmip_MI1_port"/>
+          <dexpi:port portId="Activity_0yezzw8_MO1_port" name="Activity_0yezzw8_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0yezzw8_MO1_port" anchorSide="left" anchorOffset="0.35" subReference="Event_1pcm1vz_MO1_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:incoming>bpmn_u_MOW17DOZ_ix4pks3a</bpmn:incoming>
+      <bpmn:outgoing>bpmn_u_MOW17DOY_3y6srk7g</bpmn:outgoing>
+      <bpmn:task id="bpmn_uid_Activity_11ivs96" name="RegulatingFlow">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_11ivs96" uid="uid_Activity_11ivs96">
+            <dexpi:port portId="Activity_11ivs96_MI1_port" name="Activity_11ivs96_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_11ivs96_MI1_port" anchorSide="right" anchorOffset="0.65"/>
+            <dexpi:port portId="Activity_11ivs96_MO1_port" name="Activity_11ivs96_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_11ivs96_MO1_port" anchorSide="left" anchorOffset="0.35"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_ddjl0z55</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_9pm283zg</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0avtq87" name="MixingSimple">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MixingSimple" identifier="Activity_0avtq87" uid="uid_Activity_0avtq87">
+            <dexpi:port portId="Activity_0avtq87_MI1_port" name="Activity_0avtq87_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0avtq87_MI1_port" anchorSide="left" anchorOffset="0.28"/>
+            <dexpi:port portId="Activity_0avtq87_MI2_port" name="Activity_0avtq87_MI2_port" portType="MaterialPort" direction="Inlet" label="Activity_0avtq87_MI2_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_0avtq87_MO1_port" name="Activity_0avtq87_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0avtq87_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_9pm283zg</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOX_g588a39c</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_oyci1m86</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_02gkcfc" name="Compressing">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Compressing" identifier="Activity_02gkcfc" uid="uid_Activity_02gkcfc">
+            <dexpi:port portId="Activity_02gkcfc_EEI1_port" name="Activity_02gkcfc_EEI1_port" portType="ElectricalEnergyPort" direction="Inlet" label="Activity_02gkcfc_EEI1_port" anchorSide="top" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_02gkcfc_MI1_port" name="Activity_02gkcfc_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_02gkcfc_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_02gkcfc_MO1_port" name="Activity_02gkcfc_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_02gkcfc_MO1_port" anchorSide="right" anchorOffset="0.88"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_ydasrhjx</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOX_oyci1m86</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_u1pmdw8u</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_00hgxpv" name="SplittingMaterial">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="SplittingMaterial" identifier="Activity_00hgxpv" uid="uid_Activity_00hgxpv">
+            <dexpi:port portId="Activity_00hgxpv_MI1_port" name="Activity_00hgxpv_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_00hgxpv_MI1_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_00hgxpv_MO1_port" name="Activity_00hgxpv_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_00hgxpv_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_00hgxpv_MO2_port" name="Activity_00hgxpv_MO2_port" portType="MaterialPort" direction="Outlet" label="Activity_00hgxpv_MO2_port" anchorSide="right" anchorOffset="0.12"/>
+            <dexpi:Attribute name="Flow" value=""/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_u1pmdw8u</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_ddjl0z55</bpmn:outgoing>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_e5wqjrwj</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_03icv4t" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_03icv4t" uid="uid_Activity_03icv4t">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1u8l6hb" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_1u8l6hb" uid="uid_Activity_1u8l6hb">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:startEvent id="bpmn_uid_Event_1g1zmip" name="MI1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1g1zmip" uid="uid_Event_1g1zmip">
+            <dexpi:port portId="Event_1g1zmip_MI1_port" name="Event_1g1zmip_MI1_port" portType="MaterialPort" direction="Outlet" label="Event_1g1zmip_MI1_port" anchorSide="right" anchorOffset="0.88" superReference="Activity_0yezzw8_MI1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_g588a39c</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:startEvent id="bpmn_uid_Event_1mp0d4h" name="EEI1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_1mp0d4h" uid="uid_Event_1mp0d4h">
+            <dexpi:port portId="Event_1mp0d4h_EEI1_port" name="Event_1mp0d4h_EEI1_port" portType="ElectricalEnergyPort" direction="Outlet" label="Event_1mp0d4h_EEI1_port" anchorSide="bottom" anchorOffset="0.12"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_ydasrhjx</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:endEvent id="bpmn_uid_Event_1pcm1vz" name="MO1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_1pcm1vz" uid="uid_Event_1pcm1vz">
+            <dexpi:port portId="Event_1pcm1vz_MO1_port" name="Event_1pcm1vz_MO1_port" portType="MaterialPort" direction="Inlet" label="Event_1pcm1vz_MO1_port" anchorSide="left" anchorOffset="0.50" superReference="Activity_0yezzw8_MO1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_e5wqjrwj</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_ydasrhjx" name="EEI1 - EEI1" sourceRef="bpmn_uid_Event_1mp0d4h" targetRef="bpmn_uid_Activity_02gkcfc">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_ydasrhjx" identifier="Flow_1gic2ao" streamType="ElectricalEnergyFlow" sourcePortRef="Event_1mp0d4h_EEI1_port" targetPortRef="Activity_02gkcfc_EEI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_ddjl0z55" name="MO2 - MI1" sourceRef="bpmn_uid_Activity_00hgxpv" targetRef="bpmn_uid_Activity_11ivs96">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_ddjl0z55" identifier="Flow_18uagmc" sourcePortRef="Activity_00hgxpv_MO2_port" targetPortRef="Activity_11ivs96_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_9pm283zg" name="MO1 - MI2" sourceRef="bpmn_uid_Activity_11ivs96" targetRef="bpmn_uid_Activity_0avtq87">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_9pm283zg" identifier="Flow_1o980ku" sourcePortRef="Activity_11ivs96_MO1_port" targetPortRef="Activity_0avtq87_MI2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_g588a39c" name="MI1 - MI1" sourceRef="bpmn_uid_Event_1g1zmip" targetRef="bpmn_uid_Activity_0avtq87">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_g588a39c" identifier="Flow_1l0luaa" sourcePortRef="Event_1g1zmip_MI1_port" targetPortRef="Activity_0avtq87_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_oyci1m86" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_0avtq87" targetRef="bpmn_uid_Activity_02gkcfc">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_oyci1m86" identifier="Flow_0ulibbm" sourcePortRef="Activity_0avtq87_MO1_port" targetPortRef="Activity_02gkcfc_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_u1pmdw8u" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_02gkcfc" targetRef="bpmn_uid_Activity_00hgxpv">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_u1pmdw8u" identifier="Flow_00cotc8" sourcePortRef="Activity_02gkcfc_MO1_port" targetPortRef="Activity_00hgxpv_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_e5wqjrwj" name="MO1 - MO1" sourceRef="bpmn_uid_Activity_00hgxpv" targetRef="bpmn_uid_Event_1pcm1vz">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_e5wqjrwj" identifier="Flow_1i0rl3h" sourcePortRef="Activity_00hgxpv_MO1_port" targetPortRef="Event_1pcm1vz_MO1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_03icv4t_Duty" name="Duty" dataObjectRef="DataObject_dobj_instr_uid_Activity_03icv4t_Duty"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_03icv4t_Duty"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_03icv4t_Duty" sourceRef="bpmn_uid_Activity_03icv4t" targetRef="dobj_instr_uid_Activity_03icv4t_Duty" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_03icv4t_Duty" sourceRef="dobj_instr_uid_Activity_03icv4t_Duty" targetRef="bpmn_uid_Activity_02gkcfc" associationDirection="One"/>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_1u8l6hb_Flow" name="Flow" dataObjectRef="DataObject_dobj_instr_uid_Activity_1u8l6hb_Flow"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_1u8l6hb_Flow"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_1u8l6hb_Flow" sourceRef="bpmn_uid_Activity_1u8l6hb" targetRef="dobj_instr_uid_Activity_1u8l6hb_Flow" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_1u8l6hb_Flow" sourceRef="dobj_instr_uid_Activity_1u8l6hb_Flow" targetRef="bpmn_uid_Activity_00hgxpv" associationDirection="One"/>
+    </bpmn:subProcess>
+    <bpmn:subProcess id="bpmn_uid_Activity_13e86yb" name="Cooling">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Cooling" identifier="Activity_13e86yb" uid="uid_Activity_13e86yb">
+          <dexpi:port portId="Activity_13e86yb_MI1_port" name="Activity_13e86yb_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_13e86yb_MI1_port" anchorSide="left" anchorOffset="0.50" subReference="Event_0wtdvnz_MI1_port"/>
+          <dexpi:port portId="Activity_13e86yb_MO1_port" name="Activity_13e86yb_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_13e86yb_MO1_port" anchorSide="right" anchorOffset="0.50" subReference="Event_0rcr9aw_MO1_port"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:incoming>bpmn_u_MOW17DOZ_qfjj7rm7</bpmn:incoming>
+      <bpmn:outgoing>bpmn_u_MOW17DOZ_8ahyg36e</bpmn:outgoing>
+      <bpmn:task id="bpmn_uid_Activity_061upw8" name="RegulatingFlow">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="RegulatingFlow" identifier="Activity_061upw8" uid="uid_Activity_061upw8">
+            <dexpi:port portId="Activity_061upw8_MI1_port" name="Activity_061upw8_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_061upw8_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_061upw8_MO1_port" name="Activity_061upw8_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_061upw8_MO1_port" anchorSide="right" anchorOffset="0.12"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_05co5sal</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_p52tchh2</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0h23axj" name="RemovingThermalEnergy">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_0h23axj" uid="uid_Activity_0h23axj">
+            <dexpi:port portId="Activity_0h23axj_MI1_port" name="Activity_0h23axj_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_0h23axj_MI1_port" anchorSide="left" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_0h23axj_MO1_port" name="Activity_0h23axj_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_0h23axj_MO1_port" anchorSide="right" anchorOffset="0.88"/>
+            <dexpi:port portId="Activity_0h23axj_TEI1_port" name="Activity_0h23axj_TEI1_port" portType="ThermalEnergyPort" direction="Inlet" label="Activity_0h23axj_TEI1_port" anchorSide="top" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_0h23axj_TEO1_port" name="Activity_0h23axj_TEO1_port" portType="ThermalEnergyPort" direction="Outlet" label="Activity_0h23axj_TEO1_port" anchorSide="bottom" anchorOffset="0.50"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_p52tchh2</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_g2avves6</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_1rs6esf" name="ExchangingThermalEnergy">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_1rs6esf" uid="uid_Activity_1rs6esf">
+            <dexpi:port portId="Activity_1rs6esf_MI1_port" name="Activity_1rs6esf_MI1_port" portType="MaterialPort" direction="Inlet" label="Activity_1rs6esf_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_1rs6esf_MO1_port" name="Activity_1rs6esf_MO1_port" portType="MaterialPort" direction="Outlet" label="Activity_1rs6esf_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_1rs6esf_MI2_port" name="Activity_1rs6esf_MI2_port" portType="MaterialPort" direction="Inlet" label="Activity_1rs6esf_MI2_port" anchorSide="left" anchorOffset="0.12"/>
+            <dexpi:port portId="Activity_1rs6esf_MO2_port" name="Activity_1rs6esf_MO2_port" portType="MaterialPort" direction="Outlet" label="Activity_1rs6esf_MO2_port" anchorSide="right" anchorOffset="0.66"/>
+            <dexpi:port portId="Activity_1rs6esf_TEI1_port" name="Activity_1rs6esf_TEI1_port" portType="ThermalEnergyPort" direction="Inlet" label="Activity_1rs6esf_TEI1_port" anchorSide="top" anchorOffset="0.50"/>
+            <dexpi:port portId="Activity_1rs6esf_TEO1_port" name="Activity_1rs6esf_TEO1_port" portType="ThermalEnergyPort" direction="Outlet" label="Activity_1rs6esf_TEO1_port" anchorSide="bottom" anchorOffset="0.50"/>
+            <dexpi:Attribute name="Temperature" value=""/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_g2avves6</bpmn:incoming>
+        <bpmn:incoming>bpmn_u_MOW17DOX_ryfsy144</bpmn:incoming>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_05co5sal</bpmn:outgoing>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_pnv81mev</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:task id="bpmn_uid_Activity_0gc2qjt" name="MeasuringProcessVariable">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="Activity_0gc2qjt" uid="uid_Activity_0gc2qjt">
+        </dexpi:element>
+        </bpmn:extensionElements>
+      </bpmn:task>
+      <bpmn:startEvent id="bpmn_uid_Event_0wtdvnz" name="MI1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Source" identifier="Event_0wtdvnz" uid="uid_Event_0wtdvnz">
+            <dexpi:port portId="Event_0wtdvnz_MI1_port" name="Event_0wtdvnz_MI1_port" portType="MaterialPort" direction="Outlet" label="Event_0wtdvnz_MI1_port" anchorSide="right" anchorOffset="0.50" superReference="Activity_13e86yb_MI1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:outgoing>bpmn_u_MOW17DOX_ryfsy144</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:endEvent id="bpmn_uid_Event_0rcr9aw" name="MO1">
+        <bpmn:extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="Event_0rcr9aw" uid="uid_Event_0rcr9aw">
+            <dexpi:port portId="Event_0rcr9aw_MO1_port" name="Event_0rcr9aw_MO1_port" portType="MaterialPort" direction="Inlet" label="Event_0rcr9aw_MO1_port" anchorSide="left" anchorOffset="0.50" superReference="Activity_13e86yb_MO1_port"/>
+          </dexpi:element>
+        </bpmn:extensionElements>
+        <bpmn:incoming>bpmn_u_MOW17DOX_pnv81mev</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_05co5sal" name="MO2 - MI1" sourceRef="bpmn_uid_Activity_1rs6esf" targetRef="bpmn_uid_Activity_061upw8">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_05co5sal" identifier="Flow_1wfrjse" sourcePortRef="Activity_1rs6esf_MO2_port" targetPortRef="Activity_061upw8_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_p52tchh2" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_061upw8" targetRef="bpmn_uid_Activity_0h23axj">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_p52tchh2" identifier="Flow_08kzky6" sourcePortRef="Activity_061upw8_MO1_port" targetPortRef="Activity_0h23axj_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_g2avves6" name="MO1 - MI2" sourceRef="bpmn_uid_Activity_0h23axj" targetRef="bpmn_uid_Activity_1rs6esf">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_g2avves6" identifier="Flow_0tv8sn4" sourcePortRef="Activity_0h23axj_MO1_port" targetPortRef="Activity_1rs6esf_MI2_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_ryfsy144" name="MI1 - MI1" sourceRef="bpmn_uid_Event_0wtdvnz" targetRef="bpmn_uid_Activity_1rs6esf">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_ryfsy144" identifier="Flow_0jgdd3h" sourcePortRef="Event_0wtdvnz_MI1_port" targetPortRef="Activity_1rs6esf_MI1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_pnv81mev" name="MO1 - MO1" sourceRef="bpmn_uid_Activity_1rs6esf" targetRef="bpmn_uid_Event_0rcr9aw">
+        <bpmn:extensionElements>
+          <dexpi:Stream uid="u_MOW17DOX_pnv81mev" identifier="Flow_1egvrih" sourcePortRef="Activity_1rs6esf_MO1_port" targetPortRef="Event_0rcr9aw_MO1_port"/>
+        </bpmn:extensionElements>
+      </bpmn:sequenceFlow>
+      <bpmn:dataObjectReference id="dobj_instr_uid_Activity_0gc2qjt_Temperature" name="Temperature" dataObjectRef="DataObject_dobj_instr_uid_Activity_0gc2qjt_Temperature"/>
+      <bpmn:dataObject id="DataObject_dobj_instr_uid_Activity_0gc2qjt_Temperature"/>
+      <bpmn:association id="assocOut_dobj_instr_uid_Activity_0gc2qjt_Temperature" sourceRef="bpmn_uid_Activity_0gc2qjt" targetRef="dobj_instr_uid_Activity_0gc2qjt_Temperature" associationDirection="One"/>
+      <bpmn:association id="assocIn_dobj_instr_uid_Activity_0gc2qjt_Temperature" sourceRef="dobj_instr_uid_Activity_0gc2qjt_Temperature" targetRef="bpmn_uid_Activity_1rs6esf" associationDirection="One"/>
+    </bpmn:subProcess>
+    <bpmn:startEvent id="bpmn_uid_StartEvent_1" name="Reactant C">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="StartEvent_1" uid="uid_StartEvent_1">
+          <dexpi:port portId="StartEvent_1_MO1_port" name="StartEvent_1_MO1_port" portType="MaterialPort" direction="Outlet" label="StartEvent_1_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>bpmn_u_MOW17DOX_nsfk1hcc</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:startEvent id="bpmn_uid_Event_11q5mwu" name="Reactant A">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="Event_11q5mwu" uid="uid_Event_11q5mwu">
+          <dexpi:port portId="Event_11q5mwu_MO1_port" name="Event_11q5mwu_MO1_port" portType="MaterialPort" direction="Outlet" label="Event_11q5mwu_MO1_port" anchorSide="right" anchorOffset="0.88"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>bpmn_u_MOW17DOY_ahha1g3i</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:startEvent id="bpmn_uid_Event_04126je" name="Reactant D">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="Event_04126je" uid="uid_Event_04126je">
+          <dexpi:port portId="Event_04126je_MO1_port" name="Event_04126je_MO1_port" portType="MaterialPort" direction="Outlet" label="Event_04126je_MO1_port" anchorSide="right" anchorOffset="0.50"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>bpmn_u_MOW17DOY_7krz3d4m</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:startEvent id="bpmn_uid_Event_0qb64fh" name="Reactant E">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="Event_0qb64fh" uid="uid_Event_0qb64fh">
+          <dexpi:port portId="Event_0qb64fh_MO1_port" name="Event_0qb64fh_MO1_port" portType="MaterialPort" direction="Outlet" label="Event_0qb64fh_MO1_port" anchorSide="right" anchorOffset="0.12"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>bpmn_u_MOW17DOY_ql9a03gc</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="bpmn_uid_Event_1hvcrvf" name="Product">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Sink" identifier="Event_1hvcrvf" uid="uid_Event_1hvcrvf">
+          <dexpi:port portId="Event_1hvcrvf_MI1_port" name="Event_1hvcrvf_MI1_port" portType="MaterialPort" direction="Inlet" label="Event_1hvcrvf_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:incoming>bpmn_u_MOW17DOZ_e40aoqbp</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="bpmn_uid_Event_0g1h7bs" name="Purge">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Sink" identifier="Event_0g1h7bs" uid="uid_Event_0g1h7bs">
+          <dexpi:port portId="Event_0g1h7bs_MI1_port" name="Event_0g1h7bs_MI1_port" portType="MaterialPort" direction="Inlet" label="Event_0g1h7bs_MI1_port" anchorSide="left" anchorOffset="0.50"/>
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:incoming>bpmn_u_MOW17DOZ_0ehpaanr</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOX_nsfk1hcc" name="MO1 - Stream 4 - MI1" sourceRef="bpmn_uid_StartEvent_1" targetRef="bpmn_uid_Activity_1h23lzf">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOX_nsfk1hcc" identifier="4" sourcePortRef="StartEvent_1_MO1_port" targetPortRef="Activity_1h23lzf_MI1_port" materialStateReference="uuid_MS_S4">
+          <dexpi:Attribute name="MassFlow" value="6419.4" unit="KilogramPerHour" provenance="Specified" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="45" unit="degC" provenance="Specified" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOY_ahha1g3i" name="MO1 - Stream 1 - MI1" sourceRef="bpmn_uid_Event_11q5mwu" targetRef="bpmn_uid_Activity_07878z5">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOY_ahha1g3i" identifier="1" sourcePortRef="Event_11q5mwu_MO1_port" targetPortRef="Activity_07878z5_MI1_port" materialStateReference="uuid_MS_S1">
+          <dexpi:Attribute name="MassFlow" value="22.4" unit="KilogramPerHour" provenance="Specified" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="45" unit="degC" provenance="Specified" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOY_7krz3d4m" name="MO1 - Stream 2 - MI2" sourceRef="bpmn_uid_Event_04126je" targetRef="bpmn_uid_Activity_07878z5">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOY_7krz3d4m" identifier="2" sourcePortRef="Event_04126je_MO1_port" targetPortRef="Activity_07878z5_MI2_port" materialStateReference="uuid_MS_S2">
+          <dexpi:Attribute name="MassFlow" value="3664" unit="KilogramPerHour" provenance="Specified" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="45" unit="degC" provenance="Specified" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOY_ql9a03gc" name="MO1 - Stream 3 - MI3" sourceRef="bpmn_uid_Event_0qb64fh" targetRef="bpmn_uid_Activity_07878z5">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOY_ql9a03gc" identifier="3" sourcePortRef="Event_0qb64fh_MO1_port" targetPortRef="Activity_07878z5_MI3_port" materialStateReference="uuid_MS_S3">
+          <dexpi:Attribute name="MassFlow" value="4509.3" unit="KilogramPerHour" provenance="Specified" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="45" unit="degC" provenance="Specified" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOY_8z7cdnv8" name="MO1 - Stream 5 - MI4" sourceRef="bpmn_uid_Activity_1h23lzf" targetRef="bpmn_uid_Activity_07878z5">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOY_8z7cdnv8" identifier="5" sourcePortRef="Activity_1h23lzf_MO1_port" targetPortRef="Activity_07878z5_MI4_port" materialStateReference="uuid_MS_S5">
+          <dexpi:Attribute name="MassFlow" value="8978.6" unit="KilogramPerHour" provenance="Calculated" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="65.7" unit="degC" provenance="Calculated" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOY_3y6srk7g" name="MO1 - Stream 8 - MI5" sourceRef="bpmn_uid_Activity_0yezzw8" targetRef="bpmn_uid_Activity_07878z5">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOY_3y6srk7g" identifier="8" sourcePortRef="Activity_0yezzw8_MO1_port" targetPortRef="Activity_07878z5_MI5_port" materialStateReference="uuid_MS_S8">
+          <dexpi:Attribute name="MassFlow" value="30840" unit="KilogramPerHour" provenance="Calculated" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="102.9" unit="degC" provenance="Calculated" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOZ_qfjj7rm7" name="MO1 - Stream 7 - MI1" sourceRef="bpmn_uid_Activity_07878z5" targetRef="bpmn_uid_Activity_13e86yb">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOZ_qfjj7rm7" identifier="7" sourcePortRef="Activity_07878z5_MO1_port" targetPortRef="Activity_13e86yb_MI1_port" materialStateReference="uuid_MS_S7">
+          <dexpi:Attribute name="MassFlow" value="48015.4" unit="KilogramPerHour" provenance="Calculated" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="120.4" unit="degC" provenance="Calculated" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOZ_8ahyg36e" name="MO1 - MI1" sourceRef="bpmn_uid_Activity_13e86yb" targetRef="bpmn_uid_Activity_148nxrl">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOZ_8ahyg36e" identifier="Flow_1eezxa7" sourcePortRef="Activity_13e86yb_MO1_port" targetPortRef="Activity_148nxrl_MI1_port"/>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOZ_0ehpaanr" name="MO1 - Stream 9 - MI1" sourceRef="bpmn_uid_Activity_148nxrl" targetRef="bpmn_uid_Event_0g1h7bs">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOZ_0ehpaanr" identifier="9" sourcePortRef="Activity_148nxrl_MO1_port" targetPortRef="Event_0g1h7bs_MI1_port" materialStateReference="uuid_MS_S9">
+          <dexpi:Attribute name="MassFlow" value="386.5" unit="KilogramPerHour" provenance="Set" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="80.1" unit="degC" provenance="Set" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOZ_ix4pks3a" name="MO3 - MI1" sourceRef="bpmn_uid_Activity_148nxrl" targetRef="bpmn_uid_Activity_0yezzw8">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOZ_ix4pks3a" identifier="Flow_11f0gdt" sourcePortRef="Activity_148nxrl_MO3_port" targetPortRef="Activity_0yezzw8_MI1_port"/>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOZ_gsowa943" name="MO2 - Stream 10 - MI2" sourceRef="bpmn_uid_Activity_148nxrl" targetRef="bpmn_uid_Activity_1h23lzf">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOZ_gsowa943" identifier="10" sourcePortRef="Activity_148nxrl_MO2_port" targetPortRef="Activity_1h23lzf_MI2_port" materialStateReference="uuid_MS_S10">
+          <dexpi:Attribute name="MassFlow" value="16788.9" unit="KilogramPerHour" provenance="Calculated" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="80.1" unit="degC" provenance="Calculated" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="bpmn_u_MOW17DOZ_e40aoqbp" name="MO2 - Stream 11 -  MI1" sourceRef="bpmn_uid_Activity_1h23lzf" targetRef="bpmn_uid_Event_1hvcrvf">
+      <bpmn:extensionElements>
+        <dexpi:Stream uid="u_MOW17DOZ_e40aoqbp" identifier="11" sourcePortRef="Activity_1h23lzf_MO2_port" targetPortRef="Event_1hvcrvf_MI1_port" materialStateReference="uuid_MS_S11">
+          <dexpi:Attribute name="MassFlow" value="14288.6" unit="KilogramPerHour" provenance="Calculated" range="Nominal"/>
+          <dexpi:Attribute name="MassFlow" value="1476" unit="KilogramPerHour" provenance="Specified" range="Nominal"/>
+          <dexpi:Attribute name="Temperature" value="65.7" unit="degC" provenance="Estimated" range="Nominal"/>
+        </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:dataObjectReference id="dt_dobj_MaterialTemplates" name="MaterialTemplates" dataObjectRef="DataObject_dt_dobj_MaterialTemplates">
+      <bpmn:extensionElements>
+        <MaterialTemplate uid="uuid_Water_MaterialTemplate">
+          <Identifier>WaterTemplate</Identifier>
+          <Label>Water</Label>
+          <Description>Material Template for Water</Description>
+          <NumberOfMaterialComponents>1</NumberOfMaterialComponents>
+          <NumberOfPhases>2</NumberOfPhases>
+        </MaterialTemplate>
+        <MaterialTemplate uid="uuid_TEP_MaterialTemplate">
+          <Identifier>TEMaterial</Identifier>
+          <Label>Tennessee Eastman Material</Label>
+          <Description>Material Template for Tennessee Eastman Process</Description>
+          <NumberOfMaterialComponents>8</NumberOfMaterialComponents>
+          <NumberOfPhases>2</NumberOfPhases>
+        </MaterialTemplate>
+        <MaterialComponent xsi:type="PureMaterialComponent" uid="uuid_Component_H2O">
+          <Identifier>H2O</Identifier>
+          <Label>Water</Label>
+          <Description>Water</Description>
+          <ChEBI_identifier>CHEBI:15377</ChEBI_identifier>
+          <IUPAC_identifier>XLYOFNOQVPJJNP-UHFFFAOYSA-N</IUPAC_identifier>
+        </MaterialComponent>
+        <MaterialComponent xsi:type="MaterialComponent" uid="uuid_ComponentA_TEP">
+          <Identifier>A</Identifier>
+          <Label>A</Label>
+          <Description>Component A</Description>
+        </MaterialComponent>
+        <MaterialComponent xsi:type="MaterialComponent" uid="uuid_ComponentB_TEP">
+          <Identifier>B</Identifier>
+          <Label>B</Label>
+          <Description>Component B</Description>
+        </MaterialComponent>
+        <MaterialComponent xsi:type="MaterialComponent" uid="uuid_ComponentC_TEP">
+          <Identifier>C</Identifier>
+          <Label>C</Label>
+          <Description>Component C</Description>
+        </MaterialComponent>
+        <MaterialComponent xsi:type="MaterialComponent" uid="uuid_ComponentD_TEP">
+          <Identifier>D</Identifier>
+          <Label>D</Label>
+          <Description>Component D</Description>
+        </MaterialComponent>
+        <MaterialComponent xsi:type="MaterialComponent" uid="uuid_ComponentE_TEP">
+          <Identifier>E</Identifier>
+          <Label>E</Label>
+          <Description>Component E</Description>
+        </MaterialComponent>
+        <MaterialComponent xsi:type="MaterialComponent" uid="uuid_ComponentF_TEP">
+          <Identifier>F</Identifier>
+          <Label>F</Label>
+          <Description>Component F</Description>
+        </MaterialComponent>
+        <MaterialComponent xsi:type="MaterialComponent" uid="uuid_ComponentG_TEP">
+          <Identifier>G</Identifier>
+          <Label>G</Label>
+          <Description>Component G</Description>
+        </MaterialComponent>
+        <MaterialComponent xsi:type="MaterialComponent" uid="uuid_ComponentH_TEP">
+          <Identifier>H</Identifier>
+          <Label>H</Label>
+          <Description>Component H</Description>
+        </MaterialComponent>
+      </bpmn:extensionElements>
+    </bpmn:dataObjectReference>
+    <bpmn:dataObject id="DataObject_dt_dobj_MaterialTemplates"/>
+    <bpmn:dataObjectReference id="dt_dobj_MaterialStates" name="Base Case MaterialStates" dataObjectRef="DataObject_dt_dobj_MaterialStates">
+      <bpmn:extensionElements>
+        <MaterialState uid="uuid_MS_S1">
+          <Identifier>1</Identifier>
+          <Label>Base Case MaterialStates - A Feed</Label>
+          <Flow>
+            <MoleFlow>
+              <Value>11.2</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_MS_S2">
+          <Identifier>2</Identifier>
+          <Label>Base Case MaterialStates - D Feed</Label>
+          <Flow>
+            <MoleFlow>
+              <Value>114.5</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_MS_S3">
+          <Identifier>3</Identifier>
+          <Label>Base Case MaterialStates - E Feed</Label>
+          <Flow>
+            <MoleFlow>
+              <Value>98</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_MS_S7">
+          <Identifier>7</Identifier>
+          <Label>Base Case MaterialStates - Reactor Product</Label>
+          <Description>Reactor Product</Description>
+          <Flow>
+            <MoleFlow>
+              <Value>1476</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_MS_S4">
+          <Identifier>4</Identifier>
+          <Label>Base Case MaterialStates - C Feed</Label>
+          <Description>C Feed</Description>
+          <Flow>
+            <MoleFlow>
+              <Value>417.5</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_MS_S11">
+          <Identifier>11</Identifier>
+          <Label>Base Case MaterialStates - Product</Label>
+          <Description>Separation liquid</Description>
+          <Flow>
+            <MoleFlow>
+              <Value>211.3</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_MS_S5">
+          <Identifier>5</Identifier>
+          <Label>Base Case MaterialStates - Strp Ovhd</Label>
+          <Description>Stripper overhead</Description>
+          <Flow>
+            <MoleFlow>
+              <Value>465.7</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_MS_S10">
+          <Identifier>10</Identifier>
+          <Label>Base Case MaterialStates - Separation liquid</Label>
+          <Description>Separation liquid</Description>
+          <Flow>
+            <MoleFlow>
+              <Value>259.5</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_8d8e6e59_acfb_47e7_a813_99f6b6f62a0f">
+          <Identifier>9</Identifier>
+          <Label>Base Case MaterialStates - Purge</Label>
+          <Description>Purge</Description>
+          <Flow>
+            <MoleFlow>
+              <Value>15.1</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_MS_S8">
+          <Identifier>8</Identifier>
+          <Label>Base Case MaterialStates - Recycle</Label>
+          <Flow>
+            <MoleFlow>
+              <Value>1201.5</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+        <MaterialState uid="uuid_MS_S6">
+          <Identifier>6</Identifier>
+          <Label>Base Case MaterialStates - Reactor Feed</Label>
+          <Flow>
+            <MoleFlow>
+              <Value>1890.8</Value>
+              <Unit>KilomolePerHour</Unit>
+            </MoleFlow>
+          </Flow>
+        </MaterialState>
+      </bpmn:extensionElements>
+    </bpmn:dataObjectReference>
+    <bpmn:dataObject id="DataObject_dt_dobj_MaterialStates"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_imported">
+    <bpmndi:BPMNPlane id="BPMNPlane_imported" bpmnElement="Process_imported">
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_07878z5_di" bpmnElement="bpmn_uid_Activity_07878z5" isExpanded="false">
+        <dc:Bounds x="430" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_148nxrl_di" bpmnElement="bpmn_uid_Activity_148nxrl" isExpanded="false">
+        <dc:Bounds x="1090" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1h23lzf_di" bpmnElement="bpmn_uid_Activity_1h23lzf" isExpanded="false">
+        <dc:Bounds x="1420" y="480" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0yezzw8_di" bpmnElement="bpmn_uid_Activity_0yezzw8" isExpanded="false">
+        <dc:Bounds x="760" y="100" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_13e86yb_di" bpmnElement="bpmn_uid_Activity_13e86yb" isExpanded="false">
+        <dc:Bounds x="760" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_StartEvent_1_di" bpmnElement="bpmn_uid_StartEvent_1" isHorizontal="false">
+        <dc:Bounds x="100" y="499" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_11q5mwu_di" bpmnElement="bpmn_uid_Event_11q5mwu" isHorizontal="false">
+        <dc:Bounds x="100" y="187" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_04126je_di" bpmnElement="bpmn_uid_Event_04126je" isHorizontal="false">
+        <dc:Bounds x="100" y="309" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_0qb64fh_di" bpmnElement="bpmn_uid_Event_0qb64fh" isHorizontal="false">
+        <dc:Bounds x="100" y="431" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1hvcrvf_di" bpmnElement="bpmn_uid_Event_1hvcrvf" isHorizontal="false">
+        <dc:Bounds x="1750" y="499" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_0g1h7bs_di" bpmnElement="bpmn_uid_Event_0g1h7bs" isHorizontal="false">
+        <dc:Bounds x="1750" y="309" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dt_dobj_MaterialTemplates_di" bpmnElement="dt_dobj_MaterialTemplates">
+        <dc:Bounds x="1502" y="20" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dt_dobj_MaterialStates_di" bpmnElement="dt_dobj_MaterialStates">
+        <dc:Bounds x="1622" y="20" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_nsfk1hcc_di" bpmnElement="bpmn_u_MOW17DOX_nsfk1hcc">
+        <di:waypoint x="152" y="525"/>
+        <di:waypoint x="1360" y="525"/>
+        <di:waypoint x="1360" y="525"/>
+        <di:waypoint x="1420" y="525"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOY_ahha1g3i_di" bpmnElement="bpmn_u_MOW17DOY_ahha1g3i">
+        <di:waypoint x="152" y="213"/>
+        <di:waypoint x="352" y="213"/>
+        <di:waypoint x="352" y="315.2"/>
+        <di:waypoint x="430" y="315.2"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOY_7krz3d4m_di" bpmnElement="bpmn_u_MOW17DOY_7krz3d4m">
+        <di:waypoint x="152" y="335"/>
+        <di:waypoint x="334" y="335"/>
+        <di:waypoint x="334" y="335"/>
+        <di:waypoint x="430" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOY_ql9a03gc_di" bpmnElement="bpmn_u_MOW17DOY_ql9a03gc">
+        <di:waypoint x="152" y="457"/>
+        <di:waypoint x="316" y="457"/>
+        <di:waypoint x="316" y="354.8"/>
+        <di:waypoint x="430" y="354.8"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOY_8z7cdnv8_di" bpmnElement="bpmn_u_MOW17DOY_8z7cdnv8">
+        <di:waypoint x="1550" y="490.8"/>
+        <di:waypoint x="1657" y="490.8"/>
+        <di:waypoint x="1657" y="466"/>
+        <di:waypoint x="323" y="466"/>
+        <di:waypoint x="323" y="369.2"/>
+        <di:waypoint x="430" y="369.2"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOY_3y6srk7g_di" bpmnElement="bpmn_u_MOW17DOY_3y6srk7g">
+        <di:waypoint x="760" y="131.5"/>
+        <di:waypoint x="295" y="131.5"/>
+        <di:waypoint x="295" y="300.8"/>
+        <di:waypoint x="430" y="300.8"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOZ_qfjj7rm7_di" bpmnElement="bpmn_u_MOW17DOZ_qfjj7rm7">
+        <di:waypoint x="560" y="335"/>
+        <di:waypoint x="700" y="335"/>
+        <di:waypoint x="700" y="335"/>
+        <di:waypoint x="760" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOZ_8ahyg36e_di" bpmnElement="bpmn_u_MOW17DOZ_8ahyg36e">
+        <di:waypoint x="890" y="335"/>
+        <di:waypoint x="1012" y="335"/>
+        <di:waypoint x="1012" y="335"/>
+        <di:waypoint x="1090" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOZ_0ehpaanr_di" bpmnElement="bpmn_u_MOW17DOZ_0ehpaanr">
+        <di:waypoint x="1220" y="335"/>
+        <di:waypoint x="1654" y="335"/>
+        <di:waypoint x="1654" y="335"/>
+        <di:waypoint x="1750" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOZ_ix4pks3a_di" bpmnElement="bpmn_u_MOW17DOZ_ix4pks3a">
+        <di:waypoint x="1220" y="300.8"/>
+        <di:waypoint x="1319" y="300.8"/>
+        <di:waypoint x="1319" y="158.5"/>
+        <di:waypoint x="890" y="158.5"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOZ_gsowa943_di" bpmnElement="bpmn_u_MOW17DOZ_gsowa943">
+        <di:waypoint x="1220" y="369.2"/>
+        <di:waypoint x="1288" y="369.2"/>
+        <di:waypoint x="1288" y="490.8"/>
+        <di:waypoint x="1420" y="490.8"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOZ_e40aoqbp_di" bpmnElement="bpmn_u_MOW17DOZ_e40aoqbp">
+        <di:waypoint x="1550" y="525"/>
+        <di:waypoint x="1600" y="525"/>
+        <di:waypoint x="1600" y="525"/>
+        <di:waypoint x="1750" y="525"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="bpmn_uid_Activity_07878z5_diagram">
+    <bpmndi:BPMNPlane id="bpmn_uid_Activity_07878z5_plane" bpmnElement="bpmn_uid_Activity_07878z5">
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_1qz2q4q_MassFlow_di" bpmnElement="dobj_instr_uid_Activity_1qz2q4q_MassFlow">
+        <dc:Bounds x="827" y="692.5" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_0tg7cm0_Composition_di" bpmnElement="dobj_instr_uid_Activity_0tg7cm0_Composition">
+        <dc:Bounds x="564.5" y="692.5" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_15ct9gk_Temperature_di" bpmnElement="dobj_instr_uid_Activity_15ct9gk_Temperature">
+        <dc:Bounds x="739.5" y="692.5" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_101s6y2_Level_di" bpmnElement="dobj_instr_uid_Activity_101s6y2_Level">
+        <dc:Bounds x="652" y="692.5" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_072h89n_Pressure_di" bpmnElement="dobj_instr_uid_Activity_072h89n_Pressure">
+        <dc:Bounds x="477" y="692.5" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_11rkrj8_di" bpmnElement="bpmn_uid_Activity_11rkrj8" isExpanded="false">
+        <dc:Bounds x="1090" y="455" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1d6n7np_di" bpmnElement="bpmn_uid_Activity_1d6n7np">
+        <dc:Bounds x="1090" y="265" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0msgfdr_di" bpmnElement="bpmn_uid_Activity_0msgfdr">
+        <dc:Bounds x="760" y="455" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_16sydhz_di" bpmnElement="bpmn_uid_Activity_16sydhz">
+        <dc:Bounds x="430" y="455" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_07twnf1_di" bpmnElement="bpmn_uid_Activity_07twnf1">
+        <dc:Bounds x="100" y="20" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1qz2q4q_di" bpmnElement="bpmn_uid_Activity_1qz2q4q">
+        <dc:Bounds x="800" y="890" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0tg7cm0_di" bpmnElement="bpmn_uid_Activity_0tg7cm0">
+        <dc:Bounds x="275" y="890" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_15ct9gk_di" bpmnElement="bpmn_uid_Activity_15ct9gk">
+        <dc:Bounds x="625" y="890" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_101s6y2_di" bpmnElement="bpmn_uid_Activity_101s6y2">
+        <dc:Bounds x="450" y="890" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_072h89n_di" bpmnElement="bpmn_uid_Activity_072h89n">
+        <dc:Bounds x="100" y="890" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_15gcv4n_di" bpmnElement="bpmn_uid_Event_15gcv4n" isHorizontal="false">
+        <dc:Bounds x="100" y="718" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_13mofb0_di" bpmnElement="bpmn_uid_Event_13mofb0" isHorizontal="false">
+        <dc:Bounds x="100" y="596" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_17fqava_di" bpmnElement="bpmn_uid_Event_17fqava" isHorizontal="false">
+        <dc:Bounds x="100" y="474" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1p0vvqc_di" bpmnElement="bpmn_uid_Event_1p0vvqc" isHorizontal="false">
+        <dc:Bounds x="100" y="352" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1npicji_di" bpmnElement="bpmn_uid_Event_1npicji" isHorizontal="false">
+        <dc:Bounds x="100" y="230" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_01fem2h_di" bpmnElement="bpmn_uid_Event_01fem2h" isHorizontal="false">
+        <dc:Bounds x="1129" y="133" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_062k0v7_di" bpmnElement="bpmn_uid_Event_062k0v7" isHorizontal="false">
+        <dc:Bounds x="1420" y="474" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOV_xskb70hq_di" bpmnElement="bpmn_u_MOW17DOV_xskb70hq">
+        <di:waypoint x="1155" y="185"/>
+        <di:waypoint x="1155" y="265"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOV_vhm85w7k_di" bpmnElement="bpmn_u_MOW17DOV_vhm85w7k">
+        <di:waypoint x="890" y="500"/>
+        <di:waypoint x="943" y="500"/>
+        <di:waypoint x="943" y="593"/>
+        <di:waypoint x="1342" y="593"/>
+        <di:waypoint x="1342" y="500"/>
+        <di:waypoint x="1420" y="500"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOV_uqqwyf25_di" bpmnElement="bpmn_u_MOW17DOV_uqqwyf25">
+        <di:waypoint x="825" y="545"/>
+        <di:waypoint x="825" y="575"/>
+        <di:waypoint x="990" y="575"/>
+        <di:waypoint x="990" y="425"/>
+        <di:waypoint x="1155" y="425"/>
+        <di:waypoint x="1155" y="455"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOV_ju34b2ct_di" bpmnElement="bpmn_u_MOW17DOV_ju34b2ct">
+        <di:waypoint x="1155" y="355"/>
+        <di:waypoint x="1155" y="385"/>
+        <di:waypoint x="825" y="385"/>
+        <di:waypoint x="825" y="455"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_i5ltrg74_di" bpmnElement="bpmn_u_MOW17DOW_i5ltrg74">
+        <di:waypoint x="560" y="500"/>
+        <di:waypoint x="628" y="500"/>
+        <di:waypoint x="628" y="500"/>
+        <di:waypoint x="760" y="500"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_lvl4r8mo_di" bpmnElement="bpmn_u_MOW17DOW_lvl4r8mo">
+        <di:waypoint x="152" y="256"/>
+        <di:waypoint x="280" y="256"/>
+        <di:waypoint x="280" y="465.8"/>
+        <di:waypoint x="430" y="465.8"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_lv09w59t_di" bpmnElement="bpmn_u_MOW17DOW_lv09w59t">
+        <di:waypoint x="152" y="378"/>
+        <di:waypoint x="370" y="378"/>
+        <di:waypoint x="370" y="480.2"/>
+        <di:waypoint x="430" y="480.2"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_lfri88c5_di" bpmnElement="bpmn_u_MOW17DOW_lfri88c5">
+        <di:waypoint x="152" y="500"/>
+        <di:waypoint x="352" y="500"/>
+        <di:waypoint x="352" y="500"/>
+        <di:waypoint x="430" y="500"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_57tsdrq0_di" bpmnElement="bpmn_u_MOW17DOW_57tsdrq0">
+        <di:waypoint x="152" y="622"/>
+        <di:waypoint x="334" y="622"/>
+        <di:waypoint x="334" y="519.8"/>
+        <di:waypoint x="430" y="519.8"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_pw6ezu7j_di" bpmnElement="bpmn_u_MOW17DOW_pw6ezu7j">
+        <di:waypoint x="152" y="744"/>
+        <di:waypoint x="316" y="744"/>
+        <di:waypoint x="316" y="534.2"/>
+        <di:waypoint x="430" y="534.2"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_1qz2q4q_MassFlow_di" bpmnElement="assocOut_dobj_instr_uid_Activity_1qz2q4q_MassFlow">
+        <di:waypoint x="865" y="890"/>
+        <di:waypoint x="845" y="742.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_1qz2q4q_MassFlow_di" bpmnElement="assocIn_dobj_instr_uid_Activity_1qz2q4q_MassFlow">
+        <di:waypoint x="845" y="692.5"/>
+        <di:waypoint x="825" y="545"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_0tg7cm0_Composition_di" bpmnElement="assocOut_dobj_instr_uid_Activity_0tg7cm0_Composition">
+        <di:waypoint x="340" y="890"/>
+        <di:waypoint x="582.5" y="742.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_0tg7cm0_Composition_di" bpmnElement="assocIn_dobj_instr_uid_Activity_0tg7cm0_Composition">
+        <di:waypoint x="582.5" y="692.5"/>
+        <di:waypoint x="825" y="545"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_15ct9gk_Temperature_di" bpmnElement="assocOut_dobj_instr_uid_Activity_15ct9gk_Temperature">
+        <di:waypoint x="690" y="890"/>
+        <di:waypoint x="757.5" y="742.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_15ct9gk_Temperature_di" bpmnElement="assocIn_dobj_instr_uid_Activity_15ct9gk_Temperature">
+        <di:waypoint x="757.5" y="692.5"/>
+        <di:waypoint x="825" y="545"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_101s6y2_Level_di" bpmnElement="assocOut_dobj_instr_uid_Activity_101s6y2_Level">
+        <di:waypoint x="515" y="890"/>
+        <di:waypoint x="670" y="742.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_101s6y2_Level_di" bpmnElement="assocIn_dobj_instr_uid_Activity_101s6y2_Level">
+        <di:waypoint x="670" y="692.5"/>
+        <di:waypoint x="825" y="545"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_072h89n_Pressure_di" bpmnElement="assocOut_dobj_instr_uid_Activity_072h89n_Pressure">
+        <di:waypoint x="165" y="890"/>
+        <di:waypoint x="495" y="742.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_072h89n_Pressure_di" bpmnElement="assocIn_dobj_instr_uid_Activity_072h89n_Pressure">
+        <di:waypoint x="495" y="692.5"/>
+        <di:waypoint x="825" y="545"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="bpmn_uid_Activity_11rkrj8_diagram">
+    <bpmndi:BPMNPlane id="bpmn_uid_Activity_11rkrj8_plane" bpmnElement="bpmn_uid_Activity_11rkrj8">
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_18ratv8_Temperature_di" bpmnElement="dobj_instr_uid_Activity_18ratv8_Temperature">
+        <dc:Bounds x="312" y="415" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1pzszmn_di" bpmnElement="bpmn_uid_Activity_1pzszmn">
+        <dc:Bounds x="430" y="100" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_03d7qhp_di" bpmnElement="bpmn_uid_Activity_03d7qhp">
+        <dc:Bounds x="100" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0iie89x_di" bpmnElement="bpmn_uid_Activity_0iie89x">
+        <dc:Bounds x="430" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_18ratv8_di" bpmnElement="bpmn_uid_Activity_18ratv8">
+        <dc:Bounds x="100" y="500" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOV_t5kh97hs_di" bpmnElement="bpmn_u_MOW17DOV_t5kh97hs">
+        <di:waypoint x="560" y="145"/>
+        <di:waypoint x="595" y="145"/>
+        <di:waypoint x="595" y="240"/>
+        <di:waypoint x="65" y="240"/>
+        <di:waypoint x="65" y="335"/>
+        <di:waypoint x="100" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOV_s5wlmhur_di" bpmnElement="bpmn_u_MOW17DOV_s5wlmhur">
+        <di:waypoint x="230" y="335"/>
+        <di:waypoint x="352" y="335"/>
+        <di:waypoint x="352" y="335"/>
+        <di:waypoint x="430" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOV_p52zizpp_di" bpmnElement="bpmn_u_MOW17DOV_p52zizpp">
+        <di:waypoint x="560" y="335"/>
+        <di:waypoint x="631" y="335"/>
+        <di:waypoint x="631" y="258"/>
+        <di:waypoint x="359" y="258"/>
+        <di:waypoint x="359" y="145"/>
+        <di:waypoint x="430" y="145"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_18ratv8_Temperature_di" bpmnElement="assocOut_dobj_instr_uid_Activity_18ratv8_Temperature">
+        <di:waypoint x="165" y="500"/>
+        <di:waypoint x="330" y="465"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_18ratv8_Temperature_di" bpmnElement="assocIn_dobj_instr_uid_Activity_18ratv8_Temperature">
+        <di:waypoint x="330" y="415"/>
+        <di:waypoint x="495" y="380"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="bpmn_uid_Activity_148nxrl_diagram">
+    <bpmndi:BPMNPlane id="bpmn_uid_Activity_148nxrl_plane" bpmnElement="bpmn_uid_Activity_148nxrl">
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_09ul91z_Temperature_di" bpmnElement="dobj_instr_uid_Activity_09ul91z_Temperature">
+        <dc:Bounds x="399.5" y="546.25" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_09g9kks_Level_di" bpmnElement="dobj_instr_uid_Activity_09g9kks_Level">
+        <dc:Bounds x="312" y="546.25" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_0zpct04_Flow_di" bpmnElement="dobj_instr_uid_Activity_0zpct04_Flow">
+        <dc:Bounds x="739.5" y="582.5" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_1jl445f_Pressure_di" bpmnElement="dobj_instr_uid_Activity_1jl445f_Pressure">
+        <dc:Bounds x="827" y="582.5" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_0o7v7ax_MassFlow_di" bpmnElement="dobj_instr_uid_Activity_0o7v7ax_MassFlow">
+        <dc:Bounds x="652" y="510" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0x085ms_di" bpmnElement="bpmn_uid_Activity_0x085ms">
+        <dc:Bounds x="430" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1ozs40z_di" bpmnElement="bpmn_uid_Activity_1ozs40z">
+        <dc:Bounds x="760" y="362.5" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0pq2475_di" bpmnElement="bpmn_uid_Activity_0pq2475">
+        <dc:Bounds x="1090" y="552.5" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_11jo3tg_di" bpmnElement="bpmn_uid_Activity_11jo3tg">
+        <dc:Bounds x="760" y="217.5" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1g6kz8f_di" bpmnElement="bpmn_uid_Activity_1g6kz8f">
+        <dc:Bounds x="1090" y="407.5" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_09ul91z_di" bpmnElement="bpmn_uid_Activity_09ul91z">
+        <dc:Bounds x="275" y="762.5" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_09g9kks_di" bpmnElement="bpmn_uid_Activity_09g9kks">
+        <dc:Bounds x="100" y="762.5" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0zpct04_di" bpmnElement="bpmn_uid_Activity_0zpct04">
+        <dc:Bounds x="625" y="762.5" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1jl445f_di" bpmnElement="bpmn_uid_Activity_1jl445f">
+        <dc:Bounds x="800" y="762.5" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0o7v7ax_di" bpmnElement="bpmn_uid_Activity_0o7v7ax">
+        <dc:Bounds x="450" y="762.5" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1f801tk_di" bpmnElement="bpmn_uid_Event_1f801tk" isHorizontal="false">
+        <dc:Bounds x="100" y="309" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_0rjd6py_di" bpmnElement="bpmn_uid_Event_0rjd6py" isHorizontal="false">
+        <dc:Bounds x="1420" y="309" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_0ztd5pv_di" bpmnElement="bpmn_uid_Event_0ztd5pv" isHorizontal="false">
+        <dc:Bounds x="1420" y="438" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1f01vwi_di" bpmnElement="bpmn_uid_Event_1f01vwi" isHorizontal="false">
+        <dc:Bounds x="1420" y="560" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_qceur26c_di" bpmnElement="bpmn_u_MOW17DOW_qceur26c">
+        <di:waypoint x="152" y="335"/>
+        <di:waypoint x="370" y="335"/>
+        <di:waypoint x="370" y="335"/>
+        <di:waypoint x="430" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_toguz1im_di" bpmnElement="bpmn_u_MOW17DOW_toguz1im">
+        <di:waypoint x="560" y="369.2"/>
+        <di:waypoint x="682" y="369.2"/>
+        <di:waypoint x="682" y="407.5"/>
+        <di:waypoint x="760" y="407.5"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_9jslkge1_di" bpmnElement="bpmn_u_MOW17DOW_9jslkge1">
+        <di:waypoint x="560" y="300.8"/>
+        <di:waypoint x="664" y="300.8"/>
+        <di:waypoint x="664" y="262.5"/>
+        <di:waypoint x="760" y="262.5"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_bkxme9na_di" bpmnElement="bpmn_u_MOW17DOW_bkxme9na">
+        <di:waypoint x="890" y="441.7"/>
+        <di:waypoint x="976" y="441.7"/>
+        <di:waypoint x="976" y="597.5"/>
+        <di:waypoint x="1090" y="597.5"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_7p9zj9i0_di" bpmnElement="bpmn_u_MOW17DOW_7p9zj9i0">
+        <di:waypoint x="890" y="373.3"/>
+        <di:waypoint x="1288" y="373.3"/>
+        <di:waypoint x="1288" y="335"/>
+        <di:waypoint x="1420" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_98ck8dxc_di" bpmnElement="bpmn_u_MOW17DOW_98ck8dxc">
+        <di:waypoint x="1220" y="597.5"/>
+        <di:waypoint x="1270" y="597.5"/>
+        <di:waypoint x="1270" y="464"/>
+        <di:waypoint x="1420" y="464"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_9gh8q84d_di" bpmnElement="bpmn_u_MOW17DOW_9gh8q84d">
+        <di:waypoint x="890" y="262.5"/>
+        <di:waypoint x="1030" y="262.5"/>
+        <di:waypoint x="1030" y="452.5"/>
+        <di:waypoint x="1090" y="452.5"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_eplkm30g_di" bpmnElement="bpmn_u_MOW17DOW_eplkm30g">
+        <di:waypoint x="1220" y="452.5"/>
+        <di:waypoint x="1342" y="452.5"/>
+        <di:waypoint x="1342" y="586"/>
+        <di:waypoint x="1420" y="586"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_09ul91z_Temperature_di" bpmnElement="assocOut_dobj_instr_uid_Activity_09ul91z_Temperature">
+        <di:waypoint x="340" y="762.5"/>
+        <di:waypoint x="417.5" y="596.25"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_09ul91z_Temperature_di" bpmnElement="assocIn_dobj_instr_uid_Activity_09ul91z_Temperature">
+        <di:waypoint x="417.5" y="546.25"/>
+        <di:waypoint x="495" y="380"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_09g9kks_Level_di" bpmnElement="assocOut_dobj_instr_uid_Activity_09g9kks_Level">
+        <di:waypoint x="165" y="762.5"/>
+        <di:waypoint x="330" y="596.25"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_09g9kks_Level_di" bpmnElement="assocIn_dobj_instr_uid_Activity_09g9kks_Level">
+        <di:waypoint x="330" y="546.25"/>
+        <di:waypoint x="495" y="380"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_0zpct04_Flow_di" bpmnElement="assocOut_dobj_instr_uid_Activity_0zpct04_Flow">
+        <di:waypoint x="690" y="762.5"/>
+        <di:waypoint x="757.5" y="632.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_0zpct04_Flow_di" bpmnElement="assocIn_dobj_instr_uid_Activity_0zpct04_Flow">
+        <di:waypoint x="757.5" y="582.5"/>
+        <di:waypoint x="825" y="452.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_1jl445f_Pressure_di" bpmnElement="assocOut_dobj_instr_uid_Activity_1jl445f_Pressure">
+        <di:waypoint x="865" y="762.5"/>
+        <di:waypoint x="845" y="632.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_1jl445f_Pressure_di" bpmnElement="assocIn_dobj_instr_uid_Activity_1jl445f_Pressure">
+        <di:waypoint x="845" y="582.5"/>
+        <di:waypoint x="825" y="452.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_0o7v7ax_MassFlow_di" bpmnElement="assocOut_dobj_instr_uid_Activity_0o7v7ax_MassFlow">
+        <di:waypoint x="515" y="762.5"/>
+        <di:waypoint x="670" y="560"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_0o7v7ax_MassFlow_di" bpmnElement="assocIn_dobj_instr_uid_Activity_0o7v7ax_MassFlow">
+        <di:waypoint x="670" y="510"/>
+        <di:waypoint x="825" y="307.5"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="bpmn_uid_Activity_1h23lzf_diagram">
+    <bpmndi:BPMNPlane id="bpmn_uid_Activity_1h23lzf_plane" bpmnElement="bpmn_uid_Activity_1h23lzf">
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_1ggf4yj_Temperature_di" bpmnElement="dobj_instr_uid_Activity_1ggf4yj_Temperature">
+        <dc:Bounds x="817" y="510" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_0r3bi8v_Level_di" bpmnElement="dobj_instr_uid_Activity_0r3bi8v_Level">
+        <dc:Bounds x="642" y="510" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_1h809d1_Flow_di" bpmnElement="dobj_instr_uid_Activity_1h809d1_Flow">
+        <dc:Bounds x="904.5" y="510" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_1ah3e15_Composition_di" bpmnElement="dobj_instr_uid_Activity_1ah3e15_Composition">
+        <dc:Bounds x="1059.5" y="605" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0uxjdkn_di" bpmnElement="bpmn_uid_Activity_0uxjdkn">
+        <dc:Bounds x="760" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1uqovub_di" bpmnElement="bpmn_uid_Activity_1uqovub">
+        <dc:Bounds x="1420" y="100" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1kyou8x_di" bpmnElement="bpmn_uid_Activity_1kyou8x">
+        <dc:Bounds x="1090" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0dvp1ez_di" bpmnElement="bpmn_uid_Activity_0dvp1ez">
+        <dc:Bounds x="430" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1atxmzx_di" bpmnElement="bpmn_uid_Activity_1atxmzx">
+        <dc:Bounds x="1420" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_17bqtl6_di" bpmnElement="bpmn_uid_Activity_17bqtl6">
+        <dc:Bounds x="1750" y="480" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0xhunfw_di" bpmnElement="bpmn_uid_Activity_0xhunfw" isExpanded="false">
+        <dc:Bounds x="1750" y="100" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1ggf4yj_di" bpmnElement="bpmn_uid_Activity_1ggf4yj">
+        <dc:Bounds x="450" y="690" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0r3bi8v_di" bpmnElement="bpmn_uid_Activity_0r3bi8v">
+        <dc:Bounds x="100" y="690" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1h809d1_di" bpmnElement="bpmn_uid_Activity_1h809d1">
+        <dc:Bounds x="625" y="690" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1ah3e15_di" bpmnElement="bpmn_uid_Activity_1ah3e15">
+        <dc:Bounds x="275" y="690" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_0h1gv72_di" bpmnElement="bpmn_uid_Event_0h1gv72" isHorizontal="false">
+        <dc:Bounds x="100" y="248" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_0xub7hl_di" bpmnElement="bpmn_uid_Event_0xub7hl" isHorizontal="false">
+        <dc:Bounds x="100" y="370" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1gcqtzr_di" bpmnElement="bpmn_uid_Event_1gcqtzr" isHorizontal="false">
+        <dc:Bounds x="2080" y="309" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1w0hjx9_di" bpmnElement="bpmn_uid_Event_1w0hjx9" isHorizontal="false">
+        <dc:Bounds x="2080" y="499" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_bpmcqi5t_di" bpmnElement="bpmn_u_MOW17DOW_bpmcqi5t">
+        <di:waypoint x="152" y="396"/>
+        <di:waypoint x="700" y="396"/>
+        <di:waypoint x="700" y="369.2"/>
+        <di:waypoint x="760" y="369.2"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_vm2cc4e5_di" bpmnElement="bpmn_u_MOW17DOW_vm2cc4e5">
+        <di:waypoint x="560" y="335"/>
+        <di:waypoint x="682" y="335"/>
+        <di:waypoint x="682" y="335"/>
+        <di:waypoint x="760" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_czs65pb7_di" bpmnElement="bpmn_u_MOW17DOW_czs65pb7">
+        <di:waypoint x="1420" y="131.5"/>
+        <di:waypoint x="679" y="131.5"/>
+        <di:waypoint x="679" y="300.8"/>
+        <di:waypoint x="760" y="300.8"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_74jiwmgp_di" bpmnElement="bpmn_u_MOW17DOW_74jiwmgp">
+        <di:waypoint x="890" y="335"/>
+        <di:waypoint x="976" y="335"/>
+        <di:waypoint x="976" y="335"/>
+        <di:waypoint x="1090" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_e1lhge85_di" bpmnElement="bpmn_u_MOW17DOW_e1lhge85">
+        <di:waypoint x="890" y="349.4"/>
+        <di:waypoint x="997" y="349.4"/>
+        <di:waypoint x="997" y="687"/>
+        <di:waypoint x="1948" y="687"/>
+        <di:waypoint x="1948" y="335"/>
+        <di:waypoint x="2080" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_ljuofwan_di" bpmnElement="bpmn_u_MOW17DOX_ljuofwan">
+        <di:waypoint x="1220" y="300.8"/>
+        <di:waypoint x="1345" y="300.8"/>
+        <di:waypoint x="1345" y="23.5"/>
+        <di:waypoint x="1675" y="23.5"/>
+        <di:waypoint x="1675" y="158.5"/>
+        <di:waypoint x="1550" y="158.5"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_ab5qvi1w_di" bpmnElement="bpmn_u_MOW17DOX_ab5qvi1w">
+        <di:waypoint x="1815" y="190"/>
+        <di:waypoint x="1815" y="220"/>
+        <di:waypoint x="1650" y="220"/>
+        <di:waypoint x="1650" y="70"/>
+        <di:waypoint x="1485" y="70"/>
+        <di:waypoint x="1485" y="100"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_w9ofi0gg_di" bpmnElement="bpmn_u_MOW17DOX_w9ofi0gg">
+        <di:waypoint x="1220" y="335"/>
+        <di:waypoint x="1342" y="335"/>
+        <di:waypoint x="1342" y="335"/>
+        <di:waypoint x="1420" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_5ynb277o_di" bpmnElement="bpmn_u_MOW17DOX_5ynb277o">
+        <di:waypoint x="152" y="274"/>
+        <di:waypoint x="334" y="274"/>
+        <di:waypoint x="334" y="335"/>
+        <di:waypoint x="430" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_817wjwen_di" bpmnElement="bpmn_u_MOW17DOX_817wjwen">
+        <di:waypoint x="1880" y="525"/>
+        <di:waypoint x="1966" y="525"/>
+        <di:waypoint x="1966" y="525"/>
+        <di:waypoint x="2080" y="525"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_3ggtcgtg_di" bpmnElement="bpmn_u_MOW17DOX_3ggtcgtg">
+        <di:waypoint x="1550" y="335"/>
+        <di:waypoint x="1618" y="335"/>
+        <di:waypoint x="1618" y="525"/>
+        <di:waypoint x="1750" y="525"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_1ggf4yj_Temperature_di" bpmnElement="assocOut_dobj_instr_uid_Activity_1ggf4yj_Temperature">
+        <di:waypoint x="515" y="690"/>
+        <di:waypoint x="835" y="560"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_1ggf4yj_Temperature_di" bpmnElement="assocIn_dobj_instr_uid_Activity_1ggf4yj_Temperature">
+        <di:waypoint x="835" y="510"/>
+        <di:waypoint x="1155" y="380"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_0r3bi8v_Level_di" bpmnElement="assocOut_dobj_instr_uid_Activity_0r3bi8v_Level">
+        <di:waypoint x="165" y="690"/>
+        <di:waypoint x="660" y="560"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_0r3bi8v_Level_di" bpmnElement="assocIn_dobj_instr_uid_Activity_0r3bi8v_Level">
+        <di:waypoint x="660" y="510"/>
+        <di:waypoint x="1155" y="380"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_1h809d1_Flow_di" bpmnElement="assocOut_dobj_instr_uid_Activity_1h809d1_Flow">
+        <di:waypoint x="690" y="690"/>
+        <di:waypoint x="922.5" y="560"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_1h809d1_Flow_di" bpmnElement="assocIn_dobj_instr_uid_Activity_1h809d1_Flow">
+        <di:waypoint x="922.5" y="510"/>
+        <di:waypoint x="1155" y="380"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_1ah3e15_Composition_di" bpmnElement="assocOut_dobj_instr_uid_Activity_1ah3e15_Composition">
+        <di:waypoint x="340" y="690"/>
+        <di:waypoint x="1077.5" y="655"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_1ah3e15_Composition_di" bpmnElement="assocIn_dobj_instr_uid_Activity_1ah3e15_Composition">
+        <di:waypoint x="1077.5" y="605"/>
+        <di:waypoint x="1815" y="570"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="bpmn_uid_Activity_0xhunfw_diagram">
+    <bpmndi:BPMNPlane id="bpmn_uid_Activity_0xhunfw_plane" bpmnElement="bpmn_uid_Activity_0xhunfw">
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0uicpy3_di" bpmnElement="bpmn_uid_Activity_0uicpy3">
+        <dc:Bounds x="430" y="100" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1nyhzy8_di" bpmnElement="bpmn_uid_Activity_1nyhzy8">
+        <dc:Bounds x="100" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0b0nu52_di" bpmnElement="bpmn_uid_Activity_0b0nu52">
+        <dc:Bounds x="430" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_4tyui1rf_di" bpmnElement="bpmn_u_MOW17DOW_4tyui1rf">
+        <di:waypoint x="560" y="335"/>
+        <di:waypoint x="595" y="335"/>
+        <di:waypoint x="595" y="240"/>
+        <di:waypoint x="395" y="240"/>
+        <di:waypoint x="395" y="145"/>
+        <di:waypoint x="430" y="145"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_6etsacu3_di" bpmnElement="bpmn_u_MOW17DOW_6etsacu3">
+        <di:waypoint x="560" y="145"/>
+        <di:waypoint x="613" y="145"/>
+        <di:waypoint x="613" y="249"/>
+        <di:waypoint x="47" y="249"/>
+        <di:waypoint x="47" y="335"/>
+        <di:waypoint x="100" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOW_ai8g4p9y_di" bpmnElement="bpmn_u_MOW17DOW_ai8g4p9y">
+        <di:waypoint x="230" y="335"/>
+        <di:waypoint x="334" y="335"/>
+        <di:waypoint x="334" y="335"/>
+        <di:waypoint x="430" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="bpmn_uid_Activity_0yezzw8_diagram">
+    <bpmndi:BPMNPlane id="bpmn_uid_Activity_0yezzw8_plane" bpmnElement="bpmn_uid_Activity_0yezzw8">
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_03icv4t_Duty_di" bpmnElement="dobj_instr_uid_Activity_03icv4t_Duty">
+        <dc:Bounds x="477" y="510" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_1u8l6hb_Flow_di" bpmnElement="dobj_instr_uid_Activity_1u8l6hb_Flow">
+        <dc:Bounds x="729.5" y="605" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_11ivs96_di" bpmnElement="bpmn_uid_Activity_11ivs96">
+        <dc:Bounds x="760" y="100" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0avtq87_di" bpmnElement="bpmn_uid_Activity_0avtq87">
+        <dc:Bounds x="430" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_02gkcfc_di" bpmnElement="bpmn_uid_Activity_02gkcfc">
+        <dc:Bounds x="760" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_00hgxpv_di" bpmnElement="bpmn_uid_Activity_00hgxpv">
+        <dc:Bounds x="1090" y="480" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_03icv4t_di" bpmnElement="bpmn_uid_Activity_03icv4t">
+        <dc:Bounds x="100" y="690" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1u8l6hb_di" bpmnElement="bpmn_uid_Activity_1u8l6hb">
+        <dc:Bounds x="275" y="690" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1g1zmip_di" bpmnElement="bpmn_uid_Event_1g1zmip" isHorizontal="false">
+        <dc:Bounds x="100" y="248" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1mp0d4h_di" bpmnElement="bpmn_uid_Event_1mp0d4h" isHorizontal="false">
+        <dc:Bounds x="927" y="158" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_1pcm1vz_di" bpmnElement="bpmn_uid_Event_1pcm1vz" isHorizontal="false">
+        <dc:Bounds x="1420" y="499" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_ydasrhjx_di" bpmnElement="bpmn_u_MOW17DOX_ydasrhjx">
+        <di:waypoint x="953" y="210"/>
+        <di:waypoint x="953" y="240"/>
+        <di:waypoint x="825" y="240"/>
+        <di:waypoint x="825" y="290"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_ddjl0z55_di" bpmnElement="bpmn_u_MOW17DOX_ddjl0z55">
+        <di:waypoint x="1220" y="490.8"/>
+        <di:waypoint x="1283" y="490.8"/>
+        <di:waypoint x="1283" y="158.5"/>
+        <di:waypoint x="890" y="158.5"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_9pm283zg_di" bpmnElement="bpmn_u_MOW17DOX_9pm283zg">
+        <di:waypoint x="760" y="131.5"/>
+        <di:waypoint x="349" y="131.5"/>
+        <di:waypoint x="349" y="300.8"/>
+        <di:waypoint x="430" y="300.8"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_g588a39c_di" bpmnElement="bpmn_u_MOW17DOX_g588a39c">
+        <di:waypoint x="152" y="274"/>
+        <di:waypoint x="316" y="274"/>
+        <di:waypoint x="316" y="315.2"/>
+        <di:waypoint x="430" y="315.2"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_oyci1m86_di" bpmnElement="bpmn_u_MOW17DOX_oyci1m86">
+        <di:waypoint x="560" y="335"/>
+        <di:waypoint x="628" y="335"/>
+        <di:waypoint x="628" y="335"/>
+        <di:waypoint x="760" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_u1pmdw8u_di" bpmnElement="bpmn_u_MOW17DOX_u1pmdw8u">
+        <di:waypoint x="890" y="335"/>
+        <di:waypoint x="940" y="335"/>
+        <di:waypoint x="940" y="525"/>
+        <di:waypoint x="1090" y="525"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_e5wqjrwj_di" bpmnElement="bpmn_u_MOW17DOX_e5wqjrwj">
+        <di:waypoint x="1220" y="525"/>
+        <di:waypoint x="1360" y="525"/>
+        <di:waypoint x="1360" y="525"/>
+        <di:waypoint x="1420" y="525"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_03icv4t_Duty_di" bpmnElement="assocOut_dobj_instr_uid_Activity_03icv4t_Duty">
+        <di:waypoint x="165" y="690"/>
+        <di:waypoint x="495" y="560"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_03icv4t_Duty_di" bpmnElement="assocIn_dobj_instr_uid_Activity_03icv4t_Duty">
+        <di:waypoint x="495" y="510"/>
+        <di:waypoint x="825" y="380"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_1u8l6hb_Flow_di" bpmnElement="assocOut_dobj_instr_uid_Activity_1u8l6hb_Flow">
+        <di:waypoint x="340" y="690"/>
+        <di:waypoint x="747.5" y="655"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_1u8l6hb_Flow_di" bpmnElement="assocIn_dobj_instr_uid_Activity_1u8l6hb_Flow">
+        <di:waypoint x="747.5" y="605"/>
+        <di:waypoint x="1155" y="570"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="bpmn_uid_Activity_13e86yb_diagram">
+    <bpmndi:BPMNPlane id="bpmn_uid_Activity_13e86yb_plane" bpmnElement="bpmn_uid_Activity_13e86yb">
+      <bpmndi:BPMNShape id="dobj_instr_uid_Activity_0gc2qjt_Temperature_di" bpmnElement="dobj_instr_uid_Activity_0gc2qjt_Temperature">
+        <dc:Bounds x="312" y="415" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_061upw8_di" bpmnElement="bpmn_uid_Activity_061upw8">
+        <dc:Bounds x="760" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0h23axj_di" bpmnElement="bpmn_uid_Activity_0h23axj">
+        <dc:Bounds x="760" y="100" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_1rs6esf_di" bpmnElement="bpmn_uid_Activity_1rs6esf">
+        <dc:Bounds x="430" y="290" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Activity_0gc2qjt_di" bpmnElement="bpmn_uid_Activity_0gc2qjt">
+        <dc:Bounds x="100" y="500" width="130" height="90"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_0wtdvnz_di" bpmnElement="bpmn_uid_Event_0wtdvnz" isHorizontal="false">
+        <dc:Bounds x="100" y="309" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="bpmn_uid_Event_0rcr9aw_di" bpmnElement="bpmn_uid_Event_0rcr9aw" isHorizontal="false">
+        <dc:Bounds x="1090" y="309" width="52" height="52"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_05co5sal_di" bpmnElement="bpmn_u_MOW17DOX_05co5sal">
+        <di:waypoint x="560" y="335"/>
+        <di:waypoint x="700" y="335"/>
+        <di:waypoint x="700" y="335"/>
+        <di:waypoint x="760" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_p52tchh2_di" bpmnElement="bpmn_u_MOW17DOX_p52tchh2">
+        <di:waypoint x="890" y="335"/>
+        <di:waypoint x="943" y="335"/>
+        <di:waypoint x="943" y="249"/>
+        <di:waypoint x="707" y="249"/>
+        <di:waypoint x="707" y="145"/>
+        <di:waypoint x="760" y="145"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_g2avves6_di" bpmnElement="bpmn_u_MOW17DOX_g2avves6">
+        <di:waypoint x="890" y="145"/>
+        <di:waypoint x="961" y="145"/>
+        <di:waypoint x="961" y="258"/>
+        <di:waypoint x="359" y="258"/>
+        <di:waypoint x="359" y="300.8"/>
+        <di:waypoint x="430" y="300.8"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_ryfsy144_di" bpmnElement="bpmn_u_MOW17DOX_ryfsy144">
+        <di:waypoint x="152" y="335"/>
+        <di:waypoint x="316" y="335"/>
+        <di:waypoint x="316" y="335"/>
+        <di:waypoint x="430" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="bpmn_u_MOW17DOX_pnv81mev_di" bpmnElement="bpmn_u_MOW17DOX_pnv81mev">
+        <di:waypoint x="560" y="349.4"/>
+        <di:waypoint x="667" y="349.4"/>
+        <di:waypoint x="667" y="482"/>
+        <di:waypoint x="958" y="482"/>
+        <di:waypoint x="958" y="335"/>
+        <di:waypoint x="1090" y="335"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocOut_dobj_instr_uid_Activity_0gc2qjt_Temperature_di" bpmnElement="assocOut_dobj_instr_uid_Activity_0gc2qjt_Temperature">
+        <di:waypoint x="165" y="500"/>
+        <di:waypoint x="330" y="465"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="assocIn_dobj_instr_uid_Activity_0gc2qjt_Temperature_di" bpmnElement="assocIn_dobj_instr_uid_Activity_0gc2qjt_Temperature">
+        <di:waypoint x="330" y="415"/>
+        <di:waypoint x="495" y="380"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
