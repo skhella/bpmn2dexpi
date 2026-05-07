@@ -13,7 +13,7 @@ A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DE
 
 ## Prerequisites
 
-- **Node.js** 18+ (recommended: 20 LTS)
+- **Node.js** 20 LTS or newer (jsdom 29 requires Node 20+)
 - **npm** 9+
 - **xmllint** (for XSD validation in Node/CLI — `libxml2-utils` on Linux, `brew install libxml2` on macOS). Browser contexts use a structural fallback.
 
@@ -110,7 +110,7 @@ npm run test:watch    # watch mode
 npm run test:coverage # with coverage
 ```
 
-Unit tests (transformer, registry, validation) plus an end-to-end integration benchmark using the Tennessee Eastman PFD. CI runs on Node.js 18 / 20 / 22 via GitHub Actions.
+Unit tests (transformer, registry, validation) plus an end-to-end integration benchmark using the Tennessee Eastman PFD. CI runs on Node.js 20 / 22 / 24 via GitHub Actions.
 
 ## Based on Research
 
