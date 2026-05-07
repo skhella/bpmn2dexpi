@@ -2262,53 +2262,6 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 </div>
               );
             })()}
-            {false && materialState.$children?.find((c: any) => c.$type === 'Flow') && (
-              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #90caf9' }}>
-                <strong>Flow Properties:</strong>
-                {(() => {
-                  const flowChild = materialState.$children.find((c: any) => c.$type === 'Flow');
-                  const moleFlowChild = flowChild?.$children?.find((c: any) => c.$type === 'MoleFlow');
-                  const compositionChild = flowChild?.$children?.find((c: any) => c.$type === 'Composition');
-
-                  return (
-                    <>
-                      {moleFlowChild && (
-                        <div>• Mole Flow: {moleFlowChild.$children?.find((c: any) => c.$type === 'Value')?.$body} {moleFlowChild.$children?.find((c: any) => c.$type === 'Unit')?.$body}</div>
-                      )}
-                      {compositionChild && (
-                        <div style={{ marginTop: '8px' }}>
-                          <strong>Composition:</strong>
-                          <div style={{ marginLeft: '12px', fontSize: '0.85rem' }}>
-                            <div>Basis: {compositionChild.$children?.find((c: any) => c.$type === 'Basis')?.$body || 'N/A'}</div>
-                            <div>Display: {compositionChild.$children?.find((c: any) => c.$type === 'Display')?.$body || 'N/A'}</div>
-                            {compositionChild.$children?.filter((c: any) => c.$type === 'Fraction').length > 0 && (
-                              <div style={{ marginTop: '4px' }}>
-                                <strong>Fractions:</strong>
-                                {compositionChild.$children
-                                  .filter((c: any) => c.$type === 'Fraction')
-                                  .map((f: any, idx: number) => {
-                                    const value = parseFloat(f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0');
-                                    const percentage = (value * 100).toFixed(2);
-                                    return <div key={idx}>  Component {idx + 1}: {percentage}%</div>;
-                                  })}
-                                <div style={{ marginTop: '2px', fontWeight: 'bold' }}>
-                                  Total: {compositionChild.$children
-                                    .filter((c: any) => c.$type === 'Fraction')
-                                    .reduce((sum: number, f: any) => {
-                                      const value = parseFloat(f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0');
-                                      return sum + value;
-                                    }, 0) * 100}%
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            )}
           </div>
         )}
       </div>

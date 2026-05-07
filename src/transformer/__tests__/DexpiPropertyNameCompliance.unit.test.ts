@@ -36,10 +36,12 @@ import { generateProfileFromDexpiXml } from '../DexpiProfileGenerator';
 
 // jsdom polyfill — the validator uses DOMParser through globalThis.
 const dom = new JSDOM('<!DOCTYPE html>');
-(globalThis as any).DOMParser = dom.window.DOMParser;
-(globalThis as any).XMLSerializer = dom.window.XMLSerializer;
-(globalThis as any).Document = dom.window.Document;
-(globalThis as any).Element = dom.window.Element;
+Object.assign(globalThis, {
+  DOMParser: dom.window.DOMParser,
+  XMLSerializer: dom.window.XMLSerializer,
+  Document: dom.window.Document,
+  Element: dom.window.Element,
+});
 
 const SCHEMA_DIR = join(__dirname, '../../../dexpi-schema-files');
 const TEP_BPMN_PATH = join(__dirname, '../../../examples/Tennessee_Eastman_Process.bpmn');
