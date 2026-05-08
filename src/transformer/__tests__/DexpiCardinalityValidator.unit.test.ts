@@ -86,29 +86,24 @@ describe('Tier 5: cardinality validator', () => {
     expect(validateEmittedDexpiCardinality(xml, 'unit', REGISTRY)).toEqual([]);
   });
 
-  it('TEP regression: only Method authoring gaps remain (12 across 5 ProcessStep subclasses)', async () => {
+  it('TEP regression: zero cardinality findings after Method literals are filled in', async () => {
     const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(bpmn);
     const failures = validateEmittedDexpiCardinality(out, 'TEP', REGISTRY);
     // Earlier this test snapshotted ~229 cardinality violations dominated by
     // missing ConnectorReference / DisplayText / Description / EngineeringModel
-    // headers. All of those are now emitted from the transformer (using
-    // registry-driven defaults — no name-similarity heuristics). What
-    // remains are 12 missing `Method` literals across the 5 ProcessStep
-    // subclasses TEP exercises (ReactingChemicals, RemovingThermalEnergy,
-    // ExchangingThermalEnergy, Compressing, Cooling). Method is a class-
-    // specific enum (CompressionMethod / ReactionProcessType /
-    // HeatExchangeMethod) whose value is genuine project-authoring data —
-    // the BPMN fixture must supply it; the transformer cannot fabricate it
-    // without guessing the unit's technology.
-    expect(failures.length).toBe(12);
-    const uniqueKeys = new Set(failures.map(f => `${f.className}.${f.propertyName}`));
-    expect(uniqueKeys.size).toBe(5);
-    expect(failures.every(f => f.propertyName === 'Method')).toBe(true);
-    // No ConnectorReference / DisplayText / Description / OriginatingSystem*
-    // gaps should remain — the transformer emits those.
+    // headers. All of those are now emitted from the transformer using
+    // registry-driven defaults — no name-similarity heuristics. The 12
+    // Method literals that previously remained as authoring gaps are now
+    // supplied directly in the TEP fixture using DEXPI 2.0's conservative
+    // enum defaults — `Unspecified` for ReactionProcessType / CompressionMethod
+    // and `Generic` for HeatExchangeMethod (HeatExchangeMethod has no
+    // `Unspecified` literal). The fixture asserts no geometry; the
+    // documented-vs-convention split lives in the paper, not in the data.
+    expect(failures).toEqual([]);
     expect(failures.some(f => f.propertyName === 'ConnectorReference')).toBe(false);
     expect(failures.some(f => f.propertyName === 'DisplayText')).toBe(false);
+    expect(failures.some(f => f.propertyName === 'Method')).toBe(false);
   });
 });

@@ -65,10 +65,10 @@ describe('Strict mode — all five post-XSD tiers wired', () => {
     // Reference target-class: clean now that the transformer materialises
     // the ListOfMaterialComponents wrapper for MaterialTemplate.ListOfComponents.
     expect(t.lastReferenceValidation!.valid).toBe(true);
-    // Cardinality: TEP still has 12 missing Method literals (project-
-    // authoring data the transformer cannot fabricate without guessing).
-    expect(t.lastCardinalityValidation!.errors.length).toBeGreaterThan(0);
-    expect(t.lastCardinalityValidation!.errors.every(e => /\.Method:/.test(e))).toBe(true);
+    // Cardinality: clean now that the TEP fixture supplies the 12 Method
+    // literals directly (conservative-default enum literals — see the
+    // cardinality validator unit test for the rationale).
+    expect(t.lastCardinalityValidation!.valid).toBe(true);
     // Class existence: defense-in-depth post-condition. After resolveStepType
     // + ProcessStep fallback, TEP must not emit any unknown classes.
     expect(t.lastClassExistenceValidation!.valid).toBe(true);
@@ -99,12 +99,13 @@ describe('Strict mode — all five post-XSD tiers wired', () => {
       w.includes('Strict-mode fidelity findings'),
     );
     expect(summaryWarning).toBeDefined();
-    // Cardinality is the remaining tier with findings on TEP (Method
-    // authoring gaps); property-name + kind appears too (Profile-extension
-    // territory). Reference target-class is clean now that the transformer
-    // emits the ListOfMaterialComponents wrapper.
-    expect(summaryWarning).toContain('cardinality');
+    // Property-name + kind is the remaining tier with findings on TEP
+    // (Profile-extension territory — custom property names like
+    // `MeasuredVariableLabel` and `MoleFlow` not declared in DEXPI 2.0).
+    // Cardinality, reference target-class and data-type are all clean.
     expect(summaryWarning).toContain('property-name + kind');
+    expect(summaryWarning).not.toContain('cardinality');
     expect(summaryWarning).not.toContain('reference target-class');
+    expect(summaryWarning).not.toContain('data-type');
   });
 });
