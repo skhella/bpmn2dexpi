@@ -86,6 +86,37 @@ describe('Tier 5: cardinality validator', () => {
     expect(validateEmittedDexpiCardinality(xml, 'unit', REGISTRY)).toEqual([]);
   });
 
+  it('flags missing Method on each ProcessStep subclass that declares it lower=1', () => {
+    // Synthetic counterpart to the TEP fixture-state snapshot below: confirms
+    // the validator detects Method gaps independently of any particular
+    // fixture. ReactingChemicals, RemovingThermalEnergy, ExchangingThermalEnergy
+    // and Compressing all declare Method as DataProperty(lower=1, upper=1)
+    // pointing at a class-specific enum (ReactionProcessType /
+    // HeatExchangeMethod / CompressionMethod). An Object of any of these
+    // classes with no <Data property="Method"> child must surface exactly
+    // one cardinality finding on `<ClassName>.Method`.
+    const classes = [
+      'ReactingChemicals',
+      'RemovingThermalEnergy',
+      'ExchangingThermalEnergy',
+      'Compressing',
+    ];
+    for (const cls of classes) {
+      const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+        <Object id="s_${cls}" type="Process/Process.${cls}">
+          <Data property="Identifier"><String>${cls}</String></Data>
+          <Data property="Label"><String>${cls}</String></Data>
+        </Object>
+      </Model>`;
+      const failures = validateEmittedDexpiCardinality(xml, 'unit', REGISTRY);
+      const methodFailure = failures.find(f =>
+        f.className === cls && f.propertyName === 'Method');
+      expect(methodFailure, `missing finding for ${cls}.Method`).toBeDefined();
+      expect(methodFailure!.expectedLower).toBe(1);
+      expect(methodFailure!.actualCount).toBe(0);
+    }
+  });
+
   it('TEP regression: zero cardinality findings after Method literals are filled in', async () => {
     const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
     const t = new BpmnToDexpiTransformer();
