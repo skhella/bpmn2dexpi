@@ -433,6 +433,24 @@ export class DexpiProcessClassRegistry {
   get enumerationCount(): number {
     return this.enumerations.size;
   }
+
+  /**
+   * Resolve the enumeration literals for a specific property on a class,
+   * walking the supertype chain. Returns null when the class is unknown,
+   * the property is not declared on the class (or its supertypes), or its
+   * target type is not an Enumeration. Used by the properties-panel
+   * attribute editor to render the value field as a dropdown of literals
+   * + a Custom escape hatch when the schema/Profile defines an enum type.
+   */
+  getEnumLiteralsForProperty(className: string, propName: string): string[] | null {
+    if (!this.classes.has(className)) return null;
+    const prop = this.getProperties(className).find(p => p.name === propName);
+    if (!prop || !prop.targetType) return null;
+    const enumName = parseTypeRef(prop.targetType);
+    if (!enumName) return null;
+    const literals = this.enumerations.get(enumName);
+    return literals ? [...literals] : null;
+  }
 }
 
 // ── Schema-XML parsing internals ──────────────────────────────────────────
