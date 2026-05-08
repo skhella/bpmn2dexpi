@@ -643,63 +643,55 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
               autoFocus
             />
           </label>
-          {customTypeName && (
-            <label style={{ marginTop: '8px', display: 'block' }}>
-              Supertype (parent DEXPI class) <span style={{ color: '#c0392b' }}>*</span>:
-              <select
-                value={customSuperType}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCustomSuperType(val);
-                  updateDexpiElement({ customSuperType: val || undefined });
-                }}
-                aria-required="true"
-                aria-invalid={!customSuperType}
-                style={!customSuperType ? { borderColor: '#c0392b', outline: '1px solid #f5c6cb' } : undefined}
-              >
-                <option value="">Select parent class...</option>
-                {dropdownClasses.map(cls => (
-                  <option key={cls} value={cls}>{cls}</option>
-                ))}
-              </select>
-            </label>
-          )}
-          {customTypeName && !customSuperType && (
+          <label style={{ marginTop: '8px', display: 'block' }}>
+            Supertype (parent DEXPI class) <span style={{ color: '#c0392b' }}>*</span>:
+            <select
+              value={customSuperType}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomSuperType(val);
+                updateDexpiElement({ customSuperType: val || undefined });
+              }}
+              aria-required="true"
+              aria-invalid={!customSuperType}
+              style={!customSuperType ? { borderColor: '#c0392b', outline: '1px solid #f5c6cb' } : undefined}
+            >
+              <option value="">Select parent class...</option>
+              {dropdownClasses.map(cls => (
+                <option key={cls} value={cls}>{cls}</option>
+              ))}
+            </select>
+          </label>
+          {!customSuperType && (
             <div style={{ fontSize: '0.78rem', color: '#c0392b', marginTop: '3px', fontWeight: 600 }}>
               Required for custom classes. Without a supertype the export falls back to
               generic <code>ProcessStep</code> and the custom class name is lost on reload.
             </div>
           )}
-          {customTypeName && (
-            <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
-              Pick the closest DEXPI class your custom class extends. The Profile generator
-              emits <code>&lt;ConcreteClass name="{customTypeName}" superTypes="..."/&gt;</code>
-              with this supertype; loading the generated Profile makes the class known to the
-              registry on subsequent transforms.
-            </div>
-          )}
-          {customTypeName && (
-            <label style={{ marginTop: '8px', display: 'block' }}>
-              Reference URI (optional):
-              <input
-                type="text"
-                value={customUri}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCustomUri(val);
-                  updateDexpiElement({ customUri: val });
-                }}
-                placeholder="e.g. https://data.15926.org/rdl/R1234"
-                style={{ fontFamily: 'monospace', fontSize: '0.88em' }}
-              />
-            </label>
-          )}
-          {customTypeName && (
-            <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
-              URI referencing the class in an external RDL (ISO 15926, OntoCAPE, company RDL).
-              Stored as <code>ReferenceUri</code> in the DEXPI output.
-            </div>
-          )}
+          <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
+            Pick the closest DEXPI class your custom class extends. The Profile generator
+            emits <code>&lt;ConcreteClass name="{customTypeName || '...'}" superTypes="..."/&gt;</code>
+            with this supertype; loading the generated Profile makes the class known to the
+            registry on subsequent transforms.
+          </div>
+          <label style={{ marginTop: '8px', display: 'block' }}>
+            Reference URI (optional):
+            <input
+              type="text"
+              value={customUri}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomUri(val);
+                updateDexpiElement({ customUri: val });
+              }}
+              placeholder="e.g. https://data.15926.org/rdl/R1234"
+              style={{ fontFamily: 'monospace', fontSize: '0.88em' }}
+            />
+          </label>
+          <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
+            URI referencing the class in an external RDL (ISO 15926, OntoCAPE, company RDL).
+            Stored as <code>ReferenceUri</code> in the DEXPI output.
+          </div>
         </div>
       )}
 
