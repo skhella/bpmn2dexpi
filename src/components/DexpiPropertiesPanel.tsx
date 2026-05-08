@@ -147,6 +147,176 @@ function computeRequiredPlaceholderProps(
 }
 
 /**
+ * Data-kind property names declared (or inherited) on `className`, with
+ * transformer-auto-emitted ones (Identifier/Label/etc.) filtered out.
+ * Drives the Name dropdown in the attribute editor — same UX shape as the
+ * dexpiType class dropdown: schema-known options + a Custom escape hatch.
+ * Loaded Profiles flow in through `registry.getProperties`, so any
+ * Profile-declared property automatically widens the dropdown.
+ */
+function dataPropertyNamesForClass(
+  registry: DexpiProcessClassRegistry | null,
+  className: string,
+): string[] {
+  if (!registry || !registry.isValidClass(className)) return [];
+  return registry
+    .getProperties(className)
+    .filter(p => p.kind === 'data')
+    .filter(p => !isAutoEmittedByTransformer(className, p.name, registry))
+    .map(p => p.name)
+    .sort();
+}
+
+/**
+ * Attribute Name + Value editor row.
+ *
+ * Mirrors the dexpiType dropdown UX one level down — for each attribute,
+ *  - Name: <select> of schema-known data-property names for the wrapping
+ *    class, plus a "— Custom..." option that switches to a free-text
+ *    input. Falls back to a plain free-text input when the registry
+ *    knows no class properties (e.g. unknown class, registry not loaded).
+ *  - Value: when the chosen Name resolves to an Enumeration-typed property
+ *    in the schema/Profile, a <select> of the enum literals + Custom
+ *    fallback. Otherwise (primitive types, or Custom name), a plain
+ *    free-text input — preserving the panel's current behavior for
+ *    non-enum data.
+ *
+ * Custom-mode is held as local state per row so the Custom toggle survives
+ * even when the typed value happens to coincide with a known literal /
+ * property name. Initial mode is derived from the persisted value.
+ */
+const AttributeNameValueRow: React.FC<{
+  attr: { name?: string; value?: string };
+  registry: DexpiProcessClassRegistry | null;
+  className: string;
+  onChange: (updates: { name?: string; value?: string }) => void;
+}> = ({ attr, registry, className, onChange }) => {
+  const knownNames = React.useMemo(
+    () => dataPropertyNamesForClass(registry, className),
+    [registry, className],
+  );
+
+  const valueLiterals = React.useMemo<string[] | null>(() => {
+    if (!registry || !attr.name) return null;
+    return registry.getEnumLiteralsForProperty(className, attr.name) ?? null;
+  }, [registry, className, attr.name]);
+
+  const [nameCustom, setNameCustom] = React.useState<boolean>(
+    !!attr.name && knownNames.length > 0 && !knownNames.includes(attr.name),
+  );
+  const [valueCustom, setValueCustom] = React.useState<boolean>(
+    !!attr.value && valueLiterals !== null && !valueLiterals.includes(attr.value),
+  );
+
+  // Re-derive when the wrapping class changes (different element selected),
+  // so a row that was Custom on Reactor doesn't stay Custom when the user
+  // jumps to a Compressor where the same name now is known. We don't depend
+  // on attr.name/value here on purpose — those toggle interactively below.
+  React.useEffect(() => {
+    setNameCustom(!!attr.name && knownNames.length > 0 && !knownNames.includes(attr.name));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [knownNames]);
+  React.useEffect(() => {
+    setValueCustom(!!attr.value && valueLiterals !== null && !valueLiterals.includes(attr.value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valueLiterals]);
+
+  const handleNameSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value;
+    if (v === '__custom__') {
+      setNameCustom(true);
+      onChange({ name: '' });
+    } else {
+      setNameCustom(false);
+      onChange({ name: v });
+    }
+  };
+
+  const handleValueSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value;
+    if (v === '__custom__') {
+      setValueCustom(true);
+      onChange({ value: '' });
+    } else {
+      setValueCustom(false);
+      onChange({ value: v });
+    }
+  };
+
+  const showNameDropdown = knownNames.length > 0;
+  const nameSelectValue = nameCustom
+    ? '__custom__'
+    : (attr.name && knownNames.includes(attr.name) ? attr.name : '');
+
+  const showValueDropdown = valueLiterals !== null && !nameCustom;
+  const valueSelectValue = valueCustom
+    ? '__custom__'
+    : (attr.value && valueLiterals && valueLiterals.includes(attr.value) ? attr.value : '');
+
+  return (
+    <>
+      <label>
+        Name:
+        {showNameDropdown ? (
+          <select value={nameSelectValue} onChange={handleNameSelect}>
+            <option value="">-- Select --</option>
+            {knownNames.map(n => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+            <option value="__custom__">— Custom...</option>
+          </select>
+        ) : (
+          <input
+            type="text"
+            value={attr.name || ''}
+            onChange={(e) => onChange({ name: e.target.value })}
+          />
+        )}
+        {showNameDropdown && nameCustom && (
+          <input
+            type="text"
+            value={attr.name || ''}
+            onChange={(e) => onChange({ name: e.target.value })}
+            placeholder="Custom attribute name..."
+            autoFocus
+            style={{ marginTop: '4px' }}
+          />
+        )}
+      </label>
+
+      <label>
+        Value:
+        {showValueDropdown ? (
+          <select value={valueSelectValue} onChange={handleValueSelect}>
+            <option value="">-- Select --</option>
+            {valueLiterals!.map(lit => (
+              <option key={lit} value={lit}>{lit}</option>
+            ))}
+            <option value="__custom__">— Custom...</option>
+          </select>
+        ) : (
+          <input
+            type="text"
+            value={attr.value || ''}
+            onChange={(e) => onChange({ value: e.target.value })}
+          />
+        )}
+        {showValueDropdown && valueCustom && (
+          <input
+            type="text"
+            value={attr.value || ''}
+            onChange={(e) => onChange({ value: e.target.value })}
+            placeholder="Custom value..."
+            autoFocus
+            style={{ marginTop: '4px' }}
+          />
+        )}
+      </label>
+    </>
+  );
+};
+
+/**
  * Map a BPMN-side `<dexpi:stream streamType="...">` discriminator to the
  * DEXPI class the transformer emits for it. Mirrors the same map in
  * BpmnToDexpiTransformer.streamTypeToDexpiClass and DexpiProfileGenerator's
@@ -1484,29 +1654,18 @@ const ProcessStepAttributesSection: React.FC<{
             <button onClick={() => removeAttribute(index)} className="btn-remove">×</button>
           </div>
           
-          <label>
-            Name:
-            <input 
-              type="text" 
-              value={attr.name || ''} 
-              onChange={(e) => updateAttribute(index, { name: e.target.value })}
-            />
-          </label>
-
-          <label>
-            Value:
-            <input 
-              type="text" 
-              value={attr.value || ''} 
-              onChange={(e) => updateAttribute(index, { value: e.target.value })}
-            />
-          </label>
+          <AttributeNameValueRow
+            attr={attr}
+            registry={registry}
+            className={className}
+            onChange={(updates) => updateAttribute(index, updates)}
+          />
 
           <label>
             Unit:
-            <input 
-              type="text" 
-              value={attr.unit || ''} 
+            <input
+              type="text"
+              value={attr.unit || ''}
               onChange={(e) => updateAttribute(index, { unit: e.target.value })}
               placeholder="e.g., kg/h, °C, bar"
             />
@@ -1514,7 +1673,7 @@ const ProcessStepAttributesSection: React.FC<{
 
           <label>
             Scope:
-            <select 
+            <select
               value={attr.scope || ''}
               onChange={(e) => updateAttribute(index, { scope: e.target.value })}
             >
@@ -2597,14 +2756,12 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               <button onClick={() => removeAttribute(index)} className="btn-remove">×</button>
             </div>
             
-            <label>
-              Name:
-              <input 
-                type="text" 
-                value={attr.name || ''} 
-                onChange={(e) => updateAttribute(index, { name: e.target.value })}
-              />
-            </label>
+            <AttributeNameValueRow
+              attr={attr}
+              registry={augmentedRegistry}
+              className={streamClassName}
+              onChange={(updates) => updateAttribute(index, updates)}
+            />
 
             <label>
               Name URI:
@@ -2614,15 +2771,6 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 onChange={(e) => updateAttribute(index, { nameUri: e.target.value })}
                 placeholder="e.g. https://qudt.org/vocab/quantitykind/MassFlowRate"
                 style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
-              />
-            </label>
-
-            <label>
-              Value:
-              <input 
-                type="text" 
-                value={attr.value || ''} 
-                onChange={(e) => updateAttribute(index, { value: e.target.value })}
               />
             </label>
 
