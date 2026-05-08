@@ -875,11 +875,13 @@ export class BpmnToDexpiTransformer {
       if (componentRefs.length === 0) {
         // Legacy bare-name fallback.
         const listOfComponents = Array.from(template.children).find((c: Element) =>
-          c.localName === 'ListOfComponents' || c.localName === 'ListOfMaterialComponents'
+          c.localName === 'ListOfComponents' || c.localName === 'listOfComponents' ||
+          c.localName === 'ListOfMaterialComponents' || c.localName === 'listOfMaterialComponents'
         );
         if (listOfComponents) {
           const refs = Array.from(listOfComponents.children).filter((c: Element) =>
-            c.localName === 'Component' || c.localName === 'MaterialComponentIdentifier'
+            c.localName === 'Component' || c.localName === 'component' ||
+            c.localName === 'MaterialComponentIdentifier' || c.localName === 'materialComponentIdentifier'
           );
           refs.forEach((id: Element) => {
             const uidRef = id.getAttribute('uidRef');
@@ -900,10 +902,10 @@ export class BpmnToDexpiTransformer {
         if (ll === 'data' && c.getAttribute('property') === 'PhaseLabel') {
           const text = c.textContent?.trim();
           if (text) phases.push(text);
-        } else if (c.localName === 'PhaseLabel') {
+        } else if (c.localName === 'PhaseLabel' || c.localName === 'phaseLabel') {
           const text = c.textContent?.trim();
           if (text) phases.push(text);
-        } else if (c.localName === 'ListOfPhases') {
+        } else if (c.localName === 'ListOfPhases' || c.localName === 'listOfPhases') {
           this.findByLocalName(c, 'PhaseIdentifier').forEach((p: Element) => {
             const identifier = p.getAttribute('Identifier') || this.getChildText(p, 'Identifier');
             if (identifier) phases.push(identifier);
@@ -1001,7 +1003,8 @@ export class BpmnToDexpiTransformer {
       let mst: Element | undefined;
       if (root) {
         mst = Array.from(root.children).find((c: Element) =>
-          c.localName === 'MaterialStateType' && c.getAttribute('uid') === stateTypeRefUid
+          (c.localName === 'MaterialStateType' || c.localName === 'materialStateType') &&
+          c.getAttribute('uid') === stateTypeRefUid
         ) as Element | undefined;
       }
       if (mst) {
@@ -1027,7 +1030,8 @@ export class BpmnToDexpiTransformer {
         const compRefUid = this.getChildValue(mst, 'Composition', 'uidRef');
         if (compRefUid) {
           const comp = Array.from(root!.children).find((c: Element) =>
-            c.localName === 'Composition' && c.getAttribute('uid') === compRefUid
+            (c.localName === 'Composition' || c.localName === 'composition') &&
+            c.getAttribute('uid') === compRefUid
           ) as Element | undefined;
           if (comp) {
             const display = this.getChildText(comp, 'Display');
@@ -1072,14 +1076,14 @@ export class BpmnToDexpiTransformer {
     // MaterialState→MaterialStateType→Composition restructure.
     if (!flow) {
       const flowElement = Array.from(state.children).find((c: Element) =>
-        c.tagName === 'Flow' || c.localName === 'Flow'
+        (c.localName || '').toLowerCase() === 'flow'
       );
       if (flowElement) {
         const moleFlowElement = Array.from(flowElement.children).find((c: Element) =>
-          c.tagName === 'MoleFlow' || c.localName === 'MoleFlow'
+          (c.localName || '').toLowerCase() === 'moleflow'
         );
         const compositionElement = Array.from(flowElement.children).find((c: Element) =>
-          c.tagName === 'Composition' || c.localName === 'Composition'
+          (c.localName || '').toLowerCase() === 'composition'
         );
         flow = {};
         if (moleFlowElement) {
