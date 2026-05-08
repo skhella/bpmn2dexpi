@@ -1515,7 +1515,7 @@ const ProcessStepAttributesSection: React.FC<{
           <label>
             Scope:
             <select 
-              value={attr.scope || 'Design'} 
+              value={attr.scope || ''}
               onChange={(e) => updateAttribute(index, { scope: e.target.value })}
             >
               <option value="">-- Select Scope --</option>
@@ -1528,7 +1528,7 @@ const ProcessStepAttributesSection: React.FC<{
           <label>
             Range:
             <select 
-              value={attr.range || 'Actual'} 
+              value={attr.range || ''}
               onChange={(e) => updateAttribute(index, { range: e.target.value })}
             >
               <option value="">-- Select Range --</option>
@@ -1541,7 +1541,7 @@ const ProcessStepAttributesSection: React.FC<{
           <label>
             Provenance:
             <select
-              value={attr.provenance || 'Calculated'}
+              value={attr.provenance || ''}
               onChange={(e) => updateAttribute(index, { provenance: e.target.value })}
             >
               <option value="">-- Select Provenance --</option>
@@ -2649,7 +2649,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
             <label>
               Scope:
               <select 
-                value={attr.scope || 'Design'} 
+                value={attr.scope || ''}
                 onChange={(e) => updateAttribute(index, { scope: e.target.value })}
               >
                 <option value="">-- Select Scope --</option>
@@ -2662,7 +2662,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
             <label>
               Range:
               <select 
-                value={attr.range || 'Nominal'} 
+                value={attr.range || ''}
                 onChange={(e) => updateAttribute(index, { range: e.target.value })}
               >
                 <option value="">-- Select Range --</option>
@@ -2675,7 +2675,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
             <label>
               Provenance:
               <select
-                value={attr.provenance || 'Calculated'}
+                value={attr.provenance || ''}
                 onChange={(e) => updateAttribute(index, { provenance: e.target.value })}
               >
                 <option value="">-- Select Provenance --</option>
