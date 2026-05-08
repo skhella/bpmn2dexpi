@@ -18,11 +18,24 @@ import {
   validateEmittedDexpiXml as validateDexpiPropertyNamesImpl,
   failuresToValidationResult as failuresToValidationResultImpl,
 } from './DexpiPropertyNameValidator';
+import { validateEmittedDexpiDataTypes } from './DexpiDataTypeValidator';
+import { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
+import { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
+import { validateEmittedDexpiClassExistence } from './DexpiClassExistenceValidator';
+// Authoritative source of the OriginatingSystem* metadata for the
+// EngineeringModel root. Pulling from package.json keeps "Originating system
+// name = bpmn2dexpi", vendor = author, version = the npm version always in
+// sync; no separate hardcoded copy that could drift.
+import pkg from '../../package.json';
 
 export type { TransformOptions } from './types';
 export { validateDexpiOutput } from './DexpiOutputValidator';
 export { validateEmittedDexpiXml as validateDexpiPropertyNames } from './DexpiPropertyNameValidator';
 export { failuresToValidationResult, formatFailures } from './DexpiPropertyNameValidator';
+export { validateEmittedDexpiDataTypes } from './DexpiDataTypeValidator';
+export { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
+export { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
+export { validateEmittedDexpiClassExistence } from './DexpiClassExistenceValidator';
 
 /**
  * DEXPI BPMN-extension namespace URI. Mirrors dexpi/moddle/dexpi.json's
@@ -44,22 +57,65 @@ export class BpmnToDexpiTransformer {
   private materialStates: Map<string, InternalMaterialState> = new Map();
   private materialStateTypes: Map<string, InternalMaterialStateType> = new Map();
 
+  /**
+   * Lookup populated at the start of buildDexpiModel: sanitized port id →
+   * sanitized ProcessConnection (Stream / InformationFlow) Object id. Lets
+   * port emission satisfy DEXPI's Port.ConnectorReference (lower=1) by
+   * pointing at the connection that uses the port. Built once per transform.
+   */
+  private portConnectorMap: Map<string, string> = new Map();
+
   /** Warnings and errors collected during the last call to transform(). */
   readonly logger = new TransformerLogger();
 
   /**
-   * Property-name validation result from the most recent transform() call,
-   * populated only when strict mode is on. Strict-mode failures never block
-   * file production (DEXPI 2.0 permissive philosophy); they sit here for
-   * the caller (CLI, UI) to surface to the user as warnings.
+   * Tier-2 (property-name + carrier-kind) validation result from the most
+   * recent transform() call, populated only when strict mode is on.
+   * Strict-mode failures never block file production (DEXPI 2.0 permissive
+   * philosophy); they sit here for the caller (CLI, UI) to surface as
+   * warnings.
    */
   lastPropertyNameValidation: ValidationResult | undefined;
+
+  /**
+   * Tier-3 (data-type) validation result. Populated when strict mode is on.
+   * Catches typoed enum literals, non-numeric Doubles, out-of-range
+   * UnsignedBytes, malformed DateTime/AnyURI strings.
+   */
+  lastDataTypeValidation: ValidationResult | undefined;
+
+  /**
+   * Tier-4 (reference target-class) validation result. Populated when
+   * strict mode is on. Catches `<References objects="#X"/>` and
+   * `<ObjectReference object="#X"/>` whose target object's class doesn't
+   * match (or subclass) the declared target class.
+   */
+  lastReferenceValidation: ValidationResult | undefined;
+
+  /**
+   * Tier-5 (cardinality) validation result. Populated when strict mode is
+   * on. Catches missing-required and exceeds-upper-bound property counts.
+   */
+  lastCardinalityValidation: ValidationResult | undefined;
+
+  /**
+   * Tier-6 (class existence) validation result — defense-in-depth post-condition
+   * check. Populated when strict mode is on. Should never fire for clean
+   * transformer runs given the resolveStepType fallback chain; if it does,
+   * either a new emission path bypassed resolveStepType or a Profile that
+   * declared a custom class was not loaded into the validation registry.
+   */
+  lastClassExistenceValidation: ValidationResult | undefined;
 
   async transform(bpmnXml: string, options: TransformOptions = {}): Promise<string> {
 
     // Clear state and log from previous transformations
     this.logger.reset();
     this.lastPropertyNameValidation = undefined;
+    this.lastDataTypeValidation = undefined;
+    this.lastReferenceValidation = undefined;
+    this.lastCardinalityValidation = undefined;
+    this.lastClassExistenceValidation = undefined;
 
     // Load DEXPI class registry. We always include any user-supplied
     // DEXPI Profile extensions so Profile classes (e.g. BiologicalReactor)
@@ -103,7 +159,8 @@ export class BpmnToDexpiTransformer {
     this.materialComponents.clear();
     this.materialStates.clear();
     this.materialStateTypes.clear();
-    
+    this.portConnectorMap.clear();
+
     // Parse BPMN XML
     const bpmnModel = this.parseBpmn(bpmnXml);
     this.doc = bpmnModel;
@@ -124,8 +181,63 @@ export class BpmnToDexpiTransformer {
     // XSD-valid output is exchangeable, and we don't want strict mode to
     // gate users out of getting a deliverable.
     if (options.strict && this.registry.size > 0) {
-      const failures = validateDexpiPropertyNamesImpl(xml, 'transformer output', this.registry);
-      this.lastPropertyNameValidation = failuresToValidationResultImpl(failures);
+      // Tier 2: property-name + carrier-kind fidelity.
+      const nameFailures = validateDexpiPropertyNamesImpl(xml, 'transformer output', this.registry);
+      this.lastPropertyNameValidation = failuresToValidationResultImpl(nameFailures);
+
+      // Tier 3: data-type fidelity (Builtin primitives + Enumeration literals).
+      const dataTypeFailures = validateEmittedDexpiDataTypes(xml, 'transformer output', this.registry);
+      this.lastDataTypeValidation = {
+        valid: dataTypeFailures.length === 0,
+        errors: dataTypeFailures.map(f => `${f.className}.${f.propertyName}: ${f.context}`),
+        warnings: [],
+        mode: 'property-names' as ValidationResult['mode'],
+      };
+
+      // Tier 4: reference target-class compliance.
+      const refFailures = validateEmittedDexpiReferences(xml, 'transformer output', this.registry);
+      this.lastReferenceValidation = {
+        valid: refFailures.length === 0,
+        errors: refFailures.map(f => `${f.className}.${f.propertyName}: ${f.context}`),
+        warnings: [],
+        mode: 'property-names' as ValidationResult['mode'],
+      };
+
+      // Tier 5: cardinality (lower / upper bounds).
+      const cardFailures = validateEmittedDexpiCardinality(xml, 'transformer output', this.registry);
+      this.lastCardinalityValidation = {
+        valid: cardFailures.length === 0,
+        errors: cardFailures.map(f => `${f.className}.${f.propertyName}: ${f.context}`),
+        warnings: [],
+        mode: 'property-names' as ValidationResult['mode'],
+      };
+
+      // Tier 6: class existence — defense-in-depth post-condition.
+      const classFailures = validateEmittedDexpiClassExistence(xml, 'transformer output', this.registry);
+      this.lastClassExistenceValidation = {
+        valid: classFailures.length === 0,
+        errors: classFailures.map(f => `${f.typeRef}: ${f.context}`),
+        warnings: [],
+        mode: 'property-names' as ValidationResult['mode'],
+      };
+
+      // Surface a single aggregated warning to the logger when any tier
+      // produced findings, so CLI / UI consumers see the issue without
+      // having to introspect each `last*Validation` field individually.
+      const totals = [
+        ['property-name + kind',        nameFailures.length],
+        ['data-type',                   dataTypeFailures.length],
+        ['reference target-class',      refFailures.length],
+        ['cardinality',                 cardFailures.length],
+        ['class existence',             classFailures.length],
+      ] as const;
+      const nonZero = totals.filter(([, n]) => n > 0);
+      if (nonZero.length > 0) {
+        const summary = nonZero.map(([label, n]) => `${label}: ${n}`).join(', ');
+        this.logger.warn(`Strict-mode fidelity findings — ${summary}. ` +
+          `Output is still produced (DEXPI 2.0 permissive philosophy); ` +
+          `inspect transformer.last{PropertyName,DataType,Reference,Cardinality,ClassExistence}Validation for details.`);
+      }
     }
 
     return xml;
@@ -228,17 +340,22 @@ export class BpmnToDexpiTransformer {
   private registry: DexpiProcessClassRegistry = DexpiProcessClassRegistry.empty();
 
   /**
-   * Resolve the DEXPI type for a process step — two-mode system:
+   * Resolve the DEXPI type for a process step. Three-mode resolution chain,
+   * tried in priority order; each mode emits a distinct warning so the
+   * caller knows which fallback was taken.
    *
-   * Mode 1 'dexpi-validated':
-   *   dexpiType annotation present AND class is in the official Process.xml
-   *   registry. Clean output, no warning.
+   *   Mode 1 'dexpi-validated' — dexpiType is in the registry. No warning.
    *
-   * Mode 2 'unvalidated':
-   *   Either no dexpiType annotation, OR annotation not found in the registry.
-   *   Both cases export as generic 'ProcessStep'. customUri stored if provided.
-   *   A "did you mean?" hint is emitted when the annotation is a near-miss —
-   *   the suggestion is advisory text only, never used to assign the class.
+   *   Mode 2 'custom-supertype' — dexpiType is NOT in the registry, but
+   *     customSuperType IS. Emit the custom class as the type; the paired
+   *     Profile (generated separately) declares it as a subclass of the
+   *     chosen supertype. Warns that a Profile must accompany the export.
+   *
+   *   Mode 3 'unvalidated' — no annotation, or neither dexpiType nor
+   *     customSuperType is recognised. Falls back to generic ProcessStep.
+   *     The warning is specific about which input was missing or unknown
+   *     so the user can fix the source. No fuzzy "did you mean?" hint
+   *     (R1-C3: heuristic class matching is out of scope).
    */
   private resolveStepType(
     annotatedType: string | undefined,
@@ -248,31 +365,55 @@ export class BpmnToDexpiTransformer {
     taskId: string
   ): StepTypingResult {
 
+    const registryReady = this.registry.size > 0;
+
     // ── Mode 1: explicit annotation, validated against registry ──────────────
-    if (annotatedType) {
-      if (this.registry.size === 0 || this.registry.isValidClass(annotatedType)) {
-        return { dexpiClass: annotatedType, mode: 'dexpi-validated' };
-      }
+    if (annotatedType && (!registryReady || this.registry.isValidClass(annotatedType))) {
+      return { dexpiClass: annotatedType, mode: 'dexpi-validated' };
     }
 
-    // ── Mode 2: unvalidated — no annotation OR unrecognised type ─────────────
-    // Both cases are treated identically: generic ProcessStep output.
-    const suggestion = annotatedType ? this.findClosestDexpiClass(annotatedType) : undefined;
-
-    if (annotatedType) {
-      const superHint = customSuperType
-        ? ` (custom class with supertype "${customSuperType}" — pair with a generated Profile to declare the class)`
-        : '';
+    // ── Mode 2: custom class with a known DEXPI supertype ───────────────────
+    // Preserve the custom class name; the Profile generator will declare it
+    // as a ConcreteClass with the chosen supertype. Reload-validate closes
+    // the loop without losing the custom type.
+    if (
+      annotatedType &&
+      customSuperType &&
+      registryReady &&
+      this.registry.isValidClass(customSuperType)
+    ) {
       this.logger.warn(
-        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a recognised ` +
-        `DEXPI 2.0 Process class — exporting as generic ProcessStep${superHint}.` +
-        (suggestion ? ` Did you mean "${suggestion}"?` : '')
+        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is a custom class ` +
+        `(not in the DEXPI Process registry). Emitted as-is; pair this export with a ` +
+        `generated Profile that declares "${annotatedType}" as a subclass of "${customSuperType}".`
+      );
+      return {
+        dexpiClass: annotatedType,
+        mode: 'custom-supertype',
+        customUri,
+        customSuperType,
+      };
+    }
+
+    // ── Mode 3: unvalidated — fall back to generic ProcessStep ──────────────
+    if (annotatedType && customSuperType) {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}): both dexpiType="${annotatedType}" and ` +
+        `customSuperType="${customSuperType}" are unknown to the DEXPI Process registry — ` +
+        `exporting as generic ProcessStep. Pick a known DEXPI class as the supertype to ` +
+        `preserve the custom name.`
+      );
+    } else if (annotatedType) {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not in the ` +
+        `DEXPI Process registry — exporting as generic ProcessStep. Set a customSuperType ` +
+        `(any known DEXPI class) to preserve the custom name and emit a Profile.`
       );
     } else {
       this.logger.warn(
-        `Task "${taskName}" (id=${taskId}) has no dexpiType annotation. ` +
-        `Exporting as generic ProcessStep. ` +
-        `Add a dexpiType in extensionElements to assign a specific DEXPI class.`
+        `Task "${taskName}" (id=${taskId}) has no dexpiType annotation — exporting as ` +
+        `generic ProcessStep. Add a dexpiType in extensionElements to assign a specific ` +
+        `DEXPI class.`
       );
     }
 
@@ -281,18 +422,7 @@ export class BpmnToDexpiTransformer {
       mode: 'unvalidated',
       customUri,
       customSuperType,
-      suggestedDexpiClass: suggestion,
     };
-  }
-  /** Find the closest known DEXPI class for a non-registry type (for suggestions). */
-  private findClosestDexpiClass(unknown: string): string | undefined {
-    if (this.registry.size === 0) return undefined;
-    const lower = unknown.toLowerCase();
-    // Simple prefix/substring match for suggestion
-    return this.registry.concreteClasses().find(c =>
-      c.toLowerCase().startsWith(lower.slice(0, 4)) ||
-      lower.includes(c.toLowerCase().slice(0, 5))
-    );
   }
 
   private extractProcessStep(task: Element, parentId: string | null): void {
@@ -320,7 +450,6 @@ export class BpmnToDexpiTransformer {
       typingMode: typing.mode,
       customUri: typing.customUri,
       customSuperType: typing.customSuperType,
-      suggestedDexpiClass: typing.suggestedDexpiClass,
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
       hierarchyLevel: dexpiData?.hierarchyLevel,
@@ -1355,6 +1484,7 @@ export class BpmnToDexpiTransformer {
           scope: readData('Scope') || 'Design',
           range: readData('Range') || 'Nominal',
           provenance: readData('Provenance') || 'Calculated',
+          required: child.getAttribute('required') === 'true' || undefined,
         });
         continue;
       }
@@ -1367,7 +1497,8 @@ export class BpmnToDexpiTransformer {
           unit: child.getAttribute('unit') || '',
           scope: child.getAttribute('scope') || 'Design',
           range: child.getAttribute('range') || 'Nominal',
-          provenance: child.getAttribute('provenance') || 'Calculated'
+          provenance: child.getAttribute('provenance') || 'Calculated',
+          required: child.getAttribute('required') === 'true' || undefined,
         });
       }
     }
@@ -1450,7 +1581,13 @@ export class BpmnToDexpiTransformer {
 
   private buildDexpiModel(_options: TransformOptions): Record<string, unknown> {
     const modelUid = this.generateUid();
-    
+
+    // Pre-compute port → ProcessConnection (Stream / InformationFlow) Object id
+    // so port emission can satisfy DEXPI Port.ConnectorReference (lower=1).
+    // This must run before buildProcessSteps so the map is populated when each
+    // port object is materialised.
+    this.portConnectorMap = this.buildPortConnectorMap();
+
     // Build ProcessModel object
     const processModelObject: Record<string, unknown> = {
       '$': {
@@ -1568,6 +1705,29 @@ export class BpmnToDexpiTransformer {
       }
     }
 
+    // Add ListsOfMaterialComponents collection (one per MaterialTemplate
+    // that has components). Per Process.xml line 5227, ProcessModel
+    // declares ListsOfMaterialComponents as a CompositionProperty whose
+    // target is /Process.ListOfMaterialComponents — the wrapper class
+    // that aggregates a template's MaterialComponent References. Each
+    // wrapper id is `${templateUid}_ListOfComponents` so the
+    // MaterialTemplate.ListOfComponents reference resolves locally.
+    const listsOfComponents = this.buildListsOfMaterialComponents();
+    if (listsOfComponents.length > 0) {
+      if (!processModelObject.Components) {
+        processModelObject.Components = [];
+      }
+      const listsComponent = {
+        '$': { 'property': 'ListsOfMaterialComponents' },
+        'Object': listsOfComponents,
+      };
+      if (Array.isArray(processModelObject.Components)) {
+        processModelObject.Components.push(listsComponent);
+      } else {
+        processModelObject.Components = [processModelObject.Components, listsComponent];
+      }
+    }
+
     // Add Compositions collection (one per MaterialStateType that carries
     // composition data). Per Process.xml, ProcessModel.Compositions is the
     // CompositionProperty container; MaterialStateType.Composition is the
@@ -1613,6 +1773,27 @@ export class BpmnToDexpiTransformer {
           '$': {
             'type': 'Core/EngineeringModel'
           },
+          // Provenance headers required by DEXPI 2.0 Core/EngineeringModel
+          // (lower=1 each). Sourced from package.json (vendor/version) and
+          // Date.now() (export timestamp); no hardcoded duplicates.
+          'Data': [
+            {
+              '$': { 'property': 'ExportDateTime' },
+              'String': new Date().toISOString(),
+            },
+            {
+              '$': { 'property': 'OriginatingSystemName' },
+              'String': pkg.name,
+            },
+            {
+              '$': { 'property': 'OriginatingSystemVendorName' },
+              'String': pkg.author,
+            },
+            {
+              '$': { 'property': 'OriginatingSystemVersion' },
+              'String': pkg.version,
+            },
+          ],
           'Components': {
             '$': {
               'property': 'ConceptualModel'
@@ -1681,10 +1862,9 @@ export class BpmnToDexpiTransformer {
         }
       }
 
-      // Add ReferenceUri if this is a custom-type step (mode 2)
-      // The type is always ProcessStep; the URI points to the user's RDL class.
-      // Future DEXPI customization work will define a formal mechanism for custom
-      // classes; this conservative approach avoids polluting the type namespace.
+      // Add ReferenceUri if the user supplied a customUri pointing at an
+      // external RDL class. Independent of typing mode — orthogonal to whether
+      // the class is in the DEXPI registry.
       if (step.customUri) {
         if (!Array.isArray(dexpiStep.Data)) {
           dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
@@ -1693,12 +1873,6 @@ export class BpmnToDexpiTransformer {
           '$': { 'property': 'ReferenceUri' },
           'String': step.customUri
         });
-        if (step.suggestedDexpiClass) {
-          (dexpiStep.Data as Record<string, unknown>[]).push({
-            '$': { 'property': 'SuggestedDexpiClass' },
-            'String': step.suggestedDexpiClass
-          });
-        }
       }
 
       // Schema-correct instrumentation handling (DEXPI 2.0 Specification PDF
@@ -1723,6 +1897,22 @@ export class BpmnToDexpiTransformer {
         bareStepType !== undefined &&
         this.registry.hasAncestor(bareStepType, 'InstrumentationActivity');
       if (isInstrumentationActivity) {
+        // InstrumentationActivity declares Description (lower=1) on its
+        // abstract supertype. The BPMN-side `name` is the human-facing
+        // label of this activity in the diagram — exactly what
+        // Description's spec text describes ("a description"). Use it as
+        // the Description value; this is reading an established equivalence
+        // (label ↔ description on the same entity), not a name-similarity
+        // guess.
+        if (step.name) {
+          if (!Array.isArray(dexpiStep.Data)) {
+            dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
+          }
+          (dexpiStep.Data as Record<string, unknown>[]).push({
+            '$': { 'property': 'Description' },
+            'String': step.name,
+          });
+        }
         // Schema asymmetry, intentional and registry-driven (not heuristic):
         // MeasuringProcessVariable declares ProcessStepReference (DEXPI 2.0
         // Spec p.900); the other InstrumentationActivity subclasses
@@ -1843,6 +2033,23 @@ export class BpmnToDexpiTransformer {
           // The short port name (e.g. "MI1") is captured by Identifier
           // already (assigned above to safePortId).
 
+          // ConnectorReference (lower=1, target /Process.ProcessConnection):
+          // points at the Stream / InformationFlow that connects this port.
+          // Pre-computed in buildPortConnectorMap; ports that are not part
+          // of any connection legitimately omit it — the cardinality
+          // validator will surface those as authoring gaps, which is
+          // correct rather than hidden.
+          const connectionUid = this.portConnectorMap.get(safePortId);
+          if (connectionUid) {
+            if (!portObject.References) portObject.References = [];
+            (portObject.References as Record<string, unknown>[]).push({
+              '$': {
+                'property': 'ConnectorReference',
+                'objects': `#${connectionUid}`,
+              },
+            });
+          }
+
           portObjects.push(portObject);
         });
 
@@ -1942,6 +2149,13 @@ export class BpmnToDexpiTransformer {
               dexpiStep.Object = [];
             }
 
+            // DisplayText is required (lower=1) on QualifiedValue. We
+            // derive it deterministically from the inputs we already have:
+            // "<value> <unit>" trimmed when a unit is present, else just
+            // "<value>". This is the obvious canonical rendering of a
+            // physical quantity for human consumption — no name guessing,
+            // no fuzzy formatting heuristic.
+            const displayText = `${attr.value} ${attr.unit}`.trim();
             const qualifiedValueObject: Record<string, unknown> = {
               '$': {
                 'property': attr.name,
@@ -1962,6 +2176,10 @@ export class BpmnToDexpiTransformer {
                       }
                     ]
                   }
+                },
+                {
+                  '$': { 'property': 'DisplayText' },
+                  'String': displayText,
                 }
               ]
             };
@@ -2064,6 +2282,13 @@ export class BpmnToDexpiTransformer {
           const stepEmittedId = this.sanitizeId(step.uid);
           for (const varName of canonicalVars) {
             const safeVar = this.sanitizeId(varName);
+            // QualifiedValue declares Value (lower=1) and DisplayText
+            // (lower=1) — both UnionDataType (Builtin/Undefined | …). The
+            // DEXPI XSD requires <Data> to carry a typed child element;
+            // for placeholder slots that have no actual measurement we
+            // emit <Undefined/>. The actual measurement lives on the
+            // InstrumentationActivity that references this slot via
+            // MeasuredVariableReference.
             (dexpiStep.Components as Record<string, unknown>[]).push({
               '$': { 'property': varName },
               'Object': {
@@ -2071,6 +2296,10 @@ export class BpmnToDexpiTransformer {
                   'id': `${stepEmittedId}_${safeVar}`,
                   'type': 'Core/QualifiedValue',
                 },
+                'Data': [
+                  { '$': { 'property': 'Value' }, 'Undefined': {} },
+                  { '$': { 'property': 'DisplayText' }, 'Undefined': {} },
+                ],
               },
             });
           }
@@ -2078,6 +2307,62 @@ export class BpmnToDexpiTransformer {
       }
 
       return dexpiStep;
+  }
+
+  /**
+   * Resolve every Stream / InformationFlow to its source-port and target-port,
+   * then build a lookup `sanitizedPortId → sanitizedConnectionUid`. The port
+   * emission consults this to satisfy DEXPI Port.ConnectorReference (lower=1)
+   * by pointing each port at the ProcessConnection that uses it.
+   *
+   * Pure registry/topology lookup — no name-similarity, no fuzzy matching:
+   * we re-use findPortForConnection (the same resolver buildStreams uses) so
+   * the references are guaranteed consistent across the two emission paths.
+   *
+   * Streams whose endpoints don't resolve (gateway-only chains, dangling
+   * BPMN refs) contribute no entries. Ports without an entry will not emit
+   * a ConnectorReference and the cardinality validator will (correctly)
+   * surface them — that's the signal a port has no flow attached, which is
+   * a real authoring gap rather than something the transformer should hide.
+   */
+  private buildPortConnectorMap(): Map<string, string> {
+    const map = new Map<string, string>();
+
+    const record = (portId: string | null | undefined, connectionUid: string): void => {
+      if (!portId) return;
+      // Skip streams that the buildStreams loop will itself silently skip
+      // (sourceRef or targetRef is a gateway / unknown — same condition as
+      // the `if (!processSteps.has(...))` guard there). We mirror the guard
+      // to ensure the map only references connections that actually emit.
+      const safePort = this.sanitizeId(portId);
+      if (!map.has(safePort)) map.set(safePort, this.sanitizeId(connectionUid));
+    };
+
+    this.streams.forEach((stream) => {
+      if (!this.processSteps.has(stream.sourceRef) || !this.processSteps.has(stream.targetRef)) {
+        return; // matches buildStreams' skip behaviour
+      }
+      const sourcePort = this.findPortForConnection(stream.sourceRef, stream.sourcePortRef, 'Outlet');
+      const targetPort = this.findPortForConnection(stream.targetRef, stream.targetPortRef, 'Inlet');
+      if (!sourcePort || !targetPort) return;
+      record(sourcePort, stream.uid);
+      record(targetPort, stream.uid);
+    });
+
+    this.informationFlows.forEach((flow) => {
+      if (!this.processSteps.has(flow.sourceRef) || !this.processSteps.has(flow.targetRef)) return;
+      const sourcePort = this.findPortForConnection(
+        flow.sourceRef, flow.sourcePortRef, 'Outlet', 'InformationPort', flow.name
+      );
+      const targetPort = this.findPortForConnection(
+        flow.targetRef, flow.targetPortRef, 'Inlet', 'InformationPort', flow.name
+      );
+      if (!sourcePort || !targetPort) return;
+      record(sourcePort, flow.uid);
+      record(targetPort, flow.uid);
+    });
+
+    return map;
   }
 
   private buildStreams(): Record<string, unknown>[] {
@@ -2186,6 +2471,11 @@ export class BpmnToDexpiTransformer {
               {
                 '$': { 'property': 'Unit' },
                 'String': attr.unit
+              },
+              // DisplayText (lower=1) derived deterministically from inputs.
+              {
+                '$': { 'property': 'DisplayText' },
+                'String': `${attr.value} ${attr.unit}`.trim(),
               }
             ];
 
@@ -2356,6 +2646,38 @@ export class BpmnToDexpiTransformer {
     return flowElements;
   }
 
+  /**
+   * Materialise the wrapper Objects that DEXPI's MaterialTemplate.ListOfComponents
+   * targets. One wrapper per template that has components; each wrapper holds
+   * the per-component References. Per Process.xml lines 2219-2222
+   * (ListOfMaterialComponents class) + 5227 (ProcessModel container). Wrapper
+   * ids are deterministic — `${templateUid}_ListOfComponents` — so the
+   * MaterialTemplate's ListOfComponents reference resolves locally.
+   */
+  private buildListsOfMaterialComponents(): Record<string, unknown>[] {
+    const out: Record<string, unknown>[] = [];
+    this.materialTemplates.forEach((template) => {
+      if (!template.componentRefs || template.componentRefs.length === 0) return;
+      const wrapperId = this.sanitizeId(`${template.uid}_ListOfComponents`);
+      const refs = template.componentRefs.map((ref: string) => `#${this.sanitizeId(ref)}`).join(' ');
+      out.push({
+        '$': {
+          'id': wrapperId,
+          'type': 'Process/Process.ListOfMaterialComponents',
+        },
+        'References': [
+          {
+            '$': {
+              'property': 'Component',
+              'objects': refs,
+            },
+          },
+        ],
+      });
+    });
+    return out;
+  }
+
   private buildMaterialTemplates(): Record<string, unknown>[] {
     const templates: Record<string, unknown>[] = [];
 
@@ -2415,17 +2737,25 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add ListOfComponents if present. Canonical name per Process.xml
-      // line 2439: ListOfComponents is the ReferenceProperty on
-      // MaterialTemplate (target type = ListOfMaterialComponents class).
+      // ListOfComponents is a single-target ReferenceProperty whose declared
+      // target class is /Process.ListOfMaterialComponents (a wrapper class
+      // that holds the per-component References, not the components
+      // themselves). Per Process.xml lines 2219-2222 + 2439-2440. Earlier
+      // versions of this transformer pointed ListOfComponents directly at
+      // individual MaterialComponent objects, which Tier 4 (reference
+      // target-class) correctly flagged as a target-class violation. We
+      // now emit a deterministic wrapper id per template; the wrapper
+      // Object itself is materialised later under
+      // ProcessModel.ListsOfMaterialComponents (CompositionProperty).
       if (template.componentRefs && template.componentRefs.length > 0) {
         if (!dexpiTemplate.References) {
           dexpiTemplate.References = [];
         }
+        const wrapperId = this.sanitizeId(`${template.uid}_ListOfComponents`);
         (dexpiTemplate.References as Record<string, unknown>[]).push({
           '$': {
             'property': 'ListOfComponents',
-            'objects': template.componentRefs.map((ref: string) => `#${this.sanitizeId(ref)}`).join(' ')
+            'objects': `#${wrapperId}`,
           }
         });
       }
@@ -2543,13 +2873,18 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add Description if present
-      if (state.description) {
+      // Description (lower=1): fall back to label, then identifier — both
+      // are deterministic alternative renderings of "what is this state",
+      // not a name-similarity guess. Picking the first non-empty avoids
+      // emitting an empty/Undefined Builtin/String which is also invalid
+      // (the type isn't a UnionDataType admitting Undefined here).
+      const descriptionValue = state.description || state.label || state.identifier;
+      if (descriptionValue) {
         (dexpiState.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Description'
           },
-          'String': state.description
+          'String': descriptionValue
         });
       }
 
@@ -2637,13 +2972,16 @@ export class BpmnToDexpiTransformer {
         if (!dexpiStateType.Components) {
           dexpiStateType.Components = [];
         }
+        const mfValue = stateType.flow.moleFlow.value;
+        const mfUnit = stateType.flow.moleFlow.unit;
         (dexpiStateType.Components as Record<string, unknown>[]).push({
           '$': { 'property': 'MoleFlow' },
           'Object': [{
             '$': { 'type': 'Core/QualifiedValue' },
             'Data': [
-              { '$': { 'property': 'Value' }, 'Double': parseFloat(stateType.flow.moleFlow.value) || 0 },
-              { '$': { 'property': 'Unit' }, 'String': stateType.flow.moleFlow.unit },
+              { '$': { 'property': 'Value' }, 'Double': parseFloat(mfValue) || 0 },
+              { '$': { 'property': 'Unit' }, 'String': mfUnit },
+              { '$': { 'property': 'DisplayText' }, 'String': `${mfValue} ${mfUnit}`.trim() },
             ],
           }],
         });

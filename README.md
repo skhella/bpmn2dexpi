@@ -59,28 +59,30 @@ The transformer is a standalone, framework-independent TypeScript module — usa
 
 ```
 src/transformer/
-├── BpmnToDexpiTransformer.ts      # Core BPMN → DEXPI 2.0 transformation
-├── DexpiProcessClassRegistry.ts   # Loads Process.xml → authoritative class list
-├── DexpiOutputValidator.ts        # XSD validation (xmllint) + structural fallback
-├── TransformerLogger.ts           # Warning/error collection
-├── types.ts                       # Typed interfaces
-└── __tests__/                     # automated tests
+├── BpmnToDexpiTransformer.ts        # Core BPMN → DEXPI 2.0 transformation
+├── DexpiProcessClassRegistry.ts     # Loads the DEXPI schemas + any Profiles
+├── DexpiOutputValidator.ts          # XSD validation + structural fallback
+├── DexpiPropertyNameValidator.ts    # Strict-mode fidelity checks
+├── DexpiDataTypeValidator.ts        #   (property names, data types,
+├── DexpiReferenceValidator.ts       #    reference targets, cardinality,
+├── DexpiCardinalityValidator.ts     #    class existence)
+├── DexpiClassExistenceValidator.ts  #
+├── DexpiProfileGenerator.ts         # Generates a Profile XML closing strict gaps
+├── TransformerLogger.ts
+├── types.ts
+└── __tests__/
 
 dexpi-schema-files/
-├── DEXPI_XML_Schema.xsd           # Official DEXPI 2.0 XML Schema
-└── Process.xml                    # DEXPI 2.0 Process model (replace to update)
+├── DEXPI_XML_Schema.xsd             # Official DEXPI 2.0 XML Schema
+├── Process.xml                      # DEXPI 2.0 Process model
+└── Core.xml                         # DEXPI 2.0 Core model
 ```
 
 ## Validation
 
-DEXPI 2.0 is intentionally permissive: any output conforming to the official XSD is exchangeable. The tool offers two validation paths:
+Every export is checked against the official DEXPI 2.0 XML Schema, so the file you get is always exchangeable with other DEXPI tools.
 
-- **XSD validation** (always on) — output validates against the bundled `DEXPI_XML_Schema.xsd` via xmllint in Node/CLI, or a structural fallback in the browser. Property names are treated as opaque strings.
-- **Strict information-model fidelity** (opt-in) — additionally checks every `Data` / `Components` / `References` `property=` attribute against the wrapping class's declared properties in `Process.xml` + `Core.xml` (walking supertypes), and verifies the carrier element matches the declared kind (data / reference / composition).
-
-Strict-mode findings never block file production. They surface as warnings (UI / console) or a non-zero CLI exit code, but the deliverable always lands on disk.
-
-Enable strict mode via the **Strict** checkbox in the export dialog, the `--strict` CLI flag, or `{ strict: true }` on `transformer.transform()`.
+Turn on **Strict mode** (export dialog checkbox, `--strict` CLI flag, or `{ strict: true }` on `transformer.transform()`) for deeper fidelity checks: property names, data types, reference targets, required-property cardinality, and class existence. Strict mode never blocks the export — it produces a summary dialog (or CLI output) listing what doesn't match the schema, so you can fix it in the panel or capture it in a generated Profile.
 
 ## Extension mechanisms
 
@@ -96,7 +98,7 @@ Two complementary ways to handle process content beyond the core DEXPI 2.0 vocab
 - **CLI** — `--profile FILE` (repeatable) loads Profiles; `--generate-profile FILE` writes a Profile derived from the input model.
 - **Library API** — pass `profileXmls: [{ name, xml }]` to `transformer.transform()`.
 
-The generator is deterministic (alphabetical output, no timestamps — safe to commit) and uses conservative type defaults.
+The generator is deterministic (alphabetical, no timestamps — safe to commit) and infers types and bounds from the actual model so the Profile is precise rather than permissive. To make authoring less guesswork, the properties panel auto-shows the attributes a class needs (e.g. `Method` on a Compressor) as empty rows ready to fill in, and a **Required in generated Profile** checkbox lets you tag project-specific attributes so they're enforced on reload.
 
 Profiles are runtime-only — they live for the current CLI process or browser session and are not persisted.
 

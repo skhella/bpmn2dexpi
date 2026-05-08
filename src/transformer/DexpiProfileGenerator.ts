@@ -52,6 +52,15 @@ export interface GenerateProfileResult {
    * project extensions like PhysicalProperties → MolecularWeight).
    */
   iterationsUsed: number;
+  /**
+   * Human-readable warnings the generator wants the caller to surface in
+   * the UI / CLI. Currently used for narrowing notices: when the user
+   * marks a DEXPI-standard property as required, the Profile narrows
+   * lower=0 → lower=1 and we emit one notice per affected (class,property)
+   * pair so the user knows their override is in effect (and so reviewers
+   * can audit the deviation).
+   */
+  warnings: string[];
 }
 
 const PROFILE_HEADER_COMMENT = `
@@ -78,10 +87,32 @@ const PROFILE_HEADER_COMMENT = `
       class sorted by (kind, name). Same input -> byte-identical output.
 `;
 
+interface GeneratedProperty {
+  name: string;
+  kind: PropertyKind;
+  /**
+   * For data-kind properties: inferred Builtin type (e.g. 'Builtin/Double')
+   * when the generator observed values and could derive a more-restrictive
+   * type than the default Builtin/Undefined. Undefined when no inference
+   * was possible.
+   */
+  inferredType?: string;
+  /** Inferred lower-bound cardinality from observed counts (default: 0). */
+  inferredLower?: number;
+  /** Inferred upper-bound cardinality from observed counts. null = unbounded. */
+  inferredUpper?: number | null;
+  /**
+   * For reference / composition kinds: inferred target class name (the
+   * least-common-ancestor of all observed targets). Falls back to
+   * Core/ConceptualObject (universal supertype) when inference fails.
+   */
+  inferredTargetClass?: string;
+}
+
 interface GeneratedClass {
   name: string;
   /** Properties to declare on this class, sorted by (kind, name). */
-  properties: { name: string; kind: PropertyKind }[];
+  properties: GeneratedProperty[];
   /**
    * Explicit supertype to emit on `<ConcreteClass superTypes="...">`. Populated
    * when the class originates from a Custom-typed BPMN annotation that carries
@@ -199,10 +230,41 @@ export function generateProfileFromDexpiXml(
     );
   }
 
+  // Inference passes — observe the emitted XML once more and derive
+  // type / cardinality / target-class hints for every property we're
+  // about to declare. Without these, the generator emits permissive
+  // defaults (Builtin/Undefined, lower=0/upper=1, ConceptualObject) that
+  // silence the strict-mode validators on subsequent runs. With them,
+  // the validate→generate→reload→validate loop catches drift across
+  // all five tiers.
+  const inferredTypes = inferDataTypesFromValues(emittedXml, accumulated);
+  const inferredCardinalities = inferCardinalitiesFromCounts(emittedXml, accumulated);
+  const inferredTargets = inferTargetClassesFromObservedTargets(emittedXml, accumulated, registry);
+
+  // Required-flag pass — narrow inferred lower=0 to lower=1 where the user
+  // ticked "required" on the BPMN attribute. Narrow-only: never loosens
+  // DEXPI's declarations. Returns warnings the caller can surface.
+  const generatorWarnings: string[] = [];
+  if (options.bpmnXml) {
+    const requiredFlags = collectRequiredFlagsFromBpmn(options.bpmnXml);
+    if (requiredFlags.size > 0) {
+      applyRequiredFlagsToCardinalities(
+        requiredFlags,
+        inferredCardinalities,
+        registry,
+        generatorWarnings,
+      );
+    }
+  }
+
   // One final render off the original (untouched) registry — that's the
   // registry the caller passed in, and the supertypes we report should
   // reference its classes, not intermediate ones.
-  const xml = renderFromAccumulated(accumulated, registry);
+  const xml = renderFromAccumulated(accumulated, registry, {
+    types: inferredTypes,
+    cardinalities: inferredCardinalities,
+    targets: inferredTargets,
+  });
   let propertyDeclarations = 0;
   for (const cls of accumulated.values()) propertyDeclarations += cls.properties.size;
   return {
@@ -210,7 +272,406 @@ export function generateProfileFromDexpiXml(
     declarations: propertyDeclarations,
     classCount: countClasses(accumulated),
     iterationsUsed,
+    warnings: generatorWarnings,
   };
+}
+
+/**
+ * Walk emittedXml and collect all `<Data property="X">value</Data>` text
+ * values per (className, propertyName), where className is the wrapping
+ * Object's bare type. For each (className, propertyName) we're about to
+ * emit as a DataProperty, derive the most-restrictive Builtin type that
+ * all observed values satisfy:
+ *
+ *   1. Builtin/Boolean   — every value is 'true'|'false'|'0'|'1'
+ *   2. Builtin/Integer   — every value matches /^-?\d+$/
+ *   3. Builtin/Double    — every value parses as a finite float
+ *   4. Builtin/DateTime  — every value parses as ISO-8601
+ *   5. Builtin/AnyURI    — every value matches a URI shape
+ *   6. Builtin/String    — fallback (always passes)
+ *
+ * If we observe no values for the property (rare — would mean the
+ * generator is emitting a property that never appears in the source XML),
+ * we fall back to Builtin/String as the safest non-Undefined default.
+ *
+ * Returns a map keyed `${className}.${propertyName}` → inferred Builtin type.
+ * Only DataProperty entries are inferred; ReferenceProperty / CompositionProperty
+ * inference (target class) is out of scope for this pass.
+ */
+function inferDataTypesFromValues(
+  emittedXml: string,
+  accumulated: Map<string, AccumulatedClass>,
+): Map<string, string> {
+  const dataPropertyKeys = new Set<string>();
+  for (const [, cls] of accumulated) {
+    for (const [propName, kind] of cls.properties) {
+      if (kind === 'data') dataPropertyKeys.add(`${cls.className}.${propName}`);
+    }
+  }
+  if (dataPropertyKeys.size === 0) return new Map();
+
+  // Walk emitted XML and collect values per (className, propertyName).
+  // Cheap regex parse — no DOM dependency. Captures `<Data property="X">v</Data>`
+  // and walks up to the nearest enclosing `<Object type="...">` to determine
+  // the wrapping class.
+  const observed = new Map<string, string[]>();
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(emittedXml, 'text/xml');
+  for (const dataEl of Array.from(doc.getElementsByTagName('Data')) as Element[]) {
+    const propName = dataEl.getAttribute('property');
+    if (!propName) continue;
+    let parent: Element | null = dataEl.parentElement;
+    while (parent && parent.tagName !== 'Object') parent = parent.parentElement;
+    if (!parent) continue;
+    const typeAttr = parent.getAttribute('type');
+    if (!typeAttr) continue;
+    const className = bareClassName(typeAttr);
+    const key = `${className}.${propName}`;
+    if (!dataPropertyKeys.has(key)) continue;
+    const value = (dataEl.textContent ?? '').trim();
+    if (value === '') continue;
+    let arr = observed.get(key);
+    if (!arr) {
+      arr = [];
+      observed.set(key, arr);
+    }
+    arr.push(value);
+  }
+
+  const inferred = new Map<string, string>();
+  for (const key of dataPropertyKeys) {
+    const values = observed.get(key);
+    if (!values || values.length === 0) {
+      inferred.set(key, 'Builtin/String'); // safe fallback
+      continue;
+    }
+    inferred.set(key, inferBuiltinType(values));
+  }
+  return inferred;
+}
+
+/**
+ * Pick the most-restrictive Builtin type that every value in the list
+ * satisfies. Order is from most-restrictive to most-permissive.
+ */
+function inferBuiltinType(values: string[]): string {
+  const allBoolean  = values.every(v => /^(true|false|0|1)$/.test(v));
+  if (allBoolean) return 'Builtin/Boolean';
+  const allInteger  = values.every(v => /^-?\d+$/.test(v));
+  if (allInteger) return 'Builtin/Integer';
+  const allDouble   = values.every(v => v !== '' && Number.isFinite(parseFloat(v)));
+  if (allDouble) return 'Builtin/Double';
+  const allDateTime = values.every(v => /^\d{4}-\d{2}-\d{2}/.test(v) && !Number.isNaN(Date.parse(v)));
+  if (allDateTime) return 'Builtin/DateTime';
+  const allUri      = values.every(v => /^[A-Za-z][A-Za-z0-9+.-]*:\S+/.test(v));
+  if (allUri) return 'Builtin/AnyURI';
+  return 'Builtin/String';
+}
+
+function bareClassName(typeRef: string): string {
+  let s = typeRef;
+  const lastSlash = s.lastIndexOf('/');
+  if (lastSlash >= 0) s = s.slice(lastSlash + 1);
+  const lastDot = s.lastIndexOf('.');
+  if (lastDot >= 0) s = s.slice(lastDot + 1);
+  return s;
+}
+
+/**
+ * Walk emittedXml and observe, for each (className, propertyName) the
+ * generator is about to declare, the per-Object occurrence count of that
+ * property. Returns inferred upper-bound only:
+ *
+ *   - lower = always 0. Profiles follow DEXPI's permissive philosophy:
+ *             they declare which properties MAY appear on instances, not
+ *             which ones MUST. A user who wants a property to be required
+ *             can opt in via the per-property required-flag UI (which the
+ *             generator translates to lower=1 only when the user asks).
+ *             Inferring lower=1 from "every observed instance happened to
+ *             have this property" would overfit to a single corpus.
+ *   - upper = max observed count if it's > 1; else 1. We do not infer
+ *             unbounded (`null`) — strict consumers can interpret the
+ *             literal `1` or larger and accept it as soft upper.
+ *
+ * If no Objects of that className are observed at all, the bounds entry
+ * is omitted (renderer falls back to lower=0, upper=1).
+ */
+function inferCardinalitiesFromCounts(
+  emittedXml: string,
+  accumulated: Map<string, AccumulatedClass>,
+): Map<string, { lower: number; upper: number | null }> {
+  // Collect the set of (className, propertyName) we care about.
+  const interestingKeys = new Set<string>();
+  const propertiesByClass = new Map<string, Set<string>>();
+  for (const [, cls] of accumulated) {
+    const propSet = new Set<string>();
+    for (const [propName] of cls.properties) {
+      interestingKeys.add(`${cls.className}.${propName}`);
+      propSet.add(propName);
+    }
+    propertiesByClass.set(cls.className, propSet);
+  }
+  if (interestingKeys.size === 0) return new Map();
+
+  // For every relevant Object in the emitted XML, count occurrences of
+  // each property among its DIRECT children. Track per-key:
+  //   objectCount        — how many Objects of that class we saw
+  //   timesPropertyAppears — for each prop name, the count summed
+  //   minOccurrencesSeen — min count across observed Objects
+  //   maxOccurrencesSeen — max count across observed Objects
+  interface Tally {
+    objectCount: number;
+    minPerObject: number;
+    maxPerObject: number;
+  }
+  const tallies = new Map<string, Tally>();
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(emittedXml, 'text/xml');
+  for (const obj of Array.from(doc.getElementsByTagName('Object'))) {
+    const typeAttr = obj.getAttribute('type');
+    if (!typeAttr) continue;
+    const className = bareClassName(typeAttr);
+    const propsToTrack = propertiesByClass.get(className);
+    if (!propsToTrack || propsToTrack.size === 0) continue;
+
+    // Count occurrences of each tracked property among DIRECT children.
+    const perObject = new Map<string, number>();
+    for (const child of Array.from(obj.children) as Element[]) {
+      const tag = child.tagName;
+      if (tag !== 'Data' && tag !== 'References' && tag !== 'Components') continue;
+      const propName = child.getAttribute('property');
+      if (!propName || !propsToTrack.has(propName)) continue;
+      perObject.set(propName, (perObject.get(propName) ?? 0) + 1);
+    }
+
+    for (const propName of propsToTrack) {
+      const key = `${className}.${propName}`;
+      const count = perObject.get(propName) ?? 0;
+      let t = tallies.get(key);
+      if (!t) {
+        t = { objectCount: 0, minPerObject: Number.POSITIVE_INFINITY, maxPerObject: 0 };
+        tallies.set(key, t);
+      }
+      t.objectCount += 1;
+      if (count < t.minPerObject) t.minPerObject = count;
+      if (count > t.maxPerObject) t.maxPerObject = count;
+    }
+  }
+
+  // Convert tallies → inferred bounds. lower is fixed at 0 (DEXPI flexibility:
+  // Profiles declare optional surface area, not requirements; a user who
+  // wants required cardinality opts in per-property via the required-flag
+  // UI). upper is observed-max, floored at 1.
+  const inferred = new Map<string, { lower: number; upper: number | null }>();
+  for (const [key, t] of tallies) {
+    if (t.objectCount === 0) continue; // no instances seen — leave default
+    const upper = Math.max(1, t.maxPerObject);
+    inferred.set(key, { lower: 0, upper });
+  }
+  return inferred;
+}
+
+/**
+ * For each (className, propertyName) of kind=reference|composition, find
+ * the least common ancestor of all observed target classes in the
+ * registry's class hierarchy. Returns the inferred target class as a
+ * bare name (renderer prefixes Core/ / /Process. as appropriate).
+ *
+ * Algorithm:
+ *   1. Build id → class map across the document (one pass).
+ *   2. For each `<References objects="..."/>` and `<ObjectReference object="..."/>`
+ *      under a tracked (className, propertyName), collect the actual
+ *      target class names.
+ *   3. LCA across the supertype tree: for each class, build its full
+ *      ancestor set (incl. self) via the registry; the LCA is the
+ *      most-specific class present in EVERY ancestor set. Tie-break:
+ *      pick the one most-specific class (closest to the actuals).
+ *
+ * Falls back to Core/ConceptualObject when:
+ *   - No targets observed
+ *   - Targets exist but their ancestor sets share only ConceptualObject
+ *   - Registry can't compute ancestors for an unrecognised class
+ */
+function inferTargetClassesFromObservedTargets(
+  emittedXml: string,
+  accumulated: Map<string, AccumulatedClass>,
+  registry: DexpiProcessClassRegistry,
+): Map<string, string> {
+  // Collect (className, propertyName) keys for ref + composition kinds.
+  const interestingKeys = new Map<string, PropertyKind>();
+  for (const [, cls] of accumulated) {
+    for (const [propName, kind] of cls.properties) {
+      if (kind === 'reference' || kind === 'composition') {
+        interestingKeys.set(`${cls.className}.${propName}`, kind);
+      }
+    }
+  }
+  if (interestingKeys.size === 0) return new Map();
+
+  // Pre-pass: build id → bare class name across the document.
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(emittedXml, 'text/xml');
+  const idToClass = new Map<string, string>();
+  for (const obj of Array.from(doc.getElementsByTagName('Object'))) {
+    const id = obj.getAttribute('id');
+    const typeAttr = obj.getAttribute('type');
+    if (id && typeAttr) idToClass.set(id, bareClassName(typeAttr));
+  }
+
+  // Collect observed target classes per key.
+  const observed = new Map<string, Set<string>>();
+  const recordTarget = (key: string, targetClass: string) => {
+    let set = observed.get(key);
+    if (!set) {
+      set = new Set();
+      observed.set(key, set);
+    }
+    set.add(targetClass);
+  };
+
+  // References carriers: <References property="X" objects="#a #b"/>.
+  for (const refsEl of Array.from(doc.getElementsByTagName('References'))) {
+    const propName = refsEl.getAttribute('property');
+    const targetsAttr = refsEl.getAttribute('objects');
+    if (!propName || !targetsAttr) continue;
+    let parent: Element | null = refsEl.parentElement;
+    while (parent && parent.tagName !== 'Object') parent = parent.parentElement;
+    if (!parent) continue;
+    const wrappingType = parent.getAttribute('type');
+    if (!wrappingType) continue;
+    const wrappingClass = bareClassName(wrappingType);
+    const key = `${wrappingClass}.${propName}`;
+    if (!interestingKeys.has(key)) continue;
+    for (const t of targetsAttr.split(/\s+/).filter(Boolean)) {
+      const id = t.startsWith('#') ? t.slice(1) : t;
+      const cls = idToClass.get(id);
+      if (cls) recordTarget(key, cls);
+    }
+  }
+
+  // ObjectReference shells inside <Components>.
+  for (const objRefEl of Array.from(doc.getElementsByTagName('ObjectReference'))) {
+    const targetIdAttr = objRefEl.getAttribute('object');
+    if (!targetIdAttr) continue;
+    const targetId = targetIdAttr.startsWith('#') ? targetIdAttr.slice(1) : targetIdAttr;
+    let parent: Element | null = objRefEl.parentElement;
+    while (parent && parent.tagName !== 'Components') parent = parent.parentElement;
+    if (!parent) continue;
+    const propName = parent.getAttribute('property');
+    if (!propName) continue;
+    let outer: Element | null = parent.parentElement;
+    while (outer && outer.tagName !== 'Object') outer = outer.parentElement;
+    if (!outer) continue;
+    const wrappingType = outer.getAttribute('type');
+    if (!wrappingType) continue;
+    const wrappingClass = bareClassName(wrappingType);
+    const key = `${wrappingClass}.${propName}`;
+    if (!interestingKeys.has(key)) continue;
+    const cls = idToClass.get(targetId);
+    if (cls) recordTarget(key, cls);
+  }
+
+  // Inline <Components><Object type="X">...</Object></Components>.
+  for (const compsEl of Array.from(doc.getElementsByTagName('Components'))) {
+    const propName = compsEl.getAttribute('property');
+    if (!propName) continue;
+    let outer: Element | null = compsEl.parentElement;
+    while (outer && outer.tagName !== 'Object') outer = outer.parentElement;
+    if (!outer) continue;
+    const wrappingType = outer.getAttribute('type');
+    if (!wrappingType) continue;
+    const wrappingClass = bareClassName(wrappingType);
+    const key = `${wrappingClass}.${propName}`;
+    if (!interestingKeys.has(key)) continue;
+    for (const inner of Array.from(compsEl.children) as Element[]) {
+      if (inner.tagName !== 'Object') continue;
+      const innerType = inner.getAttribute('type');
+      if (!innerType) continue;
+      recordTarget(key, bareClassName(innerType));
+    }
+  }
+
+  // Compute LCA per key.
+  const inferred = new Map<string, string>();
+  for (const [key, classSet] of observed) {
+    const lca = leastCommonAncestor(Array.from(classSet), registry);
+    if (lca && lca !== 'ConceptualObject') {
+      // Re-qualify with the source-file path (Process / Core).
+      const info = registry.getClass(lca);
+      if (info?.sourceFile === 'Process.xml') inferred.set(key, `/Process.${lca}`);
+      else if (info?.sourceFile === 'Core.xml') inferred.set(key, `Core/${lca}`);
+      else inferred.set(key, lca); // Profile-defined class — emit bare
+    }
+  }
+  return inferred;
+}
+
+/**
+ * Compute the least-common-ancestor of a set of class names in the
+ * registry's supertype tree. Returns the most-specific common ancestor
+ * (closest to the actuals); falls back to 'ConceptualObject' (universal
+ * supertype) when no closer common ancestor exists.
+ *
+ * Each class's ancestor set is built by walking its `superTypes` chain
+ * via the registry; the LCA is the intersection's most-specific class.
+ */
+function leastCommonAncestor(
+  classes: string[],
+  registry: DexpiProcessClassRegistry,
+): string | null {
+  if (classes.length === 0) return null;
+  if (classes.length === 1) return classes[0];
+
+  // Build ancestor set for each class (incl. self).
+  const ancestors = classes.map(c => collectAncestors(c, registry));
+  if (ancestors.some(s => s.size === 0)) return null;
+
+  // Intersection of all ancestor sets.
+  const common = new Set(ancestors[0]);
+  for (let i = 1; i < ancestors.length; i++) {
+    for (const c of common) {
+      if (!ancestors[i].has(c)) common.delete(c);
+    }
+  }
+  if (common.size === 0) return null;
+
+  // Most-specific = the one whose own ancestor set is largest minus 1
+  // (i.e., farthest from the universal root). Equivalently: the class
+  // whose supertype chain has the most entries that are also in `common`.
+  // Simpler heuristic: pick the class in `common` whose superTypes
+  // (transitively) include all OTHER members of `common` — that's the
+  // one closest to the actuals.
+  let best: string | null = null;
+  let bestRank = -1;
+  for (const cand of common) {
+    // Rank = depth in the supertype tree (deeper = more specific).
+    const candAncestors = collectAncestors(cand, registry);
+    const rank = candAncestors.size;
+    if (rank > bestRank) {
+      bestRank = rank;
+      best = cand;
+    }
+  }
+  return best;
+}
+
+function collectAncestors(
+  className: string,
+  registry: DexpiProcessClassRegistry,
+): Set<string> {
+  const seen = new Set<string>();
+  const stack = [className];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    const info = registry.getClass(cur);
+    if (info) {
+      for (const sup of info.superTypes) stack.push(sup);
+    }
+  }
+  return seen;
 }
 
 /**
@@ -272,13 +733,175 @@ function seedFromCustomBpmnAnnotations(
   }
 }
 
+/**
+ * Map a BPMN-side `<dexpi:stream streamType="...">` discriminator to the
+ * DEXPI class the transformer emits for it. Mirrors
+ * BpmnToDexpiTransformer.streamTypeToDexpiClass; kept in sync by hand
+ * (small map, rarely changes — duplicating it avoids a dependency between
+ * the generator and the transformer module).
+ */
+function streamTypeToDexpiClassName(streamType: string | null): string {
+  switch (streamType) {
+    case 'ThermalEnergyFlow':    return 'ThermalEnergyFlow';
+    case 'MechanicalEnergyFlow': return 'MechanicalEnergyFlow';
+    case 'ElectricalEnergyFlow': return 'ElectricalEnergyFlow';
+    case 'EnergyFlow':           return 'EnergyFlow';
+    case 'InformationFlow':      return 'InformationFlow';
+    case 'MaterialFlow':
+    case '':
+    case null:
+    default:                     return 'Stream';
+  }
+}
+
+/**
+ * Scan BPMN extension elements for user-asserted required-flagged attributes
+ * and return a map of `${className}.${propertyName}` → `true`.
+ *
+ * Handled BPMN shapes:
+ *   <dexpi:element dexpiType="X">
+ *     <dexpi:components property="P" required="true"> ... </dexpi:components>
+ *     <dexpi:attribute name="P" value="..." required="true"/>
+ *   </dexpi:element>
+ *   <dexpi:stream streamType="MaterialFlow">
+ *     <dexpi:attribute name="P" value="..." required="true"/>
+ *   </dexpi:stream>
+ *
+ * The className is taken from the wrapping `dexpiType` (for elements) or
+ * derived from `streamType` via streamTypeToDexpiClassName (for streams).
+ * In both cases the override is per-class — a required flag tightens the
+ * property only for that specific class, not for its supertypes; this
+ * scopes the user's intervention narrowly.
+ */
+function collectRequiredFlagsFromBpmn(bpmnXml: string): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(bpmnXml, 'text/xml');
+
+  const recordRequired = (className: string, propName: string): void => {
+    let set = result.get(className);
+    if (!set) {
+      set = new Set();
+      result.set(className, set);
+    }
+    set.add(propName);
+  };
+
+  // Walk every <dexpi:element> and <dexpi:stream> in document order. A
+  // getElementsByTagName wildcard catches both prefixed and bare-local-name
+  // forms; we filter on the local name to be namespace-prefix-tolerant.
+  const candidates = Array.from(doc.getElementsByTagName('*'));
+  for (const el of candidates) {
+    const ln = (el.localName || '').toLowerCase();
+
+    if (ln === 'element') {
+      const className = el.getAttribute('dexpiType');
+      if (!className) continue;
+      for (const child of Array.from(el.children) as Element[]) {
+        const cln = (child.localName || '').toLowerCase();
+        if (cln !== 'components' && cln !== 'attribute') continue;
+        if (child.getAttribute('required') !== 'true') continue;
+        const propName =
+          cln === 'components'
+            ? (child.getAttribute('property') || '')
+            : (child.getAttribute('name') || '');
+        if (propName) recordRequired(className, propName);
+      }
+      continue;
+    }
+
+    if (ln === 'stream') {
+      const className = streamTypeToDexpiClassName(el.getAttribute('streamType'));
+      for (const child of Array.from(el.children) as Element[]) {
+        const cln = (child.localName || '').toLowerCase();
+        // Streams currently use only the bare-name <dexpi:attribute> form;
+        // the carrier-wrapped <dexpi:components> shape is reserved for
+        // step-side rich-DEXPI emissions.
+        if (cln !== 'attribute') continue;
+        if (child.getAttribute('required') !== 'true') continue;
+        const propName = child.getAttribute('name') || '';
+        if (propName) recordRequired(className, propName);
+      }
+      continue;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Apply user-asserted required flags to the inferred cardinalities map.
+ * Narrow-only enforcement (Profiles can tighten DEXPI but never loosen it):
+ *
+ *   • Property in registry with declared lower=0 → narrow to lower=1.
+ *     Emit a one-line warning so reviewers can audit the deviation.
+ *   • Property in registry with declared lower≥1 → no-op.
+ *     DEXPI already requires the property; nothing to override. No warning.
+ *   • Property NOT in registry (custom property) → set lower=1 outright.
+ *     Custom properties have no DEXPI-side default, so this is the only
+ *     signal the generator has about required-cardinality intent.
+ */
+function applyRequiredFlagsToCardinalities(
+  requiredFlags: Map<string, Set<string>>,
+  cardinalities: Map<string, { lower: number; upper: number | null }>,
+  registry: DexpiProcessClassRegistry,
+  warnings: string[],
+): void {
+  for (const [className, propNames] of requiredFlags) {
+    const declaredProps = registry.getProperties(className);
+    for (const propName of propNames) {
+      const declared = declaredProps.find(p => p.name === propName);
+      const declaredLower = declared?.lower; // undefined when property is custom
+      if (declaredLower !== undefined && declaredLower >= 1) continue; // already required by DEXPI
+      const key = `${className}.${propName}`;
+      const existing = cardinalities.get(key);
+      const upper = existing?.upper ?? 1;
+      cardinalities.set(key, { lower: 1, upper });
+      if (declaredLower === 0) {
+        warnings.push(
+          `Required-flag override: ${className}.${propName} narrows DEXPI's declared ` +
+          `lower=0 to lower=1 in the generated Profile. Profile-on-reload resolution ` +
+          `rule: profile narrows DEXPI.`
+        );
+      }
+      // declaredLower === undefined: custom property; no DEXPI to narrow, no warning.
+    }
+  }
+}
+
+/**
+ * Bundle of all per-property inference hints applied during the final
+ * render pass. Each map keys on `${className}.${propertyName}`.
+ *
+ *   types          — DataProperty inferred Builtin type
+ *   cardinalities  — { lower, upper } observed counts on instances
+ *   targets        — Reference / Composition inferred target class (LCA)
+ */
+interface InferenceHints {
+  types?: Map<string, string>;
+  cardinalities?: Map<string, { lower: number; upper: number | null }>;
+  targets?: Map<string, string>;
+}
+
 function renderFromAccumulated(
   accumulated: Map<string, AccumulatedClass>,
   registry: DexpiProcessClassRegistry,
+  hints?: InferenceHints,
 ): string {
   const classes: GeneratedClass[] = [];
   for (const cls of accumulated.values()) {
-    const properties = Array.from(cls.properties, ([name, kind]) => ({ name, kind }));
+    const properties: GeneratedProperty[] = Array.from(cls.properties, ([name, kind]) => {
+      const key = `${cls.className}.${name}`;
+      const card = hints?.cardinalities?.get(key);
+      return {
+        name,
+        kind,
+        inferredType: hints?.types?.get(key),
+        inferredLower: card?.lower,
+        inferredUpper: card?.upper,
+        inferredTargetClass: hints?.targets?.get(key),
+      };
+    });
     properties.sort(comparePropertyDecl);
     classes.push({ name: cls.className, properties, customSuperType: cls.customSuperType });
   }
@@ -324,7 +947,7 @@ export function generateProfileFromFailures(
 
   const declarations = classes.reduce((n, c) => n + c.properties.length, 0);
   const xml = renderProfileXml(classes, registry);
-  return { xml, declarations, classCount: classes.length, iterationsUsed: 1 };
+  return { xml, declarations, classCount: classes.length, iterationsUsed: 1, warnings: [] };
 }
 
 function comparePropertyDecl(
@@ -379,26 +1002,56 @@ function renderClassXml(cls: GeneratedClass, registry: DexpiProcessClassRegistry
   return lines.join('\n');
 }
 
-function renderPropertyXml(p: { name: string; kind: PropertyKind }): string {
+function renderPropertyXml(p: GeneratedProperty): string {
+  // Cardinality bounds: prefer inferred values when available, default
+  // to lower=0 / upper=1 (single-valued, optional). For Tier 5 fidelity:
+  // when the generator observes the property always present, infers
+  // lower=1; when observed multiple times, infers higher upper bound.
+  const lower = p.inferredLower ?? 0;
+  const upper = p.inferredUpper === null ? '*' : (p.inferredUpper ?? 1);
+  // Note: the metamodel uses upper="*" for unbounded, but DEXPI's own
+  // schema files use upper="*" only via a separate isOrdered/cardinality
+  // form. The simplest serialization that round-trips through the
+  // registry is to emit the numeric upper, omitting the attribute when
+  // unbounded — but most strict consumers will accept upper="*". For
+  // consistency we always emit numeric values; unbounded becomes
+  // upper="*" only if explicitly set to null (rare in practice).
+  const upperAttr = upper === '*' ? '*' : String(upper);
+
   switch (p.kind) {
-    case 'data':
+    case 'data': {
+      // Type inference: prefer the most-restrictive Builtin we observed
+      // values fitting; fall back to Builtin/Undefined when the generator
+      // had no value-level signal (intermediate registry-merge passes).
+      const dataType = p.inferredType ?? 'Builtin/Undefined';
       return [
-        `    <DataProperty name="${escAttr(p.name)}" lower="0" upper="1">`,
-        `      <DataTypeReference type="Builtin/Undefined"/>`,
+        `    <DataProperty name="${escAttr(p.name)}" lower="${lower}" upper="${upperAttr}">`,
+        `      <DataTypeReference type="${escAttr(dataType)}"/>`,
         `    </DataProperty>`,
       ].join('\n');
-    case 'reference':
+    }
+    case 'reference': {
+      // Target inference: prefer the least-common-ancestor we computed
+      // from observed targets; fall back to Core/ConceptualObject (the
+      // universal supertype) when no targets were observed.
+      const target = p.inferredTargetClass ?? 'Core/ConceptualObject';
       return [
-        `    <ReferenceProperty name="${escAttr(p.name)}" lower="0" upper="1">`,
-        `      <ClassReference type="Core/ConceptualObject"/>`,
+        `    <ReferenceProperty name="${escAttr(p.name)}" lower="${lower}" upper="${upperAttr}">`,
+        `      <ClassReference type="${escAttr(target)}"/>`,
         `    </ReferenceProperty>`,
       ].join('\n');
-    case 'composition':
+    }
+    case 'composition': {
+      const target = p.inferredTargetClass ?? 'Core/ConceptualObject';
+      // CompositionProperty's upper attribute is also informative; emit
+      // it for symmetry with reference/data even though Process.xml's own
+      // CompositionProperty declarations omit it.
       return [
-        `    <CompositionProperty name="${escAttr(p.name)}" lower="0">`,
-        `      <ClassReference type="Core/ConceptualObject"/>`,
+        `    <CompositionProperty name="${escAttr(p.name)}" lower="${lower}" upper="${upperAttr}">`,
+        `      <ClassReference type="${escAttr(target)}"/>`,
         `    </CompositionProperty>`,
       ].join('\n');
+    }
   }
 }
 

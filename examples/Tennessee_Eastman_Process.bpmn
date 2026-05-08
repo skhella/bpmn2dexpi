@@ -57,7 +57,7 @@
       <bpmn:subProcess id="Activity_11rkrj8" name="RemovingThermalEnergy">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8">
-            <dexpi:port id="Activity_11rkrj8_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" subReference="Activity_0iie89x_TEI1_port" />
+            <dexpi:port id="Activity_11rkrj8_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0wulh9g</bpmn:incoming>
@@ -81,8 +81,6 @@
             <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_03d7qhp" uid="uid_Activity_03d7qhp">
               <dexpi:port id="Activity_03d7qhp_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
               <dexpi:port id="Activity_03d7qhp_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-              <dexpi:port id="Activity_03d7qhp_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
-              <dexpi:port id="Activity_03d7qhp_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
             </dexpi:element>
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_0wbkd91</bpmn:incoming>
@@ -98,8 +96,6 @@
             <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0iie89x" uid="uid_Activity_0iie89x">
               <dexpi:port id="Activity_0iie89x_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
               <dexpi:port id="Activity_0iie89x_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-              <dexpi:port id="Activity_0iie89x_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
-              <dexpi:port id="Activity_0iie89x_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
             </dexpi:element>
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_04ncgwf</bpmn:incoming>
@@ -495,8 +491,6 @@
           <dexpi:element dexpiType="Pumping" identifier="Activity_11jo3tg" uid="uid_Activity_11jo3tg">
             <dexpi:port id="Activity_11jo3tg_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_11jo3tg_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:port id="Activity_11jo3tg_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
-            <dexpi:port id="Activity_11jo3tg_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0ny5wle</bpmn:incoming>
@@ -710,7 +704,6 @@
             <dexpi:port id="Activity_1uqovub_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_1uqovub_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1uqovub_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
-            <dexpi:port id="Activity_1uqovub_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_16mvdb6</bpmn:incoming>
@@ -789,8 +782,6 @@
           <dexpi:element dexpiType="Pumping" identifier="Activity_1atxmzx" uid="uid_Activity_1atxmzx">
             <dexpi:port id="Activity_1atxmzx_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_1atxmzx_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:port id="Activity_1atxmzx_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
-            <dexpi:port id="Activity_1atxmzx_MEI1_port" name="MEI1" type="MechanicalEnergyPort" direction="Inlet" label="MEI1" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_1xayaxu</bpmn:incoming>
@@ -823,8 +814,6 @@
             <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0uicpy3" uid="uid_Activity_0uicpy3">
               <dexpi:port id="Activity_0uicpy3_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
               <dexpi:port id="Activity_0uicpy3_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-              <dexpi:port id="Activity_0uicpy3_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
-              <dexpi:port id="Activity_0uicpy3_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
             </dexpi:element>
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_0oulgq8</bpmn:incoming>
@@ -1189,8 +1178,6 @@
           <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_0h23axj" uid="uid_Activity_0h23axj">
             <dexpi:port id="Activity_0h23axj_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_0h23axj_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:port id="Activity_0h23axj_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
-            <dexpi:port id="Activity_0h23axj_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_08kzky6</bpmn:incoming>
@@ -1203,8 +1190,6 @@
             <dexpi:port id="Activity_1rs6esf_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1rs6esf_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_1rs6esf_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:port id="Activity_1rs6esf_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
-            <dexpi:port id="Activity_1rs6esf_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0tv8sn4</bpmn:incoming>

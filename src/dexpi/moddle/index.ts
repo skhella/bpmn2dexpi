@@ -107,6 +107,16 @@ export interface DexpiAttribute {
   provenance?: string;
   mode?: 'Input' | 'Output' | 'InOut';
   qualifier?: string;
+  /**
+   * User-asserted required-cardinality flag for the generated Profile.
+   * When true, the Profile generator emits `lower="1"` for the property
+   * named `name` on the wrapping Object's class — narrowing DEXPI's
+   * default `lower="0"`. The generator enforces narrow-only semantics:
+   *   • DEXPI lower=0 → user lower=1 : allowed (with a "narrowing" warning)
+   *   • DEXPI lower=1 → user lower=0 : blocked (cannot loosen DEXPI)
+   * Defaults to `false` (or omitted) — purely opt-in.
+   */
+  required?: boolean;
 }
 
 /** @deprecated Use DexpiAttribute. Kept for back-compat with older callers. */
