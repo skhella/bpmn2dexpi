@@ -1147,7 +1147,7 @@ function App() {
           ) : selectedElement && selectedElement.type !== 'bpmn:SequenceFlow' && selectedElement.type !== 'bpmn:Association' && selectedElement.type !== 'bpmn:DataOutputAssociation' && selectedElement.type !== 'bpmn:DataInputAssociation' ? (
             <DexpiPropertiesPanel element={selectedElement} modeler={modeler} loadedProfiles={loadedProfiles} />
           ) : selectedElement && (selectedElement.type === 'bpmn:SequenceFlow' || selectedElement.type === 'bpmn:Association' || selectedElement.type === 'bpmn:DataOutputAssociation' || selectedElement.type === 'bpmn:DataInputAssociation') ? (
-            <StreamPropertiesPanel element={selectedElement} modeler={modeler} />
+            <StreamPropertiesPanel element={selectedElement} modeler={modeler} loadedProfiles={loadedProfiles} />
           ) : (
             <div className="no-selection">
               <p>Select an element to view properties</p>

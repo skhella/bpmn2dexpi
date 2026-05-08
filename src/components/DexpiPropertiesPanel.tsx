@@ -4,6 +4,7 @@ import { DexpiEnumerations } from '../utils/dexpiEnumerations';
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
 // Vite ?raw import — bundles Process.xml as a string at build time (no runtime fetch needed)
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
+import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
 
 // Build registry once at module load — synchronous, browser-safe. This is
 // the *base* registry (Process.xml only); when the user has imported DEXPI
@@ -11,6 +12,52 @@ import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
 // useStepClasses() below, so Profile-declared classes (e.g. BiologicalReactor)
 // surface in the dexpiType dropdown alongside the standard DEXPI 2.0 classes.
 const DEXPI_REGISTRY = DexpiProcessClassRegistry.fromXml(processXmlRaw);
+
+/**
+ * Look up whether a property is required (lower>=1) on a class via the
+ * registry, and resolve where the requirement came from (DEXPI vs a loaded
+ * Profile). Returns null when the property is optional or the class isn't
+ * in the registry. Used by the attribute editors to lock the
+ * "Required in generated Profile" checkbox in the bottom-right cell of
+ * the four-quadrant rule:
+ *   user box ☐ + DEXPI/Profile lower>=1 → cannot be unset; Profiles
+ *                                          narrow but never loosen.
+ */
+type RequiredSource = { source: 'dexpi' | 'profile'; sourceName: string };
+function lookupRequiredSource(
+  registry: DexpiProcessClassRegistry,
+  className: string,
+  propName: string,
+): RequiredSource | null {
+  if (!registry.isValidClass(className)) return null;
+  const props = registry.getProperties(className);
+  const prop = props.find(p => p.name === propName);
+  if (!prop || prop.lower < 1) return null;
+  const declaringClass = registry.getClass(prop.declaredOn);
+  const src = declaringClass?.sourceFile ?? '';
+  if (src === 'Process.xml' || src === 'Core.xml') {
+    return { source: 'dexpi', sourceName: src.replace(/\.xml$/, '') };
+  }
+  return { source: 'profile', sourceName: src || '(unknown profile)' };
+}
+
+/**
+ * Map a BPMN-side `<dexpi:stream streamType="...">` discriminator to the
+ * DEXPI class the transformer emits for it. Mirrors the same map in
+ * BpmnToDexpiTransformer.streamTypeToDexpiClass and DexpiProfileGenerator's
+ * own copy — keeping it inline here lets the panel resolve a stream's
+ * className without an additional cross-module dependency.
+ */
+function streamTypeToDexpiClassName(streamType: string | null | undefined): string {
+  switch (streamType) {
+    case 'ThermalEnergyFlow':    return 'ThermalEnergyFlow';
+    case 'MechanicalEnergyFlow': return 'MechanicalEnergyFlow';
+    case 'ElectricalEnergyFlow': return 'ElectricalEnergyFlow';
+    case 'EnergyFlow':           return 'EnergyFlow';
+    case 'InformationFlow':      return 'InformationFlow';
+    default:                     return 'Stream';
+  }
+}
 
 /**
  * Names that are concrete classes in the registry but should NOT appear in
@@ -50,25 +97,32 @@ interface DexpiPropertiesPanelProps {
 }
 
 export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ element, modeler, loadedProfiles }) => {
-  // Augmented class list: Process.xml + any loaded Profiles. Recomputed
-  // when the Profile list changes; profile-loading errors here would have
-  // already been caught in App.handleImportProfile, so this is a hot path
-  // that should never throw — wrap defensively just in case.
-  const dropdownClasses = React.useMemo<string[]>(() => {
-    if (!loadedProfiles || loadedProfiles.length === 0) return STEP_CLASSES;
+  // Full registry: Process.xml + Core.xml + any loaded Profiles. Used both
+  // for the dropdown class list AND for the required-flag lookup that the
+  // step-attribute editor consults to lock the checkbox when a property is
+  // already DEXPI/Profile-required (the bottom-right cell of the four-
+  // quadrant rule).
+  const augmentedRegistry = React.useMemo<DexpiProcessClassRegistry | null>(() => {
     try {
-      const augmented = DexpiProcessClassRegistry.fromXmlSources([
+      return DexpiProcessClassRegistry.fromXmlSources([
         { name: 'Process.xml', xml: processXmlRaw },
-        ...loadedProfiles,
+        { name: 'Core.xml',    xml: coreXmlRaw },
+        ...(loadedProfiles ?? []),
       ], { strictSupertypes: false });
-      return filterTaskClasses(augmented.concreteClasses());
     } catch {
-      // Defensive: if a Profile that passed import-time validation now fails
-      // to merge with the panel's reduced source set, fall back to the base
-      // class list rather than break the dropdown entirely.
-      return STEP_CLASSES;
+      return null;
     }
   }, [loadedProfiles]);
+
+  const dropdownClasses = React.useMemo<string[]>(() => {
+    if (!augmentedRegistry) return STEP_CLASSES;
+    if (!loadedProfiles || loadedProfiles.length === 0) return STEP_CLASSES;
+    try {
+      return filterTaskClasses(augmentedRegistry.concreteClasses());
+    } catch {
+      return STEP_CLASSES;
+    }
+  }, [augmentedRegistry, loadedProfiles]);
   // Likewise, broaden the "is custom?" check so a Profile-declared class
   // is recognized as standard rather than triggering the Custom-type UI.
   const isKnownClass = React.useCallback((name: string): boolean => {
@@ -1171,14 +1225,24 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
         elementType === 'bpmn:SendTask' ||
         elementType === 'bpmn:ReceiveTask' ||
         elementType === 'bpmn:CallActivity') && (
-        <ProcessStepAttributesSection element={element} modeler={modeler} />
+        <ProcessStepAttributesSection
+          element={element}
+          modeler={modeler}
+          registry={augmentedRegistry}
+          className={dexpiType || 'ProcessStep'}
+        />
       )}
     </div>
   );
 };
 
 // ProcessStep Attributes Component
-const ProcessStepAttributesSection: React.FC<{ element: any; modeler: any }> = ({ element, modeler }) => {
+const ProcessStepAttributesSection: React.FC<{
+  element: any;
+  modeler: any;
+  registry: DexpiProcessClassRegistry | null;
+  className: string;
+}> = ({ element, modeler, registry, className }) => {
   const [attributes, setAttributes] = React.useState<any[]>([]);
 
   React.useEffect(() => {
@@ -1350,21 +1414,44 @@ const ProcessStepAttributesSection: React.FC<{ element: any; modeler: any }> = (
             </select>
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-            <input
-              type="checkbox"
-              checked={!!attr.required}
-              onChange={(e) => updateAttribute(index, { required: e.target.checked || undefined })}
-            />
-            <span>Required in generated Profile</span>
-          </label>
-          {attr.required && (
-            <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '2px', marginLeft: '22px' }}>
-              The Profile generator will narrow this property's lower bound to 1
-              for the wrapping class. DEXPI's lower=0 default is overridden — on
-              reload, the loaded Profile takes precedence.
-            </div>
-          )}
+          {(() => {
+            // Lock the box when the property is already required (lower>=1)
+            // by DEXPI or a loaded Profile — Profiles narrow but never
+            // loosen, so the user cannot un-require it via this UI.
+            const lock = attr.name && registry
+              ? lookupRequiredSource(registry, className, attr.name)
+              : null;
+            const lockedOn = lock !== null;
+            return (
+              <>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                  <input
+                    type="checkbox"
+                    checked={lockedOn ? true : !!attr.required}
+                    disabled={lockedOn}
+                    onChange={(e) => updateAttribute(index, { required: e.target.checked || undefined })}
+                  />
+                  <span style={lockedOn ? { color: '#555' } : undefined}>
+                    Required in generated Profile
+                  </span>
+                </label>
+                {lockedOn && (
+                  <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '2px', marginLeft: '22px' }}>
+                    {lock!.source === 'dexpi'
+                      ? `Required by DEXPI (${lock!.sourceName}) — Profiles narrow but never loosen, so this cannot be unset.`
+                      : `Required by loaded Profile "${lock!.sourceName}" — to override, regenerate without that Profile loaded.`}
+                  </div>
+                )}
+                {!lockedOn && attr.required && (
+                  <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '2px', marginLeft: '22px' }}>
+                    The Profile generator will narrow this property's lower bound to 1
+                    for the wrapping class. DEXPI's lower=0 default is overridden — on
+                    reload, the loaded Profile takes precedence.
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       ))}
     </div>
@@ -1427,9 +1514,39 @@ function findPortByName(element: any, portName: string): any {
 interface StreamPropertiesPanelProps {
   element: any;
   modeler: any;
+  /** Same prop as on DexpiPropertiesPanel — used to build the augmented
+   *  registry that locks the required-flag checkbox when an attribute is
+   *  already DEXPI/Profile-required. */
+  loadedProfiles?: { name: string; xml: string }[];
 }
 
-export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ element, modeler }) => {
+export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ element, modeler, loadedProfiles }) => {
+  // Augmented registry for required-flag lookup. Cheap to build (parse cost
+  // is shared with the step panel's own useMemo since results are cached
+  // per profile-list reference identity).
+  const augmentedRegistry = React.useMemo<DexpiProcessClassRegistry | null>(() => {
+    try {
+      return DexpiProcessClassRegistry.fromXmlSources([
+        { name: 'Process.xml', xml: processXmlRaw },
+        { name: 'Core.xml',    xml: coreXmlRaw },
+        ...(loadedProfiles ?? []),
+      ], { strictSupertypes: false });
+    } catch {
+      return null;
+    }
+  }, [loadedProfiles]);
+  // Resolve the wrapping DEXPI class for the current stream from its
+  // streamType discriminator. Memoised on the BPMN element + extension
+  // changes — the dependency on element is enough since a streamType edit
+  // produces a new businessObject on the React side.
+  const streamClassName = React.useMemo<string>(() => {
+    const ext = element?.businessObject?.extensionElements?.values ?? [];
+    const stream = ext.find((e: any) => {
+      const t = (e.$type || '').toLowerCase();
+      return t === 'dexpi:stream' || t === 'stream';
+    });
+    return streamTypeToDexpiClassName(stream?.streamType);
+  }, [element]);
   const [streamData, setStreamData] = React.useState<Partial<DexpiStream>>({});
   const [streamName, setStreamName] = React.useState<string>('');
   const [attributes, setAttributes] = React.useState<any[]>([]);
@@ -2398,21 +2515,41 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               </select>
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-              <input
-                type="checkbox"
-                checked={!!attr.required}
-                onChange={(e) => updateAttribute(index, { required: e.target.checked || undefined })}
-              />
-              <span>Required in generated Profile</span>
-            </label>
-            {attr.required && (
-              <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '2px', marginLeft: '22px' }}>
-                The Profile generator will narrow this property's lower bound
-                to 1 for the Stream's class. DEXPI's lower=0 default is
-                overridden — on reload, the loaded Profile takes precedence.
-              </div>
-            )}
+            {(() => {
+              const lock = attr.name && augmentedRegistry
+                ? lookupRequiredSource(augmentedRegistry, streamClassName, attr.name)
+                : null;
+              const lockedOn = lock !== null;
+              return (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                    <input
+                      type="checkbox"
+                      checked={lockedOn ? true : !!attr.required}
+                      disabled={lockedOn}
+                      onChange={(e) => updateAttribute(index, { required: e.target.checked || undefined })}
+                    />
+                    <span style={lockedOn ? { color: '#555' } : undefined}>
+                      Required in generated Profile
+                    </span>
+                  </label>
+                  {lockedOn && (
+                    <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '2px', marginLeft: '22px' }}>
+                      {lock!.source === 'dexpi'
+                        ? `Required by DEXPI (${lock!.sourceName}) on ${streamClassName} — Profiles narrow but never loosen, so this cannot be unset.`
+                        : `Required by loaded Profile "${lock!.sourceName}" on ${streamClassName} — to override, regenerate without that Profile loaded.`}
+                    </div>
+                  )}
+                  {!lockedOn && attr.required && (
+                    <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '2px', marginLeft: '22px' }}>
+                      The Profile generator will narrow this property's lower bound
+                      to 1 for the Stream's class. DEXPI's lower=0 default is
+                      overridden — on reload, the loaded Profile takes precedence.
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         ))}
       </div>
