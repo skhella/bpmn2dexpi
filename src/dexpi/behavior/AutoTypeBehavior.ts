@@ -128,7 +128,10 @@ export default class AutoTypeBehavior extends CommandInterceptor {
     this.eventBus.fire('element.changed', { element: connection });
 
     // Auto-generate InformationPorts on task elements (not on Data Objects)
-    // and set sourcePortRef/targetPortRef on the stream annotation
+    // and set sourcePortId/targetPortId on the stream annotation. We use the
+    // full port id (which createPort generated as `${elementId}_${portName}_port`)
+    // so the stream-to-port link is self-contained inside the dexpi extension
+    // and survives any host-tool BPMN element renumbering during round-trip.
     const source = connection.source;
     const target = connection.target;
     const isTask = (el: any) => el && (
@@ -148,14 +151,13 @@ export default class AutoTypeBehavior extends CommandInterceptor {
       this.createPort(target, targetPortName, 'InformationPort', 'Inlet');
     }
 
-    // Update stream annotation with port references so properties panel shows them
     if (sourcePortName || targetPortName) {
       const streamEl = extensionElements.values.find(
         (e: any) => e.$type === 'dexpi:Stream' || e.$type === 'Stream'
       );
       if (streamEl) {
-        if (sourcePortName) streamEl.sourcePortRef = sourcePortName;
-        if (targetPortName) streamEl.targetPortRef = targetPortName;
+        if (sourcePortName) streamEl.sourcePortId = `${source.businessObject.id}_${sourcePortName}_port`;
+        if (targetPortName) streamEl.targetPortId = `${target.businessObject.id}_${targetPortName}_port`;
         this.modeling.updateProperties(connection, { extensionElements });
       }
     }

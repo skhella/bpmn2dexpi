@@ -87,8 +87,18 @@ export interface InternalStream {
   uid: string;
   sourceRef: string;
   targetRef: string;
+  /**
+   * Legacy port reference format (suffix only — e.g. "MO1_port"). The
+   * transformer reads either this OR sourcePortId/targetPortId; new files
+   * are written with sourcePortId/targetPortId. See DexpiStream's interface
+   * docs for the full rationale.
+   */
   sourcePortRef?: string;
   targetPortRef?: string;
+  /** Preferred port reference format: full port id, self-contained in the
+   *  dexpi extension. Robust to host-tool BPMN element renumbering. */
+  sourcePortId?: string;
+  targetPortId?: string;
   streamType: 'MaterialFlow' | 'EnergyFlow' | 'ThermalEnergyFlow' | 'MechanicalEnergyFlow' | 'ElectricalEnergyFlow' | 'InformationFlow';
   templateReference?: string;
   materialStateReference?: string;

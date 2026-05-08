@@ -1833,8 +1833,12 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           
           // Try to extract port references from stream name
           // Format: "SourcePort - [Stream ID] - TargetPort" or "SourcePort - TargetPort"
-          let sourcePortRef = dexpiStream.sourcePortRef || '';
-          let targetPortRef = dexpiStream.targetPortRef || '';
+          // Prefer the new self-contained sourcePortId/targetPortId form over
+          // the legacy suffix sourcePortRef/targetPortRef. The variable names
+          // below still say "Ref" for back-compat with the rest of the panel,
+          // but the value carries whichever form was found in the moddle.
+          let sourcePortRef = dexpiStream.sourcePortId || dexpiStream.sourcePortRef || '';
+          let targetPortRef = dexpiStream.targetPortId || dexpiStream.targetPortRef || '';
           
           const flowName = businessObject.name || '';
           
@@ -1848,40 +1852,37 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               const targetPortName = parts[1];
               
               
-              // Find actual port IDs from source and target elements
+              // Find actual port IDs from source and target elements. The
+              // canonical port id format is `${elementId}_${portName}_port`
+              // (matching the AutoTypeBehavior creation and the format of
+              // dexpi:port id attributes in the BPMN), so the fallback uses
+              // that same suffix so the resolved value is a valid full id.
               if (businessObject.sourceRef) {
                 const sourcePort = findPortByName(businessObject.sourceRef, sourcePortName);
                 if (sourcePort) {
-                  // Use unique port ID format: elementId_portName
-                  sourcePortRef = `${businessObject.sourceRef.id}_${sourcePortName}`;
+                  sourcePortRef = `${businessObject.sourceRef.id}_${sourcePortName}_port`;
                 }
               }
               if (businessObject.targetRef) {
                 const targetPort = findPortByName(businessObject.targetRef, targetPortName);
                 if (targetPort) {
-                  // Use unique port ID format: elementId_portName
-                  targetPortRef = `${businessObject.targetRef.id}_${targetPortName}`;
+                  targetPortRef = `${businessObject.targetRef.id}_${targetPortName}_port`;
                 }
               }
             } else if (parts.length === 3) {
               // Format: "SourcePort - Stream ID - TargetPort"
               const sourcePortName = parts[0];
               const targetPortName = parts[2];
-              
-              
-              // Find actual port IDs
               if (businessObject.sourceRef) {
                 const sourcePort = findPortByName(businessObject.sourceRef, sourcePortName);
                 if (sourcePort) {
-                  // Use unique port ID format: elementId_portName
-                  sourcePortRef = `${businessObject.sourceRef.id}_${sourcePortName}`;
+                  sourcePortRef = `${businessObject.sourceRef.id}_${sourcePortName}_port`;
                 }
               }
               if (businessObject.targetRef) {
                 const targetPort = findPortByName(businessObject.targetRef, targetPortName);
                 if (targetPort) {
-                  // Use unique port ID format: elementId_portName
-                  targetPortRef = `${businessObject.targetRef.id}_${targetPortName}`;
+                  targetPortRef = `${businessObject.targetRef.id}_${targetPortName}_port`;
                 }
               }
             }
@@ -2292,10 +2293,10 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       <div className="property-group">
         <label>
           Source Port Ref:
-          <input 
-            type="text" 
-            value={streamData.sourcePortRef || ''} 
-            onChange={(e) => updateStream({ sourcePortRef: e.target.value })}
+          <input
+            type="text"
+            value={streamData.sourcePortId || streamData.sourcePortRef || ''}
+            onChange={(e) => updateStream({ sourcePortId: e.target.value, sourcePortRef: undefined })}
             placeholder="Source port ID..."
           />
         </label>
@@ -2304,10 +2305,10 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       <div className="property-group">
         <label>
           Target Port Ref:
-          <input 
-            type="text" 
-            value={streamData.targetPortRef || ''} 
-            onChange={(e) => updateStream({ targetPortRef: e.target.value })}
+          <input
+            type="text"
+            value={streamData.targetPortId || streamData.targetPortRef || ''}
+            onChange={(e) => updateStream({ targetPortId: e.target.value, targetPortRef: undefined })}
             placeholder="Target port ID..."
           />
         </label>
