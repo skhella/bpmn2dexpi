@@ -80,8 +80,25 @@ export interface DexpiStream {
   identifier?: string;
   name?: string;
   streamType?: 'MaterialFlow' | 'EnergyFlow' | 'ThermalEnergyFlow' | 'MechanicalEnergyFlow' | 'ElectricalEnergyFlow' | 'InformationFlow';
+  /**
+   * Legacy port reference — short suffix form (e.g. "MO1_port"). The reader
+   * combines this with the BPMN sequenceFlow's sourceRef/targetRef to
+   * reconstruct the full port id. Brittle when a host BPMN tool renumbers
+   * BPMN element ids without touching foreign-extension content
+   * (the suffix and the BPMN sourceRef drift apart). Kept for
+   * backward compatibility with files written before sourcePortId was added.
+   */
   sourcePortRef?: string;
   targetPortRef?: string;
+  /**
+   * Preferred port reference — full port id, self-contained inside the
+   * dexpi extension. Robust to host-tool BPMN element renumbering because
+   * both the port's id attribute and this reference live inside foreign
+   * extensions, which a compliant tool preserves verbatim. New writes
+   * use these fields; reads accept either form.
+   */
+  sourcePortId?: string;
+  targetPortId?: string;
   templateReference?: string;
   materialStateReference?: string;
   provenance?: 'Measured' | 'Calculated' | 'Specified' | 'Estimated';

@@ -641,6 +641,8 @@ export class BpmnToDexpiTransformer {
       targetRef,
       sourcePortRef: dexpiData?.sourcePortRef,
       targetPortRef: dexpiData?.targetPortRef,
+      sourcePortId: dexpiData?.sourcePortId,
+      targetPortId: dexpiData?.targetPortId,
       streamType: (dexpiData?.streamType ?? 'MaterialFlow') as InternalStream['streamType'],
       templateReference: dexpiData?.templateReference,
       materialStateReference: dexpiData?.materialStateReference,
@@ -681,6 +683,8 @@ export class BpmnToDexpiTransformer {
       targetRef,
       sourcePortRef: dexpiData.sourcePortRef,
       targetPortRef: dexpiData.targetPortRef,
+      sourcePortId: dexpiData.sourcePortId,
+      targetPortId: dexpiData.targetPortId,
       streamType: 'InformationFlow',
       provenance: dexpiData.provenance ?? 'Calculated',
       range: dexpiData.range ?? 'Design',
@@ -1437,6 +1441,8 @@ export class BpmnToDexpiTransformer {
       streamType: (dexpiStream.getAttribute('streamType') ?? 'MaterialFlow') as InternalStream['streamType'],
       sourcePortRef: dexpiStream.getAttribute('sourcePortRef') || undefined,
       targetPortRef: dexpiStream.getAttribute('targetPortRef') || undefined,
+      sourcePortId: dexpiStream.getAttribute('sourcePortId') || undefined,
+      targetPortId: dexpiStream.getAttribute('targetPortId') || undefined,
       templateReference: dexpiStream.getAttribute('templateReference') || templateRef,
       materialStateReference: materialStateRef,
       provenance: (dexpiStream.getAttribute('provenance') ?? undefined) as 'Measured' | 'Calculated' | 'Specified' | 'Estimated' | undefined,
@@ -2347,12 +2353,18 @@ export class BpmnToDexpiTransformer {
       if (!map.has(safePort)) map.set(safePort, this.sanitizeId(connectionUid));
     };
 
+    // Prefer sourcePortId/targetPortId (the new self-contained-id format) over
+    // the legacy suffix sourcePortRef/targetPortRef. findPortForConnection's
+    // existing two-step lookup (try {elementRef}_{portRef}, then portRef
+    // directly) handles either form correctly: with the full id, the prefixed
+    // construction misses but the direct lookup hits; with the suffix, the
+    // prefixed construction hits when BPMN element ids are stable.
     this.streams.forEach((stream) => {
       if (!this.processSteps.has(stream.sourceRef) || !this.processSteps.has(stream.targetRef)) {
         return; // matches buildStreams' skip behaviour
       }
-      const sourcePort = this.findPortForConnection(stream.sourceRef, stream.sourcePortRef, 'Outlet');
-      const targetPort = this.findPortForConnection(stream.targetRef, stream.targetPortRef, 'Inlet');
+      const sourcePort = this.findPortForConnection(stream.sourceRef, stream.sourcePortId ?? stream.sourcePortRef, 'Outlet');
+      const targetPort = this.findPortForConnection(stream.targetRef, stream.targetPortId ?? stream.targetPortRef, 'Inlet');
       if (!sourcePort || !targetPort) return;
       record(sourcePort, stream.uid);
       record(targetPort, stream.uid);
@@ -2361,10 +2373,10 @@ export class BpmnToDexpiTransformer {
     this.informationFlows.forEach((flow) => {
       if (!this.processSteps.has(flow.sourceRef) || !this.processSteps.has(flow.targetRef)) return;
       const sourcePort = this.findPortForConnection(
-        flow.sourceRef, flow.sourcePortRef, 'Outlet', 'InformationPort', flow.name
+        flow.sourceRef, flow.sourcePortId ?? flow.sourcePortRef, 'Outlet', 'InformationPort', flow.name
       );
       const targetPort = this.findPortForConnection(
-        flow.targetRef, flow.targetPortRef, 'Inlet', 'InformationPort', flow.name
+        flow.targetRef, flow.targetPortId ?? flow.targetPortRef, 'Inlet', 'InformationPort', flow.name
       );
       if (!sourcePort || !targetPort) return;
       record(sourcePort, flow.uid);
@@ -2398,8 +2410,8 @@ export class BpmnToDexpiTransformer {
         return;
       }
 
-      const sourcePort = this.findPortForConnection(stream.sourceRef, stream.sourcePortRef, 'Outlet');
-      const targetPort = this.findPortForConnection(stream.targetRef, stream.targetPortRef, 'Inlet');
+      const sourcePort = this.findPortForConnection(stream.sourceRef, stream.sourcePortId ?? stream.sourcePortRef, 'Outlet');
+      const targetPort = this.findPortForConnection(stream.targetRef, stream.targetPortId ?? stream.targetPortRef, 'Inlet');
 
       if (!sourcePort || !targetPort) {
         // Skip streams without proper port references (e.g., connections to gateways)
@@ -2600,10 +2612,10 @@ export class BpmnToDexpiTransformer {
       // Match ports by the variable identity (DataObject name carried in flow.name).
       // Element with port labelled "Temperature" wins for a Temperature flow.
       const sourcePort = this.findPortForConnection(
-        flow.sourceRef, flow.sourcePortRef, 'Outlet', 'InformationPort', flow.name
+        flow.sourceRef, flow.sourcePortId ?? flow.sourcePortRef, 'Outlet', 'InformationPort', flow.name
       );
       const targetPort = this.findPortForConnection(
-        flow.targetRef, flow.targetPortRef, 'Inlet', 'InformationPort', flow.name
+        flow.targetRef, flow.targetPortId ?? flow.targetPortRef, 'Inlet', 'InformationPort', flow.name
       );
 
       if (!sourcePort || !targetPort) {

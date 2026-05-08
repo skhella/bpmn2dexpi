@@ -70,6 +70,8 @@
         { "name": "streamType", "isAttr": true, "type": "String" },
         { "name": "sourcePortRef", "isAttr": true, "type": "String" },
         { "name": "targetPortRef", "isAttr": true, "type": "String" },
+        { "name": "sourcePortId",  "isAttr": true, "type": "String" },
+        { "name": "targetPortId",  "isAttr": true, "type": "String" },
         { "name": "templateReference", "isAttr": true, "type": "String" },
         { "name": "materialStateReference", "isAttr": true, "type": "String" },
         { "name": "provenance", "isAttr": true, "type": "String" },
