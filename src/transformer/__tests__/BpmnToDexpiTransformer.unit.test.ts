@@ -419,3 +419,63 @@ describe('stream type inferred from port type when no streamType annotation', ()
     });
   });
 });
+
+/**
+ * Regression: bpmn-moddle's serialiser applies the moddle's
+ * `tagAlias: lowerCase` rule on output, so a fixture that round-trips
+ * through bpmn-js's saveXML emits `<dexpi:materialStateType>` (lowerCase
+ * first letter) where the original was `<dexpi:MaterialStateType>`.
+ *
+ * The reader path used to hard-code PascalCase matches for several
+ * Material* / Composition / Flow / MoleFlow elements and silently
+ * dropped the lowerCase forms — surfacing as N missing
+ * MaterialStateType.MoleFlow findings in the consistency check on
+ * any UI-saved file. This test feeds a minimal MaterialStateType +
+ * Composition pair in BOTH casing conventions and asserts that the
+ * MoleFlow `<Components>` carrier survives both.
+ */
+describe('Case-tolerant localName matches (bpmn-moddle round-trip)', () => {
+  const buildBpmn = (mstTag: string, compTag: string) => `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
+             targetNamespace="http://example.com/bpmn">
+  <process id="P1">
+    <dataObjectReference id="DOR_states" name="Base Case MaterialStates" dataObjectRef="DO1">
+      <extensionElements>
+        <dexpi:MaterialState uid="uuid_MS_S1">
+          <dexpi:data property="Identifier">1</dexpi:data>
+          <dexpi:data property="Label">Feed</dexpi:data>
+          <dexpi:references property="State" uidRef="uuid_MS_S1_MST"/>
+        </dexpi:MaterialState>
+        <dexpi:${mstTag} uid="uuid_MS_S1_MST">
+          <dexpi:data property="Identifier">1-State</dexpi:data>
+          <dexpi:components property="MoleFlow">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">11.2</dexpi:data>
+              <dexpi:data property="Unit">KilomolePerHour</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S1_C"/>
+        </dexpi:${mstTag}>
+        <dexpi:${compTag} uid="uuid_MS_S1_C">
+          <dexpi:data property="Display">Fraction</dexpi:data>
+        </dexpi:${compTag}>
+      </extensionElements>
+    </dataObjectReference>
+    <dataObject id="DO1"/>
+  </process>
+</definitions>`;
+
+  it('reads MaterialStateType + Composition in both PascalCase and lowerCase', async () => {
+    for (const [mst, comp, label] of [
+      ['MaterialStateType', 'Composition', 'PascalCase (raw fixture form)'] as const,
+      ['materialStateType', 'composition', 'lowerCase (bpmn-moddle round-tripped form)'] as const,
+    ]) {
+      const t = new BpmnToDexpiTransformer();
+      const out = await t.transform(buildBpmn(mst, comp));
+      expect(out, `${label}: MaterialStateType emitted`).toContain('Process/Process.MaterialStateType');
+      expect(out, `${label}: MoleFlow components carrier preserved`).toMatch(/property="MoleFlow"/);
+    }
+  });
+});
