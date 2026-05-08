@@ -1606,26 +1606,35 @@ export class BpmnToDexpiTransformer {
       };
     }
 
-    // Add ProcessConnections (Streams + InformationFlows) collection if there are any
+    // Add ProcessConnections (Streams + InformationFlows) collection if any
+    // streams or flows resolved their endpoints. The in-memory `streams` /
+    // `informationFlows` maps may be non-empty even when every entry fails
+    // port resolution (e.g. when port-ID conventions in the source BPMN
+    // don't match what findPortForConnection expects, as can happen with
+    // BPMN saved through some round-trip-tolerant tools). In that case
+    // buildStreams() / buildInformationFlows() return [], and emitting a
+    // <Components property="ProcessConnections"/> with no Object children
+    // would fail XSD validation (Components requires ≥1 Object/ObjectReference).
     if (this.streams.size > 0 || this.informationFlows.size > 0) {
-      if (!processModelObject.Components) {
-        processModelObject.Components = [];
-      }
       const allConnections = [
         ...this.buildStreams(),
         ...this.buildInformationFlows(),
       ];
-      const streamsComponent = {
-        '$': {
-          'property': 'ProcessConnections'
-        },
-        'Object': allConnections
-      };
-      
-      if (Array.isArray(processModelObject.Components)) {
-        processModelObject.Components.push(streamsComponent);
-      } else {
-        processModelObject.Components = [processModelObject.Components, streamsComponent];
+      if (allConnections.length > 0) {
+        if (!processModelObject.Components) {
+          processModelObject.Components = [];
+        }
+        const streamsComponent = {
+          '$': {
+            'property': 'ProcessConnections'
+          },
+          'Object': allConnections
+        };
+        if (Array.isArray(processModelObject.Components)) {
+          processModelObject.Components.push(streamsComponent);
+        } else {
+          processModelObject.Components = [processModelObject.Components, streamsComponent];
+        }
       }
     }
 
