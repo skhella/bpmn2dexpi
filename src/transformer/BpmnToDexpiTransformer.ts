@@ -18,11 +18,17 @@ import {
   validateEmittedDexpiXml as validateDexpiPropertyNamesImpl,
   failuresToValidationResult as failuresToValidationResultImpl,
 } from './DexpiPropertyNameValidator';
+import { validateEmittedDexpiDataTypes } from './DexpiDataTypeValidator';
+import { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
+import { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
 
 export type { TransformOptions } from './types';
 export { validateDexpiOutput } from './DexpiOutputValidator';
 export { validateEmittedDexpiXml as validateDexpiPropertyNames } from './DexpiPropertyNameValidator';
 export { failuresToValidationResult, formatFailures } from './DexpiPropertyNameValidator';
+export { validateEmittedDexpiDataTypes } from './DexpiDataTypeValidator';
+export { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
+export { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
 
 /**
  * DEXPI BPMN-extension namespace URI. Mirrors dexpi/moddle/dexpi.json's
@@ -48,18 +54,43 @@ export class BpmnToDexpiTransformer {
   readonly logger = new TransformerLogger();
 
   /**
-   * Property-name validation result from the most recent transform() call,
-   * populated only when strict mode is on. Strict-mode failures never block
-   * file production (DEXPI 2.0 permissive philosophy); they sit here for
-   * the caller (CLI, UI) to surface to the user as warnings.
+   * Tier-2 (property-name + carrier-kind) validation result from the most
+   * recent transform() call, populated only when strict mode is on.
+   * Strict-mode failures never block file production (DEXPI 2.0 permissive
+   * philosophy); they sit here for the caller (CLI, UI) to surface as
+   * warnings.
    */
   lastPropertyNameValidation: ValidationResult | undefined;
+
+  /**
+   * Tier-3 (data-type) validation result. Populated when strict mode is on.
+   * Catches typoed enum literals, non-numeric Doubles, out-of-range
+   * UnsignedBytes, malformed DateTime/AnyURI strings.
+   */
+  lastDataTypeValidation: ValidationResult | undefined;
+
+  /**
+   * Tier-4 (reference target-class) validation result. Populated when
+   * strict mode is on. Catches `<References objects="#X"/>` and
+   * `<ObjectReference object="#X"/>` whose target object's class doesn't
+   * match (or subclass) the declared target class.
+   */
+  lastReferenceValidation: ValidationResult | undefined;
+
+  /**
+   * Tier-5 (cardinality) validation result. Populated when strict mode is
+   * on. Catches missing-required and exceeds-upper-bound property counts.
+   */
+  lastCardinalityValidation: ValidationResult | undefined;
 
   async transform(bpmnXml: string, options: TransformOptions = {}): Promise<string> {
 
     // Clear state and log from previous transformations
     this.logger.reset();
     this.lastPropertyNameValidation = undefined;
+    this.lastDataTypeValidation = undefined;
+    this.lastReferenceValidation = undefined;
+    this.lastCardinalityValidation = undefined;
 
     // Load DEXPI class registry. We always include any user-supplied
     // DEXPI Profile extensions so Profile classes (e.g. BiologicalReactor)
@@ -124,8 +155,53 @@ export class BpmnToDexpiTransformer {
     // XSD-valid output is exchangeable, and we don't want strict mode to
     // gate users out of getting a deliverable.
     if (options.strict && this.registry.size > 0) {
-      const failures = validateDexpiPropertyNamesImpl(xml, 'transformer output', this.registry);
-      this.lastPropertyNameValidation = failuresToValidationResultImpl(failures);
+      // Tier 2: property-name + carrier-kind fidelity.
+      const nameFailures = validateDexpiPropertyNamesImpl(xml, 'transformer output', this.registry);
+      this.lastPropertyNameValidation = failuresToValidationResultImpl(nameFailures);
+
+      // Tier 3: data-type fidelity (Builtin primitives + Enumeration literals).
+      const dataTypeFailures = validateEmittedDexpiDataTypes(xml, 'transformer output', this.registry);
+      this.lastDataTypeValidation = {
+        valid: dataTypeFailures.length === 0,
+        errors: dataTypeFailures.map(f => `${f.className}.${f.propertyName}: ${f.context}`),
+        warnings: [],
+        mode: 'property-names' as ValidationResult['mode'],
+      };
+
+      // Tier 4: reference target-class compliance.
+      const refFailures = validateEmittedDexpiReferences(xml, 'transformer output', this.registry);
+      this.lastReferenceValidation = {
+        valid: refFailures.length === 0,
+        errors: refFailures.map(f => `${f.className}.${f.propertyName}: ${f.context}`),
+        warnings: [],
+        mode: 'property-names' as ValidationResult['mode'],
+      };
+
+      // Tier 5: cardinality (lower / upper bounds).
+      const cardFailures = validateEmittedDexpiCardinality(xml, 'transformer output', this.registry);
+      this.lastCardinalityValidation = {
+        valid: cardFailures.length === 0,
+        errors: cardFailures.map(f => `${f.className}.${f.propertyName}: ${f.context}`),
+        warnings: [],
+        mode: 'property-names' as ValidationResult['mode'],
+      };
+
+      // Surface a single aggregated warning to the logger when any tier
+      // produced findings, so CLI / UI consumers see the issue without
+      // having to introspect each `last*Validation` field individually.
+      const totals = [
+        ['property-name + kind',        nameFailures.length],
+        ['data-type',                   dataTypeFailures.length],
+        ['reference target-class',      refFailures.length],
+        ['cardinality',                 cardFailures.length],
+      ] as const;
+      const nonZero = totals.filter(([, n]) => n > 0);
+      if (nonZero.length > 0) {
+        const summary = nonZero.map(([label, n]) => `${label}: ${n}`).join(', ');
+        this.logger.warn(`Strict-mode fidelity findings — ${summary}. ` +
+          `Output is still produced (DEXPI 2.0 permissive philosophy); ` +
+          `inspect transformer.last{PropertyName,DataType,Reference,Cardinality}Validation for details.`);
+      }
     }
 
     return xml;
