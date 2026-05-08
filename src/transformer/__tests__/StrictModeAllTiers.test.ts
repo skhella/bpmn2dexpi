@@ -62,12 +62,13 @@ describe('Strict mode — all five post-XSD tiers wired', () => {
     expect(t.lastCardinalityValidation!.errors).toBeDefined();
     expect(t.lastClassExistenceValidation!.errors).toBeDefined();
 
-    // Reference target-class: known issue (MaterialTemplate.ListOfComponents
-    // points at individual components; declared target is ListOfMaterialComponents).
-    expect(t.lastReferenceValidation!.errors.length).toBeGreaterThan(0);
-    // Cardinality: TEP is missing many declared-required properties
-    // (Description, Method, ConnectorReference, etc.).
+    // Reference target-class: clean now that the transformer materialises
+    // the ListOfMaterialComponents wrapper for MaterialTemplate.ListOfComponents.
+    expect(t.lastReferenceValidation!.valid).toBe(true);
+    // Cardinality: TEP still has 12 missing Method literals (project-
+    // authoring data the transformer cannot fabricate without guessing).
     expect(t.lastCardinalityValidation!.errors.length).toBeGreaterThan(0);
+    expect(t.lastCardinalityValidation!.errors.every(e => /\.Method:/.test(e))).toBe(true);
     // Class existence: defense-in-depth post-condition. After resolveStepType
     // + ProcessStep fallback, TEP must not emit any unknown classes.
     expect(t.lastClassExistenceValidation!.valid).toBe(true);
@@ -98,8 +99,12 @@ describe('Strict mode — all five post-XSD tiers wired', () => {
       w.includes('Strict-mode fidelity findings'),
     );
     expect(summaryWarning).toBeDefined();
-    // Reference-class + cardinality should appear in the summary.
-    expect(summaryWarning).toContain('reference target-class');
+    // Cardinality is the remaining tier with findings on TEP (Method
+    // authoring gaps); property-name + kind appears too (Profile-extension
+    // territory). Reference target-class is clean now that the transformer
+    // emits the ListOfMaterialComponents wrapper.
     expect(summaryWarning).toContain('cardinality');
+    expect(summaryWarning).toContain('property-name + kind');
+    expect(summaryWarning).not.toContain('reference target-class');
   });
 });

@@ -86,26 +86,29 @@ describe('Tier 5: cardinality validator', () => {
     expect(validateEmittedDexpiCardinality(xml, 'unit', REGISTRY)).toEqual([]);
   });
 
-  it('TEP regression: snapshots known cardinality gaps in the transformer', async () => {
+  it('TEP regression: only Method authoring gaps remain (12 across 5 ProcessStep subclasses)', async () => {
     const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(bpmn);
     const failures = validateEmittedDexpiCardinality(out, 'TEP', REGISTRY);
-    // The current TEP→DEXPI transformer doesn't emit several DEXPI-required
-    // properties because the source BPMN doesn't carry data for them
-    // (Description, Method, ConnectorReference, DisplayText, ExportDateTime,
-    // OriginatingSystem*). These represent legitimate gaps that downstream
-    // strict tooling would flag.
-    //
-    // We snapshot the current count so future transformer improvements
-    // either reduce this count (good) or surface as a deliberate test
-    // update (intentional change). At time of writing: 229 violations
-    // across 18 unique (className, propertyName) pairs.
-    expect(failures.length).toBeGreaterThan(0);
+    // Earlier this test snapshotted ~229 cardinality violations dominated by
+    // missing ConnectorReference / DisplayText / Description / EngineeringModel
+    // headers. All of those are now emitted from the transformer (using
+    // registry-driven defaults — no name-similarity heuristics). What
+    // remains are 12 missing `Method` literals across the 5 ProcessStep
+    // subclasses TEP exercises (ReactingChemicals, RemovingThermalEnergy,
+    // ExchangingThermalEnergy, Compressing, Cooling). Method is a class-
+    // specific enum (CompressionMethod / ReactionProcessType /
+    // HeatExchangeMethod) whose value is genuine project-authoring data —
+    // the BPMN fixture must supply it; the transformer cannot fabricate it
+    // without guessing the unit's technology.
+    expect(failures.length).toBe(12);
     const uniqueKeys = new Set(failures.map(f => `${f.className}.${f.propertyName}`));
-    expect(uniqueKeys.size).toBeGreaterThan(0);
-    // The most common gap is ConnectorReference on every Port — there are
-    // many ports, so this dominates the count.
-    expect(failures.some(f => f.propertyName === 'ConnectorReference')).toBe(true);
+    expect(uniqueKeys.size).toBe(5);
+    expect(failures.every(f => f.propertyName === 'Method')).toBe(true);
+    // No ConnectorReference / DisplayText / Description / OriginatingSystem*
+    // gaps should remain — the transformer emits those.
+    expect(failures.some(f => f.propertyName === 'ConnectorReference')).toBe(false);
+    expect(failures.some(f => f.propertyName === 'DisplayText')).toBe(false);
   });
 });

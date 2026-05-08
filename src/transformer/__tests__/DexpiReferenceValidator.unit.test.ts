@@ -98,17 +98,19 @@ describe('Tier 4: reference target-class validator', () => {
     expect(validateEmittedDexpiReferences(xml, 'unit', REGISTRY)).toEqual([]);
   });
 
-  it('TEP regression: surfaces the known MaterialTemplate.ListOfComponents shape issue', async () => {
+  it('TEP regression: MaterialTemplate.ListOfComponents now points at the wrapper class', async () => {
     const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(bpmn);
     const failures = validateEmittedDexpiReferences(out, 'TEP', REGISTRY);
-    // The transformer currently emits ListOfComponents pointing at individual
-    // MaterialComponent objects, but Process.xml declares the target as
-    // ListOfMaterialComponents (a wrapper class). 9 violations expected
-    // until the transformer is updated. This test SNAPSHOTS the current
-    // state — when the transformer is fixed, update the count.
-    expect(failures.length).toBe(9);
-    expect(failures.every(f => f.propertyName === 'ListOfComponents')).toBe(true);
+    // The transformer now materialises a /Process.ListOfMaterialComponents
+    // wrapper Object per template under ProcessModel.ListsOfMaterialComponents
+    // and points MaterialTemplate.ListOfComponents at it (DEXPI 2.0 spec
+    // Process.xml lines 2219-2222 + 2439-2440). No reference target-class
+    // violations on ListOfComponents should remain.
+    expect(failures.filter(f => f.propertyName === 'ListOfComponents')).toEqual([]);
+    // Sanity-check the wrapper objects are actually emitted.
+    expect(out).toMatch(/<Object[^>]*type="Process\/Process\.ListOfMaterialComponents"/);
+    expect(out).toMatch(/property="ListsOfMaterialComponents"/);
   });
 });

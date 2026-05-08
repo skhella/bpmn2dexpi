@@ -1705,6 +1705,29 @@ export class BpmnToDexpiTransformer {
       }
     }
 
+    // Add ListsOfMaterialComponents collection (one per MaterialTemplate
+    // that has components). Per Process.xml line 5227, ProcessModel
+    // declares ListsOfMaterialComponents as a CompositionProperty whose
+    // target is /Process.ListOfMaterialComponents — the wrapper class
+    // that aggregates a template's MaterialComponent References. Each
+    // wrapper id is `${templateUid}_ListOfComponents` so the
+    // MaterialTemplate.ListOfComponents reference resolves locally.
+    const listsOfComponents = this.buildListsOfMaterialComponents();
+    if (listsOfComponents.length > 0) {
+      if (!processModelObject.Components) {
+        processModelObject.Components = [];
+      }
+      const listsComponent = {
+        '$': { 'property': 'ListsOfMaterialComponents' },
+        'Object': listsOfComponents,
+      };
+      if (Array.isArray(processModelObject.Components)) {
+        processModelObject.Components.push(listsComponent);
+      } else {
+        processModelObject.Components = [processModelObject.Components, listsComponent];
+      }
+    }
+
     // Add Compositions collection (one per MaterialStateType that carries
     // composition data). Per Process.xml, ProcessModel.Compositions is the
     // CompositionProperty container; MaterialStateType.Composition is the
@@ -2623,6 +2646,38 @@ export class BpmnToDexpiTransformer {
     return flowElements;
   }
 
+  /**
+   * Materialise the wrapper Objects that DEXPI's MaterialTemplate.ListOfComponents
+   * targets. One wrapper per template that has components; each wrapper holds
+   * the per-component References. Per Process.xml lines 2219-2222
+   * (ListOfMaterialComponents class) + 5227 (ProcessModel container). Wrapper
+   * ids are deterministic — `${templateUid}_ListOfComponents` — so the
+   * MaterialTemplate's ListOfComponents reference resolves locally.
+   */
+  private buildListsOfMaterialComponents(): Record<string, unknown>[] {
+    const out: Record<string, unknown>[] = [];
+    this.materialTemplates.forEach((template) => {
+      if (!template.componentRefs || template.componentRefs.length === 0) return;
+      const wrapperId = this.sanitizeId(`${template.uid}_ListOfComponents`);
+      const refs = template.componentRefs.map((ref: string) => `#${this.sanitizeId(ref)}`).join(' ');
+      out.push({
+        '$': {
+          'id': wrapperId,
+          'type': 'Process/Process.ListOfMaterialComponents',
+        },
+        'References': [
+          {
+            '$': {
+              'property': 'Component',
+              'objects': refs,
+            },
+          },
+        ],
+      });
+    });
+    return out;
+  }
+
   private buildMaterialTemplates(): Record<string, unknown>[] {
     const templates: Record<string, unknown>[] = [];
 
@@ -2682,17 +2737,25 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add ListOfComponents if present. Canonical name per Process.xml
-      // line 2439: ListOfComponents is the ReferenceProperty on
-      // MaterialTemplate (target type = ListOfMaterialComponents class).
+      // ListOfComponents is a single-target ReferenceProperty whose declared
+      // target class is /Process.ListOfMaterialComponents (a wrapper class
+      // that holds the per-component References, not the components
+      // themselves). Per Process.xml lines 2219-2222 + 2439-2440. Earlier
+      // versions of this transformer pointed ListOfComponents directly at
+      // individual MaterialComponent objects, which Tier 4 (reference
+      // target-class) correctly flagged as a target-class violation. We
+      // now emit a deterministic wrapper id per template; the wrapper
+      // Object itself is materialised later under
+      // ProcessModel.ListsOfMaterialComponents (CompositionProperty).
       if (template.componentRefs && template.componentRefs.length > 0) {
         if (!dexpiTemplate.References) {
           dexpiTemplate.References = [];
         }
+        const wrapperId = this.sanitizeId(`${template.uid}_ListOfComponents`);
         (dexpiTemplate.References as Record<string, unknown>[]).push({
           '$': {
             'property': 'ListOfComponents',
-            'objects': template.componentRefs.map((ref: string) => `#${this.sanitizeId(ref)}`).join(' ')
+            'objects': `#${wrapperId}`,
           }
         });
       }
