@@ -1232,7 +1232,7 @@ const ProcessStepAttributesSection: React.FC<{ element: any; modeler: any }> = (
           scope: updates.scope !== undefined ? updates.scope : attr.scope,
           range: updates.range !== undefined ? updates.range : attr.range,
           provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
-          required: updates.required !== undefined ? updates.required : attr.required
+          required: 'required' in updates ? updates.required : attr.required
         });
       }
       return attr;
@@ -1925,7 +1925,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           range: updates.range !== undefined ? updates.range : attr.range,
           provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
           qualifier: updates.qualifier !== undefined ? updates.qualifier : attr.qualifier,
-          required: updates.required !== undefined ? updates.required : attr.required
+          required: 'required' in updates ? updates.required : attr.required
         });
       }
       return attr;
