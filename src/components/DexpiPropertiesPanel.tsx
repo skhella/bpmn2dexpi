@@ -42,6 +42,111 @@ function lookupRequiredSource(
 }
 
 /**
+ * Properties the transformer auto-emits without the user needing to
+ * supply a value. Used by the placeholder logic to AVOID creating empty
+ * attribute rows for things that already get filled in at export time
+ * (Identifier from BPMN id, Label from BPMN name, Source/Target from
+ * sequence-flow topology, etc).
+ *
+ * Keep in sync with BpmnToDexpiTransformer.ts emission paths. Any property
+ * the transformer auto-emits when emitting an instance of `className`
+ * (or any of its supertypes — supertype walking is done by the lookup)
+ * belongs in the class's set here.
+ *
+ * UNIVERSAL_AUTO_EMITTED applies to every emitted Object regardless of
+ * class (Identifier from id, Label from name).
+ */
+const UNIVERSAL_AUTO_EMITTED = new Set<string>(['Identifier', 'Label']);
+const CLASS_AUTO_EMITTED: Record<string, Set<string>> = {
+  EngineeringModel: new Set([
+    'ExportDateTime', 'OriginatingSystemName',
+    'OriginatingSystemVendorName', 'OriginatingSystemVersion',
+    'ConceptualModel',
+  ]),
+  // Stream + every subclass auto-emit Source/Target from the BPMN
+  // sourceRef/targetRef topology. (We can't walk to the abstract
+  // ProcessConnection here because the transformer emits these on the
+  // concrete subclass directly.)
+  Stream: new Set(['Source', 'Target']),
+  EnergyFlow: new Set(['Source', 'Target']),
+  ThermalEnergyFlow: new Set(['Source', 'Target']),
+  MechanicalEnergyFlow: new Set(['Source', 'Target']),
+  ElectricalEnergyFlow: new Set(['Source', 'Target']),
+  InformationFlow: new Set(['Source', 'Target']),
+
+  // Ports get NominalDirection from BPMN port direction + ConnectorReference
+  // from buildPortConnectorMap.
+  MaterialPort: new Set(['NominalDirection', 'ConnectorReference']),
+  EnergyPort: new Set(['NominalDirection', 'ConnectorReference']),
+  InformationPort: new Set(['NominalDirection', 'ConnectorReference']),
+  ThermalEnergyPort: new Set(['NominalDirection', 'ConnectorReference']),
+  MechanicalEnergyPort: new Set(['NominalDirection', 'ConnectorReference']),
+  ElectricalEnergyPort: new Set(['NominalDirection', 'ConnectorReference']),
+
+  // Materials
+  MaterialTemplate: new Set([
+    'NumberOfMaterialComponents', 'NumberOfPhases', 'PhaseLabel', 'ListOfComponents',
+  ]),
+  ListOfMaterialComponents: new Set(['Component']),
+  MaterialState: new Set(['Description', 'State']),
+
+  // Placeholder slot emission for canonical measured-variable carriers
+  QualifiedValue: new Set(['Value', 'DisplayText']),
+
+  // Instrumentation: Description falls back to BPMN name. Subclasses inherit
+  // this through the supertype walk that lookupAutoEmitted does.
+  InstrumentationActivity: new Set(['Description']),
+};
+
+/**
+ * Walk the supertype chain to determine whether `propName` is auto-emitted
+ * by the transformer when emitting an instance of `className`. Returns
+ * true for universal properties (Identifier/Label) and for properties
+ * the transformer fills in on this class or any of its supertypes.
+ */
+function isAutoEmittedByTransformer(
+  className: string,
+  propName: string,
+  registry: DexpiProcessClassRegistry,
+): boolean {
+  if (UNIVERSAL_AUTO_EMITTED.has(propName)) return true;
+  const visited = new Set<string>();
+  const walk = (cls: string): boolean => {
+    if (visited.has(cls)) return false;
+    visited.add(cls);
+    if (CLASS_AUTO_EMITTED[cls]?.has(propName)) return true;
+    const info = registry.getClass(cls);
+    if (!info) return false;
+    for (const st of info.superTypes) if (walk(st)) return true;
+    return false;
+  };
+  return walk(className);
+}
+
+/**
+ * Compute the data-kind required-but-not-auto-emitted properties for a
+ * given className. These are the rows the attribute panel materialises
+ * as empty placeholders so the user knows what they still need to fill
+ * in (e.g. Compressing.Method). Reference/Composition kinds are excluded
+ * — they don't fit the simple text-attribute UI.
+ */
+function computeRequiredPlaceholderProps(
+  registry: DexpiProcessClassRegistry | null,
+  className: string,
+): string[] {
+  if (!registry) return [];
+  if (!registry.isValidClass(className)) return [];
+  const out: string[] = [];
+  for (const p of registry.getProperties(className)) {
+    if (p.lower < 1) continue;
+    if (p.kind !== 'data') continue;
+    if (isAutoEmittedByTransformer(className, p.name, registry)) continue;
+    out.push(p.name);
+  }
+  return out;
+}
+
+/**
  * Map a BPMN-side `<dexpi:stream streamType="...">` discriminator to the
  * DEXPI class the transformer emits for it. Mirrors the same map in
  * BpmnToDexpiTransformer.streamTypeToDexpiClass and DexpiProfileGenerator's
@@ -1249,12 +1354,12 @@ const ProcessStepAttributesSection: React.FC<{
     if (element) {
       const businessObject = element.businessObject;
       const extensionElements = businessObject.extensionElements;
-      
+
       if (extensionElements?.values) {
         const dexpiElement = extensionElements.values.find(
           (e: any) => e.$type === 'dexpi:Element'
         );
-        
+
         if (dexpiElement) {
           const attrs = dexpiElement.attributes || [];
           setAttributes(Array.isArray(attrs) ? attrs : []);
@@ -1262,6 +1367,38 @@ const ProcessStepAttributesSection: React.FC<{
       }
     }
   }, [element]);
+
+  // Auto-create empty placeholder attributes for DEXPI/Profile-required
+  // properties the transformer doesn't fill in itself (e.g.
+  // Compressing.Method). Persisted as real attributes with empty value so
+  // they survive reload; the transformer's existing
+  // `if (!attr.name || !attr.value) return` skip means they don't pollute
+  // the DEXPI XML until the user types a value, while the cardinality
+  // validator continues to flag them as missing — preserving the
+  // validate→author→close-the-loop story.
+  //
+  // Depend on `attributes` so this runs *after* the load useEffect
+  // populates state from BPMN; otherwise we'd race load and overwrite
+  // BPMN with just placeholders. The set-difference + early-exit guard
+  // makes the post-add re-run a no-op, so no infinite loop.
+  React.useEffect(() => {
+    if (!registry || !element) return;
+    const present = new Set(attributes.map((a: any) => a?.name).filter(Boolean));
+    const needed = computeRequiredPlaceholderProps(registry, className).filter(p => !present.has(p));
+    if (needed.length === 0) return;
+    const moddle = modeler.get('moddle');
+    const placeholders = needed.map(propName =>
+      moddle.create('dexpi:Attribute', {
+        name: propName,
+        value: '',
+        required: true,
+      }),
+    );
+    const updated = [...attributes, ...placeholders];
+    setAttributes(updated);
+    updateElementAttributes(updated);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attributes, className, registry, element]);
 
   const addAttribute = () => {
     const moddle = modeler.get('moddle');
@@ -2004,6 +2141,39 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       extensionElements
     });
   };
+
+  // Auto-create empty placeholder attributes for required-but-not-auto-emitted
+  // properties on the wrapping Stream class (e.g. InformationFlow.InformationValue).
+  // Same mechanics as the step-attribute editor: empty value → transformer
+  // skips emission → cardinality validator flags missing → user fills in.
+  //
+  // Depend on `attributes` so this runs *after* the load useEffect populates
+  // state from BPMN — otherwise we'd race the load and risk overwriting
+  // the BPMN's existing attributes with just placeholders. The set-
+  // difference + early-exit guard makes the post-add re-run a no-op, so no
+  // infinite loop.
+  React.useEffect(() => {
+    if (!augmentedRegistry || !element) return;
+    const present = new Set(attributes.map((a: any) => a?.name).filter(Boolean));
+    const needed = computeRequiredPlaceholderProps(augmentedRegistry, streamClassName)
+      .filter(p => !present.has(p));
+    if (needed.length === 0) return;
+    const moddle = modeler.get('moddle');
+    const placeholders = needed.map(propName =>
+      moddle.create('dexpi:Attribute', {
+        name: propName,
+        value: '',
+        required: true,
+      }),
+    );
+    const updated = [...attributes, ...placeholders];
+    setAttributes(updated);
+    updateStream({ attributes: updated });
+  // updateStream is closure-stable enough for this; eslint can't statically
+  // verify but the captured `streamData`/`element` reference stays valid
+  // for one effect tick.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attributes, streamClassName, augmentedRegistry, element]);
 
   const addAttribute = () => {
     const moddle = modeler.get('moddle');
