@@ -734,6 +734,27 @@ function seedFromCustomBpmnAnnotations(
 }
 
 /**
+ * Map a BPMN-side `<dexpi:stream streamType="...">` discriminator to the
+ * DEXPI class the transformer emits for it. Mirrors
+ * BpmnToDexpiTransformer.streamTypeToDexpiClass; kept in sync by hand
+ * (small map, rarely changes — duplicating it avoids a dependency between
+ * the generator and the transformer module).
+ */
+function streamTypeToDexpiClassName(streamType: string | null): string {
+  switch (streamType) {
+    case 'ThermalEnergyFlow':    return 'ThermalEnergyFlow';
+    case 'MechanicalEnergyFlow': return 'MechanicalEnergyFlow';
+    case 'ElectricalEnergyFlow': return 'ElectricalEnergyFlow';
+    case 'EnergyFlow':           return 'EnergyFlow';
+    case 'InformationFlow':      return 'InformationFlow';
+    case 'MaterialFlow':
+    case '':
+    case null:
+    default:                     return 'Stream';
+  }
+}
+
+/**
  * Scan BPMN extension elements for user-asserted required-flagged attributes
  * and return a map of `${className}.${propertyName}` → `true`.
  *
@@ -742,46 +763,66 @@ function seedFromCustomBpmnAnnotations(
  *     <dexpi:components property="P" required="true"> ... </dexpi:components>
  *     <dexpi:attribute name="P" value="..." required="true"/>
  *   </dexpi:element>
+ *   <dexpi:stream streamType="MaterialFlow">
+ *     <dexpi:attribute name="P" value="..." required="true"/>
+ *   </dexpi:stream>
  *
- * The className is taken from the wrapping `dexpiType` (per-class override —
- * a required flag tightens the property only for that specific class, not for
- * its supertypes; this scopes the user's intervention narrowly).
- *
- * Stream extensions (`<dexpi:stream>`) are skipped: their attribute carrier
- * elements are tied to a Stream's class which the BPMN doesn't expose
- * directly. Required-on-stream is left as a future extension.
+ * The className is taken from the wrapping `dexpiType` (for elements) or
+ * derived from `streamType` via streamTypeToDexpiClassName (for streams).
+ * In both cases the override is per-class — a required flag tightens the
+ * property only for that specific class, not for its supertypes; this
+ * scopes the user's intervention narrowly.
  */
 function collectRequiredFlagsFromBpmn(bpmnXml: string): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
   const parser = new DOMParser();
   const doc = parser.parseFromString(bpmnXml, 'text/xml');
 
-  // Walk every <dexpi:element> in document order. A getElementsByTagName
-  // wildcard catches both prefixed and bare-local-name forms; we filter
-  // on the local name to be namespace-prefix-tolerant.
+  const recordRequired = (className: string, propName: string): void => {
+    let set = result.get(className);
+    if (!set) {
+      set = new Set();
+      result.set(className, set);
+    }
+    set.add(propName);
+  };
+
+  // Walk every <dexpi:element> and <dexpi:stream> in document order. A
+  // getElementsByTagName wildcard catches both prefixed and bare-local-name
+  // forms; we filter on the local name to be namespace-prefix-tolerant.
   const candidates = Array.from(doc.getElementsByTagName('*'));
   for (const el of candidates) {
     const ln = (el.localName || '').toLowerCase();
-    if (ln !== 'element') continue;
-    const className = el.getAttribute('dexpiType');
-    if (!className) continue;
 
-    for (const child of Array.from(el.children) as Element[]) {
-      const cln = (child.localName || '').toLowerCase();
-      if (cln !== 'components' && cln !== 'attribute') continue;
-      const required = child.getAttribute('required');
-      if (required !== 'true') continue;
-      const propName =
-        cln === 'components'
-          ? (child.getAttribute('property') || '')
-          : (child.getAttribute('name') || '');
-      if (!propName) continue;
-      let set = result.get(className);
-      if (!set) {
-        set = new Set();
-        result.set(className, set);
+    if (ln === 'element') {
+      const className = el.getAttribute('dexpiType');
+      if (!className) continue;
+      for (const child of Array.from(el.children) as Element[]) {
+        const cln = (child.localName || '').toLowerCase();
+        if (cln !== 'components' && cln !== 'attribute') continue;
+        if (child.getAttribute('required') !== 'true') continue;
+        const propName =
+          cln === 'components'
+            ? (child.getAttribute('property') || '')
+            : (child.getAttribute('name') || '');
+        if (propName) recordRequired(className, propName);
       }
-      set.add(propName);
+      continue;
+    }
+
+    if (ln === 'stream') {
+      const className = streamTypeToDexpiClassName(el.getAttribute('streamType'));
+      for (const child of Array.from(el.children) as Element[]) {
+        const cln = (child.localName || '').toLowerCase();
+        // Streams currently use only the bare-name <dexpi:attribute> form;
+        // the carrier-wrapped <dexpi:components> shape is reserved for
+        // step-side rich-DEXPI emissions.
+        if (cln !== 'attribute') continue;
+        if (child.getAttribute('required') !== 'true') continue;
+        const propName = child.getAttribute('name') || '';
+        if (propName) recordRequired(className, propName);
+      }
+      continue;
     }
   }
 

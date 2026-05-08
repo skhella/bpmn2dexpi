@@ -129,3 +129,104 @@ describe('Profile generator — required-flag (narrow-only) pipeline', () => {
     expect(result.xml).toMatch(/name="MyOtherProp"\s+lower="0"/);
   });
 });
+
+describe('Profile generator — required-flag on streams', () => {
+  // Streams use the bare-name <dexpi:attribute> form (no <dexpi:components>
+  // wrapper). The Profile generator derives the className from the BPMN-side
+  // streamType discriminator: MaterialFlow → Stream; ThermalEnergyFlow →
+  // ThermalEnergyFlow; etc. Same narrow-only enforcement as the step path.
+
+  function bpmnStreamWithRequiredFlag(opts: {
+    streamType: string;
+    property: string;
+    required: boolean;
+  }): string {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://example.org/dexpi"
+             xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="https://t/">
+  <process id="p1">
+    <sequenceFlow id="F1" sourceRef="A" targetRef="B">
+      <extensionElements>
+        <dexpi:stream streamType="${opts.streamType}" identifier="F1" uid="uid_F1">
+          <dexpi:attribute name="${opts.property}" value="42" unit="kg/h"${opts.required ? ' required="true"' : ''}/>
+        </dexpi:stream>
+      </extensionElements>
+    </sequenceFlow>
+  </process>
+</definitions>`;
+  }
+
+  function dexpiStreamWithProperty(dexpiClass: string, property: string): string {
+    return `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="src_port" type="Process/Process.MaterialPort"/>
+      <Object id="tgt_port" type="Process/Process.MaterialPort"/>
+      <Object id="s1" type="Process/Process.${dexpiClass}">
+        <Components property="${property}">
+          <Object type="Core/QualifiedValue">
+            <Data property="Value">42</Data>
+          </Object>
+        </Components>
+      </Object>
+    </Model>`;
+  }
+
+  it('MaterialFlow stream → Stream.<custom> emitted with lower=1 when required', () => {
+    const dexpi = dexpiStreamWithProperty('Stream', 'MyStreamProp');
+    const bpmn = bpmnStreamWithRequiredFlag({
+      streamType: 'MaterialFlow',
+      property: 'MyStreamProp',
+      required: true,
+    });
+    const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
+    expect(result.xml).toMatch(/name="MyStreamProp"\s+lower="1"/);
+    // Custom property → no DEXPI-narrowing warning (no DEXPI default to override).
+    expect(result.warnings.filter(w => w.includes('Required-flag override'))).toHaveLength(0);
+  });
+
+  it('ThermalEnergyFlow stream → ThermalEnergyFlow.<custom> uses the streamType-derived class', () => {
+    const dexpi = dexpiStreamWithProperty('ThermalEnergyFlow', 'MyHeatProp');
+    const bpmn = bpmnStreamWithRequiredFlag({
+      streamType: 'ThermalEnergyFlow',
+      property: 'MyHeatProp',
+      required: true,
+    });
+    const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
+    expect(result.xml).toContain('<ConcreteClass name="ThermalEnergyFlow"');
+    // Match: the ThermalEnergyFlow ConcreteClass must contain a MyHeatProp DataProperty
+    // declared with lower="1" (rather than lower="0" as for non-required custom props).
+    const match = result.xml.match(/<ConcreteClass name="ThermalEnergyFlow"[\s\S]*?<\/ConcreteClass>/);
+    expect(match, 'expected a ThermalEnergyFlow ConcreteClass block').toBeTruthy();
+    expect(match![0]).toMatch(/name="MyHeatProp"\s+lower="1"/);
+  });
+
+  it('Standard DEXPI Stream property + required=true → narrowing warning surfaces', () => {
+    // Description is declared on Stream's supertype chain at lower=0; a
+    // required-flag override should narrow it to lower=1 with a notice.
+    const dexpi = dexpiStreamWithProperty('Stream', 'Description');
+    const bpmn = bpmnStreamWithRequiredFlag({
+      streamType: 'MaterialFlow',
+      property: 'Description',
+      required: true,
+    });
+    const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
+    const narrow = result.warnings.find(w =>
+      w.includes('Required-flag override') && w.includes('Stream.Description'),
+    );
+    expect(narrow, JSON.stringify(result.warnings, null, 2)).toBeDefined();
+    expect(narrow).toContain('lower=0 to lower=1');
+  });
+
+  it('absent required flag on a stream attribute → no narrowing, no warning', () => {
+    const dexpi = dexpiStreamWithProperty('Stream', 'AnotherStreamProp');
+    const bpmn = bpmnStreamWithRequiredFlag({
+      streamType: 'MaterialFlow',
+      property: 'AnotherStreamProp',
+      required: false,
+    });
+    const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
+    expect(result.warnings.filter(w => w.includes('Required-flag override'))).toHaveLength(0);
+    expect(result.xml).toMatch(/name="AnotherStreamProp"\s+lower="0"/);
+  });
+});

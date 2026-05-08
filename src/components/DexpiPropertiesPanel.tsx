@@ -1924,7 +1924,8 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           scope: updates.scope !== undefined ? updates.scope : attr.scope,
           range: updates.range !== undefined ? updates.range : attr.range,
           provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
-          qualifier: updates.qualifier !== undefined ? updates.qualifier : attr.qualifier
+          qualifier: updates.qualifier !== undefined ? updates.qualifier : attr.qualifier,
+          required: updates.required !== undefined ? updates.required : attr.required
         });
       }
       return attr;
@@ -2386,8 +2387,8 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
 
             <label>
               Provenance:
-              <select 
-                value={attr.provenance || 'Calculated'} 
+              <select
+                value={attr.provenance || 'Calculated'}
                 onChange={(e) => updateAttribute(index, { provenance: e.target.value })}
               >
                 <option value="">-- Select Provenance --</option>
@@ -2396,6 +2397,22 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 ))}
               </select>
             </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+              <input
+                type="checkbox"
+                checked={!!attr.required}
+                onChange={(e) => updateAttribute(index, { required: e.target.checked || undefined })}
+              />
+              <span>Required in generated Profile</span>
+            </label>
+            {attr.required && (
+              <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '2px', marginLeft: '22px' }}>
+                The Profile generator will narrow this property's lower bound
+                to 1 for the Stream's class. DEXPI's lower=0 default is
+                overridden — on reload, the loaded Profile takes precedence.
+              </div>
+            )}
           </div>
         ))}
       </div>

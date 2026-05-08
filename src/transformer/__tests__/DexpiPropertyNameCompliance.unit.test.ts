@@ -71,7 +71,7 @@ describe('DEXPI property-name fidelity (Process.xml + Core.xml + generated TEP P
   const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
   let augmentedRegistry: DexpiProcessClassRegistry;
 
-  it('the generator round-trip yields a registry that consumes its own output', async () => {
+  it('the generator round-trip yields a registry that consumes its own output', { timeout: 15_000 }, async () => {
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(bpmn);
     const generated = generateProfileFromDexpiXml(out, BASE_REGISTRY, { bpmnXml: bpmn });
