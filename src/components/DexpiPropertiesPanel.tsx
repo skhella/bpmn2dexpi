@@ -190,7 +190,10 @@ const AttributeNameValueRow: React.FC<{
   registry: DexpiProcessClassRegistry | null;
   className: string;
   onChange: (updates: { name?: string; value?: string }) => void;
-}> = ({ attr, registry, className, onChange }) => {
+  /** Optional content inserted between the Attribute and Value rows
+   *  (e.g. the Stream editor's Attribute URI input). */
+  betweenNameAndValue?: React.ReactNode;
+}> = ({ attr, registry, className, onChange, betweenNameAndValue }) => {
   const knownNames = React.useMemo(
     () => dataPropertyNamesForClass(registry, className),
     [registry, className],
@@ -256,7 +259,7 @@ const AttributeNameValueRow: React.FC<{
   return (
     <>
       <label>
-        Name:
+        Attribute:
         {showNameDropdown ? (
           <select value={nameSelectValue} onChange={handleNameSelect}>
             <option value="">-- Select --</option>
@@ -283,6 +286,8 @@ const AttributeNameValueRow: React.FC<{
           />
         )}
       </label>
+
+      {betweenNameAndValue}
 
       <label>
         Value:
@@ -2761,18 +2766,19 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               registry={augmentedRegistry}
               className={streamClassName}
               onChange={(updates) => updateAttribute(index, updates)}
+              betweenNameAndValue={
+                <label>
+                  Attribute URI:
+                  <input
+                    type="text"
+                    value={attr.nameUri || ''}
+                    onChange={(e) => updateAttribute(index, { nameUri: e.target.value })}
+                    placeholder="e.g. https://qudt.org/vocab/quantitykind/MassFlowRate"
+                    style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
+                  />
+                </label>
+              }
             />
-
-            <label>
-              Name URI:
-              <input
-                type="text"
-                value={attr.nameUri || ''}
-                onChange={(e) => updateAttribute(index, { nameUri: e.target.value })}
-                placeholder="e.g. https://qudt.org/vocab/quantitykind/MassFlowRate"
-                style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
-              />
-            </label>
 
             <label>
               Unit:
