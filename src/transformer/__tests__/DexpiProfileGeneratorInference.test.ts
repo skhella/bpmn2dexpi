@@ -87,7 +87,11 @@ describe('Profile generator — data-type inference', () => {
 });
 
 describe('Profile generator — cardinality inference', () => {
-  it('infers lower=1 when every Object always has the property', () => {
+  // DEXPI flexibility: generated Profiles declare optional surface area
+  // (lower=0). Required-cardinality is opt-in via the per-property
+  // required-flag UI; inferring lower=1 from "every observed instance has
+  // it" would overfit to a single corpus.
+  it('always emits lower=0 even when every Object has the property', () => {
     const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
       <Object id="o1" type="Process/Process.Stream">
         <Data property="MyProp">a</Data>
@@ -97,10 +101,10 @@ describe('Profile generator — cardinality inference', () => {
       </Object>
     </Model>`;
     const result = generateProfileFromDexpiXml(xml, REGISTRY);
-    expect(result.xml).toMatch(/<DataProperty name="MyProp" lower="1"/);
+    expect(result.xml).toMatch(/<DataProperty name="MyProp" lower="0"/);
   });
 
-  it('infers lower=0 when at least one Object skips the property', () => {
+  it('emits lower=0 when at least one Object skips the property', () => {
     const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
       <Object id="o1" type="Process/Process.Stream">
         <Data property="Optional">a</Data>
@@ -111,7 +115,7 @@ describe('Profile generator — cardinality inference', () => {
     expect(result.xml).toMatch(/<DataProperty name="Optional" lower="0"/);
   });
 
-  it('infers upper=N when an Object has N occurrences', () => {
+  it('infers upper=N when an Object has N occurrences (observed-max)', () => {
     const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
       <Object id="o1" type="Process/Process.Stream">
         <Data property="Tag">a</Data>
@@ -120,7 +124,7 @@ describe('Profile generator — cardinality inference', () => {
       </Object>
     </Model>`;
     const result = generateProfileFromDexpiXml(xml, REGISTRY);
-    expect(result.xml).toMatch(/<DataProperty name="Tag" lower="\d+" upper="3"/);
+    expect(result.xml).toMatch(/<DataProperty name="Tag" lower="0" upper="3"/);
   });
 });
 

@@ -14,7 +14,6 @@ export interface InternalProcessStep {
   typingMode?: StepTypingMode; // how the type was determined
   customUri?: string;          // external RDL URI (unvalidated only, if provided)
   customSuperType?: string;    // user-chosen DEXPI parent class for Custom-typed steps
-  suggestedDexpiClass?: string; // closest DEXPI class suggestion (unvalidated only)
   identifier: string;
   uid: string;
   hierarchyLevel?: string;
@@ -77,6 +76,8 @@ export interface StreamAttribute {
   range?: string;
   provenance?: string;
   qualifier?: string;
+  /** User-asserted required-cardinality flag (see DexpiAttribute.required). */
+  required?: boolean;
 }
 
 export interface InternalStream {
@@ -273,17 +274,24 @@ export interface ValidationResult {
  *
  * 1. 'dexpi-validated'  — explicit dexpiType annotation found in extensionElements
  *                         AND the class name exists in the DEXPI Process.xml registry.
- *                         This is the only mode that produces clean, warning-free output.
+ *                         Clean, warning-free output.
  *
- * 2. 'unvalidated'      — either no dexpiType annotation is present, OR the annotation
- *                         does not match any class in the DEXPI Process.xml registry
- *                         (could be a typo, a custom company type, or simply omitted).
- *                         Both cases map identically to generic 'ProcessStep' output.
- *                         A customUri is stored in the DEXPI output if provided.
- *                         A "did you mean?" hint is emitted when the annotation looks
- *                         like a near-miss against the registry.
+ * 2. 'custom-supertype' — dexpiType is NOT in the registry, but the user has
+ *                         declared a customSuperType that IS in the registry.
+ *                         The custom class name is preserved in the export and a
+ *                         paired Profile (generated separately) declares it as a
+ *                         subclass of the chosen supertype. Reload-validate closes
+ *                         the loop without losing the custom type.
+ *
+ * 3. 'unvalidated'      — no dexpiType annotation, OR neither dexpiType nor
+ *                         customSuperType is recognised by the registry. Falls
+ *                         back to generic 'ProcessStep' with a warning naming the
+ *                         specific failure (missing annotation vs. unknown
+ *                         supertype). No fuzzy suggestions — the UI must offer a
+ *                         supertype picker for custom classes (see R1-C3: no
+ *                         heuristic class suggestions).
  */
-export type StepTypingMode = 'dexpi-validated' | 'unvalidated';
+export type StepTypingMode = 'dexpi-validated' | 'custom-supertype' | 'unvalidated';
 
 export interface StepTypingResult {
   /** The resolved DEXPI class name. */
@@ -292,10 +300,7 @@ export interface StepTypingResult {
   mode: StepTypingMode;
   /** Optional URI referencing an external RDL class — stored in DEXPI output as ReferenceUri. */
   customUri?: string;
-  /** User-chosen DEXPI parent class for unvalidated/Custom-typed steps; consumed
-   *  by the Profile generator when it synthesises a ConcreteClass declaration
-   *  for the custom class. Falls through to ProcessStep when omitted. */
+  /** User-chosen DEXPI parent class for custom-typed steps; consumed by the
+   *  Profile generator when it synthesises a ConcreteClass declaration. */
   customSuperType?: string;
-  /** Closest DEXPI class suggestion shown as a hint (never affects output). */
-  suggestedDexpiClass?: string;
 }

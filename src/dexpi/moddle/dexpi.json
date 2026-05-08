@@ -56,7 +56,8 @@
         { "name": "scope", "isAttr": true, "type": "String" },
         { "name": "range", "isAttr": true, "type": "String" },
         { "name": "provenance", "isAttr": true, "type": "String" },
-        { "name": "qualifier", "isAttr": true, "type": "String" }
+        { "name": "qualifier", "isAttr": true, "type": "String" },
+        { "name": "required", "isAttr": true, "type": "Boolean" }
       ]
     },
     {

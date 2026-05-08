@@ -90,7 +90,7 @@ describe('DEXPI Profile import', () => {
 
     // No 'not a recognised DEXPI class' warnings — the Profile is loaded.
     expect(
-      t.logger.warnings.filter(w => /not a recognised DEXPI 2\.0 Process class/i.test(w))
+      t.logger.warnings.filter(w => /not in the DEXPI Process registry/i.test(w))
     ).toHaveLength(0);
 
     // Output emits the Profile's class (qualified to its declaring model
@@ -123,7 +123,7 @@ describe('DEXPI Profile import', () => {
     // Warning surfaces — BiologicalReactor isn't in Process.xml.
     expect(
       t.logger.warnings.some(w =>
-        /not a recognised DEXPI 2\.0 Process class/i.test(w) && /BiologicalReactor/.test(w)
+        /not in the DEXPI Process registry/i.test(w) && /BiologicalReactor/.test(w)
       ),
       JSON.stringify(t.logger.warnings, null, 2)
     ).toBe(true);

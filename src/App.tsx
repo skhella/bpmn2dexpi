@@ -159,7 +159,7 @@ function App() {
   // one-click action (Generate Profile) to close them.
   const [strictWarning, setStrictWarning] = useState<{
     totalCount: number;
-    groups: { key: string; count: number; sample: string }[];
+    groups: { tier: string; key: string; count: number; sample: string }[];
   } | null>(null);
   const [materialLibraryTab, setMaterialLibraryTab] = useState<'templates' | 'components' | 'states'>('templates');
   const [selectedMaterialItem, setSelectedMaterialItem] = useState<{type: 'template' | 'component' | 'state', data: any} | null>(null);
@@ -585,29 +585,63 @@ function App() {
       a.click();
       URL.revokeObjectURL(url);
 
-      // Surface strict-mode property-name validation results, if any.
-      const v = transformer.lastPropertyNameValidation;
-      if (strictMode && v && !v.valid) {
-        // Group identical "ClassName.PropertyName" prefixes so the modal
-        // shows a small list of unique violations with counts rather than
-        // every single occurrence. Same shape as the CLI output.
-        const groups = new Map<string, { count: number; sample: string }>();
-        for (const err of v.errors) {
-          const colon = err.indexOf(':');
-          const key = colon >= 0 ? err.slice(0, colon) : err;
-          const sample = colon >= 0 ? err.slice(colon + 1).trim() : '';
-          const g = groups.get(key);
-          if (g) g.count++;
-          else groups.set(key, { count: 1, sample });
+      // Surface strict-mode validation results across all five post-XSD tiers.
+      // Per the DEXPI permissive philosophy the export already succeeded — the
+      // dialog informs the user about fidelity gaps so they can take a one-click
+      // Generate-Profile action to close them.
+      if (strictMode) {
+        const tierResults: { tier: string; result: typeof transformer.lastPropertyNameValidation }[] = [
+          { tier: 'property-name + kind',  result: transformer.lastPropertyNameValidation },
+          { tier: 'data-type',             result: transformer.lastDataTypeValidation },
+          { tier: 'reference target-class',result: transformer.lastReferenceValidation },
+          { tier: 'cardinality',           result: transformer.lastCardinalityValidation },
+          { tier: 'class existence',       result: transformer.lastClassExistenceValidation },
+        ];
+        // Group identical "ClassName.PropertyName" prefixes per tier so the modal
+        // shows a compact list with counts rather than every single occurrence.
+        const groupList: { tier: string; key: string; count: number; sample: string }[] = [];
+        let total = 0;
+        for (const { tier, result } of tierResults) {
+          if (!result || result.valid) continue;
+          const groups = new Map<string, { count: number; sample: string }>();
+          for (const err of result.errors) {
+            total++;
+            const colon = err.indexOf(':');
+            const key = colon >= 0 ? err.slice(0, colon) : err;
+            const sample = colon >= 0 ? err.slice(colon + 1).trim() : '';
+            const g = groups.get(key);
+            if (g) g.count++;
+            else groups.set(key, { count: 1, sample });
+          }
+          for (const [key, { count, sample }] of groups) {
+            groupList.push({ tier, key, count, sample });
+          }
         }
-        const groupList = Array.from(groups, ([key, { count, sample }]) => ({ key, count, sample }));
-        groupList.sort((a, b) => a.key.localeCompare(b.key));
-        setStrictWarning({ totalCount: v.errors.length, groups: groupList });
-        setValidationMessage('DEXPI XML exported with strict-mode warnings — see dialog.');
-        console.warn('DEXPI strict-mode property-name fidelity findings:');
-        for (const err of v.errors) console.warn(`  ✗ ${err}`);
+        if (groupList.length > 0) {
+          groupList.sort((a, b) =>
+            a.tier === b.tier ? a.key.localeCompare(b.key) : a.tier.localeCompare(b.tier),
+          );
+          setStrictWarning({ totalCount: total, groups: groupList });
+          setValidationMessage('DEXPI XML exported with strict-mode warnings — see dialog.');
+          console.warn('DEXPI strict-mode fidelity findings (all tiers):');
+          for (const g of groupList) console.warn(`  [${g.tier}] ✗ ${g.key} ×${g.count}`);
+        } else {
+          setValidationMessage('DEXPI XML exported successfully!');
+        }
       } else {
-        setValidationMessage('DEXPI XML exported successfully!');
+        // Non-strict mode: surface transformer logger warnings (unmapped types,
+        // fallback-to-ProcessStep, missing supertypes) so the user knows their
+        // export carries an advisory before the next strict-mode run flags it.
+        const warnings = transformer.logger.warnings;
+        if (warnings.length > 0) {
+          setValidationMessage(
+            `DEXPI XML exported with ${warnings.length} transformer warning${warnings.length === 1 ? '' : 's'} — see browser console.`,
+          );
+          console.warn('DEXPI transformer warnings:');
+          for (const w of warnings) console.warn(`  • ${w}`);
+        } else {
+          setValidationMessage('DEXPI XML exported successfully!');
+        }
       }
     } catch (err) {
       console.error('DEXPI transformation failed:', err);
@@ -1169,10 +1203,12 @@ function App() {
             <div style={{ fontSize: '0.9em', color: '#444' }}>
               The DEXPI XML was exported successfully — DEXPI 2.0's permissive
               philosophy means XSD-valid output is exchangeable. However,
-              strict-mode property-name validation found{' '}
+              strict-mode validation found{' '}
               <strong>{strictWarning.totalCount} occurrence{strictWarning.totalCount === 1 ? '' : 's'}</strong>{' '}
               of {strictWarning.groups.length} unique{' '}
-              fidelity gap{strictWarning.groups.length === 1 ? '' : 's'} against
+              fidelity gap{strictWarning.groups.length === 1 ? '' : 's'} across the
+              five post-XSD tiers (property-name + kind, data-type, reference
+              target-class, cardinality, class existence) against
               Process.xml + Core.xml{loadedProfiles.length > 0 ? ' + the loaded Profile(s)' : ''}.
             </div>
             <div
@@ -1186,17 +1222,34 @@ function App() {
                 overflowY: 'auto',
               }}
             >
-              {strictWarning.groups.map(g => (
-                <div key={g.key} style={{ marginBottom: '0.4em' }}>
-                  <code style={{ color: '#b26a00', fontWeight: 600 }}>✗ {g.key}</code>
-                  {g.count > 1 && <span style={{ color: '#666' }}> &nbsp;×{g.count}</span>}
-                  {g.sample && (
-                    <div style={{ color: '#555', fontSize: '0.85em', marginLeft: '1.2em' }}>
-                      e.g. <code>{g.sample}</code>
+              {(() => {
+                // Render groups bucketed by tier so the user sees which kind
+                // of fidelity gap each violation belongs to.
+                const byTier = new Map<string, typeof strictWarning.groups>();
+                for (const g of strictWarning.groups) {
+                  let arr = byTier.get(g.tier);
+                  if (!arr) { arr = []; byTier.set(g.tier, arr); }
+                  arr.push(g);
+                }
+                return Array.from(byTier).map(([tier, items]) => (
+                  <div key={tier} style={{ marginBottom: '0.7em' }}>
+                    <div style={{ color: '#444', fontWeight: 600, fontSize: '0.85em', marginBottom: '0.2em' }}>
+                      {tier} ({items.reduce((n, x) => n + x.count, 0)})
                     </div>
-                  )}
-                </div>
-              ))}
+                    {items.map(g => (
+                      <div key={`${tier}::${g.key}`} style={{ marginBottom: '0.4em', marginLeft: '0.6em' }}>
+                        <code style={{ color: '#b26a00', fontWeight: 600 }}>✗ {g.key}</code>
+                        {g.count > 1 && <span style={{ color: '#666' }}> &nbsp;×{g.count}</span>}
+                        {g.sample && (
+                          <div style={{ color: '#555', fontSize: '0.85em', marginLeft: '1.2em' }}>
+                            e.g. <code>{g.sample}</code>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ));
+              })()}
             </div>
             <div style={{ fontSize: '0.85em', color: '#444' }}>
               These typically indicate project-specific extensions or schema

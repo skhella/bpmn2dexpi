@@ -21,6 +21,7 @@ import {
 import { validateEmittedDexpiDataTypes } from './DexpiDataTypeValidator';
 import { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
 import { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
+import { validateEmittedDexpiClassExistence } from './DexpiClassExistenceValidator';
 
 export type { TransformOptions } from './types';
 export { validateDexpiOutput } from './DexpiOutputValidator';
@@ -29,6 +30,7 @@ export { failuresToValidationResult, formatFailures } from './DexpiPropertyNameV
 export { validateEmittedDexpiDataTypes } from './DexpiDataTypeValidator';
 export { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
 export { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
+export { validateEmittedDexpiClassExistence } from './DexpiClassExistenceValidator';
 
 /**
  * DEXPI BPMN-extension namespace URI. Mirrors dexpi/moddle/dexpi.json's
@@ -83,6 +85,15 @@ export class BpmnToDexpiTransformer {
    */
   lastCardinalityValidation: ValidationResult | undefined;
 
+  /**
+   * Tier-6 (class existence) validation result — defense-in-depth post-condition
+   * check. Populated when strict mode is on. Should never fire for clean
+   * transformer runs given the resolveStepType fallback chain; if it does,
+   * either a new emission path bypassed resolveStepType or a Profile that
+   * declared a custom class was not loaded into the validation registry.
+   */
+  lastClassExistenceValidation: ValidationResult | undefined;
+
   async transform(bpmnXml: string, options: TransformOptions = {}): Promise<string> {
 
     // Clear state and log from previous transformations
@@ -91,6 +102,7 @@ export class BpmnToDexpiTransformer {
     this.lastDataTypeValidation = undefined;
     this.lastReferenceValidation = undefined;
     this.lastCardinalityValidation = undefined;
+    this.lastClassExistenceValidation = undefined;
 
     // Load DEXPI class registry. We always include any user-supplied
     // DEXPI Profile extensions so Profile classes (e.g. BiologicalReactor)
@@ -186,6 +198,15 @@ export class BpmnToDexpiTransformer {
         mode: 'property-names' as ValidationResult['mode'],
       };
 
+      // Tier 6: class existence — defense-in-depth post-condition.
+      const classFailures = validateEmittedDexpiClassExistence(xml, 'transformer output', this.registry);
+      this.lastClassExistenceValidation = {
+        valid: classFailures.length === 0,
+        errors: classFailures.map(f => `${f.typeRef}: ${f.context}`),
+        warnings: [],
+        mode: 'property-names' as ValidationResult['mode'],
+      };
+
       // Surface a single aggregated warning to the logger when any tier
       // produced findings, so CLI / UI consumers see the issue without
       // having to introspect each `last*Validation` field individually.
@@ -194,13 +215,14 @@ export class BpmnToDexpiTransformer {
         ['data-type',                   dataTypeFailures.length],
         ['reference target-class',      refFailures.length],
         ['cardinality',                 cardFailures.length],
+        ['class existence',             classFailures.length],
       ] as const;
       const nonZero = totals.filter(([, n]) => n > 0);
       if (nonZero.length > 0) {
         const summary = nonZero.map(([label, n]) => `${label}: ${n}`).join(', ');
         this.logger.warn(`Strict-mode fidelity findings — ${summary}. ` +
           `Output is still produced (DEXPI 2.0 permissive philosophy); ` +
-          `inspect transformer.last{PropertyName,DataType,Reference,Cardinality}Validation for details.`);
+          `inspect transformer.last{PropertyName,DataType,Reference,Cardinality,ClassExistence}Validation for details.`);
       }
     }
 
@@ -304,17 +326,22 @@ export class BpmnToDexpiTransformer {
   private registry: DexpiProcessClassRegistry = DexpiProcessClassRegistry.empty();
 
   /**
-   * Resolve the DEXPI type for a process step — two-mode system:
+   * Resolve the DEXPI type for a process step. Three-mode resolution chain,
+   * tried in priority order; each mode emits a distinct warning so the
+   * caller knows which fallback was taken.
    *
-   * Mode 1 'dexpi-validated':
-   *   dexpiType annotation present AND class is in the official Process.xml
-   *   registry. Clean output, no warning.
+   *   Mode 1 'dexpi-validated' — dexpiType is in the registry. No warning.
    *
-   * Mode 2 'unvalidated':
-   *   Either no dexpiType annotation, OR annotation not found in the registry.
-   *   Both cases export as generic 'ProcessStep'. customUri stored if provided.
-   *   A "did you mean?" hint is emitted when the annotation is a near-miss —
-   *   the suggestion is advisory text only, never used to assign the class.
+   *   Mode 2 'custom-supertype' — dexpiType is NOT in the registry, but
+   *     customSuperType IS. Emit the custom class as the type; the paired
+   *     Profile (generated separately) declares it as a subclass of the
+   *     chosen supertype. Warns that a Profile must accompany the export.
+   *
+   *   Mode 3 'unvalidated' — no annotation, or neither dexpiType nor
+   *     customSuperType is recognised. Falls back to generic ProcessStep.
+   *     The warning is specific about which input was missing or unknown
+   *     so the user can fix the source. No fuzzy "did you mean?" hint
+   *     (R1-C3: heuristic class matching is out of scope).
    */
   private resolveStepType(
     annotatedType: string | undefined,
@@ -324,31 +351,55 @@ export class BpmnToDexpiTransformer {
     taskId: string
   ): StepTypingResult {
 
+    const registryReady = this.registry.size > 0;
+
     // ── Mode 1: explicit annotation, validated against registry ──────────────
-    if (annotatedType) {
-      if (this.registry.size === 0 || this.registry.isValidClass(annotatedType)) {
-        return { dexpiClass: annotatedType, mode: 'dexpi-validated' };
-      }
+    if (annotatedType && (!registryReady || this.registry.isValidClass(annotatedType))) {
+      return { dexpiClass: annotatedType, mode: 'dexpi-validated' };
     }
 
-    // ── Mode 2: unvalidated — no annotation OR unrecognised type ─────────────
-    // Both cases are treated identically: generic ProcessStep output.
-    const suggestion = annotatedType ? this.findClosestDexpiClass(annotatedType) : undefined;
-
-    if (annotatedType) {
-      const superHint = customSuperType
-        ? ` (custom class with supertype "${customSuperType}" — pair with a generated Profile to declare the class)`
-        : '';
+    // ── Mode 2: custom class with a known DEXPI supertype ───────────────────
+    // Preserve the custom class name; the Profile generator will declare it
+    // as a ConcreteClass with the chosen supertype. Reload-validate closes
+    // the loop without losing the custom type.
+    if (
+      annotatedType &&
+      customSuperType &&
+      registryReady &&
+      this.registry.isValidClass(customSuperType)
+    ) {
       this.logger.warn(
-        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not a recognised ` +
-        `DEXPI 2.0 Process class — exporting as generic ProcessStep${superHint}.` +
-        (suggestion ? ` Did you mean "${suggestion}"?` : '')
+        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is a custom class ` +
+        `(not in the DEXPI Process registry). Emitted as-is; pair this export with a ` +
+        `generated Profile that declares "${annotatedType}" as a subclass of "${customSuperType}".`
+      );
+      return {
+        dexpiClass: annotatedType,
+        mode: 'custom-supertype',
+        customUri,
+        customSuperType,
+      };
+    }
+
+    // ── Mode 3: unvalidated — fall back to generic ProcessStep ──────────────
+    if (annotatedType && customSuperType) {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}): both dexpiType="${annotatedType}" and ` +
+        `customSuperType="${customSuperType}" are unknown to the DEXPI Process registry — ` +
+        `exporting as generic ProcessStep. Pick a known DEXPI class as the supertype to ` +
+        `preserve the custom name.`
+      );
+    } else if (annotatedType) {
+      this.logger.warn(
+        `Task "${taskName}" (id=${taskId}): dexpiType="${annotatedType}" is not in the ` +
+        `DEXPI Process registry — exporting as generic ProcessStep. Set a customSuperType ` +
+        `(any known DEXPI class) to preserve the custom name and emit a Profile.`
       );
     } else {
       this.logger.warn(
-        `Task "${taskName}" (id=${taskId}) has no dexpiType annotation. ` +
-        `Exporting as generic ProcessStep. ` +
-        `Add a dexpiType in extensionElements to assign a specific DEXPI class.`
+        `Task "${taskName}" (id=${taskId}) has no dexpiType annotation — exporting as ` +
+        `generic ProcessStep. Add a dexpiType in extensionElements to assign a specific ` +
+        `DEXPI class.`
       );
     }
 
@@ -357,18 +408,7 @@ export class BpmnToDexpiTransformer {
       mode: 'unvalidated',
       customUri,
       customSuperType,
-      suggestedDexpiClass: suggestion,
     };
-  }
-  /** Find the closest known DEXPI class for a non-registry type (for suggestions). */
-  private findClosestDexpiClass(unknown: string): string | undefined {
-    if (this.registry.size === 0) return undefined;
-    const lower = unknown.toLowerCase();
-    // Simple prefix/substring match for suggestion
-    return this.registry.concreteClasses().find(c =>
-      c.toLowerCase().startsWith(lower.slice(0, 4)) ||
-      lower.includes(c.toLowerCase().slice(0, 5))
-    );
   }
 
   private extractProcessStep(task: Element, parentId: string | null): void {
@@ -396,7 +436,6 @@ export class BpmnToDexpiTransformer {
       typingMode: typing.mode,
       customUri: typing.customUri,
       customSuperType: typing.customSuperType,
-      suggestedDexpiClass: typing.suggestedDexpiClass,
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
       hierarchyLevel: dexpiData?.hierarchyLevel,
@@ -1431,6 +1470,7 @@ export class BpmnToDexpiTransformer {
           scope: readData('Scope') || 'Design',
           range: readData('Range') || 'Nominal',
           provenance: readData('Provenance') || 'Calculated',
+          required: child.getAttribute('required') === 'true' || undefined,
         });
         continue;
       }
@@ -1443,7 +1483,8 @@ export class BpmnToDexpiTransformer {
           unit: child.getAttribute('unit') || '',
           scope: child.getAttribute('scope') || 'Design',
           range: child.getAttribute('range') || 'Nominal',
-          provenance: child.getAttribute('provenance') || 'Calculated'
+          provenance: child.getAttribute('provenance') || 'Calculated',
+          required: child.getAttribute('required') === 'true' || undefined,
         });
       }
     }
@@ -1757,10 +1798,9 @@ export class BpmnToDexpiTransformer {
         }
       }
 
-      // Add ReferenceUri if this is a custom-type step (mode 2)
-      // The type is always ProcessStep; the URI points to the user's RDL class.
-      // Future DEXPI customization work will define a formal mechanism for custom
-      // classes; this conservative approach avoids polluting the type namespace.
+      // Add ReferenceUri if the user supplied a customUri pointing at an
+      // external RDL class. Independent of typing mode — orthogonal to whether
+      // the class is in the DEXPI registry.
       if (step.customUri) {
         if (!Array.isArray(dexpiStep.Data)) {
           dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
@@ -1769,12 +1809,6 @@ export class BpmnToDexpiTransformer {
           '$': { 'property': 'ReferenceUri' },
           'String': step.customUri
         });
-        if (step.suggestedDexpiClass) {
-          (dexpiStep.Data as Record<string, unknown>[]).push({
-            '$': { 'property': 'SuggestedDexpiClass' },
-            'String': step.suggestedDexpiClass
-          });
-        }
       }
 
       // Schema-correct instrumentation handling (DEXPI 2.0 Specification PDF

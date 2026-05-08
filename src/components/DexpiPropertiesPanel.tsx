@@ -645,7 +645,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           </label>
           {customTypeName && (
             <label style={{ marginTop: '8px', display: 'block' }}>
-              Supertype (parent DEXPI class):
+              Supertype (parent DEXPI class) <span style={{ color: '#c0392b' }}>*</span>:
               <select
                 value={customSuperType}
                 onChange={(e) => {
@@ -653,6 +653,9 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                   setCustomSuperType(val);
                   updateDexpiElement({ customSuperType: val || undefined });
                 }}
+                aria-required="true"
+                aria-invalid={!customSuperType}
+                style={!customSuperType ? { borderColor: '#c0392b', outline: '1px solid #f5c6cb' } : undefined}
               >
                 <option value="">Select parent class...</option>
                 {dropdownClasses.map(cls => (
@@ -660,6 +663,12 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                 ))}
               </select>
             </label>
+          )}
+          {customTypeName && !customSuperType && (
+            <div style={{ fontSize: '0.78rem', color: '#c0392b', marginTop: '3px', fontWeight: 600 }}>
+              Required for custom classes. Without a supertype the export falls back to
+              generic <code>ProcessStep</code> and the custom class name is lost on reload.
+            </div>
           )}
           {customTypeName && (
             <div style={{ fontSize: '0.78rem', color: '#555', marginTop: '3px' }}>
@@ -1230,7 +1239,8 @@ const ProcessStepAttributesSection: React.FC<{ element: any; modeler: any }> = (
           unit: updates.unit !== undefined ? updates.unit : attr.unit,
           scope: updates.scope !== undefined ? updates.scope : attr.scope,
           range: updates.range !== undefined ? updates.range : attr.range,
-          provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance
+          provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
+          required: updates.required !== undefined ? updates.required : attr.required
         });
       }
       return attr;
@@ -1337,8 +1347,8 @@ const ProcessStepAttributesSection: React.FC<{ element: any; modeler: any }> = (
 
           <label>
             Provenance:
-            <select 
-              value={attr.provenance || 'Calculated'} 
+            <select
+              value={attr.provenance || 'Calculated'}
               onChange={(e) => updateAttribute(index, { provenance: e.target.value })}
             >
               <option value="">-- Select Provenance --</option>
@@ -1347,6 +1357,22 @@ const ProcessStepAttributesSection: React.FC<{ element: any; modeler: any }> = (
               ))}
             </select>
           </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+            <input
+              type="checkbox"
+              checked={!!attr.required}
+              onChange={(e) => updateAttribute(index, { required: e.target.checked || undefined })}
+            />
+            <span>Required in generated Profile</span>
+          </label>
+          {attr.required && (
+            <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '2px', marginLeft: '22px' }}>
+              The Profile generator will narrow this property's lower bound to 1
+              for the wrapping class. DEXPI's lower=0 default is overridden — on
+              reload, the loaded Profile takes precedence.
+            </div>
+          )}
         </div>
       ))}
     </div>

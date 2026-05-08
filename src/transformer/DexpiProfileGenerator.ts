@@ -52,6 +52,15 @@ export interface GenerateProfileResult {
    * project extensions like PhysicalProperties → MolecularWeight).
    */
   iterationsUsed: number;
+  /**
+   * Human-readable warnings the generator wants the caller to surface in
+   * the UI / CLI. Currently used for narrowing notices: when the user
+   * marks a DEXPI-standard property as required, the Profile narrows
+   * lower=0 → lower=1 and we emit one notice per affected (class,property)
+   * pair so the user knows their override is in effect (and so reviewers
+   * can audit the deviation).
+   */
+  warnings: string[];
 }
 
 const PROFILE_HEADER_COMMENT = `
@@ -232,6 +241,22 @@ export function generateProfileFromDexpiXml(
   const inferredCardinalities = inferCardinalitiesFromCounts(emittedXml, accumulated);
   const inferredTargets = inferTargetClassesFromObservedTargets(emittedXml, accumulated, registry);
 
+  // Required-flag pass — narrow inferred lower=0 to lower=1 where the user
+  // ticked "required" on the BPMN attribute. Narrow-only: never loosens
+  // DEXPI's declarations. Returns warnings the caller can surface.
+  const generatorWarnings: string[] = [];
+  if (options.bpmnXml) {
+    const requiredFlags = collectRequiredFlagsFromBpmn(options.bpmnXml);
+    if (requiredFlags.size > 0) {
+      applyRequiredFlagsToCardinalities(
+        requiredFlags,
+        inferredCardinalities,
+        registry,
+        generatorWarnings,
+      );
+    }
+  }
+
   // One final render off the original (untouched) registry — that's the
   // registry the caller passed in, and the supertypes we report should
   // reference its classes, not intermediate ones.
@@ -247,6 +272,7 @@ export function generateProfileFromDexpiXml(
     declarations: propertyDeclarations,
     classCount: countClasses(accumulated),
     iterationsUsed,
+    warnings: generatorWarnings,
   };
 }
 
@@ -354,16 +380,21 @@ function bareClassName(typeRef: string): string {
 /**
  * Walk emittedXml and observe, for each (className, propertyName) the
  * generator is about to declare, the per-Object occurrence count of that
- * property. Returns the inferred cardinality bounds:
+ * property. Returns inferred upper-bound only:
  *
- *   - lower = 1 if every observed Object of that class has the property
- *             ≥ 1 time (always present); else 0.
+ *   - lower = always 0. Profiles follow DEXPI's permissive philosophy:
+ *             they declare which properties MAY appear on instances, not
+ *             which ones MUST. A user who wants a property to be required
+ *             can opt in via the per-property required-flag UI (which the
+ *             generator translates to lower=1 only when the user asks).
+ *             Inferring lower=1 from "every observed instance happened to
+ *             have this property" would overfit to a single corpus.
  *   - upper = max observed count if it's > 1; else 1. We do not infer
  *             unbounded (`null`) — strict consumers can interpret the
  *             literal `1` or larger and accept it as soft upper.
  *
- * If no Objects of that className are observed at all, both bounds are
- * left undefined (renderer falls back to lower=0, upper=1).
+ * If no Objects of that className are observed at all, the bounds entry
+ * is omitted (renderer falls back to lower=0, upper=1).
  */
 function inferCardinalitiesFromCounts(
   emittedXml: string,
@@ -428,13 +459,15 @@ function inferCardinalitiesFromCounts(
     }
   }
 
-  // Convert tallies → inferred bounds.
+  // Convert tallies → inferred bounds. lower is fixed at 0 (DEXPI flexibility:
+  // Profiles declare optional surface area, not requirements; a user who
+  // wants required cardinality opts in per-property via the required-flag
+  // UI). upper is observed-max, floored at 1.
   const inferred = new Map<string, { lower: number; upper: number | null }>();
   for (const [key, t] of tallies) {
     if (t.objectCount === 0) continue; // no instances seen — leave default
-    const lower = t.minPerObject >= 1 ? 1 : 0;
-    const upper = Math.max(1, t.maxPerObject); // never below 1
-    inferred.set(key, { lower, upper });
+    const upper = Math.max(1, t.maxPerObject);
+    inferred.set(key, { lower: 0, upper });
   }
   return inferred;
 }
@@ -701,6 +734,101 @@ function seedFromCustomBpmnAnnotations(
 }
 
 /**
+ * Scan BPMN extension elements for user-asserted required-flagged attributes
+ * and return a map of `${className}.${propertyName}` → `true`.
+ *
+ * Handled BPMN shapes:
+ *   <dexpi:element dexpiType="X">
+ *     <dexpi:components property="P" required="true"> ... </dexpi:components>
+ *     <dexpi:attribute name="P" value="..." required="true"/>
+ *   </dexpi:element>
+ *
+ * The className is taken from the wrapping `dexpiType` (per-class override —
+ * a required flag tightens the property only for that specific class, not for
+ * its supertypes; this scopes the user's intervention narrowly).
+ *
+ * Stream extensions (`<dexpi:stream>`) are skipped: their attribute carrier
+ * elements are tied to a Stream's class which the BPMN doesn't expose
+ * directly. Required-on-stream is left as a future extension.
+ */
+function collectRequiredFlagsFromBpmn(bpmnXml: string): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(bpmnXml, 'text/xml');
+
+  // Walk every <dexpi:element> in document order. A getElementsByTagName
+  // wildcard catches both prefixed and bare-local-name forms; we filter
+  // on the local name to be namespace-prefix-tolerant.
+  const candidates = Array.from(doc.getElementsByTagName('*'));
+  for (const el of candidates) {
+    const ln = (el.localName || '').toLowerCase();
+    if (ln !== 'element') continue;
+    const className = el.getAttribute('dexpiType');
+    if (!className) continue;
+
+    for (const child of Array.from(el.children) as Element[]) {
+      const cln = (child.localName || '').toLowerCase();
+      if (cln !== 'components' && cln !== 'attribute') continue;
+      const required = child.getAttribute('required');
+      if (required !== 'true') continue;
+      const propName =
+        cln === 'components'
+          ? (child.getAttribute('property') || '')
+          : (child.getAttribute('name') || '');
+      if (!propName) continue;
+      let set = result.get(className);
+      if (!set) {
+        set = new Set();
+        result.set(className, set);
+      }
+      set.add(propName);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Apply user-asserted required flags to the inferred cardinalities map.
+ * Narrow-only enforcement (Profiles can tighten DEXPI but never loosen it):
+ *
+ *   • Property in registry with declared lower=0 → narrow to lower=1.
+ *     Emit a one-line warning so reviewers can audit the deviation.
+ *   • Property in registry with declared lower≥1 → no-op.
+ *     DEXPI already requires the property; nothing to override. No warning.
+ *   • Property NOT in registry (custom property) → set lower=1 outright.
+ *     Custom properties have no DEXPI-side default, so this is the only
+ *     signal the generator has about required-cardinality intent.
+ */
+function applyRequiredFlagsToCardinalities(
+  requiredFlags: Map<string, Set<string>>,
+  cardinalities: Map<string, { lower: number; upper: number | null }>,
+  registry: DexpiProcessClassRegistry,
+  warnings: string[],
+): void {
+  for (const [className, propNames] of requiredFlags) {
+    const declaredProps = registry.getProperties(className);
+    for (const propName of propNames) {
+      const declared = declaredProps.find(p => p.name === propName);
+      const declaredLower = declared?.lower; // undefined when property is custom
+      if (declaredLower !== undefined && declaredLower >= 1) continue; // already required by DEXPI
+      const key = `${className}.${propName}`;
+      const existing = cardinalities.get(key);
+      const upper = existing?.upper ?? 1;
+      cardinalities.set(key, { lower: 1, upper });
+      if (declaredLower === 0) {
+        warnings.push(
+          `Required-flag override: ${className}.${propName} narrows DEXPI's declared ` +
+          `lower=0 to lower=1 in the generated Profile. Profile-on-reload resolution ` +
+          `rule: profile narrows DEXPI.`
+        );
+      }
+      // declaredLower === undefined: custom property; no DEXPI to narrow, no warning.
+    }
+  }
+}
+
+/**
  * Bundle of all per-property inference hints applied during the final
  * render pass. Each map keys on `${className}.${propertyName}`.
  *
@@ -778,7 +906,7 @@ export function generateProfileFromFailures(
 
   const declarations = classes.reduce((n, c) => n + c.properties.length, 0);
   const xml = renderProfileXml(classes, registry);
-  return { xml, declarations, classCount: classes.length, iterationsUsed: 1 };
+  return { xml, declarations, classCount: classes.length, iterationsUsed: 1, warnings: [] };
 }
 
 function comparePropertyDecl(

@@ -27,8 +27,8 @@ const SCHEMA_DIR = join(__dirname, '../../../dexpi-schema-files');
 const PROCESS_XML = readFileSync(join(SCHEMA_DIR, 'Process.xml'), 'utf-8');
 const CORE_XML = readFileSync(join(SCHEMA_DIR, 'Core.xml'), 'utf-8');
 
-describe('Strict mode — all five tiers wired', () => {
-  it('populates last{PropertyName,DataType,Reference,Cardinality}Validation when strict=true', { timeout: 15_000 }, async () => {
+describe('Strict mode — all five post-XSD tiers wired', () => {
+  it('populates last{PropertyName,DataType,Reference,Cardinality,ClassExistence}Validation when strict=true', { timeout: 15_000 }, async () => {
     const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
     const t = new BpmnToDexpiTransformer();
     await t.transform(bpmn, {
@@ -37,11 +37,12 @@ describe('Strict mode — all five tiers wired', () => {
       coreXml: CORE_XML,
     });
 
-    // All four "last*Validation" results must be defined post-strict-call.
+    // All five "last*Validation" results must be defined post-strict-call.
     expect(t.lastPropertyNameValidation).toBeDefined();
     expect(t.lastDataTypeValidation).toBeDefined();
     expect(t.lastReferenceValidation).toBeDefined();
     expect(t.lastCardinalityValidation).toBeDefined();
+    expect(t.lastClassExistenceValidation).toBeDefined();
 
     // Each tier should have a defined ValidationResult shape with the
     // discriminator `mode` set so consumers can tell results apart:
@@ -49,6 +50,7 @@ describe('Strict mode — all five tiers wired', () => {
     expect(t.lastDataTypeValidation!.mode).toBe('property-names');
     expect(t.lastReferenceValidation!.mode).toBe('property-names');
     expect(t.lastCardinalityValidation!.mode).toBe('property-names');
+    expect(t.lastClassExistenceValidation!.mode).toBe('property-names');
 
     // Without the auto-generated TEP Profile loaded, several tiers will
     // have known violations on TEP — the validator surfaces them rather
@@ -58,6 +60,7 @@ describe('Strict mode — all five tiers wired', () => {
     expect(t.lastDataTypeValidation!.errors).toBeDefined();
     expect(t.lastReferenceValidation!.errors).toBeDefined();
     expect(t.lastCardinalityValidation!.errors).toBeDefined();
+    expect(t.lastClassExistenceValidation!.errors).toBeDefined();
 
     // Reference target-class: known issue (MaterialTemplate.ListOfComponents
     // points at individual components; declared target is ListOfMaterialComponents).
@@ -65,6 +68,9 @@ describe('Strict mode — all five tiers wired', () => {
     // Cardinality: TEP is missing many declared-required properties
     // (Description, Method, ConnectorReference, etc.).
     expect(t.lastCardinalityValidation!.errors.length).toBeGreaterThan(0);
+    // Class existence: defense-in-depth post-condition. After resolveStepType
+    // + ProcessStep fallback, TEP must not emit any unknown classes.
+    expect(t.lastClassExistenceValidation!.valid).toBe(true);
   });
 
   it('does NOT populate last*Validation when strict=false', { timeout: 15_000 }, async () => {
@@ -75,6 +81,7 @@ describe('Strict mode — all five tiers wired', () => {
     expect(t.lastDataTypeValidation).toBeUndefined();
     expect(t.lastReferenceValidation).toBeUndefined();
     expect(t.lastCardinalityValidation).toBeUndefined();
+    expect(t.lastClassExistenceValidation).toBeUndefined();
   });
 
   it('emits a single aggregated warning when any tier finds violations', { timeout: 15_000 }, async () => {

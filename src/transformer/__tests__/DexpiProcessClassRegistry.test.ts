@@ -369,7 +369,7 @@ describe('Two-mode step typing', () => {
 
     // Should warn — not a DEXPI class
     expect(t.logger.warnings.length).toBeGreaterThan(0);
-    expect(t.logger.warnings[0]).toMatch(/not a recognised DEXPI 2\.0 Process class/i);
+    expect(t.logger.warnings[0]).toMatch(/not in the DEXPI Process registry/i);
     // Must output generic ProcessStep — NOT the custom type name as DEXPI class
     expect(out).toMatch(/Process\/Process\.ProcessStep/);
     expect(out).not.toMatch(/Process\/Process\.ElectrolyticReduction/);
@@ -394,7 +394,7 @@ describe('Two-mode step typing', () => {
     `);
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(xml);
-    expect(t.logger.warnings[0]).toMatch(/not a recognised DEXPI 2\.0 Process class/i);
+    expect(t.logger.warnings[0]).toMatch(/not in the DEXPI Process registry/i);
     // Still outputs ProcessStep
     expect(out).toMatch(/Process\/Process\.ProcessStep/);
     expect(out).not.toMatch(/Process\/Process\.MyProprietaryStep/);
