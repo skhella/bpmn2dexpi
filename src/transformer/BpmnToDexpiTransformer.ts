@@ -22,6 +22,11 @@ import { validateEmittedDexpiDataTypes } from './DexpiDataTypeValidator';
 import { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
 import { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
 import { validateEmittedDexpiClassExistence } from './DexpiClassExistenceValidator';
+// Authoritative source of the OriginatingSystem* metadata for the
+// EngineeringModel root. Pulling from package.json keeps "Originating system
+// name = bpmn2dexpi", vendor = author, version = the npm version always in
+// sync; no separate hardcoded copy that could drift.
+import pkg from '../../package.json';
 
 export type { TransformOptions } from './types';
 export { validateDexpiOutput } from './DexpiOutputValidator';
@@ -51,6 +56,14 @@ export class BpmnToDexpiTransformer {
   private materialComponents: Map<string, InternalMaterialComponent> = new Map();
   private materialStates: Map<string, InternalMaterialState> = new Map();
   private materialStateTypes: Map<string, InternalMaterialStateType> = new Map();
+
+  /**
+   * Lookup populated at the start of buildDexpiModel: sanitized port id →
+   * sanitized ProcessConnection (Stream / InformationFlow) Object id. Lets
+   * port emission satisfy DEXPI's Port.ConnectorReference (lower=1) by
+   * pointing at the connection that uses the port. Built once per transform.
+   */
+  private portConnectorMap: Map<string, string> = new Map();
 
   /** Warnings and errors collected during the last call to transform(). */
   readonly logger = new TransformerLogger();
@@ -146,7 +159,8 @@ export class BpmnToDexpiTransformer {
     this.materialComponents.clear();
     this.materialStates.clear();
     this.materialStateTypes.clear();
-    
+    this.portConnectorMap.clear();
+
     // Parse BPMN XML
     const bpmnModel = this.parseBpmn(bpmnXml);
     this.doc = bpmnModel;
@@ -1567,7 +1581,13 @@ export class BpmnToDexpiTransformer {
 
   private buildDexpiModel(_options: TransformOptions): Record<string, unknown> {
     const modelUid = this.generateUid();
-    
+
+    // Pre-compute port → ProcessConnection (Stream / InformationFlow) Object id
+    // so port emission can satisfy DEXPI Port.ConnectorReference (lower=1).
+    // This must run before buildProcessSteps so the map is populated when each
+    // port object is materialised.
+    this.portConnectorMap = this.buildPortConnectorMap();
+
     // Build ProcessModel object
     const processModelObject: Record<string, unknown> = {
       '$': {
@@ -1730,6 +1750,27 @@ export class BpmnToDexpiTransformer {
           '$': {
             'type': 'Core/EngineeringModel'
           },
+          // Provenance headers required by DEXPI 2.0 Core/EngineeringModel
+          // (lower=1 each). Sourced from package.json (vendor/version) and
+          // Date.now() (export timestamp); no hardcoded duplicates.
+          'Data': [
+            {
+              '$': { 'property': 'ExportDateTime' },
+              'String': new Date().toISOString(),
+            },
+            {
+              '$': { 'property': 'OriginatingSystemName' },
+              'String': pkg.name,
+            },
+            {
+              '$': { 'property': 'OriginatingSystemVendorName' },
+              'String': pkg.author,
+            },
+            {
+              '$': { 'property': 'OriginatingSystemVersion' },
+              'String': pkg.version,
+            },
+          ],
           'Components': {
             '$': {
               'property': 'ConceptualModel'
@@ -1833,6 +1874,22 @@ export class BpmnToDexpiTransformer {
         bareStepType !== undefined &&
         this.registry.hasAncestor(bareStepType, 'InstrumentationActivity');
       if (isInstrumentationActivity) {
+        // InstrumentationActivity declares Description (lower=1) on its
+        // abstract supertype. The BPMN-side `name` is the human-facing
+        // label of this activity in the diagram — exactly what
+        // Description's spec text describes ("a description"). Use it as
+        // the Description value; this is reading an established equivalence
+        // (label ↔ description on the same entity), not a name-similarity
+        // guess.
+        if (step.name) {
+          if (!Array.isArray(dexpiStep.Data)) {
+            dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
+          }
+          (dexpiStep.Data as Record<string, unknown>[]).push({
+            '$': { 'property': 'Description' },
+            'String': step.name,
+          });
+        }
         // Schema asymmetry, intentional and registry-driven (not heuristic):
         // MeasuringProcessVariable declares ProcessStepReference (DEXPI 2.0
         // Spec p.900); the other InstrumentationActivity subclasses
@@ -1953,6 +2010,23 @@ export class BpmnToDexpiTransformer {
           // The short port name (e.g. "MI1") is captured by Identifier
           // already (assigned above to safePortId).
 
+          // ConnectorReference (lower=1, target /Process.ProcessConnection):
+          // points at the Stream / InformationFlow that connects this port.
+          // Pre-computed in buildPortConnectorMap; ports that are not part
+          // of any connection legitimately omit it — the cardinality
+          // validator will surface those as authoring gaps, which is
+          // correct rather than hidden.
+          const connectionUid = this.portConnectorMap.get(safePortId);
+          if (connectionUid) {
+            if (!portObject.References) portObject.References = [];
+            (portObject.References as Record<string, unknown>[]).push({
+              '$': {
+                'property': 'ConnectorReference',
+                'objects': `#${connectionUid}`,
+              },
+            });
+          }
+
           portObjects.push(portObject);
         });
 
@@ -2052,6 +2126,13 @@ export class BpmnToDexpiTransformer {
               dexpiStep.Object = [];
             }
 
+            // DisplayText is required (lower=1) on QualifiedValue. We
+            // derive it deterministically from the inputs we already have:
+            // "<value> <unit>" trimmed when a unit is present, else just
+            // "<value>". This is the obvious canonical rendering of a
+            // physical quantity for human consumption — no name guessing,
+            // no fuzzy formatting heuristic.
+            const displayText = `${attr.value} ${attr.unit}`.trim();
             const qualifiedValueObject: Record<string, unknown> = {
               '$': {
                 'property': attr.name,
@@ -2072,6 +2153,10 @@ export class BpmnToDexpiTransformer {
                       }
                     ]
                   }
+                },
+                {
+                  '$': { 'property': 'DisplayText' },
+                  'String': displayText,
                 }
               ]
             };
@@ -2174,6 +2259,13 @@ export class BpmnToDexpiTransformer {
           const stepEmittedId = this.sanitizeId(step.uid);
           for (const varName of canonicalVars) {
             const safeVar = this.sanitizeId(varName);
+            // QualifiedValue declares Value (lower=1) and DisplayText
+            // (lower=1) — both UnionDataType (Builtin/Undefined | …). The
+            // DEXPI XSD requires <Data> to carry a typed child element;
+            // for placeholder slots that have no actual measurement we
+            // emit <Undefined/>. The actual measurement lives on the
+            // InstrumentationActivity that references this slot via
+            // MeasuredVariableReference.
             (dexpiStep.Components as Record<string, unknown>[]).push({
               '$': { 'property': varName },
               'Object': {
@@ -2181,6 +2273,10 @@ export class BpmnToDexpiTransformer {
                   'id': `${stepEmittedId}_${safeVar}`,
                   'type': 'Core/QualifiedValue',
                 },
+                'Data': [
+                  { '$': { 'property': 'Value' }, 'Undefined': {} },
+                  { '$': { 'property': 'DisplayText' }, 'Undefined': {} },
+                ],
               },
             });
           }
@@ -2188,6 +2284,62 @@ export class BpmnToDexpiTransformer {
       }
 
       return dexpiStep;
+  }
+
+  /**
+   * Resolve every Stream / InformationFlow to its source-port and target-port,
+   * then build a lookup `sanitizedPortId → sanitizedConnectionUid`. The port
+   * emission consults this to satisfy DEXPI Port.ConnectorReference (lower=1)
+   * by pointing each port at the ProcessConnection that uses it.
+   *
+   * Pure registry/topology lookup — no name-similarity, no fuzzy matching:
+   * we re-use findPortForConnection (the same resolver buildStreams uses) so
+   * the references are guaranteed consistent across the two emission paths.
+   *
+   * Streams whose endpoints don't resolve (gateway-only chains, dangling
+   * BPMN refs) contribute no entries. Ports without an entry will not emit
+   * a ConnectorReference and the cardinality validator will (correctly)
+   * surface them — that's the signal a port has no flow attached, which is
+   * a real authoring gap rather than something the transformer should hide.
+   */
+  private buildPortConnectorMap(): Map<string, string> {
+    const map = new Map<string, string>();
+
+    const record = (portId: string | null | undefined, connectionUid: string): void => {
+      if (!portId) return;
+      // Skip streams that the buildStreams loop will itself silently skip
+      // (sourceRef or targetRef is a gateway / unknown — same condition as
+      // the `if (!processSteps.has(...))` guard there). We mirror the guard
+      // to ensure the map only references connections that actually emit.
+      const safePort = this.sanitizeId(portId);
+      if (!map.has(safePort)) map.set(safePort, this.sanitizeId(connectionUid));
+    };
+
+    this.streams.forEach((stream) => {
+      if (!this.processSteps.has(stream.sourceRef) || !this.processSteps.has(stream.targetRef)) {
+        return; // matches buildStreams' skip behaviour
+      }
+      const sourcePort = this.findPortForConnection(stream.sourceRef, stream.sourcePortRef, 'Outlet');
+      const targetPort = this.findPortForConnection(stream.targetRef, stream.targetPortRef, 'Inlet');
+      if (!sourcePort || !targetPort) return;
+      record(sourcePort, stream.uid);
+      record(targetPort, stream.uid);
+    });
+
+    this.informationFlows.forEach((flow) => {
+      if (!this.processSteps.has(flow.sourceRef) || !this.processSteps.has(flow.targetRef)) return;
+      const sourcePort = this.findPortForConnection(
+        flow.sourceRef, flow.sourcePortRef, 'Outlet', 'InformationPort', flow.name
+      );
+      const targetPort = this.findPortForConnection(
+        flow.targetRef, flow.targetPortRef, 'Inlet', 'InformationPort', flow.name
+      );
+      if (!sourcePort || !targetPort) return;
+      record(sourcePort, flow.uid);
+      record(targetPort, flow.uid);
+    });
+
+    return map;
   }
 
   private buildStreams(): Record<string, unknown>[] {
@@ -2296,6 +2448,11 @@ export class BpmnToDexpiTransformer {
               {
                 '$': { 'property': 'Unit' },
                 'String': attr.unit
+              },
+              // DisplayText (lower=1) derived deterministically from inputs.
+              {
+                '$': { 'property': 'DisplayText' },
+                'String': `${attr.value} ${attr.unit}`.trim(),
               }
             ];
 
@@ -2653,13 +2810,18 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add Description if present
-      if (state.description) {
+      // Description (lower=1): fall back to label, then identifier — both
+      // are deterministic alternative renderings of "what is this state",
+      // not a name-similarity guess. Picking the first non-empty avoids
+      // emitting an empty/Undefined Builtin/String which is also invalid
+      // (the type isn't a UnionDataType admitting Undefined here).
+      const descriptionValue = state.description || state.label || state.identifier;
+      if (descriptionValue) {
         (dexpiState.Data as Record<string, unknown>[]).push({
           '$': {
             'property': 'Description'
           },
-          'String': state.description
+          'String': descriptionValue
         });
       }
 
@@ -2747,13 +2909,16 @@ export class BpmnToDexpiTransformer {
         if (!dexpiStateType.Components) {
           dexpiStateType.Components = [];
         }
+        const mfValue = stateType.flow.moleFlow.value;
+        const mfUnit = stateType.flow.moleFlow.unit;
         (dexpiStateType.Components as Record<string, unknown>[]).push({
           '$': { 'property': 'MoleFlow' },
           'Object': [{
             '$': { 'type': 'Core/QualifiedValue' },
             'Data': [
-              { '$': { 'property': 'Value' }, 'Double': parseFloat(stateType.flow.moleFlow.value) || 0 },
-              { '$': { 'property': 'Unit' }, 'String': stateType.flow.moleFlow.unit },
+              { '$': { 'property': 'Value' }, 'Double': parseFloat(mfValue) || 0 },
+              { '$': { 'property': 'Unit' }, 'String': mfUnit },
+              { '$': { 'property': 'DisplayText' }, 'String': `${mfValue} ${mfUnit}`.trim() },
             ],
           }],
         });
