@@ -351,6 +351,7 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
                   const next: MaterialComponentProperty = { kind: 'composition', name: '', value: '' };
                   setEdited({ ...edited, properties: [...(edited.properties ?? []), next] });
                 }}
+                className="btn"
                 style={{ marginTop: '0.3em' }}
               >
                 + Add property
