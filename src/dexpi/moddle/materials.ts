@@ -25,14 +25,40 @@ export interface MaterialComponentProperty {
   unitReference?: string;
   /**
    * URI linking the property name to a standard quantity kind (QUDT,
-   * ISO 15926, …). Only meaningful on composition rows — emitted inside
-   * the QualifiedValue Object as
+   * ISO 15926, …). Only meaningful on composition rows whose inner Object
+   * type is `Core/QualifiedValue` — emitted inside the QV Object as
    * `<dexpi:references property="QuantityKindReference" objects="URI"/>`,
    * which is the canonical DEXPI carrier for an attribute-name URI.
    * Ignored for data rows (no clean canonical slot in
    * `<dexpi:data property="X">value</dexpi:data>`).
    */
   nameUri?: string;
+  /**
+   * Multi-record payload for composition properties whose inner Object type
+   * is **not** `Core/QualifiedValue` — e.g. `PersistentIdentifiers` whose
+   * inner class is `Core/PersistentIdentifier` (Context + Value fields).
+   * Each record is a flat map of inner DataProperty name → value.
+   *
+   * When `records` is set, `value` / `unit` / `unitReference` / `nameUri`
+   * are unused; the composition is rendered and serialised as a list of
+   * the declared inner class's records. Inner class is resolved via
+   * `registry.getCompositionInnerClassName(wrappingClass, prop.name)`.
+   *
+   * Empty array means "carrier present, no records yet" — useful for
+   * UI placeholder rows. The save path skips emitting a `<dexpi:components>`
+   * carrier when records is empty (same convention QualifiedValue uses
+   * with empty value).
+   */
+  records?: Array<Record<string, string>>;
+  /**
+   * Inner Object's `type` attribute as it appeared in the BPMN — e.g.
+   * `'Core/PersistentIdentifier'`. Captured at read time so writes preserve
+   * the exact ref the source BPMN had (cross-namespace cases that the
+   * registry's bare-name lookup can't reconstruct). When freshly authored,
+   * the writer fills this in from `registry.getCompositionInnerClassName`
+   * + a sensible default namespace. Only meaningful when `records` is set.
+   */
+  recordsType?: string;
 }
 
 export interface MaterialComponent {

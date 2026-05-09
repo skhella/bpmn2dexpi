@@ -32,6 +32,156 @@ const baseRegistry: DexpiProcessClassRegistry | null = (() => {
  */
 const STRUCTURAL_PROPS = new Set(['Identifier', 'Label', 'Description']);
 
+/**
+ * Generic editor for a CompositionProperty whose inner Object type is **not**
+ * `Core/QualifiedValue` — e.g. `PersistentIdentifiers` (inner type
+ * `Core/PersistentIdentifier` with Context + Value fields). Renders one row
+ * per record with one input per declared inner DataProperty.
+ *
+ * Inputs are introspected from the registry:
+ *   - DataProperty whose `targetType` matches a registered Enumeration →
+ *     `<select>` with the enum's literal values.
+ *   - Otherwise → `<input type="text">`.
+ *
+ * The component is fully data-driven from the schema. Adding a new inner
+ * class to Process.xml / a Profile XML automatically gets a working editor
+ * here without code changes — same property would appear with its declared
+ * field shape.
+ */
+interface NonQvCompositionFieldProps {
+  propName: string;
+  labelText: string;
+  tooltip: string;
+  innerClassName: string | null;
+  registry: DexpiProcessClassRegistry | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  edited: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setEdited: (next: any) => void;
+}
+const NonQvCompositionField: React.FC<NonQvCompositionFieldProps> = ({
+  propName, labelText, tooltip, innerClassName, registry, edited, setEdited,
+}) => {
+  // Inner class's declared DataProperties (walked through supertypes via
+  // registry.getProperties). Filter to data kind only — references and
+  // nested compositions inside an inner class are out of scope for this
+  // editor and rare on the typed identifier-style classes that hit this
+  // path. If a user authors a class with reference/composition fields, we
+  // surface a TODO note in the UI rather than render incorrectly.
+  const innerDeclaredProps: DexpiProperty[] = innerClassName && registry?.isValidClass(innerClassName)
+    ? registry.getProperties(innerClassName).filter(p => p.kind === 'data')
+    : [];
+
+  // Pull the records array out of edited.properties[]. `prop.records` is
+  // optional; treat missing as empty list.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const propEntry = (edited.properties ?? []).find((p: any) => p.name === propName && p.kind === 'composition');
+  const records: Array<Record<string, string>> = propEntry?.records ?? [];
+
+  const writeRecords = (next: Array<Record<string, string>>) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const props = [...(edited.properties ?? [])];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const idx = props.findIndex((p: any) => p.name === propName);
+    // Empty cleanup: drop the entry entirely when records becomes empty,
+    // matching writeDeclaredComposition's convention.
+    if (next.length === 0) {
+      if (idx >= 0) {
+        const remaining = props.filter((_: unknown, i: number) => i !== idx);
+        setEdited({ ...edited, properties: remaining.length > 0 ? remaining : undefined });
+      }
+      return;
+    }
+    if (idx >= 0) {
+      props[idx] = { ...props[idx], records: next };
+    } else {
+      props.push({ kind: 'composition', name: propName, value: '', records: next });
+    }
+    setEdited({ ...edited, properties: props });
+  };
+
+  const updateRecordField = (recordIdx: number, fieldName: string, value: string) => {
+    const next = records.map((r, i) => i === recordIdx ? { ...r, [fieldName]: value } : r);
+    writeRecords(next);
+  };
+  const addRecord = () => {
+    const blank: Record<string, string> = {};
+    for (const p of innerDeclaredProps) blank[p.name] = '';
+    writeRecords([...records, blank]);
+  };
+  const removeRecord = (recordIdx: number) => {
+    writeRecords(records.filter((_, i) => i !== recordIdx));
+  };
+
+  return (
+    <div className="form-group">
+      <label title={tooltip}>{labelText}:</label>
+      {innerClassName && innerDeclaredProps.length === 0 && (
+        <div style={{ fontSize: '0.8em', color: '#888' }}>
+          No editable DataProperties on <code>{innerClassName}</code>.
+        </div>
+      )}
+      {records.map((record, recordIdx) => (
+        <div
+          key={recordIdx}
+          style={{
+            display: 'flex', gap: '6px', alignItems: 'flex-start',
+            border: '1px solid #ddd', padding: '0.4em', borderRadius: '4px',
+            marginTop: recordIdx === 0 ? 0 : '0.3em',
+          }}
+        >
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+            {innerDeclaredProps.map(innerProp => {
+              const val = record[innerProp.name] ?? '';
+              const enumLiterals = registry?.getEnumLiteralsForProperty(innerClassName ?? '', innerProp.name);
+              const isEnum = enumLiterals !== null && enumLiterals !== undefined && enumLiterals.length > 0;
+              const innerLabel = `${innerProp.name}${innerProp.lower >= 1 ? ' *' : ''}`;
+              return (
+                <label key={innerProp.name} style={{ fontSize: '0.85em', display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ color: '#666' }}>{innerLabel}</span>
+                  {isEnum ? (
+                    <select
+                      value={val}
+                      onChange={(e) => updateRecordField(recordIdx, innerProp.name, e.target.value)}
+                    >
+                      <option value=""></option>
+                      {enumLiterals!.map(lit => (
+                        <option key={lit} value={lit}>{lit}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={val}
+                      onChange={(e) => updateRecordField(recordIdx, innerProp.name, e.target.value)}
+                    />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => removeRecord(recordIdx)}
+            style={{ flex: '0 0 auto', cursor: 'pointer' }}
+            title="Remove record"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addRecord}
+        style={{ marginTop: '0.4em', cursor: 'pointer' }}
+        disabled={innerDeclaredProps.length === 0}
+      >
+        + Add {innerClassName ?? 'record'}
+      </button>
+    </div>
+  );
+};
+
 interface MaterialEditorPanelProps {
   item: {
     type: 'template' | 'component' | 'state';
@@ -689,6 +839,30 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
         } [kind=${prop.kind}]`;
 
         if (prop.kind === 'composition') {
+          // Dispatch by inner Object type. CompositionProperty whose inner
+          // class is Core/QualifiedValue (the vast majority — MolecularWeight,
+          // VapourHeatCapacity, etc.) gets the canonical Value+Unit+URIs UI.
+          // Anything else (e.g. PersistentIdentifiers → Core/PersistentIdentifier
+          // with Context+Value fields) gets a generic list-of-records editor
+          // that introspects the inner class's DataProperties from the
+          // registry — text input by default, <select> for fields whose
+          // targetType matches a declared Enumeration.
+          const innerClassName = baseRegistry?.getCompositionInnerClassName(className, prop.name) ?? null;
+          const isQualifiedValue = innerClassName === 'QualifiedValue' || innerClassName === null;
+          if (!isQualifiedValue) {
+            return (
+              <NonQvCompositionField
+                key={`${className}::${prop.name}`}
+                propName={prop.name}
+                labelText={labelText}
+                tooltip={tooltip}
+                innerClassName={innerClassName}
+                registry={baseRegistry}
+                edited={edited}
+                setEdited={setEdited}
+              />
+            );
+          }
           const entry = readDeclaredComposition(prop.name);
           return (
             <div className="form-group" key={`${className}::${prop.name}`}>
