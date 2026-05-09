@@ -1595,27 +1595,6 @@ export class BpmnToDexpiTransformer {
         });
         continue;
       }
-
-      // Legacy bare-name <dexpi:Attribute name=... value=... unit=.../> form.
-      if (ll === 'attribute') {
-        // unitUri / nameUri may also live as XML attributes on the legacy
-        // <dexpi:attribute> element (the moddle Attribute class declares
-        // them as isAttr). Round-tripping them keeps re-saved BPMNs from
-        // losing authored URIs during the canonical-storage migration.
-        const unitUri = child.getAttribute('unitUri') || undefined;
-        const nameUri = child.getAttribute('nameUri') || undefined;
-        attributes.push({
-          name: child.getAttribute('name') || '',
-          value: child.getAttribute('value') || '',
-          unit: child.getAttribute('unit') || '',
-          ...(unitUri !== undefined ? { unitUri } : {}),
-          ...(nameUri !== undefined ? { nameUri } : {}),
-          scope: child.getAttribute('scope') || 'Design',
-          range: child.getAttribute('range') || 'Nominal',
-          provenance: child.getAttribute('provenance') || 'Calculated',
-          required: child.getAttribute('required') === 'true' || undefined,
-        });
-      }
     }
 
     return attributes;

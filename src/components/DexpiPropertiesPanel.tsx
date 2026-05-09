@@ -411,13 +411,6 @@ function readAttributesFromDexpiElement(dexpiElement: any, moddle: any): any[] {
     }));
   }
 
-  // Legacy fallback: flat <dexpi:attribute name=value unit=...> form.
-  // Only used when no canonical carriers are present so we don't double-
-  // count during the transition. Once a step is re-saved the legacy
-  // children are wiped (see attrsToCanonicalCarriers consumers below).
-  if (out.length === 0 && Array.isArray(dexpiElement.attributes)) {
-    return [...dexpiElement.attributes];
-  }
   return out;
 }
 
@@ -1857,8 +1850,10 @@ const ProcessStepAttributesSection: React.FC<{
     // Canonical-carrier write: dispatch each attribute to either a flat
     // <dexpi:data> carrier or a QualifiedValue-shaped <dexpi:components>
     // carrier based on the registry's declared kind for the property name
-    // on the wrapping class. Wipes the legacy <dexpi:attribute> slot so
-    // re-saved BPMNs stop carrying the deprecated shape.
+    // on the wrapping class. The reader ignores the legacy <dexpi:attribute>
+    // slot — clearing it here ensures opening any old BPMN and saving
+    // produces a fully-canonical file (no orphan legacy elements survive
+    // moddle round-trip).
     const { data, components } = attrsToCanonicalCarriers(updatedAttrs, moddle, registry, className);
     dexpiElement.data = data;
     dexpiElement.components = components;
