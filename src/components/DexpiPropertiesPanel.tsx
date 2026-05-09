@@ -58,6 +58,16 @@ function lookupRequiredSource(
  */
 const UNIVERSAL_AUTO_EMITTED = new Set<string>(['Identifier', 'Label']);
 const CLASS_AUTO_EMITTED: Record<string, Set<string>> = {
+  // ProcessStep: HierarchyLevel is set via the dedicated dropdown at the
+  // top of the panel (which writes the dexpi:element.hierarchyLevel
+  // attribute, then transformer.ts:2300 emits <Data property="HierarchyLevel">).
+  // Filtering it out of the attribute-name dropdown prevents users from
+  // entering it twice — once via the top dropdown and once via the
+  // generic attribute editor — which would emit two <Data property=
+  // "HierarchyLevel"> siblings on the same Object and violate DEXPI's
+  // upper="1" cardinality. Inherited by every ProcessStep subclass via
+  // the supertype walk in isAutoEmittedByTransformer.
+  ProcessStep: new Set(['HierarchyLevel']),
   EngineeringModel: new Set([
     'ExportDateTime', 'OriginatingSystemName',
     'OriginatingSystemVendorName', 'OriginatingSystemVersion',
