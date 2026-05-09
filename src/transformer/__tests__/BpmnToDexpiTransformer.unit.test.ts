@@ -435,7 +435,7 @@ describe('stream type inferred from port type when no streamType annotation', ()
  * MoleFlow `<Components>` carrier survives both.
  */
 describe('Case-tolerant localName matches (bpmn-moddle round-trip)', () => {
-  const buildBpmn = (mstTag: string, compTag: string) => `<?xml version="1.0" encoding="UTF-8"?>
+  const buildBpmn = (msTag: string, mstTag: string, compTag: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
@@ -443,11 +443,11 @@ describe('Case-tolerant localName matches (bpmn-moddle round-trip)', () => {
   <process id="P1">
     <dataObjectReference id="DOR_states" name="Base Case MaterialStates" dataObjectRef="DO1">
       <extensionElements>
-        <dexpi:MaterialState uid="uuid_MS_S1">
+        <dexpi:${msTag} uid="uuid_MS_S1">
           <dexpi:data property="Identifier">1</dexpi:data>
           <dexpi:data property="Label">Feed</dexpi:data>
           <dexpi:references property="State" uidRef="uuid_MS_S1_MST"/>
-        </dexpi:MaterialState>
+        </dexpi:${msTag}>
         <dexpi:${mstTag} uid="uuid_MS_S1_MST">
           <dexpi:data property="Identifier">1-State</dexpi:data>
           <dexpi:components property="MoleFlow">
@@ -467,13 +467,14 @@ describe('Case-tolerant localName matches (bpmn-moddle round-trip)', () => {
   </process>
 </definitions>`;
 
-  it('reads MaterialStateType + Composition in both PascalCase and lowerCase', async () => {
-    for (const [mst, comp, label] of [
-      ['MaterialStateType', 'Composition', 'PascalCase (raw fixture form)'] as const,
-      ['materialStateType', 'composition', 'lowerCase (bpmn-moddle round-tripped form)'] as const,
+  it('reads MaterialState + MaterialStateType + Composition in both PascalCase and lowerCase', async () => {
+    for (const [ms, mst, comp, label] of [
+      ['MaterialState', 'MaterialStateType', 'Composition', 'PascalCase (raw fixture form)'] as const,
+      ['materialState', 'materialStateType', 'composition', 'lowerCase (bpmn-moddle round-tripped form)'] as const,
     ]) {
       const t = new BpmnToDexpiTransformer();
-      const out = await t.transform(buildBpmn(mst, comp));
+      const out = await t.transform(buildBpmn(ms, mst, comp));
+      expect(out, `${label}: MaterialState emitted`).toContain('Process/Process.MaterialState');
       expect(out, `${label}: MaterialStateType emitted`).toContain('Process/Process.MaterialStateType');
       expect(out, `${label}: MoleFlow components carrier preserved`).toMatch(/property="MoleFlow"/);
     }
