@@ -1605,6 +1605,13 @@ const ProcessStepAttributesSection: React.FC<{
           name: updates.name !== undefined ? updates.name : attr.name,
           value: updates.value !== undefined ? updates.value : attr.value,
           unit: updates.unit !== undefined ? updates.unit : attr.unit,
+          // nameUri / unitUri: project-extension authoring metadata. The
+          // transformer routes these to canonical DEXPI 2.0 destinations
+          // (nameUri → QuantityKindReference; unitUri → UnitReference on
+          // the wrapping QualifiedValue). Always preserved through edits
+          // so the step panel matches the stream panel's URI surface.
+          nameUri: updates.nameUri !== undefined ? updates.nameUri : attr.nameUri,
+          unitUri: updates.unitUri !== undefined ? updates.unitUri : attr.unitUri,
           scope: updates.scope !== undefined ? updates.scope : attr.scope,
           range: updates.range !== undefined ? updates.range : attr.range,
           provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
@@ -1664,6 +1671,18 @@ const ProcessStepAttributesSection: React.FC<{
             registry={registry}
             className={className}
             onChange={(updates) => updateAttribute(index, updates)}
+            betweenNameAndValue={
+              <label>
+                Attribute URI:
+                <input
+                  type="text"
+                  value={attr.nameUri || ''}
+                  onChange={(e) => updateAttribute(index, { nameUri: e.target.value })}
+                  placeholder="e.g. https://qudt.org/vocab/quantitykind/MassFlowRate"
+                  style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
+                />
+              </label>
+            }
           />
 
           <label>
@@ -1673,6 +1692,17 @@ const ProcessStepAttributesSection: React.FC<{
               value={attr.unit || ''}
               onChange={(e) => updateAttribute(index, { unit: e.target.value })}
               placeholder="e.g., kg/h, °C, bar"
+            />
+          </label>
+
+          <label>
+            Unit URI:
+            <input
+              type="text"
+              value={attr.unitUri || ''}
+              onChange={(e) => updateAttribute(index, { unitUri: e.target.value })}
+              placeholder="e.g. https://qudt.org/vocab/unit/KiloGM-PER-HR"
+              style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
             />
           </label>
 
