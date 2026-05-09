@@ -1647,6 +1647,14 @@ export class BpmnToDexpiTransformer {
     }
     
     for (const child of portElements) {
+      // Port-level DEXPI attributes (canonical carriers — `<dexpi:data
+      // property="X">v</dexpi:data>` and `<dexpi:components property="X">…
+      // </dexpi:components>` children of `<dexpi:port>`). Reuses
+      // extractAttributesFromElement, which already handles both flat-data
+      // and QualifiedValue-shaped composition carriers across ProcessStep /
+      // Stream / Port — the function operates on any moddle parent that
+      // exposes the same canonical shape.
+      const portAttributes = this.extractAttributesFromElement(child);
       ports.push({
         portId: child.getAttribute('portId') || child.getAttribute('id') || this.generateUid(),
         name: child.getAttribute('name') || child.getAttribute('label') || 'Port',
@@ -1659,6 +1667,7 @@ export class BpmnToDexpiTransformer {
         anchorY: child.getAttribute('anchorY') ? parseFloat(child.getAttribute('anchorY')!) : undefined,
         subReference: child.getAttribute('subReference') || undefined,
         superReference: child.getAttribute('superReference') || undefined,
+        ...(portAttributes.length > 0 ? { attributes: portAttributes } : {}),
       });
     }
     
@@ -2161,6 +2170,68 @@ export class BpmnToDexpiTransformer {
           // as a Label property because no such property exists on Port.
           // The short port name (e.g. "MI1") is captured by Identifier
           // already (assigned above to safePortId).
+
+          // Port-level DEXPI attributes authored via the panel's per-port
+          // attribute editor. Same schema-driven kind dispatch + emit shape
+          // ProcessStep / Stream attributes use: schema-data → flat Data
+          // child; schema-composition → QualifiedValue Object inside a
+          // Components carrier on the port. Wrapping class for the lookup
+          // is the port's portType, which inherits from Core/ConceptualObject
+          // so PersistentIdentifiers / Identifier / Label all work.
+          if (port.attributes && port.attributes.length > 0) {
+            const portClassName = port.portType;
+            const portDeclaredKindByName = new Map<string, 'data' | 'composition' | 'reference'>();
+            if (this.registry.isValidClass(portClassName)) {
+              for (const p of this.registry.getProperties(portClassName)) {
+                portDeclaredKindByName.set(p.name, p.kind);
+              }
+            }
+            const resolvePortAttrKind = (attr: { name: string; unit?: string; unitUri?: string; nameUri?: string; scope?: string; range?: string; provenance?: string; qualifier?: string }): 'data' | 'composition' => {
+              const declared = portDeclaredKindByName.get(attr.name);
+              if (declared === 'composition') return 'composition';
+              if (declared === 'data' || declared === 'reference') return 'data';
+              return (attr.unit || attr.unitUri || attr.nameUri ||
+                      attr.scope || attr.range || attr.provenance || attr.qualifier) ? 'composition' : 'data';
+            };
+            for (const attr of port.attributes) {
+              if (!attr.name || !attr.value) continue;
+              if (resolvePortAttrKind(attr) === 'data') {
+                (portObject.Data as Record<string, unknown>[]).push({
+                  '$': { 'property': attr.name },
+                  'String': attr.value,
+                });
+                continue;
+              }
+              // Composition: QualifiedValue Object inside Components carrier.
+              if (!portObject.Components) portObject.Components = [];
+              const qvData: Record<string, unknown>[] = [
+                {
+                  '$': { 'property': 'Value' },
+                  'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
+                  'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined,
+                },
+                {
+                  '$': { 'property': 'DisplayText' },
+                  'String': attr.unit ? `${attr.value} ${attr.unit}`.trim() : attr.value,
+                },
+              ];
+              if (attr.unit) qvData.push({ '$': { 'property': 'Unit' }, 'String': attr.unit });
+              if (attr.unitUri) qvData.push({ '$': { 'property': 'UnitReference' }, 'String': attr.unitUri });
+              if (attr.scope) qvData.push({ '$': { 'property': 'Scope' }, 'String': attr.scope });
+              if (attr.range) qvData.push({ '$': { 'property': 'Range' }, 'String': attr.range });
+              if (attr.provenance) qvData.push({ '$': { 'property': 'Provenance' }, 'String': attr.provenance });
+              const qvObj: Record<string, unknown> = { '$': { 'type': 'Core/QualifiedValue' }, 'Data': qvData };
+              if (attr.nameUri) {
+                qvObj.References = [{
+                  '$': { 'property': 'QuantityKindReference', 'objects': attr.nameUri },
+                }];
+              }
+              (portObject.Components as Record<string, unknown>[]).push({
+                '$': { 'property': attr.name },
+                'Object': [qvObj],
+              });
+            }
+          }
 
           // ConnectorReference (lower=1, target /Process.ProcessConnection):
           // points at the Stream / InformationFlow that connects this port.

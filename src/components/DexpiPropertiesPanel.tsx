@@ -889,8 +889,17 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
             ...updates
           };
         } else {
-          // For dexpi:Port objects, create proper moddle instance
+          // For dexpi:Port objects, create proper moddle instance.
+          // data / references / components are the canonical-carrier slots
+          // for port-level DEXPI attributes (Identifier, Label,
+          // PersistentIdentifiers, MaterialTemplateReference, …) — forwarded
+          // through every recreate so attribute edits authored via the
+          // PortAttributesSection persist across updates to other fields.
           const moddle = modeler.get('moddle');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const u = updates as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pAny = p as any;
           const updatedPort = moddle.create('dexpi:Port', {
             portId: updates.portId !== undefined ? updates.portId : p.portId,
             name: updates.name !== undefined ? updates.name : p.name,
@@ -900,8 +909,11 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
             anchorOffset: updates.anchorOffset !== undefined ? updates.anchorOffset : p.anchorOffset,
             anchorX: updates.anchorX !== undefined ? updates.anchorX : p.anchorX,
             anchorY: updates.anchorY !== undefined ? updates.anchorY : p.anchorY,
-            subReference: updates.subReference !== undefined ? updates.subReference : (p as any).subReference,
-            superReference: updates.superReference !== undefined ? updates.superReference : (p as any).superReference,
+            subReference: updates.subReference !== undefined ? updates.subReference : pAny.subReference,
+            superReference: updates.superReference !== undefined ? updates.superReference : pAny.superReference,
+            data: u.data !== undefined ? u.data : pAny.data,
+            references: u.references !== undefined ? u.references : pAny.references,
+            components: u.components !== undefined ? u.components : pAny.components,
           });
           return updatedPort;
         }
@@ -1686,6 +1698,19 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                 Position automatically determined by connection
               </div>
             )}
+
+            {/* Port-level DEXPI attribute editor — collapsed by default.
+                Same canonical-carrier persistence the ProcessStep + Stream
+                attribute editors use; the wrapping class for schema-driven
+                kind dispatch is the port's portType (MaterialPort,
+                ThermalEnergyPort, …) so PersistentIdentifiers / Identifier
+                / Label / MaterialTemplateReference are all reachable. */}
+            <PortAttributesSection
+              port={port}
+              modeler={modeler}
+              registry={augmentedRegistry}
+              onPortChange={(updates) => updatePort(port.portId, updates as any)}
+            />
           </div>
         ))}
       </div>
@@ -1993,6 +2018,132 @@ const ProcessStepAttributesSection: React.FC<{
               </>
             );
           })()}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/**
+ * Per-port attribute editor — collapses by default to keep the port row
+ * compact, expands to a full attribute table on demand. Reuses the same
+ * canonical-carrier persistence path the ProcessStep + Stream attribute
+ * editors use (`attrsToCanonicalCarriers` + `readAttributesFromDexpiElement`),
+ * so attributes authored here flow through identical schema-driven kind
+ * dispatch and identical BPMN-storage shape.
+ *
+ * Wrapping class for the schema-lookup is `port.portType` — the registry
+ * knows MaterialPort, ThermalEnergyPort, etc., and walks supertypes up
+ * through `Port` → `Core/ConceptualObject`, so PersistentIdentifiers and
+ * the rest are visible. Saved through `onPortChange({ data, components })`,
+ * which the parent forwards to `updatePort` to persist.
+ */
+const PortAttributesSection: React.FC<{
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  port: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  modeler: any;
+  registry: DexpiProcessClassRegistry | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onPortChange: (updates: { data?: any[]; components?: any[] }) => void;
+}> = ({ port, modeler, registry, onPortChange }) => {
+  const [expanded, setExpanded] = React.useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [attributes, setAttributes] = React.useState<any[]>([]);
+  const className = port?.portType || 'Port';
+
+  React.useEffect(() => {
+    if (!port) return;
+    const moddle = modeler.get('moddle');
+    setAttributes(readAttributesFromDexpiElement(port, moddle));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [port]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const persist = (next: any[]) => {
+    setAttributes(next);
+    const moddle = modeler.get('moddle');
+    const { data, components } = attrsToCanonicalCarriers(next, moddle, registry, className);
+    onPortChange({ data, components });
+  };
+
+  const addAttribute = () => {
+    const moddle = modeler.get('moddle');
+    const newAttr = moddle.create('dexpi:Attribute', {
+      name: `Attribute ${attributes.length + 1}`,
+      value: '',
+      unit: '',
+      scope: 'Design',
+      range: 'Nominal',
+      provenance: 'Calculated',
+    });
+    persist([...attributes, newAttr]);
+  };
+
+  const removeAttribute = (index: number) => {
+    persist(attributes.filter((_, i) => i !== index));
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updateAttribute = (index: number, updates: any) => {
+    const moddle = modeler.get('moddle');
+    const next = attributes.map((attr, i) => {
+      if (i !== index) return attr;
+      return moddle.create('dexpi:Attribute', {
+        name: updates.name !== undefined ? updates.name : attr.name,
+        value: updates.value !== undefined ? updates.value : attr.value,
+        unit: updates.unit !== undefined ? updates.unit : attr.unit,
+        nameUri: updates.nameUri !== undefined ? updates.nameUri : attr.nameUri,
+        unitUri: updates.unitUri !== undefined ? updates.unitUri : attr.unitUri,
+        scope: updates.scope !== undefined ? updates.scope : attr.scope,
+        range: updates.range !== undefined ? updates.range : attr.range,
+        provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
+        required: 'required' in updates ? updates.required : attr.required,
+      });
+    });
+    persist(next);
+  };
+
+  return (
+    <div style={{ marginTop: '0.5em', padding: '0.4em 0.5em', background: '#fafafa', borderRadius: '3px', fontSize: '0.9em' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0', color: '#555' }}
+          title={expanded ? 'Collapse' : 'Expand'}
+        >
+          {expanded ? '▾' : '▸'} Attributes ({attributes.length})
+        </button>
+        {expanded && (
+          <button
+            type="button"
+            onClick={addAttribute}
+            style={{ marginLeft: 'auto', cursor: 'pointer' }}
+          >
+            + Add Attribute
+          </button>
+        )}
+      </div>
+      {expanded && attributes.map((attr, index) => (
+        <div key={index} style={{ marginTop: '0.4em', padding: '0.4em', border: '1px solid #ddd', borderRadius: '3px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <strong style={{ fontSize: '0.9em' }}>{attr.name || '(unnamed)'}</strong>
+            <button
+              type="button"
+              onClick={() => removeAttribute(index)}
+              style={{ marginLeft: 'auto', cursor: 'pointer', color: '#a44' }}
+              title="Remove attribute"
+            >
+              ✕
+            </button>
+          </div>
+          <AttributeNameValueRow
+            attr={attr}
+            registry={registry}
+            className={className}
+            onChange={(updates) => updateAttribute(index, updates)}
+          />
         </div>
       ))}
     </div>
