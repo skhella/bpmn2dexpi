@@ -332,6 +332,199 @@ export const AttributeNameValueRow: React.FC<{
 };
 
 /**
+ * Read ProcessStep attributes from a moddle `dexpi:Element`, supporting
+ * BOTH the legacy flat `<dexpi:attribute>` shape AND the canonical-carrier
+ * shape (`<dexpi:data property="X">v</dexpi:data>` for plain attrs and
+ * `<dexpi:components property="X"><dexpi:object type="Core/QualifiedValue">…
+ * </dexpi:object></dexpi:components>` for measurement attrs).
+ *
+ * Canonical shape mirrors what MaterialComponent and Stream already use;
+ * this reader brings ProcessStep onto the same convention. Legacy reads
+ * are still supported so older saves continue to load — the canonical
+ * shape wins when both forms exist on the same element (transition state).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function readAttributesFromDexpiElement(dexpiElement: any, moddle: any): any[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const out: any[] = [];
+
+  // Canonical: flat data carriers (enum literals, boolean flags, simple strings).
+  const dataChildren = Array.isArray(dexpiElement.data) ? dexpiElement.data : [];
+  for (const d of dataChildren) {
+    const propName = d.property ?? d.$attrs?.property ?? '';
+    const body = d.body ?? d.$body ?? d._ ?? '';
+    if (!propName) continue;
+    out.push(moddle.create('dexpi:Attribute', { name: propName, value: String(body) }));
+  }
+
+  // Canonical: composition carriers with QualifiedValue inner — measurement
+  // attrs with optional Value+Unit+Provenance+Range+Scope+UnitReference and
+  // an optional References>QuantityKindReference sibling for the attribute URI.
+  const componentsChildren = Array.isArray(dexpiElement.components) ? dexpiElement.components : [];
+  for (const carrier of componentsChildren) {
+    const propName = carrier.property ?? carrier.$attrs?.property ?? '';
+    if (!propName) continue;
+    const objs = carrier.objects ?? carrier.$children ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const qv = (Array.isArray(objs) ? objs : []).find((o: any) =>
+      (o.$type || '').toLowerCase().includes('object') &&
+      (o.type === 'Core/QualifiedValue' || o.$attrs?.type === 'Core/QualifiedValue')
+    );
+    if (!qv) continue;
+    const qvData = Array.isArray(qv.data) ? qv.data : (qv.$children ?? []);
+    let value = '';
+    let unit: string | undefined;
+    let unitUri: string | undefined;
+    let scope: string | undefined;
+    let range: string | undefined;
+    let provenance: string | undefined;
+    for (const dc of qvData) {
+      const dp = dc.property ?? dc.$attrs?.property;
+      const dv = (dc.body ?? dc.$body ?? '').toString().trim();
+      if (dp === 'Value') value = dv;
+      else if (dp === 'Unit') unit = dv;
+      else if (dp === 'UnitReference') unitUri = dv;
+      else if (dp === 'Scope') scope = dv;
+      else if (dp === 'Range') range = dv;
+      else if (dp === 'Provenance') provenance = dv;
+    }
+    let nameUri: string | undefined;
+    const qvRefs = Array.isArray(qv.references) ? qv.references : [];
+    for (const r of qvRefs) {
+      const rp = r.property ?? r.$attrs?.property;
+      if (rp === 'QuantityKindReference') {
+        nameUri = r.objects ?? r.uidRef ?? r.$attrs?.objects ?? r.$attrs?.uidRef;
+        break;
+      }
+    }
+    const required = carrier.required === true || carrier.$attrs?.required === 'true';
+    out.push(moddle.create('dexpi:Attribute', {
+      name: propName,
+      value,
+      ...(unit !== undefined ? { unit } : {}),
+      ...(unitUri !== undefined ? { unitUri } : {}),
+      ...(nameUri !== undefined ? { nameUri } : {}),
+      ...(scope !== undefined ? { scope } : {}),
+      ...(range !== undefined ? { range } : {}),
+      ...(provenance !== undefined ? { provenance } : {}),
+      ...(required ? { required: true } : {}),
+    }));
+  }
+
+  // Legacy fallback: flat <dexpi:attribute name=value unit=...> form.
+  // Only used when no canonical carriers are present so we don't double-
+  // count during the transition. Once a step is re-saved the legacy
+  // children are wiped (see attrsToCanonicalCarriers consumers below).
+  if (out.length === 0 && Array.isArray(dexpiElement.attributes)) {
+    return [...dexpiElement.attributes];
+  }
+  return out;
+}
+
+/**
+ * Convert the panel's attribute-array view into canonical-carrier moddle
+ * children. Returns `{ data, components }` for assignment onto a moddle
+ * `dexpi:Element`.
+ *
+ * Kind dispatch is **schema-driven**: each attribute's declared kind comes
+ * from `registry.getProperties(className)`. Schema-data → flat
+ * `<dexpi:data property="X">v</dexpi:data>`; schema-composition →
+ * QualifiedValue-shaped `<dexpi:components property="X"><dexpi:object
+ * type="Core/QualifiedValue">…</dexpi:object></dexpi:components>` carrier
+ * (same canonical-extension shape streams + MaterialComponent emit).
+ *
+ * For project-extension property names the registry doesn't declare (custom
+ * authoring beyond Process.xml's vocabulary), kind falls back to a presence
+ * heuristic — any unit / URI / scope-range-provenance metadata implies the
+ * author intended a measurement. The heuristic only fires on unknown
+ * names; schema-declared dispatch is the primary path.
+ *
+ * Empty rows (no name or no value) are dropped silently.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function attrsToCanonicalCarriers(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  attrs: any[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  moddle: any,
+  registry: DexpiProcessClassRegistry | null,
+  className: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): { data: any[]; components: any[] } {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const components: any[] = [];
+  const buildData = (property: string, body: string) =>
+    moddle.create('dexpi:Data', { property, body });
+
+  // Schema-driven kind lookup. Map property name → declared kind from the
+  // registry. Empty when the registry doesn't know the class (e.g. custom-
+  // typed steps falling back to heuristics until a Profile is loaded).
+  const declaredKindByName = new Map<string, 'data' | 'composition' | 'reference'>();
+  if (registry && registry.isValidClass(className)) {
+    for (const p of registry.getProperties(className)) {
+      declaredKindByName.set(p.name, p.kind);
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const resolveKind = (attr: any): 'data' | 'composition' => {
+    const declared = declaredKindByName.get(attr.name);
+    if (declared === 'composition') return 'composition';
+    if (declared === 'data' || declared === 'reference') return 'data';
+    // Unknown property name (project-extension). Fall back to a presence
+    // heuristic — any measurement-oriented metadata implies the author
+    // intended a QualifiedValue carrier. Pure flat name+value emits as
+    // a Data carrier.
+    return (attr.unit || attr.unitUri || attr.nameUri ||
+            attr.scope || attr.range || attr.provenance) ? 'composition' : 'data';
+  };
+
+  for (const attr of attrs) {
+    if (!attr?.name || !attr?.value) continue;
+    if (resolveKind(attr) === 'data') {
+      data.push(buildData(attr.name, attr.value));
+      continue;
+    }
+    // Composition carrier with QV inner — same canonical-extension shape
+    // streams + MaterialComponent already emit.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const qvData: any[] = [
+      buildData('Value', attr.value),
+      // DisplayText (lower=1 on Core/QualifiedValue per Core.xml). Derive
+      // deterministically from value + unit so the cardinality validator
+      // stays clean on emit. Same convention transformer.ts and the
+      // MaterialComponent path already use.
+      buildData('DisplayText', attr.unit ? `${attr.value} ${attr.unit}` : attr.value),
+    ];
+    if (attr.unit) qvData.push(buildData('Unit', attr.unit));
+    if (attr.unitUri) qvData.push(buildData('UnitReference', attr.unitUri));
+    if (attr.scope) qvData.push(buildData('Scope', attr.scope));
+    if (attr.range) qvData.push(buildData('Range', attr.range));
+    if (attr.provenance) qvData.push(buildData('Provenance', attr.provenance));
+    const qvObjectProps: Record<string, unknown> = {
+      type: 'Core/QualifiedValue',
+      data: qvData,
+    };
+    if (attr.nameUri) {
+      qvObjectProps.references = [
+        moddle.create('dexpi:References', {
+          property: 'QuantityKindReference',
+          objects: attr.nameUri,
+        }),
+      ];
+    }
+    const carrierProps: Record<string, unknown> = {
+      property: attr.name,
+      objects: [moddle.create('dexpi:Object', qvObjectProps)],
+    };
+    if (attr.required) carrierProps.required = true;
+    components.push(moddle.create('dexpi:Components', carrierProps));
+  }
+  return { data, components };
+}
+
+/**
  * Map a BPMN-side `<dexpi:stream streamType="...">` discriminator to the
  * DEXPI class the transformer emits for it. Mirrors the same map in
  * BpmnToDexpiTransformer.streamTypeToDexpiClass and DexpiProfileGenerator's
@@ -1546,11 +1739,15 @@ const ProcessStepAttributesSection: React.FC<{
         );
 
         if (dexpiElement) {
-          const attrs = dexpiElement.attributes || [];
-          setAttributes(Array.isArray(attrs) ? attrs : []);
+          // Canonical-carrier read first, legacy <dexpi:attribute> fallback
+          // when no carriers are present (transition state — see
+          // readAttributesFromDexpiElement).
+          const moddle = modeler.get('moddle');
+          setAttributes(readAttributesFromDexpiElement(dexpiElement, moddle));
         }
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [element]);
 
   // Auto-create empty placeholder attributes for DEXPI/Profile-required
@@ -1657,7 +1854,15 @@ const ProcessStepAttributesSection: React.FC<{
       extensionElements.values.push(dexpiElement);
     }
 
-    dexpiElement.attributes = updatedAttrs;
+    // Canonical-carrier write: dispatch each attribute to either a flat
+    // <dexpi:data> carrier or a QualifiedValue-shaped <dexpi:components>
+    // carrier based on the registry's declared kind for the property name
+    // on the wrapping class. Wipes the legacy <dexpi:attribute> slot so
+    // re-saved BPMNs stop carrying the deprecated shape.
+    const { data, components } = attrsToCanonicalCarriers(updatedAttrs, moddle, registry, className);
+    dexpiElement.data = data;
+    dexpiElement.components = components;
+    dexpiElement.attributes = [];
 
     modeling.updateProperties(element, {
       extensionElements
