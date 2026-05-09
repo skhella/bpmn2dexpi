@@ -54,7 +54,9 @@ function freshRegistry(extraProfiles: { name: string; xml: string }[] = []): Dex
 }
 
 describe('DEXPI Profile generator', () => {
-  it('produces deterministic output across runs (byte-identical)', async () => {
+  // CPU-bound: runs the full TEP fixture through the generator twice. Locally
+  // ~5s, CI is slower; bump to match the sibling 'three-step contract' test.
+  it('produces deterministic output across runs (byte-identical)', { timeout: 30000 }, async () => {
     const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(bpmn);

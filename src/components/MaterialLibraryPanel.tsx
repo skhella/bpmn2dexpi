@@ -297,17 +297,57 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         }
         if (val.$type === 'MaterialComponent' || val.$type?.includes('MaterialComponent')) {
           // Check for xsi:type attribute - it can be stored in various ways in the moddle
-          const xsiType = val.$attrs?.['xsi:type'] || val['xsi:type'] || 
+          const xsiType = val.$attrs?.['xsi:type'] || val['xsi:type'] ||
                          (val.$type === 'dexpi:PureMaterialComponent' ? 'PureMaterialComponent' : null);
-          
-          const component = {
+
+          // Walk children to capture project-extension properties beyond the
+          // canonical fields (MolecularWeight, AntoineA, IsEffectivelyNoncondensable,
+          // etc.). Mirrors the transformer's read logic so the panel and the
+          // transformer surface the same data shape.
+          const RECOGNIZED_DATA = new Set(['Identifier', 'Label', 'Description', 'ChEBI_identifier', 'IUPAC_identifier']);
+          const properties: MaterialComponent['properties'] = [];
+          const dataChildren = Array.isArray(val.data) ? val.data : [];
+          for (const d of dataChildren) {
+            const propName = d.property ?? d.$attrs?.property ?? '';
+            if (!propName || RECOGNIZED_DATA.has(propName)) continue;
+            const text = (d.body ?? d.$body ?? '').toString().trim();
+            if (!text) continue;
+            properties.push({ kind: 'data', name: propName, value: text });
+          }
+          const componentsChildren = Array.isArray(val.components) ? val.components : [];
+          for (const carrier of componentsChildren) {
+            const propName = carrier.property ?? carrier.$attrs?.property ?? '';
+            if (!propName) continue;
+            const objs = carrier.objects ?? carrier.$children ?? [];
+            const qv = (Array.isArray(objs) ? objs : []).find((o: any) =>
+              (o.$type || '').toLowerCase().includes('object') &&
+              (o.type === 'Core/QualifiedValue' || o.$attrs?.type === 'Core/QualifiedValue')
+            );
+            if (!qv) continue;
+            const qvData = Array.isArray(qv.data) ? qv.data : (qv.$children ?? []);
+            let value = '';
+            let unit: string | undefined;
+            let unitReference: string | undefined;
+            for (const dc of qvData) {
+              const dp = dc.property ?? dc.$attrs?.property;
+              const dv = (dc.body ?? dc.$body ?? '').toString().trim();
+              if (dp === 'Value') value = dv;
+              else if (dp === 'Unit') unit = dv;
+              else if (dp === 'UnitReference') unitReference = dv;
+            }
+            if (!value) continue;
+            properties.push({ kind: 'composition', name: propName, value, unit, unitReference });
+          }
+
+          const component: MaterialComponent = {
             uid: val.uid || '',
             identifier: getChildText(val, 'Identifier'),
             label: getChildText(val, 'Label'),
             description: getChildText(val, 'Description'),
             type: (xsiType === 'PureMaterialComponent' ? 'PureMaterialComponent' : 'CustomMaterialComponent') as MaterialComponent['type'],
             chebiId: getChildText(val, 'ChEBI_identifier'),
-            iupacId: getChildText(val, 'IUPAC_identifier')
+            iupacId: getChildText(val, 'IUPAC_identifier'),
+            properties: properties.length > 0 ? properties : undefined,
           };
           loadedComponents.push(component);
         }
@@ -798,37 +838,130 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     }
 
     const values: any[] = [];
-    
-    // Add templates
+
+    // Helper: build a <dexpi:data property="X">v</dexpi:data> moddle child.
+    // Same shape used below for MaterialComponent and MaterialState.
+    // Hoisted here so all three Material* save loops can share it; declared
+    // before the first user.
+    const buildDataChild = (property: string, body: string) =>
+      moddle.create('dexpi:Data', { property, body });
+
+    const buildReferenceChild = (property: string, uidRefOrObjects: string | string[]) => {
+      // <dexpi:references property="..." uidRef="..."/> or, for multi-object
+      // refs (e.g. ListOfComponents), <dexpi:references property="..." objects="#a #b ..."/>
+      if (Array.isArray(uidRefOrObjects)) {
+        return moddle.create('dexpi:References', {
+          property,
+          objects: uidRefOrObjects.map(u => `#${u}`).join(' '),
+        });
+      }
+      return moddle.create('dexpi:References', { property, uidRef: uidRefOrObjects });
+    };
+
+    // Add templates.
+    //
+    // Same fix pattern as MaterialComponent below: replace the old
+    // moddle.create('MaterialTemplate', { Identifier: ..., Label: ..., ...})
+    // call (which silently produced XML attributes because the moddle
+    // definition declares only uid as an attr) with explicit Data/References
+    // children matching the canonical DEXPI form.
     updatedTemplates.forEach(template => {
-      const templateElement = moddle.create('MaterialTemplate', {
-        uid: template.uid,
-        Identifier: template.identifier,
-        Label: template.label,
-        Description: template.description,
-        NumberOfMaterialComponents: template.numberOfComponents,
-        NumberOfPhases: template.numberOfPhases,
-        ListOfMaterialComponents: {
-          MaterialComponentIdentifier: template.componentRefs
-        },
-        ListOfPhases: {
-          PhaseIdentifier: template.phases.map(p => ({ Identifier: p }))
-        }
-      });
+      const dataChildren: unknown[] = [];
+      if (template.identifier) dataChildren.push(buildDataChild('Identifier', template.identifier));
+      if (template.label) dataChildren.push(buildDataChild('Label', template.label));
+      if (template.description) dataChildren.push(buildDataChild('Description', template.description));
+      if (template.numberOfComponents != null) dataChildren.push(buildDataChild('NumberOfMaterialComponents', String(template.numberOfComponents)));
+      if (template.numberOfPhases != null) dataChildren.push(buildDataChild('NumberOfPhases', String(template.numberOfPhases)));
+      // Phase labels: each as a separate <dexpi:data property="PhaseLabel">v</dexpi:data>
+      // (canonical form for multi-valued DataProperty per Process.xml).
+      for (const phase of template.phases ?? []) {
+        if (phase) dataChildren.push(buildDataChild('PhaseLabel', phase));
+      }
+
+      const referencesChildren: unknown[] = [];
+      // Component references: List of MaterialComponent uids → multi-target
+      // ReferenceProperty serialised as <dexpi:references property="..." objects="#u1 #u2 ..."/>.
+      const componentUidRefs = (template.componentRefs ?? [])
+        .map(r => typeof r === 'string' ? r : r.uidRef)
+        .filter((u): u is string => Boolean(u));
+      if (componentUidRefs.length > 0) {
+        referencesChildren.push(buildReferenceChild('ListOfComponents', componentUidRefs));
+      }
+
+      const moddleProps: Record<string, unknown> = { uid: template.uid };
+      if (dataChildren.length > 0) moddleProps.data = dataChildren;
+      if (referencesChildren.length > 0) moddleProps.references = referencesChildren;
+
+      const templateElement = moddle.create('dexpi:MaterialTemplate', moddleProps);
       values.push(templateElement);
     });
 
-    // Add components
+    // Add components.
+    //
+    // Important: passing canonical-field names like Identifier / Label /
+    // Description as named props to moddle.create('MaterialComponent', {…})
+    // serialises them as XML *attributes* on the <dexpi:materialComponent>
+    // element (because the moddle definition doesn't declare them as Data
+    // sub-element properties — only `data`, `references`, `components` are
+    // declared). The transformer expects them as <dexpi:data property="X">v
+    // </dexpi:data> children, so the legacy attribute form was being silently
+    // dropped on every save through this panel.
+    //
+    // Reuses buildDataChild defined above for the templates loop. Adds a
+    // QualifiedValue-shaped Components carrier helper specific to the
+    // MaterialComponent + MaterialState save paths.
+    const buildQualifiedValueComponentsChild = (
+      property: string,
+      value: string,
+      unit?: string,
+      unitReference?: string,
+    ) => {
+      const qvData: unknown[] = [buildDataChild('Value', value)];
+      // DisplayText (lower=1 on Core/QualifiedValue per Core.xml). Derive
+      // deterministically from value + unit, mirroring transformer.ts:2237.
+      const displayText = unit ? `${value} ${unit}` : value;
+      qvData.push(buildDataChild('DisplayText', displayText));
+      if (unit) qvData.push(buildDataChild('Unit', unit));
+      if (unitReference) qvData.push(buildDataChild('UnitReference', unitReference));
+      const qvObject = moddle.create('dexpi:Object', {
+        type: 'Core/QualifiedValue',
+        data: qvData,
+      });
+      return moddle.create('dexpi:Components', {
+        property,
+        objects: [qvObject],
+      });
+    };
+
     updatedComponents.forEach(component => {
-      const componentElement = moddle.create('MaterialComponent', {
+      const dataChildren: unknown[] = [];
+      if (component.identifier) dataChildren.push(buildDataChild('Identifier', component.identifier));
+      if (component.label) dataChildren.push(buildDataChild('Label', component.label));
+      if (component.description) dataChildren.push(buildDataChild('Description', component.description));
+      if (component.chebiId) dataChildren.push(buildDataChild('ChEBI_identifier', component.chebiId));
+      if (component.iupacId) dataChildren.push(buildDataChild('IUPAC_identifier', component.iupacId));
+
+      const componentsChildren: unknown[] = [];
+      if (component.properties) {
+        for (const p of component.properties) {
+          if (p.kind === 'data') {
+            dataChildren.push(buildDataChild(p.name, p.value));
+          } else {
+            componentsChildren.push(
+              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.unitReference),
+            );
+          }
+        }
+      }
+
+      const moddleProps: Record<string, unknown> = {
         'xsi:type': component.type,
         uid: component.uid,
-        Identifier: component.identifier,
-        Label: component.label,
-        Description: component.description,
-        ChEBI_identifier: component.chebiId,
-        IUPAC_identifier: component.iupacId
-      });
+      };
+      if (dataChildren.length > 0) moddleProps.data = dataChildren;
+      if (componentsChildren.length > 0) moddleProps.components = componentsChildren;
+
+      const componentElement = moddle.create('dexpi:MaterialComponent', moddleProps);
       values.push(componentElement);
     });
 
@@ -861,29 +994,81 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       const caseNameElement = moddle.create('dexpi:CaseName');
       caseNameElement.$body = caseName;
       
-      const materialStates = (statesInCase as MaterialState[]).map(state => {
-        return moddle.create('dexpi:MaterialState', {
-          uid: state.uid,
-          Identifier: state.identifier,
-          Label: state.label,
-          Description: state.description,
-          Flow: state.flow ? {
-            MoleFlow: state.flow.moleFlow ? {
-              Value: state.flow.moleFlow.value.toString(),
-              Unit: state.flow.moleFlow.unit
-            } : undefined,
-            Composition: state.flow.composition ? {
-              Basis: state.flow.composition.basis,
-              Display: state.flow.composition.display,
-              Fraction: state.flow.composition.fractions.map(f => ({
-                Value: f.toString(),
-                Unit: 'Fraction'
-              }))
-            } : undefined
-          } : undefined,
-          TemplateReference: state.templateRef ? { uidRef: state.templateRef } : undefined,
-          StreamReference: state.streamRef ? { uidRef: state.streamRef } : undefined
+      // Same fix pattern: build canonical Data + References + Components
+      // children explicitly. The legacy code passed Identifier/Label/Description/
+      // Flow/TemplateReference/StreamReference as named props to moddle.create,
+      // which (per the moddle MaterialState definition declaring none of those
+      // as attrs) silently produced XML attributes the transformer can't read.
+      const buildQVComponents = (
+        property: string,
+        value: string,
+        unit?: string,
+      ): unknown => {
+        const qvData: unknown[] = [
+          buildDataChild('Value', value),
+          buildDataChild('DisplayText', unit ? `${value} ${unit}` : value),
+        ];
+        if (unit) qvData.push(buildDataChild('Unit', unit));
+        return moddle.create('dexpi:Components', {
+          property,
+          objects: [
+            moddle.create('dexpi:Object', {
+              type: 'Core/QualifiedValue',
+              data: qvData,
+            }),
+          ],
         });
+      };
+
+      const materialStates = (statesInCase as MaterialState[]).map(state => {
+        const dataChildren: unknown[] = [];
+        if (state.identifier) dataChildren.push(buildDataChild('Identifier', state.identifier));
+        if (state.label) dataChildren.push(buildDataChild('Label', state.label));
+        if (state.description) dataChildren.push(buildDataChild('Description', state.description));
+
+        const componentsChildren: unknown[] = [];
+        // Scalar MoleFlow as its own QualifiedValue carrier.
+        if (state.flow?.moleFlow?.value != null) {
+          componentsChildren.push(
+            buildQVComponents(
+              'MoleFlow',
+              String(state.flow.moleFlow.value),
+              state.flow.moleFlow.unit,
+            ),
+          );
+        }
+        // Composition: nested Components carrier with a Core/QualifiedValue
+        // Object holding a multi-valued <Data property="Values">…</Data> per
+        // fraction (canonical DEXPI shape for vector quantities, mirroring
+        // the existing fixture form).
+        if (state.flow?.composition && state.flow.composition.fractions.length > 0) {
+          const fracData: unknown[] = state.flow.composition.fractions.map(f =>
+            buildDataChild('Values', String(f.value)),
+          );
+          fracData.push(buildDataChild('Unit', state.flow.composition.fractions[0]?.unit ?? 'Fraction'));
+          // Display + Basis live as flat data props on the Composition object's
+          // canonical form; we approximate the existing fixture shape here.
+          componentsChildren.push(moddle.create('dexpi:Components', {
+            property: 'Composition',
+            objects: [
+              moddle.create('dexpi:Object', {
+                type: 'Core/QualifiedValue',
+                data: fracData,
+              }),
+            ],
+          }));
+        }
+
+        const referencesChildren: unknown[] = [];
+        if (state.templateRef) referencesChildren.push(buildReferenceChild('MaterialTemplateReference', state.templateRef));
+        if (state.streamRef) referencesChildren.push(buildReferenceChild('StreamReference', state.streamRef));
+
+        const moddleProps: Record<string, unknown> = { uid: state.uid };
+        if (dataChildren.length > 0) moddleProps.data = dataChildren;
+        if (componentsChildren.length > 0) moddleProps.components = componentsChildren;
+        if (referencesChildren.length > 0) moddleProps.references = referencesChildren;
+
+        return moddle.create('dexpi:MaterialState', moddleProps);
       });
       
       caseElement.$children = [caseNameElement, ...materialStates];
