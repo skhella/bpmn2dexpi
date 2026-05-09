@@ -1156,10 +1156,18 @@ export class BpmnToDexpiTransformer {
    * happy-dom namespaceURI is null and the localName test alone applies.
    */
   private findByLocalName(parent: Element, localName: string): Element[] {
+    // Match case-insensitively so the helper works after a bpmn-moddle
+    // round-trip, where dexpi.json's `tagAlias: lowerCase` rewrites
+    // <dexpi:MaterialState> as <dexpi:materialState> on saveXML().
+    // Without this, every UI-saved model silently loses material data
+    // (MaterialState, MaterialTemplate, MaterialComponent, Case,
+    // PhaseIdentifier, Fraction) because the discovery pass misses
+    // every element whose first letter was lowercased.
+    const target = localName.toLowerCase();
     const out: Element[] = [];
     const walk = (node: Element): void => {
       for (const child of Array.from(node.children) as Element[]) {
-        if (child.localName === localName) {
+        if ((child.localName ?? '').toLowerCase() === target) {
           const ns = child.namespaceURI;
           if (!ns || ns === DEXPI_NS) out.push(child);
         }
