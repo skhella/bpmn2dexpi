@@ -185,7 +185,7 @@ function dataPropertyNamesForClass(
  * even when the typed value happens to coincide with a known literal /
  * property name. Initial mode is derived from the persisted value.
  */
-const AttributeNameValueRow: React.FC<{
+export const AttributeNameValueRow: React.FC<{
   attr: { name?: string; value?: string };
   registry: DexpiProcessClassRegistry | null;
   className: string;

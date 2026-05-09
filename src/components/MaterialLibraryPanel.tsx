@@ -297,17 +297,57 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         }
         if (val.$type === 'MaterialComponent' || val.$type?.includes('MaterialComponent')) {
           // Check for xsi:type attribute - it can be stored in various ways in the moddle
-          const xsiType = val.$attrs?.['xsi:type'] || val['xsi:type'] || 
+          const xsiType = val.$attrs?.['xsi:type'] || val['xsi:type'] ||
                          (val.$type === 'dexpi:PureMaterialComponent' ? 'PureMaterialComponent' : null);
-          
-          const component = {
+
+          // Walk children to capture project-extension properties beyond the
+          // canonical fields (MolecularWeight, AntoineA, IsEffectivelyNoncondensable,
+          // etc.). Mirrors the transformer's read logic so the panel and the
+          // transformer surface the same data shape.
+          const RECOGNIZED_DATA = new Set(['Identifier', 'Label', 'Description', 'ChEBI_identifier', 'IUPAC_identifier']);
+          const properties: MaterialComponent['properties'] = [];
+          const dataChildren = Array.isArray(val.data) ? val.data : [];
+          for (const d of dataChildren) {
+            const propName = d.property ?? d.$attrs?.property ?? '';
+            if (!propName || RECOGNIZED_DATA.has(propName)) continue;
+            const text = (d.body ?? d.$body ?? '').toString().trim();
+            if (!text) continue;
+            properties.push({ kind: 'data', name: propName, value: text });
+          }
+          const componentsChildren = Array.isArray(val.components) ? val.components : [];
+          for (const carrier of componentsChildren) {
+            const propName = carrier.property ?? carrier.$attrs?.property ?? '';
+            if (!propName) continue;
+            const objs = carrier.objects ?? carrier.$children ?? [];
+            const qv = (Array.isArray(objs) ? objs : []).find((o: any) =>
+              (o.$type || '').toLowerCase().includes('object') &&
+              (o.type === 'Core/QualifiedValue' || o.$attrs?.type === 'Core/QualifiedValue')
+            );
+            if (!qv) continue;
+            const qvData = Array.isArray(qv.data) ? qv.data : (qv.$children ?? []);
+            let value = '';
+            let unit: string | undefined;
+            let unitReference: string | undefined;
+            for (const dc of qvData) {
+              const dp = dc.property ?? dc.$attrs?.property;
+              const dv = (dc.body ?? dc.$body ?? '').toString().trim();
+              if (dp === 'Value') value = dv;
+              else if (dp === 'Unit') unit = dv;
+              else if (dp === 'UnitReference') unitReference = dv;
+            }
+            if (!value) continue;
+            properties.push({ kind: 'composition', name: propName, value, unit, unitReference });
+          }
+
+          const component: MaterialComponent = {
             uid: val.uid || '',
             identifier: getChildText(val, 'Identifier'),
             label: getChildText(val, 'Label'),
             description: getChildText(val, 'Description'),
             type: (xsiType === 'PureMaterialComponent' ? 'PureMaterialComponent' : 'CustomMaterialComponent') as MaterialComponent['type'],
             chebiId: getChildText(val, 'ChEBI_identifier'),
-            iupacId: getChildText(val, 'IUPAC_identifier')
+            iupacId: getChildText(val, 'IUPAC_identifier'),
+            properties: properties.length > 0 ? properties : undefined,
           };
           loadedComponents.push(component);
         }

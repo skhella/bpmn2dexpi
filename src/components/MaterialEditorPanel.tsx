@@ -226,6 +226,58 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
                 placeholder="e.g., 64-17-5"
               />
             </div>
+
+            {/*
+              Project-extension properties (MolecularWeight / VapourHeatCapacity
+              / Antoine equation parameters / IsEffectivelyNoncondensable / …).
+              Read-only display in this panel — the data round-trips through the
+              transformer correctly (PR #30) but interactive editing is deferred
+              to a follow-up so we don't risk breaking the existing canonical-
+              field save path. Users wanting to author new properties or edit
+              values today should do so directly in the BPMN XML; the next
+              re-import will surface the changes here.
+            */}
+            {edited.properties && edited.properties.length > 0 && (
+              <div className="form-group" style={{ marginTop: '0.75em' }}>
+                <label style={{ fontWeight: 600 }}>
+                  Project-extension properties ({edited.properties.length})
+                </label>
+                <div style={{
+                  fontSize: '0.85em',
+                  color: '#666',
+                  marginBottom: '0.4em',
+                  fontStyle: 'italic',
+                }}>
+                  Read-only — round-tripped through the transformer; edit in the BPMN XML for now.
+                </div>
+                <div style={{
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  padding: '0.4em 0.6em',
+                  background: '#fafafa',
+                  fontFamily: 'monospace',
+                  fontSize: '0.85em',
+                }}>
+                  {edited.properties.map((p: import('../dexpi/moddle/materials').MaterialComponentProperty, i: number) => (
+                    <div key={i} style={{ padding: '0.2em 0', borderBottom: i < edited.properties!.length - 1 ? '1px solid #eee' : 'none' }}>
+                      <strong>{p.name}</strong>
+                      <span style={{ color: '#888', marginLeft: '0.5em' }}>
+                        ({p.kind === 'composition' ? 'measurement' : 'data'})
+                      </span>
+                      <div style={{ paddingLeft: '0.8em', color: '#444' }}>
+                        Value: {p.value}
+                        {p.unit && <> &nbsp;·&nbsp; Unit: {p.unit}</>}
+                        {p.unitReference && (
+                          <div style={{ fontSize: '0.85em', color: '#666', wordBreak: 'break-all' }}>
+                            Unit URI: {p.unitReference}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
