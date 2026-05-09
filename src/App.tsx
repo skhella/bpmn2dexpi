@@ -950,6 +950,14 @@ function App() {
                   >
                     🔗 Neo4j
                   </button>
+                  <button
+                    onClick={() => { handleExportDexpi(); setShowExportsMenu(false); }}
+                    className="btn btn-primary"
+                    style={{ textAlign: 'left' }}
+                    title="Transform the BPMN model and export DEXPI 2.0 XML (also available as the primary toolbar button)"
+                  >
+                    Export DEXPI XML
+                  </button>
                 </div>
               </>
             )}
