@@ -194,8 +194,7 @@ function resolveWrappingClass(el: Element): string {
 // it on globalThis (jsdom). In browsers it's already available. We don't
 // import jsdom here so the module stays browser-bundleable.
 function getParser(): DOMParser {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const Ctor = (globalThis as any).DOMParser;
+  const Ctor = (globalThis as { DOMParser?: typeof DOMParser }).DOMParser;
   if (!Ctor) {
     throw new Error(
       'DexpiPropertyNameValidator: DOMParser is not available. ' +
