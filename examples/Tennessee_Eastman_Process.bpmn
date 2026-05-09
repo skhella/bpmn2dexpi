@@ -46,7 +46,7 @@
           <dexpi:port id="Activity_07878z5_MI4_port" name="MI4" type="MaterialPort" direction="Inlet" label="MI4" subReference="Event_13mofb0_MI4_port" />
           <dexpi:port id="Activity_07878z5_MI5_port" name="MI5" type="MaterialPort" direction="Inlet" label="MI5" subReference="Event_15gcv4n_MI5_port" />
           <dexpi:port id="Activity_07878z5_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_062k0v7_MO1_port" />
-          <dexpi:attribute name="Method" value="Unspecified" />
+          <dexpi:data property="Method">Unspecified</dexpi:data>
         </dexpi:element>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_109uz3k</bpmn:incoming>
@@ -59,7 +59,7 @@
         <bpmn:extensionElements>
           <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_11rkrj8" uid="uid_Activity_11rkrj8">
             <dexpi:port id="Activity_11rkrj8_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
-            <dexpi:attribute name="Method" value="Generic" />
+            <dexpi:data property="Method">Generic</dexpi:data>
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0wulh9g</bpmn:incoming>
@@ -83,7 +83,7 @@
             <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_03d7qhp" uid="uid_Activity_03d7qhp">
               <dexpi:port id="Activity_03d7qhp_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
               <dexpi:port id="Activity_03d7qhp_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-              <dexpi:attribute name="Method" value="Generic" />
+              <dexpi:data property="Method">Generic</dexpi:data>
             </dexpi:element>
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_0wbkd91</bpmn:incoming>
@@ -99,7 +99,7 @@
             <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0iie89x" uid="uid_Activity_0iie89x">
               <dexpi:port id="Activity_0iie89x_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
               <dexpi:port id="Activity_0iie89x_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-              <dexpi:attribute name="Method" value="Generic" />
+              <dexpi:data property="Method">Generic</dexpi:data>
             </dexpi:element>
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_04ncgwf</bpmn:incoming>
@@ -208,7 +208,7 @@
             <dexpi:port id="Activity_0msgfdr_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_0msgfdr_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_0msgfdr_TEO1_port" name="TEO1" type="ThermalEnergyPort" direction="Outlet" label="TEO1" />
-            <dexpi:attribute name="Method" value="Unspecified" />
+            <dexpi:data property="Method">Unspecified</dexpi:data>
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_11ko4yy</bpmn:incoming>
@@ -709,7 +709,7 @@
             <dexpi:port id="Activity_1uqovub_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_1uqovub_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1uqovub_TEI1_port" name="TEI1" type="ThermalEnergyPort" direction="Inlet" label="TEI1" />
-            <dexpi:attribute name="Method" value="Generic" />
+            <dexpi:data property="Method">Generic</dexpi:data>
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_16mvdb6</bpmn:incoming>
@@ -820,7 +820,7 @@
             <dexpi:element dexpiType="ExchangingThermalEnergy" identifier="Activity_0uicpy3" uid="uid_Activity_0uicpy3">
               <dexpi:port id="Activity_0uicpy3_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
               <dexpi:port id="Activity_0uicpy3_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-              <dexpi:attribute name="Method" value="Generic" />
+              <dexpi:data property="Method">Generic</dexpi:data>
             </dexpi:element>
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_0oulgq8</bpmn:incoming>
@@ -991,7 +991,7 @@
         <dexpi:element dexpiType="Compressing" identifier="Activity_0yezzw8" uid="uid_Activity_0yezzw8">
           <dexpi:port id="Activity_0yezzw8_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_1g1zmip_MI1_port" />
           <dexpi:port id="Activity_0yezzw8_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_1pcm1vz_MO1_port" />
-          <dexpi:attribute name="Method" value="Unspecified" />
+          <dexpi:data property="Method">Unspecified</dexpi:data>
         </dexpi:element>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_11f0gdt</bpmn:incoming>
@@ -1032,7 +1032,7 @@
             <dexpi:port id="Activity_02gkcfc_EEI1_port" name="EEI1" type="ElectricalEnergyPort" direction="Inlet" label="EEI1" />
             <dexpi:port id="Activity_02gkcfc_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_02gkcfc_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:attribute name="Method" value="Unspecified" />
+            <dexpi:data property="Method">Unspecified</dexpi:data>
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_1gic2ao</bpmn:incoming>
@@ -1168,7 +1168,7 @@
         <dexpi:element dexpiType="Cooling" identifier="Activity_13e86yb" uid="uid_Activity_13e86yb">
           <dexpi:port id="Activity_13e86yb_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" subReference="Event_0wtdvnz_MI1_port" />
           <dexpi:port id="Activity_13e86yb_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" subReference="Event_0rcr9aw_MO1_port" />
-          <dexpi:attribute name="Method" value="Generic" />
+          <dexpi:data property="Method">Generic</dexpi:data>
         </dexpi:element>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_07wd8rg</bpmn:incoming>
@@ -1188,7 +1188,7 @@
           <dexpi:element dexpiType="RemovingThermalEnergy" identifier="Activity_0h23axj" uid="uid_Activity_0h23axj">
             <dexpi:port id="Activity_0h23axj_MI1_port" name="MI1" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_0h23axj_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:attribute name="Method" value="Generic" />
+            <dexpi:data property="Method">Generic</dexpi:data>
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_08kzky6</bpmn:incoming>
@@ -1201,7 +1201,7 @@
             <dexpi:port id="Activity_1rs6esf_MO1_port" name="MO1" type="MaterialPort" direction="Outlet" label="MO1" />
             <dexpi:port id="Activity_1rs6esf_MI2_port" name="MI2" type="MaterialPort" direction="Inlet" label="MI1" />
             <dexpi:port id="Activity_1rs6esf_MO2_port" name="MO2" type="MaterialPort" direction="Outlet" label="MO1" />
-            <dexpi:attribute name="Method" value="Generic" />
+            <dexpi:data property="Method">Generic</dexpi:data>
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_0tv8sn4</bpmn:incoming>

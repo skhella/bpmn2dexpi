@@ -1515,7 +1515,11 @@ export class BpmnToDexpiTransformer {
       // Carrier-wrapped CompositionProperty form (preferred):
       //   <dexpi:components property="X">
       //     <dexpi:object type="Core/QualifiedValue">
-      //       <dexpi:data property="Value">v</dexpi:data> ...
+      //       <dexpi:data property="Value">v</dexpi:data>
+      //       <dexpi:data property="Unit">u</dexpi:data>
+      //       <dexpi:data property="UnitReference">URI</dexpi:data>
+      //       <dexpi:references property="QuantityKindReference" objects="URI"/>
+      //       ...
       //     </dexpi:object>
       //   </dexpi:components>
       if (ll === 'components') {
@@ -1533,12 +1537,32 @@ export class BpmnToDexpiTransformer {
           }
           return '';
         };
+        const readReference = (name: string): string | undefined => {
+          for (const r of Array.from(obj.children) as Element[]) {
+            if ((r.localName || '').toLowerCase() === 'references' &&
+                r.getAttribute('property') === name) {
+              return r.getAttribute('objects') || r.getAttribute('uidRef') || undefined;
+            }
+          }
+          return undefined;
+        };
         const value = readData('Value');
         if (!value) continue;
+        // unitUri — bpmn2dexpi extension to QualifiedValue; not declared on
+        // Core.xml. Round-tripped as <Data property="UnitReference">URI</Data>
+        // inside the QV (same shape MaterialComponent + Stream emit).
+        // nameUri — also a Profile-extension carrier; <References
+        // property="QuantityKindReference" objects="URI"/> sibling of Data
+        // inside the QV. Both flow through the existing strict-mode +
+        // Profile-generator extension mechanism.
+        const unitUri = readData('UnitReference') || undefined;
+        const nameUri = readReference('QuantityKindReference');
         attributes.push({
           name: propertyName,
           value,
           unit: readData('Unit'),
+          ...(unitUri !== undefined ? { unitUri } : {}),
+          ...(nameUri !== undefined ? { nameUri } : {}),
           scope: readData('Scope') || 'Design',
           range: readData('Range') || 'Nominal',
           provenance: readData('Provenance') || 'Calculated',
@@ -1547,20 +1571,32 @@ export class BpmnToDexpiTransformer {
         continue;
       }
 
-      // Legacy bare-name <dexpi:Attribute name=... value=... unit=.../> form.
-      if (ll === 'attribute') {
+      // Carrier-wrapped DataProperty form (preferred for plain string /
+      // enum attrs without measurement metadata). Mirrors the canonical
+      // shape MaterialComponent uses; reading it here brings ProcessStep
+      // and Stream onto the same convention. Schema-known structural
+      // properties (HierarchyLevel, Identifier, Label) are emitted by
+      // dedicated paths elsewhere — exclude them from the attribute view
+      // so they don't double-up in the panel.
+      if (ll === 'data') {
+        const propertyName = child.getAttribute('property') || '';
+        if (!propertyName) continue;
+        if (propertyName === 'HierarchyLevel' || propertyName === 'Identifier' || propertyName === 'Label') continue;
+        const value = (child.textContent ?? '').trim();
+        if (!value) continue;
         attributes.push({
-          name: child.getAttribute('name') || '',
-          value: child.getAttribute('value') || '',
-          unit: child.getAttribute('unit') || '',
-          scope: child.getAttribute('scope') || 'Design',
-          range: child.getAttribute('range') || 'Nominal',
-          provenance: child.getAttribute('provenance') || 'Calculated',
-          required: child.getAttribute('required') === 'true' || undefined,
+          name: propertyName,
+          value,
+          unit: '',
+          scope: 'Design',
+          range: 'Nominal',
+          provenance: 'Calculated',
+          required: undefined,
         });
+        continue;
       }
     }
-    
+
     return attributes;
   }
 
@@ -2205,13 +2241,35 @@ export class BpmnToDexpiTransformer {
       }
 
       // Add ProcessStep Attributes (with Range, Provenance per DEXPI 2.0 QualifiedValue)
-      // Use Object with type="Core/QualifiedValue" per DEXPI 2.0 schema
+      // Use Object with type="Core/QualifiedValue" per DEXPI 2.0 schema.
+      //
+      // Kind dispatch (DataProperty vs CompositionProperty) is schema-driven:
+      // we look up `attr.name` in the registry's declared properties for
+      // this step's class. Schema-data → flat <Data> child; schema-
+      // composition → QualifiedValue Object wrapping. For project-extension
+      // attribute names the registry doesn't declare, we fall back to a
+      // presence heuristic (any unit / URI / scope-range-provenance metadata
+      // implies the author intended a measurement carrier). The heuristic
+      // only fires on unknown names; schema-declared dispatch is primary.
+      const declaredKindByName = new Map<string, 'data' | 'composition' | 'reference'>();
+      if (this.registry.isValidClass(step.type)) {
+        for (const p of this.registry.getProperties(step.type)) {
+          declaredKindByName.set(p.name, p.kind);
+        }
+      }
+      const resolveAttrKind = (attr: { name: string; unit?: string; unitUri?: string; nameUri?: string; scope?: string; range?: string; provenance?: string }): 'data' | 'composition' => {
+        const declared = declaredKindByName.get(attr.name);
+        if (declared === 'composition') return 'composition';
+        if (declared === 'data' || declared === 'reference') return 'data';
+        return (attr.unit || attr.unitUri || attr.nameUri ||
+                attr.scope || attr.range || attr.provenance) ? 'composition' : 'data';
+      };
+
       if (step.attributes && step.attributes.length > 0) {
         step.attributes.forEach((attr) => {
           if (!attr.name || !attr.value) return;
-          
-          // If unit is provided, this is a physical quantity - add as QualifiedValue Object
-          if (attr.unit) {
+
+          if (resolveAttrKind(attr) === 'composition') {
             if (!dexpiStep.Object) {
               dexpiStep.Object = [];
             }
@@ -2221,8 +2279,24 @@ export class BpmnToDexpiTransformer {
             // "<value> <unit>" trimmed when a unit is present, else just
             // "<value>". This is the obvious canonical rendering of a
             // physical quantity for human consumption — no name guessing,
-            // no fuzzy formatting heuristic.
-            const displayText = `${attr.value} ${attr.unit}`.trim();
+            // no fuzzy formatting heuristic. Schema-driven dispatch above
+            // can route a unit-less measurement attribute into this branch
+            // (e.g. a CompositionProperty whose unit hasn't been authored
+            // yet), so the unit-related children are conditional.
+            const displayText = attr.unit ? `${attr.value} ${attr.unit}`.trim() : attr.value;
+            const innerValueData: Record<string, unknown>[] = [
+              {
+                '$': { 'property': 'Value' },
+                'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
+                'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined,
+              },
+            ];
+            if (attr.unit) {
+              innerValueData.push({
+                '$': { 'property': 'Unit' },
+                'String': attr.unit,
+              });
+            }
             const qualifiedValueObject: Record<string, unknown> = {
               '$': {
                 'property': attr.name,
@@ -2231,18 +2305,7 @@ export class BpmnToDexpiTransformer {
               'Data': [
                 {
                   '$': { 'property': 'Value' },
-                  'PhysicalQuantity': {
-                    'Data': [
-                      {
-                        '$': { 'property': 'Value' },
-                        'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined, 'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined
-                      },
-                      {
-                        '$': { 'property': 'Unit' },
-                        'String': attr.unit
-                      }
-                    ]
-                  }
+                  'PhysicalQuantity': { 'Data': innerValueData },
                 },
                 {
                   '$': { 'property': 'DisplayText' },
