@@ -23,6 +23,16 @@ export interface MaterialComponentProperty {
   value: string;
   unit?: string;
   unitReference?: string;
+  /**
+   * URI linking the property name to a standard quantity kind (QUDT,
+   * ISO 15926, …). Only meaningful on composition rows — emitted inside
+   * the QualifiedValue Object as
+   * `<dexpi:references property="QuantityKindReference" objects="URI"/>`,
+   * which is the canonical DEXPI carrier for an attribute-name URI.
+   * Ignored for data rows (no clean canonical slot in
+   * `<dexpi:data property="X">value</dexpi:data>`).
+   */
+  nameUri?: string;
 }
 
 export interface MaterialComponent {

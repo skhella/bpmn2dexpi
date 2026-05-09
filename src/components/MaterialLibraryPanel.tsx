@@ -360,8 +360,21 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
               else if (dp === 'Unit') unit = dv;
               else if (dp === 'UnitReference') unitReference = dv;
             }
+            // QuantityKindReference (the canonical attribute-URI carrier)
+            // sits as a sibling References child on the same QV Object,
+            // not as a Data child — same encoding the ProcessStep / Stream
+            // attribute editors emit.
+            const qvRefs = Array.isArray(qv.references) ? qv.references : [];
+            let nameUri: string | undefined;
+            for (const r of qvRefs) {
+              const rp = r.property ?? r.$attrs?.property;
+              if (rp === 'QuantityKindReference') {
+                nameUri = r.objects ?? r.uidRef ?? r.$attrs?.objects ?? r.$attrs?.uidRef;
+                break;
+              }
+            }
             if (!value) continue;
-            properties.push({ kind: 'composition', name: propName, value, unit, unitReference });
+            properties.push({ kind: 'composition', name: propName, value, unit, unitReference, nameUri });
           }
 
           const component: MaterialComponent = {
@@ -938,6 +951,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       value: string,
       unit?: string,
       unitReference?: string,
+      nameUri?: string,
     ) => {
       const qvData: unknown[] = [buildDataChild('Value', value)];
       // DisplayText (lower=1 on Core/QualifiedValue per Core.xml). Derive
@@ -946,10 +960,22 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       qvData.push(buildDataChild('DisplayText', displayText));
       if (unit) qvData.push(buildDataChild('Unit', unit));
       if (unitReference) qvData.push(buildDataChild('UnitReference', unitReference));
-      const qvObject = moddle.create('dexpi:Object', {
+      const qvObjectProps: Record<string, unknown> = {
         type: 'Core/QualifiedValue',
         data: qvData,
-      });
+      };
+      // nameUri → canonical QuantityKindReference carrier inside the QV
+      // Object. Mirrors the same encoding ProcessStep / Stream attribute
+      // editors emit (BpmnToDexpiTransformer.ts:2261, 2576).
+      if (nameUri) {
+        qvObjectProps.references = [
+          moddle.create('dexpi:References', {
+            property: 'QuantityKindReference',
+            objects: nameUri,
+          }),
+        ];
+      }
+      const qvObject = moddle.create('dexpi:Object', qvObjectProps);
       return moddle.create('dexpi:Components', {
         property,
         objects: [qvObject],
@@ -976,7 +1002,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             dataChildren.push(buildDataChild(p.name, p.value));
           } else {
             componentsChildren.push(
-              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.unitReference),
+              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.unitReference, p.nameUri),
             );
           }
         }

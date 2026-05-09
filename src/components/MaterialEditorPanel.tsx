@@ -96,6 +96,7 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
       value: string,
       unit?: string,
       unitReference?: string,
+      nameUri?: string,
     ) => {
       const qvData: unknown[] = [
         buildDataChild('Value', value),
@@ -106,9 +107,22 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
       ];
       if (unit) qvData.push(buildDataChild('Unit', unit));
       if (unitReference) qvData.push(buildDataChild('UnitReference', unitReference));
+      const qvObjectProps: Record<string, unknown> = { type: 'Core/QualifiedValue', data: qvData };
+      if (nameUri) {
+        // Canonical attribute-URI encoding: <References property=
+        // "QuantityKindReference" objects="URI"/> as a sibling of Data
+        // inside the QualifiedValue Object. Mirrors the ProcessStep /
+        // Stream attribute emit at BpmnToDexpiTransformer.ts:2261/2576.
+        qvObjectProps.references = [
+          moddle.create('dexpi:References', {
+            property: 'QuantityKindReference',
+            objects: nameUri,
+          }),
+        ];
+      }
       return moddle.create('dexpi:Components', {
         property,
-        objects: [moddle.create('dexpi:Object', { type: 'Core/QualifiedValue', data: qvData })],
+        objects: [moddle.create('dexpi:Object', qvObjectProps)],
       });
     };
 
@@ -125,7 +139,7 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
       if (p.kind === 'data') {
         dataChildren.push(buildDataChild(p.name, p.value));
       } else {
-        componentsChildren.push(buildQVComponents(p.name, p.value, p.unit, p.unitReference));
+        componentsChildren.push(buildQVComponents(p.name, p.value, p.unit, p.unitReference, p.nameUri));
       }
     }
 
@@ -580,14 +594,14 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
    */
   const writeDeclaredComposition = (
     name: string,
-    patch: Partial<Pick<MaterialComponentProperty, 'value' | 'unit' | 'unitReference'>>,
+    patch: Partial<Pick<MaterialComponentProperty, 'value' | 'unit' | 'unitReference' | 'nameUri'>>,
   ) => {
     const props = [...(edited.properties ?? [])];
     const idx = props.findIndex(p => p.name === name);
     const merged: MaterialComponentProperty = idx >= 0
       ? { ...props[idx], ...patch }
       : { kind: 'composition', name, value: '', ...patch };
-    const isEmpty = !merged.value && !merged.unit && !merged.unitReference;
+    const isEmpty = !merged.value && !merged.unit && !merged.unitReference && !merged.nameUri;
     if (isEmpty) {
       if (idx >= 0) {
         const next = props.filter((_, i) => i !== idx);
@@ -697,7 +711,14 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
               </div>
               <input
                 type="text"
-                placeholder="Unit URI (optional)"
+                placeholder="Attribute URI (e.g. https://qudt.org/vocab/quantitykind/MolarMass)"
+                value={entry?.nameUri ?? ''}
+                onChange={(e) => writeDeclaredComposition(prop.name, { nameUri: e.target.value })}
+                style={{ fontFamily: 'monospace', fontSize: '0.85em', marginTop: '0.3em' }}
+              />
+              <input
+                type="text"
+                placeholder="Unit URI (e.g. https://qudt.org/vocab/unit/GM-PER-MOL)"
                 value={entry?.unitReference ?? ''}
                 onChange={(e) => writeDeclaredComposition(prop.name, { unitReference: e.target.value })}
                 style={{ fontFamily: 'monospace', fontSize: '0.85em', marginTop: '0.3em' }}
@@ -771,6 +792,24 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
                 ...(updates.name !== undefined ? { name: updates.name } : {}),
                 ...(updates.value !== undefined ? { value: updates.value } : {}),
               })}
+              betweenNameAndValue={p.kind === 'composition' ? (
+                // Attribute URI mirrors the DexpiPropertiesPanel pattern —
+                // shown between Name and Value. Composition-only because
+                // DEXPI canonical only defines a slot for it inside the
+                // QualifiedValue Object (References > QuantityKindReference).
+                // Non-canonical URIs on data rows are deferred to the
+                // Profile-extension mechanism (Task B audit territory).
+                <label>
+                  Attribute URI:
+                  <input
+                    type="text"
+                    value={p.nameUri ?? ''}
+                    onChange={(e) => updateAdHoc(i, { nameUri: e.target.value })}
+                    placeholder="e.g. https://qudt.org/vocab/quantitykind/MolarMass"
+                    style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
+                  />
+                </label>
+              ) : undefined}
             />
 
             <label style={{ display: 'block', marginTop: '0.3em' }}>
