@@ -1,4 +1,25 @@
 import React, { useState, useEffect } from 'react';
+import { AttributeNameValueRow } from './DexpiPropertiesPanel';
+import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
+import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
+import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
+import type { MaterialComponentProperty } from '../dexpi/moddle/materials';
+
+// Build the registry once per module (same shape DexpiPropertiesPanel uses).
+// Profile-extension classes augment this registry at edit time so the
+// AttributeNameValueRow's dropdown picks up project-declared property
+// names (e.g. MolecularWeight on CustomMaterialComponent).
+const baseRegistry: DexpiProcessClassRegistry | null = (() => {
+  try {
+    return DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXmlRaw },
+      { name: 'Core.xml', xml: coreXmlRaw },
+    ]);
+  } catch (e) {
+    console.warn('Failed to build registry for MaterialEditorPanel:', e);
+    return null;
+  }
+})();
 
 interface MaterialEditorPanelProps {
   item: {
@@ -228,56 +249,113 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
             </div>
 
             {/*
-              Project-extension properties (MolecularWeight / VapourHeatCapacity
-              / Antoine equation parameters / IsEffectivelyNoncondensable / …).
-              Read-only display in this panel — the data round-trips through the
-              transformer correctly (PR #30) but interactive editing is deferred
-              to a follow-up so we don't risk breaking the existing canonical-
-              field save path. Users wanting to author new properties or edit
-              values today should do so directly in the BPMN XML; the next
-              re-import will surface the changes here.
+              Project-extension properties (MolecularWeight / VapourHeatCapacity /
+              Antoine equation parameters / IsEffectivelyNoncondensable / …).
+              Each row is a full editor: name (dropdown of class-known names with
+              Custom escape hatch), kind (measurement / data), value, optional
+              unit + unit URI for measurements. Persisted via saveComponent as
+              canonical <dexpi:data> or <dexpi:components><dexpi:object
+              type="Core/QualifiedValue">…</dexpi:object></dexpi:components>
+              carriers (see MaterialLibraryPanel.tsx).
             */}
-            {edited.properties && edited.properties.length > 0 && (
-              <div className="form-group" style={{ marginTop: '0.75em' }}>
-                <label style={{ fontWeight: 600 }}>
-                  Project-extension properties ({edited.properties.length})
-                </label>
-                <div style={{
-                  fontSize: '0.85em',
-                  color: '#666',
-                  marginBottom: '0.4em',
-                  fontStyle: 'italic',
-                }}>
-                  Read-only — round-tripped through the transformer; edit in the BPMN XML for now.
-                </div>
-                <div style={{
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  padding: '0.4em 0.6em',
-                  background: '#fafafa',
-                  fontFamily: 'monospace',
-                  fontSize: '0.85em',
-                }}>
-                  {edited.properties.map((p: import('../dexpi/moddle/materials').MaterialComponentProperty, i: number) => (
-                    <div key={i} style={{ padding: '0.2em 0', borderBottom: i < edited.properties!.length - 1 ? '1px solid #eee' : 'none' }}>
-                      <strong>{p.name}</strong>
-                      <span style={{ color: '#888', marginLeft: '0.5em' }}>
-                        ({p.kind === 'composition' ? 'measurement' : 'data'})
-                      </span>
-                      <div style={{ paddingLeft: '0.8em', color: '#444' }}>
-                        Value: {p.value}
-                        {p.unit && <> &nbsp;·&nbsp; Unit: {p.unit}</>}
-                        {p.unitReference && (
-                          <div style={{ fontSize: '0.85em', color: '#666', wordBreak: 'break-all' }}>
-                            Unit URI: {p.unitReference}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div className="form-group" style={{ marginTop: '0.75em' }}>
+              <label style={{ fontWeight: 600 }}>
+                Project-extension properties ({(edited.properties ?? []).length})
+              </label>
+              <div style={{ fontSize: '0.85em', color: '#666', marginBottom: '0.4em', fontStyle: 'italic' }}>
+                Properties beyond the canonical fields above. Round-tripped through the BPMN extensionElements and the DEXPI export.
               </div>
-            )}
+
+              {(edited.properties ?? []).map((p: MaterialComponentProperty, i: number) => {
+                const updateProperty = (updates: Partial<MaterialComponentProperty>) => {
+                  const next = [...(edited.properties ?? [])];
+                  next[i] = { ...next[i], ...updates };
+                  setEdited({ ...edited, properties: next });
+                };
+                const removeProperty = () => {
+                  const next = (edited.properties ?? []).filter((_: MaterialComponentProperty, j: number) => j !== i);
+                  setEdited({ ...edited, properties: next });
+                };
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      padding: '0.5em 0.6em',
+                      marginBottom: '0.4em',
+                      background: '#fafafa',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4em' }}>
+                      <strong style={{ fontFamily: 'monospace' }}>{p.name || '(unnamed)'}</strong>
+                      <button
+                        onClick={removeProperty}
+                        style={{ border: 'none', background: 'transparent', color: '#a44', cursor: 'pointer', fontSize: '1em' }}
+                        title="Remove this property"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <AttributeNameValueRow
+                      attr={{ name: p.name, value: p.value }}
+                      registry={baseRegistry}
+                      className={edited.type === 'PureMaterialComponent' ? 'PureMaterialComponent' : 'CustomMaterialComponent'}
+                      onChange={(updates) => updateProperty({
+                        ...(updates.name !== undefined ? { name: updates.name } : {}),
+                        ...(updates.value !== undefined ? { value: updates.value } : {}),
+                      })}
+                    />
+
+                    <label style={{ display: 'block', marginTop: '0.3em' }}>
+                      Kind:
+                      <select
+                        value={p.kind}
+                        onChange={(e) => updateProperty({ kind: e.target.value as MaterialComponentProperty['kind'] })}
+                      >
+                        <option value="composition">measurement (Value + Unit)</option>
+                        <option value="data">data (flat value)</option>
+                      </select>
+                    </label>
+
+                    {p.kind === 'composition' && (
+                      <>
+                        <label style={{ display: 'block', marginTop: '0.3em' }}>
+                          Unit:
+                          <input
+                            type="text"
+                            value={p.unit ?? ''}
+                            onChange={(e) => updateProperty({ unit: e.target.value })}
+                            placeholder="e.g. g/mol, K, kJ/(kg·K)"
+                          />
+                        </label>
+                        <label style={{ display: 'block', marginTop: '0.3em' }}>
+                          Unit URI:
+                          <input
+                            type="text"
+                            value={p.unitReference ?? ''}
+                            onChange={(e) => updateProperty({ unitReference: e.target.value })}
+                            placeholder="e.g. https://qudt.org/vocab/unit/GM-PER-MOL"
+                            style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
+                          />
+                        </label>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+
+              <button
+                onClick={() => {
+                  const next: MaterialComponentProperty = { kind: 'composition', name: '', value: '' };
+                  setEdited({ ...edited, properties: [...(edited.properties ?? []), next] });
+                }}
+                style={{ marginTop: '0.3em' }}
+              >
+                + Add property
+              </button>
+            </div>
           </>
         )}
 

@@ -858,17 +858,76 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       values.push(templateElement);
     });
 
-    // Add components
+    // Add components.
+    //
+    // Important: passing canonical-field names like Identifier / Label /
+    // Description as named props to moddle.create('MaterialComponent', {…})
+    // serialises them as XML *attributes* on the <dexpi:materialComponent>
+    // element (because the moddle definition doesn't declare them as Data
+    // sub-element properties — only `data`, `references`, `components` are
+    // declared). The transformer expects them as <dexpi:data property="X">v
+    // </dexpi:data> children, so the legacy attribute form was being silently
+    // dropped on every save through this panel.
+    //
+    // Build the canonical Data + Components child shape explicitly using
+    // moddle.create('dexpi:Data', {...}) and moddle.create('dexpi:Components',
+    // {...}) so the resulting XML matches what the fixture (and the canonical
+    // form generally) uses.
+    const buildDataChild = (property: string, body: string) =>
+      moddle.create('dexpi:Data', { property, body });
+
+    const buildQualifiedValueComponentsChild = (
+      property: string,
+      value: string,
+      unit?: string,
+      unitReference?: string,
+    ) => {
+      const qvData: unknown[] = [buildDataChild('Value', value)];
+      // DisplayText (lower=1 on Core/QualifiedValue per Core.xml). Derive
+      // deterministically from value + unit, mirroring transformer.ts:2237.
+      const displayText = unit ? `${value} ${unit}` : value;
+      qvData.push(buildDataChild('DisplayText', displayText));
+      if (unit) qvData.push(buildDataChild('Unit', unit));
+      if (unitReference) qvData.push(buildDataChild('UnitReference', unitReference));
+      const qvObject = moddle.create('dexpi:Object', {
+        type: 'Core/QualifiedValue',
+        data: qvData,
+      });
+      return moddle.create('dexpi:Components', {
+        property,
+        objects: [qvObject],
+      });
+    };
+
     updatedComponents.forEach(component => {
-      const componentElement = moddle.create('MaterialComponent', {
+      const dataChildren: unknown[] = [];
+      if (component.identifier) dataChildren.push(buildDataChild('Identifier', component.identifier));
+      if (component.label) dataChildren.push(buildDataChild('Label', component.label));
+      if (component.description) dataChildren.push(buildDataChild('Description', component.description));
+      if (component.chebiId) dataChildren.push(buildDataChild('ChEBI_identifier', component.chebiId));
+      if (component.iupacId) dataChildren.push(buildDataChild('IUPAC_identifier', component.iupacId));
+
+      const componentsChildren: unknown[] = [];
+      if (component.properties) {
+        for (const p of component.properties) {
+          if (p.kind === 'data') {
+            dataChildren.push(buildDataChild(p.name, p.value));
+          } else {
+            componentsChildren.push(
+              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.unitReference),
+            );
+          }
+        }
+      }
+
+      const moddleProps: Record<string, unknown> = {
         'xsi:type': component.type,
         uid: component.uid,
-        Identifier: component.identifier,
-        Label: component.label,
-        Description: component.description,
-        ChEBI_identifier: component.chebiId,
-        IUPAC_identifier: component.iupacId
-      });
+      };
+      if (dataChildren.length > 0) moddleProps.data = dataChildren;
+      if (componentsChildren.length > 0) moddleProps.components = componentsChildren;
+
+      const componentElement = moddle.create('dexpi:MaterialComponent', moddleProps);
       values.push(componentElement);
     });
 
