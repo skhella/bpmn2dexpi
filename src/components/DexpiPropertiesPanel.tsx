@@ -2303,11 +2303,14 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           });
           setStreamName(element.businessObject.name || '');
           
-          // Try multiple ways to access attributes
-          let attrs = dexpiStream.attributes || [];
-          if (typeof dexpiStream.get === 'function') {
-            attrs = dexpiStream.get('attributes') || attrs;
-          }
+          // Stream attribute reads only consult canonical carriers; the
+          // legacy <dexpi:attribute> slot reader was dropped together with
+          // the ProcessStep one. moddle still parses any old <dexpi:attribute>
+          // children into dexpiStream.attributes (the slot is declared on
+          // the moddle Stream class), but we ignore it. The wipe in
+          // updateStream clears it on save.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let attrs: any[] = [];
 
           // Carrier-wrapped CompositionProperty form (preferred):
           //   <dexpi:components property="X">
@@ -2336,17 +2339,51 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 }
                 return '';
               };
+              // nameUri — QuantityKindReference URI carrier sibling of Data
+              // inside the QualifiedValue. Project-extension on Core/Qualified
+              // Value, used identically by ProcessStep + MaterialComponent.
+              // Round-tripped here so re-saving doesn't strip authored URIs.
+              let nameUri: string | undefined;
+              const refsList = obj?.references || (obj?.$children ?? []);
+              for (const r of refsList) {
+                const rt = (r.$type || '').toLowerCase();
+                if ((rt && rt !== 'dexpi:references' && rt !== 'references') && obj?.references) continue;
+                const rp = r.property ?? r.$attrs?.property;
+                if (rp === 'QuantityKindReference') {
+                  nameUri = r.objects ?? r.uidRef ?? r.$attrs?.objects ?? r.$attrs?.uidRef;
+                  break;
+                }
+              }
+              const unitUri = readData('UnitReference') || undefined;
+              const required = carrier.required === true || carrier.$attrs?.required === 'true';
               return {
                 name: propertyName,
                 value: readData('Value'),
                 unit: readData('Unit'),
+                ...(unitUri !== undefined ? { unitUri } : {}),
+                ...(nameUri !== undefined ? { nameUri } : {}),
                 scope: readData('Scope') || 'Design',
                 range: readData('Range') || 'Nominal',
                 provenance: readData('Provenance') || 'Calculated',
                 qualifier: readData('Qualifier') || 'Average',
+                ...(required ? { required: true } : {}),
               };
             }).filter((a: any) => a.value);
-            if (carrierAttrs.length > 0) attrs = carrierAttrs;
+            // Also pick up canonical flat <dexpi:data property="X">v</dexpi:data>
+            // siblings — same shape ProcessStep migration introduced for
+            // enum literals / plain strings on Stream-level attrs. Skip
+            // structural Identifier / Label so they don't double up with
+            // the dedicated emit paths in the transformer.
+            const dataAttrs = (dexpiStream.data || []).map((d: any) => {
+              const propertyName = d.property ?? d.$attrs?.property ?? '';
+              const body = d.body ?? d.$body ?? d._ ?? '';
+              if (!propertyName) return null;
+              if (propertyName === 'Identifier' || propertyName === 'Label') return null;
+              if (!body) return null;
+              return { name: propertyName, value: String(body) };
+            }).filter((a: any) => a);
+            const merged = [...carrierAttrs, ...dataAttrs];
+            if (merged.length > 0) attrs = merged;
           }
 
           // Legacy bare-name format (kept as fallback for files saved
@@ -2539,7 +2576,29 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       extensionElements.values.push(dexpiStream);
     }
 
-    Object.assign(dexpiStream, updates);
+    // Intercept attribute updates and translate the panel's flat array view
+    // into canonical-carrier moddle children. Same shape ProcessStep +
+    // MaterialComponent emit (reused via attrsToCanonicalCarriers). The
+    // reader ignores the legacy <dexpi:attribute> slot — clearing it here
+    // ensures opening any old BPMN and saving produces a fully-canonical
+    // file (no orphan legacy elements survive moddle round-trip).
+    if ('attributes' in updates) {
+      const moddle = modeler.get('moddle');
+      const { data, components } = attrsToCanonicalCarriers(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (updates.attributes as any[]) ?? [],
+        moddle,
+        augmentedRegistry,
+        streamClassName,
+      );
+      dexpiStream.data = data;
+      dexpiStream.components = components;
+      dexpiStream.attributes = [];
+      const { attributes: _drop, ...rest } = updates as Record<string, unknown>;
+      Object.assign(dexpiStream, rest);
+    } else {
+      Object.assign(dexpiStream, updates);
+    }
     setStreamData({ ...streamData, ...updates });
 
     modeling.updateProperties(element, {

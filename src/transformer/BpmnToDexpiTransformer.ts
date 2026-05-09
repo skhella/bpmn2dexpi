@@ -1426,12 +1426,29 @@ export class BpmnToDexpiTransformer {
           }
           return '';
         };
+        const readReference = (name: string): string | undefined => {
+          for (const r of Array.from(obj.children) as Element[]) {
+            if ((r.localName || '').toLowerCase() === 'references' &&
+                r.getAttribute('property') === name) {
+              return r.getAttribute('objects') || r.getAttribute('uidRef') || undefined;
+            }
+          }
+          return undefined;
+        };
         const value = readData('Value');
         if (!value) continue; // CompositionProperty with no value is uninteresting
+        // unitUri / nameUri — Profile-extension carriers on QualifiedValue
+        // (UnitReference Data child + QuantityKindReference References
+        // sibling); same shape ProcessStep + MaterialComponent emit.
+        // Flow into the existing transformer extension/warning mechanism.
+        const unitUri = readData('UnitReference') || undefined;
+        const nameUri = readReference('QuantityKindReference');
         attributes.push({
           name: propertyName,
           value,
           unit: readData('Unit'),
+          ...(unitUri !== undefined ? { unitUri } : {}),
+          ...(nameUri !== undefined ? { nameUri } : {}),
           scope: readData('Scope') || 'Design',
           range: readData('Range') || 'Nominal',
           provenance: readData('Provenance') || 'Calculated',
@@ -1440,23 +1457,32 @@ export class BpmnToDexpiTransformer {
         continue;
       }
 
-      // ── Legacy bare-name fallbacks (kept so already-saved BPMN files
-      // continue to round-trip during the migration window) ───────────────
-      if (ll === 'attribute' || ll === 'streamattribute') {
-        // Unified <dexpi:Attribute> child (canonical pre-carrier) — also
-        // accepts the legacy <dexpi:streamAttribute> name for back-compat
-        // with BPMN files saved before the moddle Attribute/StreamAttribute
-        // split was unified. Identical fields.
+      // Carrier-wrapped DataProperty form (<dexpi:data property="X">v</...>).
+      // Used for plain string / enum attrs without measurement metadata.
+      // Mirrors the canonical shape ProcessStep + MaterialComponent already
+      // use; reading it here brings Stream onto the same convention.
+      // Skip structural Identifier / Label which have dedicated emit paths
+      // on Stream (line 2487 / 2517) so they don't double-up in the
+      // attribute view.
+      if (ll === 'data') {
+        const propertyName = child.getAttribute('property') || '';
+        if (!propertyName) continue;
+        if (propertyName === 'Identifier' || propertyName === 'Label') continue;
+        const value = (child.textContent ?? '').trim();
+        if (!value) continue;
         attributes.push({
-          name: child.getAttribute('name') || '',
-          value: child.getAttribute('value') || '',
-          unit: child.getAttribute('unit') || '',
-          scope: child.getAttribute('scope') || 'Design',
-          range: child.getAttribute('range') || 'Nominal',
-          provenance: child.getAttribute('provenance') || 'Calculated',
-          qualifier: child.getAttribute('qualifier') || 'Average'
+          name: propertyName,
+          value,
+          unit: '',
+          scope: 'Design',
+          range: 'Nominal',
+          provenance: 'Calculated',
+          qualifier: 'Average',
         });
-      } else if (ll === 'materialstatereference') {
+        continue;
+      }
+
+      if (ll === 'materialstatereference') {
         materialStateRef = child.getAttribute('uidRef') || undefined;
       } else if (ll === 'materialtemplatereference' || ll === 'templatereference') {
         // Legacy bare-name reference to MaterialTemplate. The folk name
@@ -2588,32 +2614,60 @@ export class BpmnToDexpiTransformer {
 
       // Add all stream attributes as QualifiedValue Objects per DEXPI 2.0 schema
       // Per XSD: Object has no 'property' attr — use Components property="attrName" containing the Object
+      //
+      // Kind dispatch (DataProperty vs CompositionProperty) is schema-driven:
+      // attribute names are looked up in the registry's declared properties
+      // for the resolved Stream class (via streamTypeToDexpiClass). Schema-
+      // data → flat <Data> child; schema-composition → QualifiedValue inside
+      // Components. Project-extension names the registry doesn't declare
+      // fall back to a metadata-presence heuristic; same convention as the
+      // ProcessStep emit path keeps the two unified.
+      const streamClassNameForKind = this.streamTypeToDexpiClass(stream.streamType);
+      const streamDeclaredKindByName = new Map<string, 'data' | 'composition' | 'reference'>();
+      if (this.registry.isValidClass(streamClassNameForKind)) {
+        for (const p of this.registry.getProperties(streamClassNameForKind)) {
+          streamDeclaredKindByName.set(p.name, p.kind);
+        }
+      }
+      const resolveStreamAttrKind = (attr: { name: string; unit?: string; unitUri?: string; nameUri?: string; scope?: string; range?: string; provenance?: string; qualifier?: string }): 'data' | 'composition' => {
+        const declared = streamDeclaredKindByName.get(attr.name);
+        if (declared === 'composition') return 'composition';
+        if (declared === 'data' || declared === 'reference') return 'data';
+        return (attr.unit || attr.unitUri || attr.nameUri ||
+                attr.scope || attr.range || attr.provenance || attr.qualifier) ? 'composition' : 'data';
+      };
+
       if (stream.attributes && stream.attributes.length > 0) {
         stream.attributes.forEach((attr) => {
           if (!attr.name || !attr.value) return;
-          
-          // If unit is provided, this is a physical quantity - add as QualifiedValue inside Components
-          if (attr.unit) {
+
+          if (resolveStreamAttrKind(attr) === 'composition') {
             if (!dexpiStream.Components) {
               dexpiStream.Components = [];
             }
 
+            // Schema-driven dispatch can route a unit-less measurement attr
+            // into this branch (e.g. a CompositionProperty whose unit hasn't
+            // been authored yet); the unit-related children are conditional.
             const qualifiedValueData: Record<string, unknown>[] = [
               {
                 '$': { 'property': 'Value' },
                 'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
                 'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined
               },
-              {
-                '$': { 'property': 'Unit' },
-                'String': attr.unit
-              },
-              // DisplayText (lower=1) derived deterministically from inputs.
+              // DisplayText (lower=1) derived deterministically from inputs;
+              // falls back to just value when no unit is authored.
               {
                 '$': { 'property': 'DisplayText' },
-                'String': `${attr.value} ${attr.unit}`.trim(),
+                'String': attr.unit ? `${attr.value} ${attr.unit}`.trim() : attr.value,
               }
             ];
+            if (attr.unit) {
+              qualifiedValueData.push({
+                '$': { 'property': 'Unit' },
+                'String': attr.unit,
+              });
+            }
 
             // unitUri — links the unit string to a standard unit ontology (e.g. QUDT)
             if (attr.unitUri) {
