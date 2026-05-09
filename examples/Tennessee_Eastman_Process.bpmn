@@ -1549,83 +1549,135 @@
           <dexpi:data property="Description">Component A</dexpi:data>
           <dexpi:data property="Label">A</dexpi:data>
           <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
-          <dexpi:components property="PhysicalProperties">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="referenceTemperature">100</dexpi:data>
-              <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
-              <dexpi:data property="MolecularWeight">2.0</dexpi:data>
-              <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity">14.6</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="IsEffectivelyNoncondensable">true</dexpi:data>
+          <dexpi:components property="ReferenceTemperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">100</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
+          <dexpi:components property="MolecularWeight">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">2.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VapourHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">14.6</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:data property="IsEffectivelyNoncondensable">true</dexpi:data>
         </dexpi:MaterialComponent>
         <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentB_TEP">
           <dexpi:data property="Identifier">B</dexpi:data>
           <dexpi:data property="Description">Component B</dexpi:data>
           <dexpi:data property="Label">B</dexpi:data>
           <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
-          <dexpi:components property="PhysicalProperties">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="referenceTemperature">100</dexpi:data>
-              <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
-              <dexpi:data property="MolecularWeight">25.4</dexpi:data>
-              <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity">2.04</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="IsEffectivelyNoncondensable">true</dexpi:data>
+          <dexpi:components property="ReferenceTemperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">100</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
+          <dexpi:components property="MolecularWeight">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">25.4</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VapourHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">2.04</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:data property="IsEffectivelyNoncondensable">true</dexpi:data>
         </dexpi:MaterialComponent>
         <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentC_TEP">
           <dexpi:data property="Identifier">C</dexpi:data>
           <dexpi:data property="Description">Component C</dexpi:data>
           <dexpi:data property="Label">C</dexpi:data>
           <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
-          <dexpi:components property="PhysicalProperties">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="referenceTemperature">100</dexpi:data>
-              <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
-              <dexpi:data property="MolecularWeight">28.0</dexpi:data>
-              <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity">1.05</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="IsEffectivelyNoncondensable">true</dexpi:data>
+          <dexpi:components property="ReferenceTemperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">100</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
+          <dexpi:components property="MolecularWeight">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">28.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VapourHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">1.05</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:data property="IsEffectivelyNoncondensable">true</dexpi:data>
         </dexpi:MaterialComponent>
         <dexpi:MaterialComponent xsi:type="CustomMaterialComponent" uid="uuid_ComponentD_TEP">
           <dexpi:data property="Identifier">D</dexpi:data>
           <dexpi:data property="Description">Component D</dexpi:data>
           <dexpi:data property="Label">D</dexpi:data>
           <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
-          <dexpi:components property="PhysicalProperties">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="referenceTemperature">100</dexpi:data>
-              <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
-              <dexpi:data property="MolecularWeight">32.0</dexpi:data>
-              <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
-              <dexpi:data property="LiquidDensity">299</dexpi:data>
-              <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity">7.66</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity">1.85</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="HeatOfVaporization">202</dexpi:data>
-              <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+          <dexpi:components property="ReferenceTemperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">100</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
-          <dexpi:components property="VaporPressure">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="equation">Antoine</dexpi:data>
-              <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
-              <dexpi:data property="A">20.81</dexpi:data>
-              <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="B">-1444.0</dexpi:data>
-              <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="C">259</dexpi:data>
-              <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+          <dexpi:components property="MolecularWeight">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">32.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidDensity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">299</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">7.66</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VapourHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">1.85</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="HeatOfVaporization">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">202</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:data property="VaporPressureEquation">Antoine</dexpi:data>
+          <dexpi:data property="VaporPressureResultUnitReference">http://qudt.org/vocab/unit/PA</dexpi:data>
+          <dexpi:components property="AntoineA">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">20.81</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineB">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">-1444.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineC">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">259</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:MaterialComponent>
@@ -1634,32 +1686,60 @@
           <dexpi:data property="Description">Component E</dexpi:data>
           <dexpi:data property="Label">E</dexpi:data>
           <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
-          <dexpi:components property="PhysicalProperties">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="referenceTemperature">100</dexpi:data>
-              <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
-              <dexpi:data property="MolecularWeight">46.0</dexpi:data>
-              <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
-              <dexpi:data property="LiquidDensity">365</dexpi:data>
-              <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity">4.17</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity">1.87</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="HeatOfVaporization">372</dexpi:data>
-              <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+          <dexpi:components property="ReferenceTemperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">100</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
-          <dexpi:components property="VaporPressure">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="equation">Antoine</dexpi:data>
-              <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
-              <dexpi:data property="A">21.24</dexpi:data>
-              <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="B">-2114.0</dexpi:data>
-              <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="C">266</dexpi:data>
-              <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+          <dexpi:components property="MolecularWeight">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">46.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidDensity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">365</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">4.17</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VapourHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">1.87</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="HeatOfVaporization">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">372</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:data property="VaporPressureEquation">Antoine</dexpi:data>
+          <dexpi:data property="VaporPressureResultUnitReference">http://qudt.org/vocab/unit/PA</dexpi:data>
+          <dexpi:components property="AntoineA">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">21.24</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineB">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">-2114.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineC">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">266</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:MaterialComponent>
@@ -1668,32 +1748,60 @@
           <dexpi:data property="Description">Component F</dexpi:data>
           <dexpi:data property="Label">F</dexpi:data>
           <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
-          <dexpi:components property="PhysicalProperties">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="referenceTemperature">100</dexpi:data>
-              <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
-              <dexpi:data property="MolecularWeight">48.0</dexpi:data>
-              <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
-              <dexpi:data property="LiquidDensity">328</dexpi:data>
-              <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity">4.45</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity">2.02</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="HeatOfVaporization">372</dexpi:data>
-              <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+          <dexpi:components property="ReferenceTemperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">100</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
-          <dexpi:components property="VaporPressure">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="equation">Antoine</dexpi:data>
-              <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
-              <dexpi:data property="A">21.24</dexpi:data>
-              <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="B">-2144.0</dexpi:data>
-              <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="C">266</dexpi:data>
-              <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+          <dexpi:components property="MolecularWeight">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">48.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidDensity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">328</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">4.45</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VapourHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">2.02</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="HeatOfVaporization">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">372</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:data property="VaporPressureEquation">Antoine</dexpi:data>
+          <dexpi:data property="VaporPressureResultUnitReference">http://qudt.org/vocab/unit/PA</dexpi:data>
+          <dexpi:components property="AntoineA">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">21.24</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineB">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">-2144.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineC">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">266</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:MaterialComponent>
@@ -1702,32 +1810,60 @@
           <dexpi:data property="Description">Component G</dexpi:data>
           <dexpi:data property="Label">G</dexpi:data>
           <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
-          <dexpi:components property="PhysicalProperties">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="referenceTemperature">100</dexpi:data>
-              <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
-              <dexpi:data property="MolecularWeight">62.0</dexpi:data>
-              <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
-              <dexpi:data property="LiquidDensity">612</dexpi:data>
-              <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity">2.55</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity">0.712</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="HeatOfVaporization">523</dexpi:data>
-              <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+          <dexpi:components property="ReferenceTemperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">100</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
-          <dexpi:components property="VaporPressure">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="equation">Antoine</dexpi:data>
-              <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
-              <dexpi:data property="A">21.32</dexpi:data>
-              <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="B">-2748.0</dexpi:data>
-              <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="C">233</dexpi:data>
-              <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+          <dexpi:components property="MolecularWeight">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">62.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidDensity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">612</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">2.55</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VapourHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">0.712</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="HeatOfVaporization">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">523</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:data property="VaporPressureEquation">Antoine</dexpi:data>
+          <dexpi:data property="VaporPressureResultUnitReference">http://qudt.org/vocab/unit/PA</dexpi:data>
+          <dexpi:components property="AntoineA">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">21.32</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineB">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">-2748.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineC">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">233</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:MaterialComponent>
@@ -1736,32 +1872,60 @@
           <dexpi:data property="Description">Component H</dexpi:data>
           <dexpi:data property="Label">H</dexpi:data>
           <dexpi:data property="ProjectReference">Tennessee Eastman Anonymised Component</dexpi:data>
-          <dexpi:components property="PhysicalProperties">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="referenceTemperature">100</dexpi:data>
-              <dexpi:data property="temperatureUnitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
-              <dexpi:data property="MolecularWeight">76.0</dexpi:data>
-              <dexpi:data property="MolecularWeight_unitIRI">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
-              <dexpi:data property="LiquidDensity">617</dexpi:data>
-              <dexpi:data property="LiquidDensity_unitIRI">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity">2.45</dexpi:data>
-              <dexpi:data property="LiquidHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity">0.628</dexpi:data>
-              <dexpi:data property="VapourHeatCapacity_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
-              <dexpi:data property="HeatOfVaporization">486</dexpi:data>
-              <dexpi:data property="HeatOfVaporization_unitIRI">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+          <dexpi:components property="ReferenceTemperature">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">100</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
-          <dexpi:components property="VaporPressure">
-            <dexpi:object type="Core/ConceptualObject">
-              <dexpi:data property="equation">Antoine</dexpi:data>
-              <dexpi:data property="resultUnitIRI">http://qudt.org/vocab/unit/PA</dexpi:data>
-              <dexpi:data property="A">22.10</dexpi:data>
-              <dexpi:data property="A_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="B">-3318.0</dexpi:data>
-              <dexpi:data property="B_unitIRI">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
-              <dexpi:data property="C">250</dexpi:data>
-              <dexpi:data property="C_unitIRI">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
+          <dexpi:components property="MolecularWeight">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">76.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/GM-PER-MOL</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidDensity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">617</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloGM-PER-M3</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="LiquidHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">2.45</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="VapourHeatCapacity">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">0.628</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM-K</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="HeatOfVaporization">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">486</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/KiloJ-PER-KiloGM</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:data property="VaporPressureEquation">Antoine</dexpi:data>
+          <dexpi:data property="VaporPressureResultUnitReference">http://qudt.org/vocab/unit/PA</dexpi:data>
+          <dexpi:components property="AntoineA">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">22.10</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineB">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">-3318.0</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/UNITLESS</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:components property="AntoineC">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">250</dexpi:data>
+              <dexpi:data property="UnitReference">http://qudt.org/vocab/unit/DEG_C</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:MaterialComponent>

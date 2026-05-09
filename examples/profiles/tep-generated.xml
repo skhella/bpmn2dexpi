@@ -23,83 +23,48 @@
       class sorted by (kind, name). Same input -> byte-identical output.
 -->
 <Profile mode="extend" uri="https://bpmn2dexpi.local/profiles/generated">
-  <ConcreteClass name="ConceptualObject" superTypes="Core/ConceptualObject">
-    <DataProperty name="A" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="A_unitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="B" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="B_unitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="C" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="C_unitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="equation" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="HeatOfVaporization" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="HeatOfVaporization_unitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="IsEffectivelyNoncondensable" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="LiquidDensity" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="LiquidDensity_unitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="LiquidHeatCapacity" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="LiquidHeatCapacity_unitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="MolecularWeight" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="MolecularWeight_unitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="referenceTemperature" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="resultUnitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="temperatureUnitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="VapourHeatCapacity" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-    <DataProperty name="VapourHeatCapacity_unitIRI" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
-  </ConcreteClass>
   <ConcreteClass name="ControllingProcessVariable" superTypes="/Process.InstrumentationActivity">
     <DataProperty name="MeasuredVariableLabel" lower="0" upper="1">
       <DataTypeReference type="Builtin/String"/>
     </DataProperty>
   </ConcreteClass>
   <ConcreteClass name="CustomMaterialComponent" superTypes="/Process.MaterialComponent">
-    <CompositionProperty name="PhysicalProperties" lower="0" upper="1">
+    <CompositionProperty name="AntoineA" lower="0" upper="1">
       <ClassReference type="Core/ConceptualObject"/>
     </CompositionProperty>
-    <CompositionProperty name="VaporPressure" lower="0" upper="1">
+    <CompositionProperty name="AntoineB" lower="0" upper="1">
       <ClassReference type="Core/ConceptualObject"/>
     </CompositionProperty>
+    <CompositionProperty name="AntoineC" lower="0" upper="1">
+      <ClassReference type="Core/ConceptualObject"/>
+    </CompositionProperty>
+    <CompositionProperty name="HeatOfVaporization" lower="0" upper="1">
+      <ClassReference type="Core/ConceptualObject"/>
+    </CompositionProperty>
+    <CompositionProperty name="LiquidDensity" lower="0" upper="1">
+      <ClassReference type="Core/ConceptualObject"/>
+    </CompositionProperty>
+    <CompositionProperty name="LiquidHeatCapacity" lower="0" upper="1">
+      <ClassReference type="Core/ConceptualObject"/>
+    </CompositionProperty>
+    <CompositionProperty name="MolecularWeight" lower="0" upper="1">
+      <ClassReference type="Core/ConceptualObject"/>
+    </CompositionProperty>
+    <CompositionProperty name="ReferenceTemperature" lower="0" upper="1">
+      <ClassReference type="Core/ConceptualObject"/>
+    </CompositionProperty>
+    <CompositionProperty name="VapourHeatCapacity" lower="0" upper="1">
+      <ClassReference type="Core/ConceptualObject"/>
+    </CompositionProperty>
+    <DataProperty name="IsEffectivelyNoncondensable" lower="0" upper="1">
+      <DataTypeReference type="Builtin/String"/>
+    </DataProperty>
+    <DataProperty name="VaporPressureEquation" lower="0" upper="1">
+      <DataTypeReference type="Builtin/String"/>
+    </DataProperty>
+    <DataProperty name="VaporPressureResultUnitReference" lower="0" upper="1">
+      <DataTypeReference type="Builtin/String"/>
+    </DataProperty>
   </ConcreteClass>
   <ConcreteClass name="MaterialStateType" superTypes="Core/ConceptualObject">
     <CompositionProperty name="MoleFlow" lower="0" upper="1">
@@ -108,6 +73,11 @@
   </ConcreteClass>
   <ConcreteClass name="MeasuringProcessVariable" superTypes="/Process.InstrumentationActivity">
     <DataProperty name="MeasuredVariableLabel" lower="0" upper="1">
+      <DataTypeReference type="Builtin/String"/>
+    </DataProperty>
+  </ConcreteClass>
+  <ConcreteClass name="QualifiedValue" superTypes="Core/ConceptualObject">
+    <DataProperty name="UnitReference" lower="0" upper="1">
       <DataTypeReference type="Builtin/String"/>
     </DataProperty>
   </ConcreteClass>
