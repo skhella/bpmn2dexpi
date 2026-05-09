@@ -9,6 +9,26 @@
 // importer/exporter — out of scope for the Profile-generator branch.
 import React from 'react';
 import type { MaterialTemplate, MaterialComponent, MaterialState } from '../dexpi/moddle/materials';
+import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
+import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
+import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
+
+// Registry built once per module — used by ComponentEditor to enumerate
+// concrete subclasses of MaterialComponent for the Type dropdown so new
+// Process.xml subclasses surface automatically.
+const MATERIAL_REGISTRY: DexpiProcessClassRegistry | null = (() => {
+  try {
+    return DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXmlRaw },
+      { name: 'Core.xml', xml: coreXmlRaw },
+    ]);
+  } catch {
+    return null;
+  }
+})();
+const MATERIAL_COMPONENT_SUBCLASSES = MATERIAL_REGISTRY
+  ? MATERIAL_REGISTRY.concreteClasses().filter(c => MATERIAL_REGISTRY.hasAncestor(c, 'MaterialComponent'))
+  : ['PureMaterialComponent', 'CustomMaterialComponent'];
 
 interface MaterialLibraryPanelProps {
   modeler: any;
@@ -300,16 +320,21 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
           const xsiType = val.$attrs?.['xsi:type'] || val['xsi:type'] ||
                          (val.$type === 'dexpi:PureMaterialComponent' ? 'PureMaterialComponent' : null);
 
-          // Walk children to capture project-extension properties beyond the
-          // canonical fields (MolecularWeight, AntoineA, IsEffectivelyNoncondensable,
-          // etc.). Mirrors the transformer's read logic so the panel and the
-          // transformer surface the same data shape.
-          const RECOGNIZED_DATA = new Set(['Identifier', 'Label', 'Description', 'ChEBI_identifier', 'IUPAC_identifier']);
+          // Walk children to capture every property beyond the structural
+          // typed fields (Identifier / Label / Description) into the generic
+          // `properties[]` array. Schema-declared properties for the
+          // concrete class — ChEBI_identifier / IUPAC_identifier on
+          // PureMaterialComponent, ProjectReference on CustomMaterialComponent —
+          // and project-extension thermo data (MolecularWeight, AntoineA,
+          // IsEffectivelyNoncondensable, …) all flow through the same shape so
+          // the schema-driven editor in MaterialEditorPanel can render them
+          // from a single registry-derived loop.
+          const STRUCTURAL_DATA = new Set(['Identifier', 'Label', 'Description']);
           const properties: MaterialComponent['properties'] = [];
           const dataChildren = Array.isArray(val.data) ? val.data : [];
           for (const d of dataChildren) {
             const propName = d.property ?? d.$attrs?.property ?? '';
-            if (!propName || RECOGNIZED_DATA.has(propName)) continue;
+            if (!propName || STRUCTURAL_DATA.has(propName)) continue;
             const text = (d.body ?? d.$body ?? '').toString().trim();
             if (!text) continue;
             properties.push({ kind: 'data', name: propName, value: text });
@@ -335,8 +360,21 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
               else if (dp === 'Unit') unit = dv;
               else if (dp === 'UnitReference') unitReference = dv;
             }
+            // QuantityKindReference (the canonical attribute-URI carrier)
+            // sits as a sibling References child on the same QV Object,
+            // not as a Data child — same encoding the ProcessStep / Stream
+            // attribute editors emit.
+            const qvRefs = Array.isArray(qv.references) ? qv.references : [];
+            let nameUri: string | undefined;
+            for (const r of qvRefs) {
+              const rp = r.property ?? r.$attrs?.property;
+              if (rp === 'QuantityKindReference') {
+                nameUri = r.objects ?? r.uidRef ?? r.$attrs?.objects ?? r.$attrs?.uidRef;
+                break;
+              }
+            }
             if (!value) continue;
-            properties.push({ kind: 'composition', name: propName, value, unit, unitReference });
+            properties.push({ kind: 'composition', name: propName, value, unit, unitReference, nameUri });
           }
 
           const component: MaterialComponent = {
@@ -345,8 +383,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             label: getChildText(val, 'Label'),
             description: getChildText(val, 'Description'),
             type: (xsiType === 'PureMaterialComponent' ? 'PureMaterialComponent' : 'CustomMaterialComponent') as MaterialComponent['type'],
-            chebiId: getChildText(val, 'ChEBI_identifier'),
-            iupacId: getChildText(val, 'IUPAC_identifier'),
             properties: properties.length > 0 ? properties : undefined,
           };
           loadedComponents.push(component);
@@ -915,6 +951,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       value: string,
       unit?: string,
       unitReference?: string,
+      nameUri?: string,
     ) => {
       const qvData: unknown[] = [buildDataChild('Value', value)];
       // DisplayText (lower=1 on Core/QualifiedValue per Core.xml). Derive
@@ -923,10 +960,22 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       qvData.push(buildDataChild('DisplayText', displayText));
       if (unit) qvData.push(buildDataChild('Unit', unit));
       if (unitReference) qvData.push(buildDataChild('UnitReference', unitReference));
-      const qvObject = moddle.create('dexpi:Object', {
+      const qvObjectProps: Record<string, unknown> = {
         type: 'Core/QualifiedValue',
         data: qvData,
-      });
+      };
+      // nameUri → canonical QuantityKindReference carrier inside the QV
+      // Object. Mirrors the same encoding ProcessStep / Stream attribute
+      // editors emit (BpmnToDexpiTransformer.ts:2261, 2576).
+      if (nameUri) {
+        qvObjectProps.references = [
+          moddle.create('dexpi:References', {
+            property: 'QuantityKindReference',
+            objects: nameUri,
+          }),
+        ];
+      }
+      const qvObject = moddle.create('dexpi:Object', qvObjectProps);
       return moddle.create('dexpi:Components', {
         property,
         objects: [qvObject],
@@ -935,11 +984,16 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
 
     updatedComponents.forEach(component => {
       const dataChildren: unknown[] = [];
+      // Identifier / Label / Description stay as typed structural fields on
+      // MaterialComponent because they're used as cross-reference targets
+      // and list-display labels throughout the codebase. Every other DEXPI
+      // DataProperty (ChEBI_identifier on PureMaterialComponent,
+      // ProjectReference on CustomMaterialComponent, project-extension
+      // thermo data) flows through the generic `properties[]` loop below
+      // — keeps the editor schema-driven and the save path data-shape-agnostic.
       if (component.identifier) dataChildren.push(buildDataChild('Identifier', component.identifier));
       if (component.label) dataChildren.push(buildDataChild('Label', component.label));
       if (component.description) dataChildren.push(buildDataChild('Description', component.description));
-      if (component.chebiId) dataChildren.push(buildDataChild('ChEBI_identifier', component.chebiId));
-      if (component.iupacId) dataChildren.push(buildDataChild('IUPAC_identifier', component.iupacId));
 
       const componentsChildren: unknown[] = [];
       if (component.properties) {
@@ -948,7 +1002,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             dataChildren.push(buildDataChild(p.name, p.value));
           } else {
             componentsChildren.push(
-              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.unitReference),
+              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.unitReference, p.nameUri),
             );
           }
         }
@@ -1161,7 +1215,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                         </div>
                         <div className="item-meta">
                           {component.identifier} • {component.type}
-                          {component.chebiId && <div style={{ fontSize: '0.85em', color: '#666' }}>ChEBI: {component.chebiId}</div>}
                         </div>
                       </div>
                     );
@@ -1348,20 +1401,19 @@ const ComponentEditor: React.FC<{
           Type:
           <select
             value={edited.type}
-            onChange={(e) => setEdited({ ...edited, type: e.target.value as any })}
+            onChange={(e) => setEdited({ ...edited, type: e.target.value as MaterialComponent['type'] })}
           >
-            <option value="PureMaterialComponent">Pure Material</option>
-            <option value="CustomMaterialComponent">Custom Material</option>
+            {MATERIAL_COMPONENT_SUBCLASSES.map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
           </select>
         </label>
-        <label>
-          ChEBI ID:
-          <input
-            type="text"
-            value={edited.chebiId || ''}
-            onChange={(e) => setEdited({ ...edited, chebiId: e.target.value })}
-          />
-        </label>
+        {/* The "+ Add Component" modal stays minimal — just the structural
+            fields needed to seed a new component. ChEBI_identifier /
+            IUPAC_identifier / ProjectReference and any project-extension
+            thermo data are authored after creation in the schema-driven
+            side-panel editor (MaterialEditorPanel), which renders all
+            declared properties for the chosen type from Process.xml. */}
         <div className="modal-actions">
           <button className="btn-save" onClick={() => onSave(edited)}>Save</button>
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>

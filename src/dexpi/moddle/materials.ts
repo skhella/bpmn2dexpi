@@ -1,18 +1,21 @@
 /**
- * One authored property on a MaterialComponent that's not one of the
- * canonical DEXPI fields (Identifier / Label / Description / ChEBI_identifier
- * / IUPAC_identifier). Held in the MaterialLibraryPanel state and
- * round-tripped through the BPMN extensionElements so project-extension
- * thermo data (MolecularWeight, AntoineA, etc.) and ad-hoc DataProperties
- * (IsEffectivelyNoncondensable, ProjectReference, …) survive editing.
+ * One authored property on a MaterialComponent. Holds every DataProperty or
+ * QualifiedValue-shaped CompositionProperty declared on the component's
+ * concrete class (PureMaterialComponent: ChEBI_identifier, IUPAC_identifier;
+ * CustomMaterialComponent: ProjectReference) plus any project-extension
+ * thermo data (MolecularWeight, AntoineA, IsEffectivelyNoncondensable, …)
+ * the model author has added beyond the schema's vocabulary.
+ *
+ * Identifier / Label / Description stay as typed structural fields on
+ * `MaterialComponent` because they're used as cross-reference targets and
+ * list-display labels throughout the codebase; everything else flows
+ * through this shape so the editor can render rows directly from
+ * `DexpiProcessClassRegistry.getProperties(className)` and pick up new
+ * Process.xml properties automatically when the schema is updated.
  *
  * `kind: 'composition'` rows hold a Core/QualifiedValue-shaped measurement
  * (Value + optional Unit + optional UnitReference). `kind: 'data'` rows
  * hold a flat string DataProperty.
- *
- * Mirror of `MaterialComponentExtraProperty` in transformer/types.ts; the
- * MaterialLibraryPanel and the transformer use the same shape to keep
- * read/write paths in lockstep.
  */
 export interface MaterialComponentProperty {
   kind: 'composition' | 'data';
@@ -20,6 +23,16 @@ export interface MaterialComponentProperty {
   value: string;
   unit?: string;
   unitReference?: string;
+  /**
+   * URI linking the property name to a standard quantity kind (QUDT,
+   * ISO 15926, …). Only meaningful on composition rows — emitted inside
+   * the QualifiedValue Object as
+   * `<dexpi:references property="QuantityKindReference" objects="URI"/>`,
+   * which is the canonical DEXPI carrier for an attribute-name URI.
+   * Ignored for data rows (no clean canonical slot in
+   * `<dexpi:data property="X">value</dexpi:data>`).
+   */
+  nameUri?: string;
 }
 
 export interface MaterialComponent {
@@ -28,23 +41,15 @@ export interface MaterialComponent {
   label: string;
   description?: string;
   type: 'PureMaterialComponent' | 'CustomMaterialComponent';
-  chebiId?: string;
-  iupacId?: string;
   /**
-   * Project-extension and thermo data authored on this MaterialComponent.
-   * Round-tripped verbatim through the BPMN extensionElements so the panel
-   * surfaces what the transformer reads (MolecularWeight, AntoineA, etc.)
-   * and writes back any user edits to the same canonical-DEXPI carriers.
+   * Every DataProperty / CompositionProperty authored on this component
+   * other than the three structural fields above. Schema-declared properties
+   * (ChEBI_identifier on PureMaterialComponent, ProjectReference on
+   * CustomMaterialComponent, …) and project-extension thermo data
+   * (MolecularWeight, AntoineA, …) share the same array shape so the
+   * editor can render both from a single registry-driven loop.
    */
   properties?: MaterialComponentProperty[];
-  // Legacy convenience accessor — kept so callers that already compute
-  // physicalProperties.molecularWeight from the structured properties
-  // continue to work. New code should read from `properties` directly.
-  physicalProperties?: {
-    molecularWeight?: { value: number; unit: string };
-    vapourHeatCapacity?: { value: number; unit: string };
-    referenceTemperature?: number;
-  };
 }
 
 export interface MaterialTemplate {
