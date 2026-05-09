@@ -907,13 +907,9 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     // </dexpi:data> children, so the legacy attribute form was being silently
     // dropped on every save through this panel.
     //
-    // Build the canonical Data + Components child shape explicitly using
-    // moddle.create('dexpi:Data', {...}) and moddle.create('dexpi:Components',
-    // {...}) so the resulting XML matches what the fixture (and the canonical
-    // form generally) uses.
-    const buildDataChild = (property: string, body: string) =>
-      moddle.create('dexpi:Data', { property, body });
-
+    // Reuses buildDataChild defined above for the templates loop. Adds a
+    // QualifiedValue-shaped Components carrier helper specific to the
+    // MaterialComponent + MaterialState save paths.
     const buildQualifiedValueComponentsChild = (
       property: string,
       value: string,
