@@ -934,8 +934,47 @@ export class BpmnToDexpiTransformer {
       const description = this.getChildText(component, 'Description');
       const chebiId = this.getChildText(component, 'ChEBI_identifier');
       const iupacId = this.getChildText(component, 'IUPAC_identifier');
-      const xsiType = component.getAttributeNS('http://www.w3.org/2001/XMLSchema-instance', 'type') || 
+      const xsiType = component.getAttributeNS('http://www.w3.org/2001/XMLSchema-instance', 'type') ||
                       component.getAttribute('xsi:type') || 'CustomMaterialComponent';
+
+      // Walk every child to capture project-extension data beyond the
+      // canonical fields above. Without this, anything authored on a
+      // MaterialComponent outside Identifier/Label/Description/ChEBI/
+      // IUPAC (e.g. MolecularWeight, AntoineA, IsEffectivelyNoncondensable,
+      // ProjectReference) is silently dropped on read and never reaches
+      // the emitted DEXPI XML.
+      const RECOGNIZED_DATA = new Set(['Identifier', 'Label', 'Description', 'ChEBI_identifier', 'IUPAC_identifier']);
+      const properties: NonNullable<InternalMaterialComponent['properties']> = [];
+      for (const child of Array.from(component.children) as Element[]) {
+        const ll = (child.localName || '').toLowerCase();
+        const propName = child.getAttribute('property') || '';
+        if (ll === 'data') {
+          if (RECOGNIZED_DATA.has(propName)) continue;
+          const text = (child.textContent ?? '').trim();
+          if (!propName || !text) continue;
+          properties.push({ kind: 'data', name: propName, value: text });
+        } else if (ll === 'components') {
+          // Look for a Core/QualifiedValue object child and extract its
+          // Value / Unit / UnitReference flat data children.
+          const objs = Array.from(child.children) as Element[];
+          const qv = objs.find(o => (o.localName || '').toLowerCase() === 'object' &&
+                                    (o.getAttribute('type') === 'Core/QualifiedValue'));
+          if (!qv || !propName) continue;
+          let value = '';
+          let unit: string | undefined;
+          let unitReference: string | undefined;
+          for (const data of Array.from(qv.children) as Element[]) {
+            if ((data.localName || '').toLowerCase() !== 'data') continue;
+            const dp = data.getAttribute('property');
+            const dv = (data.textContent ?? '').trim();
+            if (dp === 'Value') value = dv;
+            else if (dp === 'Unit') unit = dv;
+            else if (dp === 'UnitReference') unitReference = dv;
+          }
+          if (!value) continue;
+          properties.push({ kind: 'composition', name: propName, value, unit, unitReference });
+        }
+      }
 
       this.materialComponents.set(uid, {
         uid,
@@ -944,7 +983,8 @@ export class BpmnToDexpiTransformer {
         description,
         chebiId,
         iupacId,
-        xsiType
+        xsiType,
+        properties: properties.length > 0 ? properties : undefined,
       });
     });
 
@@ -2869,6 +2909,46 @@ export class BpmnToDexpiTransformer {
           },
           'String': component.iupacId
         });
+      }
+
+      // Round-trip extra authored properties (project-extension thermo data,
+      // Antoine equation parameters, IsEffectivelyNoncondensable flag, etc.)
+      // captured by the reader. Without this, anything beyond the canonical
+      // Identifier/Label/Description/ChEBI/IUPAC fields would be silently
+      // dropped between BPMN input and DEXPI output.
+      if (component.properties && component.properties.length > 0) {
+        const compositionEntries: Record<string, unknown>[] = [];
+        for (const prop of component.properties) {
+          if (prop.kind === 'data') {
+            (dexpiComponent.Data as Record<string, unknown>[]).push({
+              '$': { 'property': prop.name },
+              'String': prop.value,
+            });
+          } else {
+            // 'composition' — emit canonical Components/Object/QualifiedValue carrier.
+            // DisplayText is required (lower=1) on Core/QualifiedValue per
+            // Core.xml; derive it deterministically as "<value> <unit>" so
+            // the cardinality validator stays clean. Same convention as the
+            // step/stream attribute emit path uses.
+            const displayText = prop.unit ? `${prop.value} ${prop.unit}` : prop.value;
+            const qvData: Record<string, unknown>[] = [
+              { '$': { 'property': 'Value' }, 'String': prop.value },
+              { '$': { 'property': 'DisplayText' }, 'String': displayText },
+            ];
+            if (prop.unit) qvData.push({ '$': { 'property': 'Unit' }, 'String': prop.unit });
+            if (prop.unitReference) qvData.push({ '$': { 'property': 'UnitReference' }, 'String': prop.unitReference });
+            compositionEntries.push({
+              '$': { 'property': prop.name },
+              'Object': {
+                '$': { 'type': 'Core/QualifiedValue' },
+                'Data': qvData,
+              },
+            });
+          }
+        }
+        if (compositionEntries.length > 0) {
+          dexpiComponent.Components = compositionEntries;
+        }
       }
 
       components.push(dexpiComponent);
