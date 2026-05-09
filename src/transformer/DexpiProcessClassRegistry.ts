@@ -435,6 +435,29 @@ export class DexpiProcessClassRegistry {
   }
 
   /**
+   * Resolve the inner Object class name for a composition property — i.e.
+   * what type the records inside `<dexpi:components property="X">` should be.
+   *
+   *   getCompositionInnerClassName('MaterialComponent', 'PersistentIdentifiers')
+   *     → 'PersistentIdentifier'
+   *   getCompositionInnerClassName('MaterialComponent', 'MolecularWeight')
+   *     → 'QualifiedValue'
+   *
+   * Returns null if the property isn't declared on the class (or its
+   * supertypes), isn't a CompositionProperty, or its target type ref doesn't
+   * resolve to a loaded class. The MaterialComponent / ProcessStep / Stream
+   * editor uses this to dispatch composition rendering: QualifiedValue gets
+   * the Value+Unit+URI form; everything else gets a generic list-of-records
+   * editor introspecting the inner class's declared DataProperties.
+   */
+  getCompositionInnerClassName(className: string, propName: string): string | null {
+    if (!this.classes.has(className)) return null;
+    const prop = this.getProperties(className).find(p => p.name === propName);
+    if (!prop || prop.kind !== 'composition' || !prop.targetType) return null;
+    return parseTypeRef(prop.targetType);
+  }
+
+  /**
    * Resolve the enumeration literals for a specific property on a class,
    * walking the supertype chain. Returns null when the class is unknown,
    * the property is not declared on the class (or its supertypes), or its

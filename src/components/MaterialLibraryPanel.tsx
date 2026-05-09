@@ -344,37 +344,71 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             const propName = carrier.property ?? carrier.$attrs?.property ?? '';
             if (!propName) continue;
             const objs = carrier.objects ?? carrier.$children ?? [];
-            const qv = (Array.isArray(objs) ? objs : []).find((o: any) =>
-              (o.$type || '').toLowerCase().includes('object') &&
-              (o.type === 'Core/QualifiedValue' || o.$attrs?.type === 'Core/QualifiedValue')
+            const objList: any[] = (Array.isArray(objs) ? objs : []).filter((o: any) =>
+              (o.$type || '').toLowerCase().includes('object'),
             );
-            if (!qv) continue;
-            const qvData = Array.isArray(qv.data) ? qv.data : (qv.$children ?? []);
-            let value = '';
-            let unit: string | undefined;
-            let unitReference: string | undefined;
-            for (const dc of qvData) {
-              const dp = dc.property ?? dc.$attrs?.property;
-              const dv = (dc.body ?? dc.$body ?? '').toString().trim();
-              if (dp === 'Value') value = dv;
-              else if (dp === 'Unit') unit = dv;
-              else if (dp === 'UnitReference') unitReference = dv;
-            }
-            // QuantityKindReference (the canonical attribute-URI carrier)
-            // sits as a sibling References child on the same QV Object,
-            // not as a Data child — same encoding the ProcessStep / Stream
-            // attribute editors emit.
-            const qvRefs = Array.isArray(qv.references) ? qv.references : [];
-            let nameUri: string | undefined;
-            for (const r of qvRefs) {
-              const rp = r.property ?? r.$attrs?.property;
-              if (rp === 'QuantityKindReference') {
-                nameUri = r.objects ?? r.uidRef ?? r.$attrs?.objects ?? r.$attrs?.uidRef;
-                break;
+            if (objList.length === 0) continue;
+            // Dispatch on the first object's `type` attribute. Core/QualifiedValue
+            // gets the existing single-record QV form; anything else (e.g.
+            // Core/PersistentIdentifier) gets the multi-record list form whose
+            // shape is introspected from the inner class's declared properties
+            // by the editor and serialised back through the matching writer.
+            const firstType = objList[0].type ?? objList[0].$attrs?.type ?? '';
+            const isQualifiedValue = firstType === 'Core/QualifiedValue';
+            if (isQualifiedValue) {
+              const qv = objList[0];
+              const qvData = Array.isArray(qv.data) ? qv.data : (qv.$children ?? []);
+              let value = '';
+              let unit: string | undefined;
+              let unitReference: string | undefined;
+              for (const dc of qvData) {
+                const dp = dc.property ?? dc.$attrs?.property;
+                const dv = (dc.body ?? dc.$body ?? '').toString().trim();
+                if (dp === 'Value') value = dv;
+                else if (dp === 'Unit') unit = dv;
+                else if (dp === 'UnitReference') unitReference = dv;
               }
+              // QuantityKindReference (the canonical attribute-URI carrier)
+              // sits as a sibling References child on the same QV Object,
+              // not as a Data child — same encoding the ProcessStep / Stream
+              // attribute editors emit.
+              const qvRefs = Array.isArray(qv.references) ? qv.references : [];
+              let nameUri: string | undefined;
+              for (const r of qvRefs) {
+                const rp = r.property ?? r.$attrs?.property;
+                if (rp === 'QuantityKindReference') {
+                  nameUri = r.objects ?? r.uidRef ?? r.$attrs?.objects ?? r.$attrs?.uidRef;
+                  break;
+                }
+              }
+              if (!value) continue;
+              properties.push({ kind: 'composition', name: propName, value, unit, unitReference, nameUri });
+            } else {
+              // Non-QualifiedValue composition: collect every Object as a
+              // record keyed by its inner DataProperty names. Inner-class
+              // identity (e.g. `Core/PersistentIdentifier`) is preserved on
+              // `recordsType` so the writer can round-trip the same ref
+              // without guessing namespaces.
+              const records: Array<Record<string, string>> = [];
+              for (const obj of objList) {
+                const dataChildren = Array.isArray(obj.data) ? obj.data : (obj.$children ?? []);
+                const record: Record<string, string> = {};
+                for (const dc of dataChildren) {
+                  const dp = dc.property ?? dc.$attrs?.property;
+                  const dv = (dc.body ?? dc.$body ?? '').toString().trim();
+                  if (dp && dv !== undefined) record[dp] = dv;
+                }
+                if (Object.keys(record).length > 0) records.push(record);
+              }
+              if (records.length === 0) continue;
+              properties.push({
+                kind: 'composition',
+                name: propName,
+                value: '',
+                records,
+                recordsType: firstType,
+              });
             }
-            if (!value) continue;
-            properties.push({ kind: 'composition', name: propName, value, unit, unitReference, nameUri });
           }
 
           const component: MaterialComponent = {
@@ -995,11 +1029,60 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       if (component.label) dataChildren.push(buildDataChild('Label', component.label));
       if (component.description) dataChildren.push(buildDataChild('Description', component.description));
 
+      // Build one <dexpi:components property="X"> carrier wrapping one or
+      // more <dexpi:object type="..."> records. Used for composition
+      // properties whose inner type is **not** Core/QualifiedValue (e.g.
+      // PersistentIdentifiers → Core/PersistentIdentifier with Context +
+      // Value fields). Each record's keys are emitted as <dexpi:data
+      // property="K">v</dexpi:data> children of the Object.
+      const buildNonQvComponentsChild = (
+        property: string,
+        innerTypeRef: string,
+        records: Array<Record<string, string>>,
+      ) => {
+        const objectModdleEntries = records
+          .filter(r => Object.values(r).some(v => v !== undefined && v !== ''))
+          .map(record => {
+            const data: unknown[] = [];
+            for (const [field, val] of Object.entries(record)) {
+              if (val === undefined || val === '') continue;
+              data.push(buildDataChild(field, val));
+            }
+            return moddle.create('dexpi:Object', { type: innerTypeRef, data });
+          });
+        return moddle.create('dexpi:Components', {
+          property,
+          objects: objectModdleEntries,
+        });
+      };
+
       const componentsChildren: unknown[] = [];
       if (component.properties) {
         for (const p of component.properties) {
           if (p.kind === 'data') {
             dataChildren.push(buildDataChild(p.name, p.value));
+            continue;
+          }
+          // Composition: dispatch by records-shape vs QV-shape. Multi-record
+          // (records[]) compositions emit through the generic non-QV builder
+          // with the inner class type resolved from the schema; single-record
+          // QV compositions keep the existing flat value/unit/URI path.
+          if (Array.isArray(p.records)) {
+            if (p.records.length === 0) continue;
+            // Prefer the round-tripped type captured on read; fall back to
+            // the schema-resolved bare class name (prefixed with Core/, the
+            // namespace where every non-QV inner class currently lives in
+            // Process.xml + Core.xml). Profile XML authors that introduce
+            // a non-Core inner class would set their own `recordsType` on
+            // first save through the editor — no guessing.
+            const innerTypeRef = p.recordsType
+              || (() => {
+                const cn = MATERIAL_REGISTRY?.getCompositionInnerClassName(component.type, p.name);
+                return cn ? `Core/${cn}` : 'Core/Unknown';
+              })();
+            componentsChildren.push(
+              buildNonQvComponentsChild(p.name, innerTypeRef, p.records),
+            );
           } else {
             componentsChildren.push(
               buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.unitReference, p.nameUri),
