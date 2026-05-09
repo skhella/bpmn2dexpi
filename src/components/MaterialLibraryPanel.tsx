@@ -300,16 +300,21 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
           const xsiType = val.$attrs?.['xsi:type'] || val['xsi:type'] ||
                          (val.$type === 'dexpi:PureMaterialComponent' ? 'PureMaterialComponent' : null);
 
-          // Walk children to capture project-extension properties beyond the
-          // canonical fields (MolecularWeight, AntoineA, IsEffectivelyNoncondensable,
-          // etc.). Mirrors the transformer's read logic so the panel and the
-          // transformer surface the same data shape.
-          const RECOGNIZED_DATA = new Set(['Identifier', 'Label', 'Description', 'ChEBI_identifier', 'IUPAC_identifier']);
+          // Walk children to capture every property beyond the structural
+          // typed fields (Identifier / Label / Description) into the generic
+          // `properties[]` array. Schema-declared properties for the
+          // concrete class — ChEBI_identifier / IUPAC_identifier on
+          // PureMaterialComponent, ProjectReference on CustomMaterialComponent —
+          // and project-extension thermo data (MolecularWeight, AntoineA,
+          // IsEffectivelyNoncondensable, …) all flow through the same shape so
+          // the schema-driven editor in MaterialEditorPanel can render them
+          // from a single registry-derived loop.
+          const STRUCTURAL_DATA = new Set(['Identifier', 'Label', 'Description']);
           const properties: MaterialComponent['properties'] = [];
           const dataChildren = Array.isArray(val.data) ? val.data : [];
           for (const d of dataChildren) {
             const propName = d.property ?? d.$attrs?.property ?? '';
-            if (!propName || RECOGNIZED_DATA.has(propName)) continue;
+            if (!propName || STRUCTURAL_DATA.has(propName)) continue;
             const text = (d.body ?? d.$body ?? '').toString().trim();
             if (!text) continue;
             properties.push({ kind: 'data', name: propName, value: text });
@@ -345,8 +350,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             label: getChildText(val, 'Label'),
             description: getChildText(val, 'Description'),
             type: (xsiType === 'PureMaterialComponent' ? 'PureMaterialComponent' : 'CustomMaterialComponent') as MaterialComponent['type'],
-            chebiId: getChildText(val, 'ChEBI_identifier'),
-            iupacId: getChildText(val, 'IUPAC_identifier'),
             properties: properties.length > 0 ? properties : undefined,
           };
           loadedComponents.push(component);
@@ -935,11 +938,16 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
 
     updatedComponents.forEach(component => {
       const dataChildren: unknown[] = [];
+      // Identifier / Label / Description stay as typed structural fields on
+      // MaterialComponent because they're used as cross-reference targets
+      // and list-display labels throughout the codebase. Every other DEXPI
+      // DataProperty (ChEBI_identifier on PureMaterialComponent,
+      // ProjectReference on CustomMaterialComponent, project-extension
+      // thermo data) flows through the generic `properties[]` loop below
+      // — keeps the editor schema-driven and the save path data-shape-agnostic.
       if (component.identifier) dataChildren.push(buildDataChild('Identifier', component.identifier));
       if (component.label) dataChildren.push(buildDataChild('Label', component.label));
       if (component.description) dataChildren.push(buildDataChild('Description', component.description));
-      if (component.chebiId) dataChildren.push(buildDataChild('ChEBI_identifier', component.chebiId));
-      if (component.iupacId) dataChildren.push(buildDataChild('IUPAC_identifier', component.iupacId));
 
       const componentsChildren: unknown[] = [];
       if (component.properties) {
@@ -1161,7 +1169,15 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                         </div>
                         <div className="item-meta">
                           {component.identifier} • {component.type}
-                          {component.chebiId && <div style={{ fontSize: '0.85em', color: '#666' }}>ChEBI: {component.chebiId}</div>}
+                          {(() => {
+                            // Surface ChEBI_identifier in the list when present,
+                            // looked up from properties[] now that it's no
+                            // longer a typed field. Schema-driven: when DEXPI
+                            // adds another canonical identifier, replace the
+                            // lookup or generalise to scan declared identifiers.
+                            const chebi = component.properties?.find(p => p.name === 'ChEBI_identifier')?.value;
+                            return chebi ? <div style={{ fontSize: '0.85em', color: '#666' }}>ChEBI: {chebi}</div> : null;
+                          })()}
                         </div>
                       </div>
                     );
@@ -1348,20 +1364,18 @@ const ComponentEditor: React.FC<{
           Type:
           <select
             value={edited.type}
-            onChange={(e) => setEdited({ ...edited, type: e.target.value as any })}
+            onChange={(e) => setEdited({ ...edited, type: e.target.value as MaterialComponent['type'] })}
           >
             <option value="PureMaterialComponent">Pure Material</option>
             <option value="CustomMaterialComponent">Custom Material</option>
           </select>
         </label>
-        <label>
-          ChEBI ID:
-          <input
-            type="text"
-            value={edited.chebiId || ''}
-            onChange={(e) => setEdited({ ...edited, chebiId: e.target.value })}
-          />
-        </label>
+        {/* The "+ Add Component" modal stays minimal — just the structural
+            fields needed to seed a new component. ChEBI_identifier /
+            IUPAC_identifier / ProjectReference and any project-extension
+            thermo data are authored after creation in the schema-driven
+            side-panel editor (MaterialEditorPanel), which renders all
+            declared properties for the chosen type from Process.xml. */}
         <div className="modal-actions">
           <button className="btn-save" onClick={() => onSave(edited)}>Save</button>
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
