@@ -121,6 +121,28 @@ export interface InternalMaterialTemplate {
   phases: string[];
 }
 
+/**
+ * One authored property on a MaterialComponent that's not one of the
+ * canonical-DEXPI fields (Identifier / Label / Description / ChEBI_identifier
+ * / IUPAC_identifier). Captured verbatim so the transformer can round-trip
+ * project-extension data (thermodynamic measurements like MolecularWeight,
+ * Antoine equation coefficients, etc.) from BPMN to DEXPI XML without loss.
+ *
+ * `kind: 'composition'` rows hold a `Core/QualifiedValue`-shaped measurement
+ * (Value + optional Unit + optional UnitReference). `kind: 'data'` rows hold
+ * a flat string DataProperty (e.g. IsEffectivelyNoncondensable, an equation
+ * descriptor, a project tag).
+ */
+export interface MaterialComponentExtraProperty {
+  kind: 'composition' | 'data';
+  name: string;
+  /** For 'composition': the QualifiedValue's Value. For 'data': the flat string. */
+  value: string;
+  /** Only meaningful when kind = 'composition'. */
+  unit?: string;
+  unitReference?: string;
+}
+
 export interface InternalMaterialComponent {
   uid: string;
   identifier: string;
@@ -129,6 +151,14 @@ export interface InternalMaterialComponent {
   chebiId?: string;
   iupacId?: string;
   xsiType: string;
+  /**
+   * Extra authored properties beyond the canonical-DEXPI fields above.
+   * Round-tripped verbatim from the BPMN extensionElements to the emitted
+   * DEXPI XML so project-extension thermo data (and any other authored
+   * content) survives the BPMN → DEXPI conversion. Without this, the
+   * reader would silently drop everything outside the typed fields above.
+   */
+  properties?: MaterialComponentExtraProperty[];
 }
 
 export interface InternalMaterialState {

@@ -66,6 +66,47 @@
       <DataTypeReference type="Builtin/String"/>
     </DataProperty>
   </ConcreteClass>
+  <ConcreteClass name="MaterialComponent" superTypes="Core/ConceptualObject">
+    <CompositionProperty name="AntoineA" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="AntoineB" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="AntoineC" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="HeatOfVaporization" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="LiquidDensity" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="LiquidHeatCapacity" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="MolecularWeight" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="ReferenceTemperature" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="VapourHeatCapacity" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <DataProperty name="IsEffectivelyNoncondensable" lower="0" upper="1">
+      <DataTypeReference type="Builtin/Boolean"/>
+    </DataProperty>
+    <DataProperty name="ProjectReference" lower="0" upper="1">
+      <DataTypeReference type="Builtin/String"/>
+    </DataProperty>
+    <DataProperty name="VaporPressureEquation" lower="0" upper="1">
+      <DataTypeReference type="Builtin/String"/>
+    </DataProperty>
+    <DataProperty name="VaporPressureResultUnitReference" lower="0" upper="1">
+      <DataTypeReference type="Builtin/AnyURI"/>
+    </DataProperty>
+  </ConcreteClass>
   <ConcreteClass name="MaterialStateType" superTypes="Core/ConceptualObject">
     <CompositionProperty name="MoleFlow" lower="0" upper="1">
       <ClassReference type="Core/QualifiedValue"/>
@@ -78,7 +119,7 @@
   </ConcreteClass>
   <ConcreteClass name="QualifiedValue" superTypes="Core/ConceptualObject">
     <DataProperty name="UnitReference" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
+      <DataTypeReference type="Builtin/AnyURI"/>
     </DataProperty>
   </ConcreteClass>
 </Profile>
