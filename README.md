@@ -6,6 +6,8 @@ A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DE
 
 - **Visual modeling** — drag-and-drop BPMN 2.0 editor with a DEXPI-aware palette
 - **DEXPI 2.0 export** — XSD-validated output, with a structural fallback in browser contexts
+- **Strict-mode fidelity check** — five-dimensional validation against the DEXPI 2.0 information model: property names and kinds, data types, reference targets, cardinality, and class existence
+- **Profile-based extensibility** — declare custom classes or property extensions in a Profile XML, or auto-generate a Profile from any model to close vocabulary gaps
 - **Material library** — materials, compositions, and thermodynamic states
 - **Typed ports & streams** — Material / Energy / Information, with flow rates, compositions, and qualified parameters
 - **CLI tool** — batch-convert BPMN to DEXPI 2.0 XML from the terminal or Python
@@ -89,8 +91,6 @@ Turn on **Strict mode** (export dialog checkbox, `--strict` CLI flag, or `{ stri
 Two complementary ways to handle process content beyond the core DEXPI 2.0 vocabulary:
 
 **Profiles** — declare project-specific classes or property extensions in a Profile XML using DEXPI's metamodel grammar. Loaded Profiles populate the type dropdown and are recognized under strict-mode validation. A reference Profile lives in `examples/profiles/sample-extension.xml`; the TEP-derived `examples/profiles/tep-generated.xml` shows a worked example.
-
-**External URI references** — process steps not covered by DEXPI can reference external ontologies (ISO 15926, OntoCAPE, company RDLs) via a `customUri` annotation.
 
 ### Loading and generating Profiles
 
