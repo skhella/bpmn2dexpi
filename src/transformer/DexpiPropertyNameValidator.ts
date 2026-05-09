@@ -472,11 +472,28 @@ function walkRichElement(
       continue;
     }
 
+    // ── <dexpi:port> ─────────────────────────────────────────────────────
+    // Ports carry their own DEXPI attributes since the port-attribute
+    // editor PR (#38) — `<dexpi:data property="X">v</dexpi:data>` and
+    // `<dexpi:components property="X">…</dexpi:components>` children of
+    // the `<dexpi:port>` element. Validate them under the port's portType
+    // (MaterialPort, ThermalEnergyPort, …) so port-attribute property
+    // names get the same strict-mode coverage ProcessStep + Stream
+    // attributes do. The registry walks supertypes through Port →
+    // Core/ConceptualObject so PersistentIdentifiers / Identifier /
+    // Label resolve naturally. Ports without a portType (defensive: e.g.
+    // legacy fixtures) skip validation rather than over-report.
+    if (inDexpiNs && ll === 'port') {
+      const portType = child.getAttribute('portType');
+      if (portType && registry.isValidClass(portType)) {
+        walkRichElement(child, portType, source, registry, failures);
+      }
+      continue;
+    }
+
     // ── Other dexpi: namespaced framework markers — skip. ───────────────
-    // <dexpi:port> inside <dexpi:element> is a custom flat shape, not a
-    // DEXPI property; <dexpi:object> only appears inside <dexpi:components>
-    // (handled above), so a stray <dexpi:object> as a direct child is also
-    // skipped here.
+    // <dexpi:object> only appears inside <dexpi:components> (handled above),
+    // so a stray <dexpi:object> as a direct child is skipped here.
     if (inDexpiNs) continue;
 
     // ── Legacy bare-name fallback (defensive — for hand-authored content

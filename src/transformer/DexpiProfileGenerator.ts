@@ -758,20 +758,30 @@ function streamTypeToDexpiClassName(streamType: string | null): string {
  * Scan BPMN extension elements for user-asserted required-flagged attributes
  * and return a map of `${className}.${propertyName}` → `true`.
  *
- * Handled BPMN shapes:
+ * Handled BPMN shapes (canonical-carrier form, all element kinds):
  *   <dexpi:element dexpiType="X">
+ *     <dexpi:data property="P" required="true">v</dexpi:data>
  *     <dexpi:components property="P" required="true"> ... </dexpi:components>
- *     <dexpi:attribute name="P" value="..." required="true"/>
+ *     <dexpi:port portType="MaterialPort">
+ *       <dexpi:data property="P" required="true">v</dexpi:data>
+ *       <dexpi:components property="P" required="true"> ... </dexpi:components>
+ *     </dexpi:port>
  *   </dexpi:element>
- *   <dexpi:stream streamType="MaterialFlow">
- *     <dexpi:attribute name="P" value="..." required="true"/>
- *   </dexpi:stream>
+ *   <dexpi:Stream streamType="MaterialFlow">
+ *     <dexpi:data property="P" required="true">v</dexpi:data>
+ *     <dexpi:components property="P" required="true"> ... </dexpi:components>
+ *   </dexpi:Stream>
  *
- * The className is taken from the wrapping `dexpiType` (for elements) or
- * derived from `streamType` via streamTypeToDexpiClassName (for streams).
- * In both cases the override is per-class — a required flag tightens the
- * property only for that specific class, not for its supertypes; this
- * scopes the user's intervention narrowly.
+ * The className is taken from the wrapping `dexpiType` (for elements),
+ * `streamType` via streamTypeToDexpiClassName (for streams), or `portType`
+ * (for ports). In every case the override is per-class — a required flag
+ * tightens the property only for that specific class, not its supertypes.
+ *
+ * The legacy `<dexpi:attribute name="P" required="true"/>` shape that
+ * pre-#35 / #36 BPMN saves used is no longer scanned: the panel + transformer
+ * dropped that read path together with the canonical-storage migration, so
+ * any required-flag in that legacy shape was already invisible elsewhere
+ * and would not round-trip into DEXPI export anyway.
  */
 function collectRequiredFlagsFromBpmn(bpmnXml: string): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
@@ -787,9 +797,35 @@ function collectRequiredFlagsFromBpmn(bpmnXml: string): Map<string, Set<string>>
     set.add(propName);
   };
 
-  // Walk every <dexpi:element> and <dexpi:stream> in document order. A
-  // getElementsByTagName wildcard catches both prefixed and bare-local-name
-  // forms; we filter on the local name to be namespace-prefix-tolerant.
+  /**
+   * Walk one DEXPI parent (`<dexpi:element>`, `<dexpi:Stream>`, or
+   * `<dexpi:port>`) and record every direct-child carrier marked
+   * required="true". Carrier kinds:
+   *   - <dexpi:data property="X" required="true">v</dexpi:data>      (DataProperty)
+   *   - <dexpi:components property="X" required="true">…</dexpi:components>  (CompositionProperty)
+   *
+   * Same name resolution across all carrier kinds: the `property` XML
+   * attribute is the schema-declared property name. Carriers without
+   * `required="true"` are ignored — only user-asserted overrides
+   * propagate to the generated Profile.
+   */
+  const scanRequiredCarriers = (parent: Element, className: string): void => {
+    for (const child of Array.from(parent.children) as Element[]) {
+      const cln = (child.localName || '').toLowerCase();
+      if (cln !== 'data' && cln !== 'components') continue;
+      if (child.getAttribute('required') !== 'true') continue;
+      const propName = child.getAttribute('property') || '';
+      if (propName) recordRequired(className, propName);
+    }
+  };
+
+  // Walk every <dexpi:element>, <dexpi:Stream>, and <dexpi:port> in document
+  // order. A getElementsByTagName wildcard catches both prefixed and bare-
+  // local-name forms; we filter on the local name to be namespace-prefix-
+  // tolerant. Ports are walked independently of their wrapping element so
+  // the per-port wrapping class (port.portType) is used for the override
+  // — required flags on a MaterialPort attribute should only narrow
+  // MaterialPort, not the wrapping ProcessStep.
   const candidates = Array.from(doc.getElementsByTagName('*'));
   for (const el of candidates) {
     const ln = (el.localName || '').toLowerCase();
@@ -797,31 +833,24 @@ function collectRequiredFlagsFromBpmn(bpmnXml: string): Map<string, Set<string>>
     if (ln === 'element') {
       const className = el.getAttribute('dexpiType');
       if (!className) continue;
-      for (const child of Array.from(el.children) as Element[]) {
-        const cln = (child.localName || '').toLowerCase();
-        if (cln !== 'components' && cln !== 'attribute') continue;
-        if (child.getAttribute('required') !== 'true') continue;
-        const propName =
-          cln === 'components'
-            ? (child.getAttribute('property') || '')
-            : (child.getAttribute('name') || '');
-        if (propName) recordRequired(className, propName);
-      }
+      scanRequiredCarriers(el, className);
       continue;
     }
 
     if (ln === 'stream') {
       const className = streamTypeToDexpiClassName(el.getAttribute('streamType'));
-      for (const child of Array.from(el.children) as Element[]) {
-        const cln = (child.localName || '').toLowerCase();
-        // Streams currently use only the bare-name <dexpi:attribute> form;
-        // the carrier-wrapped <dexpi:components> shape is reserved for
-        // step-side rich-DEXPI emissions.
-        if (cln !== 'attribute') continue;
-        if (child.getAttribute('required') !== 'true') continue;
-        const propName = child.getAttribute('name') || '';
-        if (propName) recordRequired(className, propName);
-      }
+      scanRequiredCarriers(el, className);
+      continue;
+    }
+
+    if (ln === 'port') {
+      // portType on the port element identifies the wrapping class
+      // (MaterialPort, ThermalEnergyPort, …). Falling back to the abstract
+      // `Port` would lose discrimination between port subclasses; skip
+      // ports without a portType rather than over-narrow.
+      const className = el.getAttribute('portType');
+      if (!className) continue;
+      scanRequiredCarriers(el, className);
       continue;
     }
   }

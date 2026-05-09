@@ -154,3 +154,92 @@ describe('Carrier-kind validation', () => {
     expect(result.classCount).toBe(0);
   });
 });
+
+describe('Port-attribute property-name validation (#38 follow-up)', () => {
+  // PR #38 added per-port DEXPI attribute authoring; this checks that the
+  // BPMN-side property-name fidelity validator now descends into <dexpi:port>
+  // children using port.portType as the wrapping class. Previously the
+  // validator skipped ports entirely with the comment "binding-only with
+  // no class semantics" — typos like <dexpi:data property="Identifierr">
+  // on a port slipped through strict-mode silently. Now they're caught.
+
+  it('flags an unknown property name on a port', () => {
+    const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
+             targetNamespace="https://t/">
+  <process id="p1">
+    <task id="A">
+      <extensionElements>
+        <dexpi:element dexpiType="Compressing">
+          <dexpi:port portId="src_port" name="MO1" portType="MaterialPort" direction="Outlet">
+            <dexpi:data property="Identifierr">typo</dexpi:data>
+          </dexpi:port>
+        </dexpi:element>
+      </extensionElements>
+    </task>
+  </process>
+</definitions>`;
+    const failures = validateBpmnExtensionElements(bpmn, 'port-typo-test', BASE_REGISTRY);
+    const portFailure = failures.find(f => f.propertyName === 'Identifierr');
+    expect(portFailure, formatFailures(failures)).toBeDefined();
+    expect(portFailure!.className).toBe('MaterialPort');
+  });
+
+  it('does not flag canonical port-attribute property names', () => {
+    // Identifier (DataProperty), PersistentIdentifiers (CompositionProperty
+    // with Core/PersistentIdentifier inner) — both inherited from
+    // Core/ConceptualObject via Port → ConceptualObject. MaterialTemplateReference
+    // is declared directly on MaterialPort. All three should validate cleanly.
+    const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
+             targetNamespace="https://t/">
+  <process id="p1">
+    <task id="A">
+      <extensionElements>
+        <dexpi:element dexpiType="Compressing">
+          <dexpi:port portId="src_port" name="MO1" portType="MaterialPort" direction="Outlet">
+            <dexpi:data property="Identifier">MO1-port</dexpi:data>
+            <dexpi:components property="PersistentIdentifiers">
+              <dexpi:object type="Core/PersistentIdentifier">
+                <dexpi:data property="Context">ProjectDB</dexpi:data>
+                <dexpi:data property="Value">PORT-42</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </dexpi:port>
+        </dexpi:element>
+      </extensionElements>
+    </task>
+  </process>
+</definitions>`;
+    const failures = validateBpmnExtensionElements(bpmn, 'port-canonical-test', BASE_REGISTRY);
+    expect(failures, formatFailures(failures)).toEqual([]);
+  });
+
+  it('skips a port without portType (defensive — no class to validate against)', () => {
+    // Same defensive fallback the Profile generator uses: a port without
+    // a declared portType lacks the discriminator needed to choose between
+    // MaterialPort / ThermalEnergyPort / etc. Skip rather than over-flag
+    // against the abstract `Port` (which would falsely accept properties
+    // declared only on a sibling subclass).
+    const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
+             targetNamespace="https://t/">
+  <process id="p1">
+    <task id="A">
+      <extensionElements>
+        <dexpi:element dexpiType="Compressing">
+          <dexpi:port portId="src_port" name="MO1" direction="Outlet">
+            <dexpi:data property="WhateverIWant">x</dexpi:data>
+          </dexpi:port>
+        </dexpi:element>
+      </extensionElements>
+    </task>
+  </process>
+</definitions>`;
+    const failures = validateBpmnExtensionElements(bpmn, 'port-untyped-test', BASE_REGISTRY);
+    expect(failures.find(f => f.propertyName === 'WhateverIWant')).toBeUndefined();
+  });
+});
