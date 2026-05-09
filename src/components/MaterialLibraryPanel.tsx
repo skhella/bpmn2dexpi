@@ -9,6 +9,26 @@
 // importer/exporter — out of scope for the Profile-generator branch.
 import React from 'react';
 import type { MaterialTemplate, MaterialComponent, MaterialState } from '../dexpi/moddle/materials';
+import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
+import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
+import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
+
+// Registry built once per module — used by ComponentEditor to enumerate
+// concrete subclasses of MaterialComponent for the Type dropdown so new
+// Process.xml subclasses surface automatically.
+const MATERIAL_REGISTRY: DexpiProcessClassRegistry | null = (() => {
+  try {
+    return DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXmlRaw },
+      { name: 'Core.xml', xml: coreXmlRaw },
+    ]);
+  } catch {
+    return null;
+  }
+})();
+const MATERIAL_COMPONENT_SUBCLASSES = MATERIAL_REGISTRY
+  ? MATERIAL_REGISTRY.concreteClasses().filter(c => MATERIAL_REGISTRY.hasAncestor(c, 'MaterialComponent'))
+  : ['PureMaterialComponent', 'CustomMaterialComponent'];
 
 interface MaterialLibraryPanelProps {
   modeler: any;
@@ -1169,15 +1189,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                         </div>
                         <div className="item-meta">
                           {component.identifier} • {component.type}
-                          {(() => {
-                            // Surface ChEBI_identifier in the list when present,
-                            // looked up from properties[] now that it's no
-                            // longer a typed field. Schema-driven: when DEXPI
-                            // adds another canonical identifier, replace the
-                            // lookup or generalise to scan declared identifiers.
-                            const chebi = component.properties?.find(p => p.name === 'ChEBI_identifier')?.value;
-                            return chebi ? <div style={{ fontSize: '0.85em', color: '#666' }}>ChEBI: {chebi}</div> : null;
-                          })()}
                         </div>
                       </div>
                     );
@@ -1366,8 +1377,9 @@ const ComponentEditor: React.FC<{
             value={edited.type}
             onChange={(e) => setEdited({ ...edited, type: e.target.value as MaterialComponent['type'] })}
           >
-            <option value="PureMaterialComponent">Pure Material</option>
-            <option value="CustomMaterialComponent">Custom Material</option>
+            {MATERIAL_COMPONENT_SUBCLASSES.map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
           </select>
         </label>
         {/* The "+ Add Component" modal stays minimal — just the structural

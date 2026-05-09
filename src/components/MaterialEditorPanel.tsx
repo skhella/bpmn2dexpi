@@ -7,9 +7,9 @@ import type { MaterialComponent, MaterialComponentProperty } from '../dexpi/modd
 
 // Build the registry once per module so every editor render reuses the same
 // parsed Process.xml + Core.xml. Profile-extension classes (loaded into the
-// session by the user) are not included here yet — the editor's class
-// dropdown today only switches between PureMaterialComponent and
-// CustomMaterialComponent, both of which are core Process.xml classes.
+// session by the user) are not included here yet — the Type dropdown is
+// derived from this base registry, so it covers every concrete subclass of
+// MaterialComponent declared in Process.xml automatically.
 const baseRegistry: DexpiProcessClassRegistry | null = (() => {
   try {
     return DexpiProcessClassRegistry.fromXmlSources([
@@ -495,31 +495,49 @@ interface ComponentSchemaDrivenFormProps {
 const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ edited, setEdited }) => {
   const className = edited.type;
 
-  // All data-kind properties declared (or inherited) on this class. When
-  // Process.xml adds a new property to PureMaterialComponent / Custom-
-  // MaterialComponent / MaterialComponent (abstract base), it shows up here
-  // automatically. Composition / Reference kinds are skipped — MaterialComponent
-  // doesn't declare any in DEXPI 2.0, and ad-hoc QualifiedValue rows handle
-  // user-authored composition properties.
-  const declaredDataProps: DexpiProperty[] = useMemo(() => {
+  // All data-kind + composition-kind properties declared (or inherited) on
+  // this class. When Process.xml adds a new DataProperty or
+  // CompositionProperty to PureMaterialComponent / CustomMaterialComponent /
+  // MaterialComponent (abstract base), it shows up here automatically.
+  // Reference kinds are still skipped — those need a different uid-picker
+  // UI that doesn't fit a generic row, and the audit task tracks reference
+  // coverage separately.
+  const declaredProps: DexpiProperty[] = useMemo(() => {
     if (!baseRegistry || !baseRegistry.isValidClass(className)) return [];
-    return baseRegistry.getProperties(className).filter(p => p.kind === 'data');
+    return baseRegistry.getProperties(className)
+      .filter(p => p.kind === 'data' || p.kind === 'composition');
   }, [className]);
 
   // Set lookup for "is this name schema-declared?" — drives whether a
   // row in `edited.properties` renders here as a declared row or as an
   // ad-hoc project-extension row below.
   const declaredNames = useMemo(
-    () => new Set(declaredDataProps.map(p => p.name)),
-    [declaredDataProps],
+    () => new Set(declaredProps.map(p => p.name)),
+    [declaredProps],
   );
+
+  // Concrete subclasses of MaterialComponent the user can switch between.
+  // Derived from the registry — when Process.xml adds a new subclass
+  // (e.g. BiologicalMaterialComponent in some future DEXPI release) it
+  // appears in the Type dropdown automatically with no UI changes.
+  const subclassOptions = useMemo<string[]>(() => {
+    if (!baseRegistry) return ['PureMaterialComponent', 'CustomMaterialComponent'];
+    return baseRegistry
+      .concreteClasses()
+      .filter(c => baseRegistry.hasAncestor(c, 'MaterialComponent'));
+  }, []);
 
   // Project-extension rows: anything in properties[] whose name isn't on
   // the schema. Includes user-added composition rows (MolecularWeight,
   // AntoineA, …) which live as Components/QualifiedValue carriers on emit.
   const adHocRows = (edited.properties ?? []).filter(p => !declaredNames.has(p.name));
 
-  // ── Helpers to read / write a single property's value ──────────────────
+  // ── Helpers to read / write a single declared property ─────────────────
+  // Data-kind: structural fields (Identifier/Label/Description) bind to the
+  // typed JS fields; everything else binds to a single string in
+  // properties[]. Composition-kind: always binds to properties[] with a
+  // QualifiedValue-shaped {value, unit, unitReference} payload — same shape
+  // ad-hoc composition rows use, so save/load paths handle both uniformly.
   const readDeclaredValue = (name: string): string => {
     if (name === 'Identifier') return edited.identifier ?? '';
     if (name === 'Label') return edited.label ?? '';
@@ -548,6 +566,37 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
     } else {
       props.push({ kind: 'data', name, value });
     }
+    setEdited({ ...edited, properties: props });
+  };
+
+  /** Read a declared composition row's current QualifiedValue payload. */
+  const readDeclaredComposition = (name: string) =>
+    (edited.properties ?? []).find(p => p.name === name && p.kind === 'composition');
+
+  /**
+   * Patch one field on a declared composition row in properties[]. Creates
+   * the entry on first edit; drops it when value+unit+unitReference all blank
+   * (mirrors writeDeclaredValue's empty-cleanup behaviour).
+   */
+  const writeDeclaredComposition = (
+    name: string,
+    patch: Partial<Pick<MaterialComponentProperty, 'value' | 'unit' | 'unitReference'>>,
+  ) => {
+    const props = [...(edited.properties ?? [])];
+    const idx = props.findIndex(p => p.name === name);
+    const merged: MaterialComponentProperty = idx >= 0
+      ? { ...props[idx], ...patch }
+      : { kind: 'composition', name, value: '', ...patch };
+    const isEmpty = !merged.value && !merged.unit && !merged.unitReference;
+    if (isEmpty) {
+      if (idx >= 0) {
+        const next = props.filter((_, i) => i !== idx);
+        setEdited({ ...edited, properties: next.length > 0 ? next : undefined });
+      }
+      return;
+    }
+    if (idx >= 0) props[idx] = merged;
+    else props.push(merged);
     setEdited({ ...edited, properties: props });
   };
 
@@ -584,16 +633,15 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
     setEdited({ ...edited, properties: [...(edited.properties ?? []), next] });
   };
 
-  // Description gets a textarea because Process.xml types it as
-  // Core/DataTypes.MultiLanguageString rather than Builtin/String.
+  // Description and any future MultiLanguageString-typed property gets a
+  // textarea. Driven entirely by the schema's targetType — no name list.
   const isMultiLineString = (prop: DexpiProperty): boolean =>
-    prop.name === 'Description' ||
     !!prop.targetType?.includes('MultiLanguageString');
 
   return (
     <>
       {/* Type discriminator (xsi:type). Switching this re-runs
-          `declaredDataProps` against the new class, so PureMaterial-only
+          `declaredProps` against the new class, so PureMaterial-only
           properties (ChEBI_identifier / IUPAC_identifier) and Custom-only
           properties (ProjectReference) appear or disappear based on the
           schema's own subclass declarations — no UI hardcoding. */}
@@ -603,32 +651,66 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
           value={edited.type}
           onChange={(e) => setEdited({ ...edited, type: e.target.value as MaterialComponent['type'] })}
         >
-          <option value="PureMaterialComponent">PureMaterialComponent</option>
-          <option value="CustomMaterialComponent">CustomMaterialComponent</option>
+          {subclassOptions.map(name => (
+            <option key={name} value={name}>{name}</option>
+          ))}
         </select>
       </div>
 
       {/* Schema-declared rows. Identifier / Label / Description bind to the
-          typed structural fields; everything else binds to properties[]. */}
-      {declaredDataProps.length === 0 && (
+          typed structural fields; data-kind properties bind to properties[]
+          as a flat string; composition-kind properties bind to properties[]
+          as a QualifiedValue payload (value + unit + unitReference). */}
+      {declaredProps.length === 0 && (
         <div style={{ padding: '0.5em', color: '#a44', fontSize: '0.9em' }}>
           ⚠ Class <code>{className}</code> not found in the loaded schema.
         </div>
       )}
-      {declaredDataProps.map(prop => {
-        const value = readDeclaredValue(prop.name);
+      {declaredProps.map(prop => {
         const required = prop.lower >= 1;
         const labelText = `${prop.name}${required ? ' *' : ''}`;
         const isStructural = STRUCTURAL_PROPS.has(prop.name);
+        const tooltip = `Declared on ${prop.declaredOn}${prop.targetType ? ` (${prop.targetType})` : ''}${
+          isStructural ? ' — structural field' : ''
+        } [kind=${prop.kind}]`;
+
+        if (prop.kind === 'composition') {
+          const entry = readDeclaredComposition(prop.name);
+          return (
+            <div className="form-group" key={`${className}::${prop.name}`}>
+              <label title={tooltip}>{labelText}:</label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  type="text"
+                  placeholder="Value"
+                  value={entry?.value ?? ''}
+                  onChange={(e) => writeDeclaredComposition(prop.name, { value: e.target.value })}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="text"
+                  placeholder="Unit"
+                  value={entry?.unit ?? ''}
+                  onChange={(e) => writeDeclaredComposition(prop.name, { unit: e.target.value })}
+                  style={{ width: '90px' }}
+                />
+              </div>
+              <input
+                type="text"
+                placeholder="Unit URI (optional)"
+                value={entry?.unitReference ?? ''}
+                onChange={(e) => writeDeclaredComposition(prop.name, { unitReference: e.target.value })}
+                style={{ fontFamily: 'monospace', fontSize: '0.85em', marginTop: '0.3em' }}
+              />
+            </div>
+          );
+        }
+
+        // data-kind row
+        const value = readDeclaredValue(prop.name);
         return (
           <div className="form-group" key={`${className}::${prop.name}`}>
-            <label
-              title={`Declared on ${prop.declaredOn}${prop.targetType ? ` (${prop.targetType})` : ''}${
-                isStructural ? ' — structural field' : ''
-              }`}
-            >
-              {labelText}:
-            </label>
+            <label title={tooltip}>{labelText}:</label>
             {isMultiLineString(prop) ? (
               <textarea
                 value={value}
@@ -655,7 +737,7 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
           Project-extension properties ({adHocRows.length})
         </label>
         <div style={{ fontSize: '0.85em', color: '#666', marginBottom: '0.4em', fontStyle: 'italic' }}>
-          Properties beyond the {declaredDataProps.length} the schema declares for {className}.
+          Properties beyond the {declaredProps.length} the schema declares for {className}.
           Round-tripped through the BPMN extensionElements and the DEXPI export.
         </div>
 
