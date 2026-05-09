@@ -74,6 +74,30 @@ export interface DexpiPort {
   anchorOffset?: number;
   anchorX?: number;
   anchorY?: number;
+  /**
+   * Port-level DEXPI attributes authored via the panel's PortAttributesSection.
+   * Reuses the same StreamAttribute shape that ProcessStep / Stream attributes
+   * use, since the read+emit path is identical (canonical-carrier
+   * `<dexpi:data>` / `<dexpi:components>` carriers on the port element,
+   * dispatched to flat Data or QualifiedValue Object on emit).
+   *
+   * Optional and absent on most TEP / fixture ports — ports historically
+   * carried only connection metadata. Populated when the user authors
+   * Identifier / Label / PersistentIdentifiers / MaterialTemplateReference
+   * etc. via the per-port attribute editor.
+   */
+  attributes?: Array<{
+    name: string;
+    value: string;
+    unit?: string;
+    unitUri?: string;
+    nameUri?: string;
+    scope?: string;
+    range?: string;
+    provenance?: string;
+    qualifier?: string;
+    required?: boolean;
+  }>;
 }
 
 export interface DexpiStream {

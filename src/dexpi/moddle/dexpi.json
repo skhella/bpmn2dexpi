@@ -41,7 +41,10 @@
         { "name": "anchorX", "isAttr": true, "type": "Number" },
         { "name": "anchorY", "isAttr": true, "type": "Number" },
         { "name": "subReference", "isAttr": true, "type": "String" },
-        { "name": "superReference", "isAttr": true, "type": "String" }
+        { "name": "superReference", "isAttr": true, "type": "String" },
+        { "name": "data", "type": "Data", "isMany": true },
+        { "name": "references", "type": "References", "isMany": true },
+        { "name": "components", "type": "Components", "isMany": true }
       ]
     },
     {
