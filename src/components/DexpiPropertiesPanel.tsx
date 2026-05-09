@@ -2303,11 +2303,14 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           });
           setStreamName(element.businessObject.name || '');
           
-          // Try multiple ways to access attributes
-          let attrs = dexpiStream.attributes || [];
-          if (typeof dexpiStream.get === 'function') {
-            attrs = dexpiStream.get('attributes') || attrs;
-          }
+          // Stream attribute reads only consult canonical carriers; the
+          // legacy <dexpi:attribute> slot reader was dropped together with
+          // the ProcessStep one. moddle still parses any old <dexpi:attribute>
+          // children into dexpiStream.attributes (the slot is declared on
+          // the moddle Stream class), but we ignore it. The wipe in
+          // updateStream clears it on save.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let attrs: any[] = [];
 
           // Carrier-wrapped CompositionProperty form (preferred):
           //   <dexpi:components property="X">
@@ -2576,8 +2579,9 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
     // Intercept attribute updates and translate the panel's flat array view
     // into canonical-carrier moddle children. Same shape ProcessStep +
     // MaterialComponent emit (reused via attrsToCanonicalCarriers). The
-    // legacy <dexpi:attribute> slot is wiped so re-saved BPMNs stop
-    // carrying the deprecated form.
+    // reader ignores the legacy <dexpi:attribute> slot — clearing it here
+    // ensures opening any old BPMN and saving produces a fully-canonical
+    // file (no orphan legacy elements survive moddle round-trip).
     if ('attributes' in updates) {
       const moddle = modeler.get('moddle');
       const { data, components } = attrsToCanonicalCarriers(

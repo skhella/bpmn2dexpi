@@ -1482,29 +1482,7 @@ export class BpmnToDexpiTransformer {
         continue;
       }
 
-      // ── Legacy bare-name fallbacks (kept so already-saved BPMN files
-      // continue to round-trip during the migration window) ───────────────
-      if (ll === 'attribute' || ll === 'streamattribute') {
-        // Unified <dexpi:Attribute> child (canonical pre-carrier) — also
-        // accepts the legacy <dexpi:streamAttribute> name for back-compat
-        // with BPMN files saved before the moddle Attribute/StreamAttribute
-        // split was unified. Identical fields. unitUri / nameUri may also
-        // live as XML attributes on the legacy element; round-tripping them
-        // keeps URIs from being lost during the canonical-storage migration.
-        const unitUri = child.getAttribute('unitUri') || undefined;
-        const nameUri = child.getAttribute('nameUri') || undefined;
-        attributes.push({
-          name: child.getAttribute('name') || '',
-          value: child.getAttribute('value') || '',
-          unit: child.getAttribute('unit') || '',
-          ...(unitUri !== undefined ? { unitUri } : {}),
-          ...(nameUri !== undefined ? { nameUri } : {}),
-          scope: child.getAttribute('scope') || 'Design',
-          range: child.getAttribute('range') || 'Nominal',
-          provenance: child.getAttribute('provenance') || 'Calculated',
-          qualifier: child.getAttribute('qualifier') || 'Average'
-        });
-      } else if (ll === 'materialstatereference') {
+      if (ll === 'materialstatereference') {
         materialStateRef = child.getAttribute('uidRef') || undefined;
       } else if (ll === 'materialtemplatereference' || ll === 'templatereference') {
         // Legacy bare-name reference to MaterialTemplate. The folk name
