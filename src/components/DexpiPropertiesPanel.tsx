@@ -344,7 +344,7 @@ export const AttributeNameValueRow: React.FC<{
  * shape wins when both forms exist on the same element (transition state).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function readAttributesFromDexpiElement(dexpiElement: any, moddle: any): any[] {
+function readAttributesFromDexpiElement(dexpiElement: any): any[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const out: any[] = [];
 
@@ -354,7 +354,7 @@ function readAttributesFromDexpiElement(dexpiElement: any, moddle: any): any[] {
     const propName = d.property ?? d.$attrs?.property ?? '';
     const body = d.body ?? d.$body ?? d._ ?? '';
     if (!propName) continue;
-    out.push(moddle.create('dexpi:Attribute', { name: propName, value: String(body) }));
+    out.push({ name: propName, value: String(body) });
   }
 
   // Canonical: composition carriers with QualifiedValue inner — measurement
@@ -398,7 +398,7 @@ function readAttributesFromDexpiElement(dexpiElement: any, moddle: any): any[] {
       }
     }
     const required = carrier.required === true || carrier.$attrs?.required === 'true';
-    out.push(moddle.create('dexpi:Attribute', {
+    out.push({
       name: propName,
       value,
       ...(unit !== undefined ? { unit } : {}),
@@ -408,7 +408,7 @@ function readAttributesFromDexpiElement(dexpiElement: any, moddle: any): any[] {
       ...(range !== undefined ? { range } : {}),
       ...(provenance !== undefined ? { provenance } : {}),
       ...(required ? { required: true } : {}),
-    }));
+    });
   }
 
   return out;
@@ -1757,11 +1757,9 @@ const ProcessStepAttributesSection: React.FC<{
         );
 
         if (dexpiElement) {
-          // Canonical-carrier read first, legacy <dexpi:attribute> fallback
-          // when no carriers are present (transition state — see
-          // readAttributesFromDexpiElement).
-          const moddle = modeler.get('moddle');
-          setAttributes(readAttributesFromDexpiElement(dexpiElement, moddle));
+          // Canonical-carrier read; legacy <dexpi:attribute> slot was removed
+          // from the moddle descriptor and is no longer supported.
+          setAttributes(readAttributesFromDexpiElement(dexpiElement));
         }
       }
     }
@@ -1786,14 +1784,11 @@ const ProcessStepAttributesSection: React.FC<{
     const present = new Set(attributes.map((a: any) => a?.name).filter(Boolean));
     const needed = computeRequiredPlaceholderProps(registry, className).filter(p => !present.has(p));
     if (needed.length === 0) return;
-    const moddle = modeler.get('moddle');
-    const placeholders = needed.map(propName =>
-      moddle.create('dexpi:Attribute', {
-        name: propName,
-        value: '',
-        required: true,
-      }),
-    );
+    const placeholders = needed.map(propName => ({
+      name: propName,
+      value: '',
+      required: true,
+    }));
     const updated = [...attributes, ...placeholders];
     setAttributes(updated);
     updateElementAttributes(updated);
@@ -1801,15 +1796,14 @@ const ProcessStepAttributesSection: React.FC<{
   }, [attributes, className, registry, element]);
 
   const addAttribute = () => {
-    const moddle = modeler.get('moddle');
-    const newAttr = moddle.create('dexpi:Attribute', {
+    const newAttr = {
       name: `Attribute ${attributes.length + 1}`,
       value: '',
       unit: '',
       scope: 'Design',
       range: 'Nominal',
-      provenance: 'Calculated'
-    });
+      provenance: 'Calculated',
+    };
 
     const updatedAttrs = [...attributes, newAttr];
     setAttributes(updatedAttrs);
@@ -1823,10 +1817,9 @@ const ProcessStepAttributesSection: React.FC<{
   };
 
   const updateAttribute = (index: number, updates: any) => {
-    const moddle = modeler.get('moddle');
     const updatedAttrs = attributes.map((attr, i) => {
       if (i === index) {
-        return moddle.create('dexpi:Attribute', {
+        return {
           name: updates.name !== undefined ? updates.name : attr.name,
           value: updates.value !== undefined ? updates.value : attr.value,
           unit: updates.unit !== undefined ? updates.unit : attr.unit,
@@ -1840,8 +1833,8 @@ const ProcessStepAttributesSection: React.FC<{
           scope: updates.scope !== undefined ? updates.scope : attr.scope,
           range: updates.range !== undefined ? updates.range : attr.range,
           provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
-          required: 'required' in updates ? updates.required : attr.required
-        });
+          required: 'required' in updates ? updates.required : attr.required,
+        };
       }
       return attr;
     });
@@ -1875,14 +1868,11 @@ const ProcessStepAttributesSection: React.FC<{
     // Canonical-carrier write: dispatch each attribute to either a flat
     // <dexpi:data> carrier or a QualifiedValue-shaped <dexpi:components>
     // carrier based on the registry's declared kind for the property name
-    // on the wrapping class. The reader ignores the legacy <dexpi:attribute>
-    // slot — clearing it here ensures opening any old BPMN and saving
-    // produces a fully-canonical file (no orphan legacy elements survive
-    // moddle round-trip).
+    // on the wrapping class. The legacy <dexpi:attribute> slot was removed
+    // from the moddle descriptor; nothing reads it, nothing writes it.
     const { data, components } = attrsToCanonicalCarriers(updatedAttrs, moddle, registry, className);
     dexpiElement.data = data;
     dexpiElement.components = components;
-    dexpiElement.attributes = [];
 
     modeling.updateProperties(element, {
       extensionElements
@@ -2054,8 +2044,7 @@ const PortAttributesSection: React.FC<{
 
   React.useEffect(() => {
     if (!port) return;
-    const moddle = modeler.get('moddle');
-    setAttributes(readAttributesFromDexpiElement(port, moddle));
+    setAttributes(readAttributesFromDexpiElement(port));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [port]);
 
@@ -2068,15 +2057,14 @@ const PortAttributesSection: React.FC<{
   };
 
   const addAttribute = () => {
-    const moddle = modeler.get('moddle');
-    const newAttr = moddle.create('dexpi:Attribute', {
+    const newAttr = {
       name: `Attribute ${attributes.length + 1}`,
       value: '',
       unit: '',
       scope: 'Design',
       range: 'Nominal',
       provenance: 'Calculated',
-    });
+    };
     persist([...attributes, newAttr]);
   };
 
@@ -2086,10 +2074,9 @@ const PortAttributesSection: React.FC<{
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateAttribute = (index: number, updates: any) => {
-    const moddle = modeler.get('moddle');
     const next = attributes.map((attr, i) => {
       if (i !== index) return attr;
-      return moddle.create('dexpi:Attribute', {
+      return {
         name: updates.name !== undefined ? updates.name : attr.name,
         value: updates.value !== undefined ? updates.value : attr.value,
         unit: updates.unit !== undefined ? updates.unit : attr.unit,
@@ -2099,7 +2086,7 @@ const PortAttributesSection: React.FC<{
         range: updates.range !== undefined ? updates.range : attr.range,
         provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
         required: 'required' in updates ? updates.required : attr.required,
-      });
+      };
     });
     persist(next);
   };
@@ -2454,12 +2441,11 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           });
           setStreamName(element.businessObject.name || '');
           
-          // Stream attribute reads only consult canonical carriers; the
-          // legacy <dexpi:attribute> slot reader was dropped together with
-          // the ProcessStep one. moddle still parses any old <dexpi:attribute>
-          // children into dexpiStream.attributes (the slot is declared on
-          // the moddle Stream class), but we ignore it. The wipe in
-          // updateStream clears it on save.
+          // Stream attribute reads only consult canonical carriers. The
+          // legacy <dexpi:attribute> shape is no longer supported — the
+          // moddle Attribute class declaration + the attributes slot on
+          // Element / Stream were removed; bpmn-moddle would error on
+          // parsing any old BPMN containing <dexpi:attribute> elements.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let attrs: any[] = [];
 
@@ -2744,7 +2730,6 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       );
       dexpiStream.data = data;
       dexpiStream.components = components;
-      dexpiStream.attributes = [];
       const { attributes: _drop, ...rest } = updates as Record<string, unknown>;
       Object.assign(dexpiStream, rest);
     } else {
@@ -2773,14 +2758,11 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
     const needed = computeRequiredPlaceholderProps(augmentedRegistry, streamClassName)
       .filter(p => !present.has(p));
     if (needed.length === 0) return;
-    const moddle = modeler.get('moddle');
-    const placeholders = needed.map(propName =>
-      moddle.create('dexpi:Attribute', {
-        name: propName,
-        value: '',
-        required: true,
-      }),
-    );
+    const placeholders = needed.map(propName => ({
+      name: propName,
+      value: '',
+      required: true,
+    }));
     const updated = [...attributes, ...placeholders];
     setAttributes(updated);
     updateStream({ attributes: updated });
@@ -2791,16 +2773,15 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
   }, [attributes, streamClassName, augmentedRegistry, element]);
 
   const addAttribute = () => {
-    const moddle = modeler.get('moddle');
-    const newAttr = moddle.create('dexpi:Attribute', {
+    const newAttr = {
       name: 'New Attribute',
       value: '',
       unit: '',
       scope: 'Design',
       range: 'Nominal',
       provenance: 'Calculated',
-      qualifier: 'Average'
-    });
+      qualifier: 'Average',
+    };
 
     const updatedAttrs = [...attributes, newAttr];
     setAttributes(updatedAttrs);
@@ -2814,10 +2795,9 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
   };
 
   const updateAttribute = (index: number, updates: any) => {
-    const moddle = modeler.get('moddle');
     const updatedAttrs = attributes.map((attr, i) => {
       if (i === index) {
-        return moddle.create('dexpi:Attribute', {
+        return {
           name: updates.name !== undefined ? updates.name : attr.name,
           nameUri: updates.nameUri !== undefined ? updates.nameUri : attr.nameUri,
           value: updates.value !== undefined ? updates.value : attr.value,
@@ -2827,8 +2807,8 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           range: updates.range !== undefined ? updates.range : attr.range,
           provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
           qualifier: updates.qualifier !== undefined ? updates.qualifier : attr.qualifier,
-          required: 'required' in updates ? updates.required : attr.required
-        });
+          required: 'required' in updates ? updates.required : attr.required,
+        };
       }
       return attr;
     });

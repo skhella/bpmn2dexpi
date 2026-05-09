@@ -19,7 +19,6 @@
         { "name": "uid", "isAttr": true, "type": "String" },
         { "name": "hierarchyLevel", "isAttr": true, "type": "String" },
         { "name": "ports", "type": "Port", "isMany": true },
-        { "name": "attributes", "type": "Attribute", "isMany": true },
         { "name": "data", "type": "Data", "isMany": true },
         { "name": "references", "type": "References", "isMany": true },
         { "name": "components", "type": "Components", "isMany": true }
@@ -48,22 +47,6 @@
       ]
     },
     {
-      "name": "Attribute",
-      "superClass": ["Element"],
-      "properties": [
-        { "name": "name", "isAttr": true, "type": "String" },
-        { "name": "value", "isAttr": true, "type": "String" },
-        { "name": "unit", "isAttr": true, "type": "String" },
-        { "name": "unitUri", "isAttr": true, "type": "String" },
-        { "name": "nameUri", "isAttr": true, "type": "String" },
-        { "name": "scope", "isAttr": true, "type": "String" },
-        { "name": "range", "isAttr": true, "type": "String" },
-        { "name": "provenance", "isAttr": true, "type": "String" },
-        { "name": "qualifier", "isAttr": true, "type": "String" },
-        { "name": "required", "isAttr": true, "type": "Boolean" }
-      ]
-    },
-    {
       "name": "Stream",
       "superClass": ["Element"],
       "meta": { "allowedIn": ["bpmn:SequenceFlow", "bpmn:MessageFlow"] },
@@ -79,7 +62,6 @@
         { "name": "materialStateReference", "isAttr": true, "type": "String" },
         { "name": "provenance", "isAttr": true, "type": "String" },
         { "name": "range", "isAttr": true, "type": "String" },
-        { "name": "attributes", "type": "Attribute", "isMany": true },
         { "name": "data", "type": "Data", "isMany": true },
         { "name": "references", "type": "References", "isMany": true },
         { "name": "components", "type": "Components", "isMany": true }
