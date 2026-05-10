@@ -131,11 +131,17 @@ export interface DexpiStream {
 }
 
 /**
- * Unified attribute payload — used for both step (`<dexpi:Attribute>`
- * inside `<dexpi:Element>`) and stream (`<dexpi:Attribute>` inside
- * `<dexpi:Stream>`) properties. DEXPI Process.xml itself has no
- * Attribute/StreamAttribute distinction; both encode as
- * `<Components property="X"><Object type="Core/QualifiedValue"/></Components>`.
+ * Unified attribute payload — used for ProcessStep / Stream / Port
+ * attributes throughout the in-memory data model and the panel state.
+ * Serialised in BPMN as the canonical carrier shape:
+ *   - DataProperty kind  → `<dexpi:data property="X">v</dexpi:data>`
+ *   - CompositionProperty (QualifiedValue) → `<dexpi:components property="X">
+ *     <dexpi:object type="Core/QualifiedValue">…</dexpi:object></dexpi:components>`
+ *
+ * The legacy `<dexpi:Attribute>` carrier (and its moddle class declaration
+ * + Element/Stream slot) was removed alongside the canonical-storage
+ * migration; this interface no longer corresponds to a moddle XML class,
+ * only to the in-memory plain-object shape.
  */
 export interface DexpiAttribute {
   name: string;
