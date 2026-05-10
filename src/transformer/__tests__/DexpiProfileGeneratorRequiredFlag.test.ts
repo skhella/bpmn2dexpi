@@ -344,13 +344,21 @@ describe('Profile generator — required-flag on ports (#38 follow-up)', () => {
     expect(result.xml).toMatch(/name="MyPortFlag"\s+lower="1"/);
   });
 
-  it('port without portType → no narrowing (defensive fallback, not over-narrow)', () => {
-    // Defensive case: legacy / hand-authored ports without a portType
-    // attribute are skipped rather than narrowed against the abstract
-    // `Port` class (which would conflate MaterialPort vs InformationPort
-    // semantics).
+  it('port without portType → defaults to MaterialPort + warns + still narrows', () => {
+    // Aligns with the rest of the codebase (UI addPort, legacy migration,
+    // transformer port reader): missing portType assumes MaterialPort.
+    // The Profile generator surfaces a structural warning so the user
+    // knows the default was applied, AND still narrows the required
+    // property under MaterialPort so the user's authored intent reaches
+    // the generated Profile.
     const dexpi = `<?xml version="1.0"?><Model name="x" uri="https://t/">
-      <Object id="src_port" type="Process/Process.MaterialPort"/>
+      <Object id="src_port" type="Process/Process.MaterialPort">
+        <Components property="UnscopedPortProp">
+          <Object type="Core/QualifiedValue">
+            <Data property="Value">1</Data>
+          </Object>
+        </Components>
+      </Object>
       <Object id="s1" type="Process/Process.Stream"/>
     </Model>`;
     const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
@@ -374,6 +382,14 @@ describe('Profile generator — required-flag on ports (#38 follow-up)', () => {
   </process>
 </definitions>`;
     const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
-    expect(result.xml).not.toMatch(/name="UnscopedPortProp"\s+lower="1"/);
+    // Warning surfaces in the generator's warnings list.
+    const missingTypeWarning = result.warnings.find(w =>
+      w.includes('missing portType') && w.includes('src_port'),
+    );
+    expect(missingTypeWarning, JSON.stringify(result.warnings, null, 2)).toBeDefined();
+    expect(missingTypeWarning).toContain('defaulted to MaterialPort');
+    // The required property is narrowed against the MaterialPort default —
+    // user's authored intent reaches the Profile.
+    expect(result.xml).toMatch(/name="UnscopedPortProp"\s+lower="1"/);
   });
 });

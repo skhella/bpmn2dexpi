@@ -217,12 +217,13 @@ describe('Port-attribute property-name validation (#38 follow-up)', () => {
     expect(failures, formatFailures(failures)).toEqual([]);
   });
 
-  it('skips a port without portType (defensive — no class to validate against)', () => {
-    // Same defensive fallback the Profile generator uses: a port without
-    // a declared portType lacks the discriminator needed to choose between
-    // MaterialPort / ThermalEnergyPort / etc. Skip rather than over-flag
-    // against the abstract `Port` (which would falsely accept properties
-    // declared only on a sibling subclass).
+  it('port without portType → defaults to MaterialPort + warns + still validates property names', () => {
+    // Aligns with the rest of the codebase: UI addPort defaults to
+    // MaterialPort, legacy migration defaults to MaterialPort, transformer
+    // port reader defaults to MaterialPort. The validator follows suit:
+    // missing portType → assume MaterialPort, surface a structural
+    // warning so the user knows the default was applied, and still run
+    // property-name validation (so genuine typos on the port don't escape).
     const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
@@ -232,6 +233,7 @@ describe('Port-attribute property-name validation (#38 follow-up)', () => {
       <extensionElements>
         <dexpi:element dexpiType="Compressing">
           <dexpi:port portId="src_port" name="MO1" direction="Outlet">
+            <dexpi:data property="Identifier">MO1-port</dexpi:data>
             <dexpi:data property="WhateverIWant">x</dexpi:data>
           </dexpi:port>
         </dexpi:element>
@@ -240,6 +242,47 @@ describe('Port-attribute property-name validation (#38 follow-up)', () => {
   </process>
 </definitions>`;
     const failures = validateBpmnExtensionElements(bpmn, 'port-untyped-test', BASE_REGISTRY);
-    expect(failures.find(f => f.propertyName === 'WhateverIWant')).toBeUndefined();
+    // Structural warning surfaces with a distinctive propertyName marker
+    // so consumers can group / filter it separately from property-name
+    // typos.
+    const structural = failures.find(f => f.propertyName === '(missing portType)');
+    expect(structural, formatFailures(failures)).toBeDefined();
+    expect(structural!.context).toContain('defaulting to MaterialPort');
+    expect(structural!.context).toContain('src_port');
+    // Identifier resolves on MaterialPort (inherited from ConceptualObject),
+    // so the canonical port property is NOT flagged.
+    expect(failures.find(f => f.propertyName === 'Identifier')).toBeUndefined();
+    // The genuine typo IS flagged against MaterialPort — coverage is
+    // preserved despite the missing discriminator.
+    const typo = failures.find(f => f.propertyName === 'WhateverIWant');
+    expect(typo, 'genuine typo on a port-without-portType should still be caught').toBeDefined();
+    expect(typo!.className).toBe('MaterialPort');
+  });
+
+  it('port with unknown portType → defaults to MaterialPort + distinct warning', () => {
+    // portType is present but its value isn't a registered class (e.g.
+    // typo on the discriminator itself). Distinct warning so the user
+    // can separate "missing" from "typo'd" portType cases.
+    const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
+             targetNamespace="https://t/">
+  <process id="p1">
+    <task id="A">
+      <extensionElements>
+        <dexpi:element dexpiType="Compressing">
+          <dexpi:port portId="src_port" name="MO1" portType="MateralPort" direction="Outlet">
+            <dexpi:data property="Identifier">MO1-port</dexpi:data>
+          </dexpi:port>
+        </dexpi:element>
+      </extensionElements>
+    </task>
+  </process>
+</definitions>`;
+    const failures = validateBpmnExtensionElements(bpmn, 'port-typo-discriminator-test', BASE_REGISTRY);
+    const structural = failures.find(f => f.propertyName === '(unknown portType)');
+    expect(structural, formatFailures(failures)).toBeDefined();
+    expect(structural!.context).toContain('MateralPort');
+    expect(structural!.context).toContain('not a registered class');
   });
 });

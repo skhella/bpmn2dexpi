@@ -246,7 +246,7 @@ export function generateProfileFromDexpiXml(
   // DEXPI's declarations. Returns warnings the caller can surface.
   const generatorWarnings: string[] = [];
   if (options.bpmnXml) {
-    const requiredFlags = collectRequiredFlagsFromBpmn(options.bpmnXml);
+    const requiredFlags = collectRequiredFlagsFromBpmn(options.bpmnXml, generatorWarnings);
     if (requiredFlags.size > 0) {
       applyRequiredFlagsToCardinalities(
         requiredFlags,
@@ -783,7 +783,10 @@ function streamTypeToDexpiClassName(streamType: string | null): string {
  * any required-flag in that legacy shape was already invisible elsewhere
  * and would not round-trip into DEXPI export anyway.
  */
-function collectRequiredFlagsFromBpmn(bpmnXml: string): Map<string, Set<string>> {
+function collectRequiredFlagsFromBpmn(
+  bpmnXml: string,
+  warnings: string[],
+): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
   const parser = new DOMParser();
   const doc = parser.parseFromString(bpmnXml, 'text/xml');
@@ -845,11 +848,26 @@ function collectRequiredFlagsFromBpmn(bpmnXml: string): Map<string, Set<string>>
 
     if (ln === 'port') {
       // portType on the port element identifies the wrapping class
-      // (MaterialPort, ThermalEnergyPort, …). Falling back to the abstract
-      // `Port` would lose discrimination between port subclasses; skip
-      // ports without a portType rather than over-narrow.
-      const className = el.getAttribute('portType');
-      if (!className) continue;
+      // (MaterialPort, ThermalEnergyPort, …). When portType is absent
+      // we default to MaterialPort — same convention the rest of the
+      // codebase uses (UI addPort, legacy migration, transformer
+      // port reader). Read the discriminator with the same fallback
+      // chain the transformer uses (`portType` first, legacy `type`
+      // attr second) so this generator stays aligned with the
+      // transformer's view of port classes. The warning surfaces in
+      // the generator's warnings list so the user knows the default
+      // was applied; the required-flag scan still runs against
+      // MaterialPort, so authored overrides on these ports do reach
+      // the generated Profile.
+      const portType = el.getAttribute('portType') || el.getAttribute('type');
+      const portIdLabel = el.getAttribute('portId') || el.getAttribute('id') || el.getAttribute('name') || '(unnamed)';
+      const className = portType || 'MaterialPort';
+      if (!portType) {
+        warnings.push(
+          `Port "${portIdLabel}" is missing portType — defaulted to MaterialPort for required-flag scan. ` +
+          `Set portType explicitly on the port to remove this warning.`,
+        );
+      }
       scanRequiredCarriers(el, className);
       continue;
     }

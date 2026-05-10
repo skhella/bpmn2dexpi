@@ -481,13 +481,54 @@ function walkRichElement(
     // names get the same strict-mode coverage ProcessStep + Stream
     // attributes do. The registry walks supertypes through Port →
     // Core/ConceptualObject so PersistentIdentifiers / Identifier /
-    // Label resolve naturally. Ports without a portType (defensive: e.g.
-    // legacy fixtures) skip validation rather than over-report.
+    // Label resolve naturally.
+    //
+    // Missing-portType handling: the rest of the codebase (UI addPort,
+    // legacy migration, transformer port reader) already defaults to
+    // 'MaterialPort' when portType is absent (see
+    // BpmnToDexpiTransformer.ts:1662 + DexpiPropertiesPanel.ts:863). We
+    // align with that convention here — default to MaterialPort, run
+    // property-name validation against it, AND emit a structural
+    // PropertyFailure noting the default was applied so the user sees
+    // it in strict-mode warnings. Surfacing the warning rather than
+    // skipping (or hard-failing) matches DEXPI 2.0's permissive
+    // philosophy: still produce output, just inform the author.
     if (inDexpiNs && ll === 'port') {
-      const portType = child.getAttribute('portType');
-      if (portType && registry.isValidClass(portType)) {
-        walkRichElement(child, portType, source, registry, failures);
+      // Read the port-class discriminator the same way the transformer
+      // does (BpmnToDexpiTransformer.ts:1662): prefer the canonical
+      // `portType` attr, fall back to legacy `type` for fixtures saved
+      // before the rename. Keeps validator + transformer aligned on the
+      // same attribute lookup chain.
+      const portType = child.getAttribute('portType') || child.getAttribute('type');
+      const portIdLabel = child.getAttribute('portId') || child.getAttribute('id') || child.getAttribute('name') || '(unnamed)';
+      const effectivePortType = portType && registry.isValidClass(portType)
+        ? portType
+        : 'MaterialPort';
+      if (!portType) {
+        // Structural warning — emitted as a PropertyFailure so it
+        // surfaces in the same strict-mode failures list. Distinguished
+        // by the "(missing portType)" propertyName + an explanatory
+        // context. The walker still runs against the MaterialPort
+        // default below, so any property-name typos on this port are
+        // caught against MaterialPort rather than going unvalidated.
+        failures.push({
+          source,
+          className: 'Port',
+          propertyName: '(missing portType)',
+          context: `<dexpi:port portId="${portIdLabel}"> is missing portType — defaulting to MaterialPort for property-name validation. Set portType explicitly to remove this warning.`,
+        });
+      } else if (!registry.isValidClass(portType)) {
+        // portType is present but the value isn't a registered class.
+        // Distinct warning so the user sees the typo'd discriminator
+        // separately from the missing-discriminator case.
+        failures.push({
+          source,
+          className: 'Port',
+          propertyName: '(unknown portType)',
+          context: `<dexpi:port portId="${portIdLabel}" portType="${portType}"> — portType "${portType}" is not a registered class; defaulting to MaterialPort for property-name validation.`,
+        });
       }
+      walkRichElement(child, effectivePortType, source, registry, failures);
       continue;
     }
 
