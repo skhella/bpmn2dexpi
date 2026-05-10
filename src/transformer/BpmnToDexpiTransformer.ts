@@ -1470,14 +1470,14 @@ export class BpmnToDexpiTransformer {
         if (propertyName === 'Identifier' || propertyName === 'Label') continue;
         const value = (child.textContent ?? '').trim();
         if (!value) continue;
+        // Flat <dexpi:data> carriers are plain DataProperty values — no
+        // measurement metadata. See ProcessStep flat-data reader for the
+        // same rationale; consistent across Stream / ProcessStep so the
+        // schema-driven dispatcher's heuristic stays accurate.
         attributes.push({
           name: propertyName,
           value,
           unit: '',
-          scope: 'Design',
-          range: 'Nominal',
-          provenance: 'Calculated',
-          qualifier: 'Average',
         });
         continue;
       }
@@ -1610,13 +1610,18 @@ export class BpmnToDexpiTransformer {
         if (propertyName === 'HierarchyLevel' || propertyName === 'Identifier' || propertyName === 'Label') continue;
         const value = (child.textContent ?? '').trim();
         if (!value) continue;
+        // Flat <dexpi:data> carriers are plain DataProperty values — no
+        // measurement metadata. Leaving scope / range / provenance unset
+        // (rather than defaulting to Design / Nominal / Calculated) keeps
+        // the schema-driven kind dispatcher's metadata-presence fallback
+        // accurate: an attribute with no authored measurement metadata
+        // dispatches to the flat Data carrier, not the QualifiedValue
+        // composition shape. Defaults belong on <dexpi:components> reads
+        // where the QualifiedValue Object actually carries those props.
         attributes.push({
           name: propertyName,
           value,
           unit: '',
-          scope: 'Design',
-          range: 'Nominal',
-          provenance: 'Calculated',
           required: undefined,
         });
         continue;
@@ -2179,20 +2184,10 @@ export class BpmnToDexpiTransformer {
           // is the port's portType, which inherits from Core/ConceptualObject
           // so PersistentIdentifiers / Identifier / Label all work.
           if (port.attributes && port.attributes.length > 0) {
-            const portClassName = port.portType;
-            const portDeclaredKindByName = new Map<string, 'data' | 'composition' | 'reference'>();
-            if (this.registry.isValidClass(portClassName)) {
-              for (const p of this.registry.getProperties(portClassName)) {
-                portDeclaredKindByName.set(p.name, p.kind);
-              }
-            }
-            const resolvePortAttrKind = (attr: { name: string; unit?: string; unitUri?: string; nameUri?: string; scope?: string; range?: string; provenance?: string; qualifier?: string }): 'data' | 'composition' => {
-              const declared = portDeclaredKindByName.get(attr.name);
-              if (declared === 'composition') return 'composition';
-              if (declared === 'data' || declared === 'reference') return 'data';
-              return (attr.unit || attr.unitUri || attr.nameUri ||
-                      attr.scope || attr.range || attr.provenance || attr.qualifier) ? 'composition' : 'data';
-            };
+            // Schema-driven kind dispatch + canonical QualifiedValue carrier
+            // emit, both shared with ProcessStep / Stream emit paths through
+            // the helper functions on this class.
+            const resolvePortAttrKind = this.resolveAttrKindFn(port.portType);
             for (const attr of port.attributes) {
               if (!attr.name || !attr.value) continue;
               if (resolvePortAttrKind(attr) === 'data') {
@@ -2202,34 +2197,10 @@ export class BpmnToDexpiTransformer {
                 });
                 continue;
               }
-              // Composition: QualifiedValue Object inside Components carrier.
               if (!portObject.Components) portObject.Components = [];
-              const qvData: Record<string, unknown>[] = [
-                {
-                  '$': { 'property': 'Value' },
-                  'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
-                  'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined,
-                },
-                {
-                  '$': { 'property': 'DisplayText' },
-                  'String': attr.unit ? `${attr.value} ${attr.unit}`.trim() : attr.value,
-                },
-              ];
-              if (attr.unit) qvData.push({ '$': { 'property': 'Unit' }, 'String': attr.unit });
-              if (attr.unitUri) qvData.push({ '$': { 'property': 'UnitReference' }, 'String': attr.unitUri });
-              if (attr.scope) qvData.push({ '$': { 'property': 'Scope' }, 'String': attr.scope });
-              if (attr.range) qvData.push({ '$': { 'property': 'Range' }, 'String': attr.range });
-              if (attr.provenance) qvData.push({ '$': { 'property': 'Provenance' }, 'String': attr.provenance });
-              const qvObj: Record<string, unknown> = { '$': { 'type': 'Core/QualifiedValue' }, 'Data': qvData };
-              if (attr.nameUri) {
-                qvObj.References = [{
-                  '$': { 'property': 'QuantityKindReference', 'objects': attr.nameUri },
-                }];
-              }
-              (portObject.Components as Record<string, unknown>[]).push({
-                '$': { 'property': attr.name },
-                'Object': [qvObj],
-              });
+              (portObject.Components as Record<string, unknown>[]).push(
+                this.buildQualifiedValueComponentsCarrier(attr),
+              );
             }
           }
 
@@ -2337,120 +2308,30 @@ export class BpmnToDexpiTransformer {
         }
       }
 
-      // Add ProcessStep Attributes (with Range, Provenance per DEXPI 2.0 QualifiedValue)
-      // Use Object with type="Core/QualifiedValue" per DEXPI 2.0 schema.
-      //
-      // Kind dispatch (DataProperty vs CompositionProperty) is schema-driven:
-      // we look up `attr.name` in the registry's declared properties for
-      // this step's class. Schema-data → flat <Data> child; schema-
-      // composition → QualifiedValue Object wrapping. For project-extension
-      // attribute names the registry doesn't declare, we fall back to a
-      // presence heuristic (any unit / URI / scope-range-provenance metadata
-      // implies the author intended a measurement carrier). The heuristic
-      // only fires on unknown names; schema-declared dispatch is primary.
-      const declaredKindByName = new Map<string, 'data' | 'composition' | 'reference'>();
-      if (this.registry.isValidClass(step.type)) {
-        for (const p of this.registry.getProperties(step.type)) {
-          declaredKindByName.set(p.name, p.kind);
-        }
-      }
-      const resolveAttrKind = (attr: { name: string; unit?: string; unitUri?: string; nameUri?: string; scope?: string; range?: string; provenance?: string }): 'data' | 'composition' => {
-        const declared = declaredKindByName.get(attr.name);
-        if (declared === 'composition') return 'composition';
-        if (declared === 'data' || declared === 'reference') return 'data';
-        return (attr.unit || attr.unitUri || attr.nameUri ||
-                attr.scope || attr.range || attr.provenance) ? 'composition' : 'data';
-      };
+      // Add ProcessStep Attributes — Components carrier wrapping a
+      // QualifiedValue Object per DEXPI 2.0. Kind dispatch + carrier emit
+      // shared with Stream / Port through helpers on this class. Note: the
+      // pre-consolidation ProcessStep emit nested Value inside a
+      // PhysicalQuantity AggregatedDataType wrapper; the consolidation
+      // unifies on the flat QualifiedValue shape (Value as a direct
+      // sibling of Unit / DisplayText) which strict-mode + the
+      // PhysicalQuantity.Type-binding inlining accept identically and
+      // which the Stream / Port emit paths have used since #36 / #38.
+      const resolveAttrKind = this.resolveAttrKindFn(step.type);
 
       if (step.attributes && step.attributes.length > 0) {
         step.attributes.forEach((attr) => {
           if (!attr.name || !attr.value) return;
 
           if (resolveAttrKind(attr) === 'composition') {
-            if (!dexpiStep.Object) {
-              dexpiStep.Object = [];
-            }
-
-            // DisplayText is required (lower=1) on QualifiedValue. We
-            // derive it deterministically from the inputs we already have:
-            // "<value> <unit>" trimmed when a unit is present, else just
-            // "<value>". This is the obvious canonical rendering of a
-            // physical quantity for human consumption — no name guessing,
-            // no fuzzy formatting heuristic. Schema-driven dispatch above
-            // can route a unit-less measurement attribute into this branch
-            // (e.g. a CompositionProperty whose unit hasn't been authored
-            // yet), so the unit-related children are conditional.
-            const displayText = attr.unit ? `${attr.value} ${attr.unit}`.trim() : attr.value;
-            const innerValueData: Record<string, unknown>[] = [
-              {
-                '$': { 'property': 'Value' },
-                'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
-                'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined,
-              },
-            ];
-            if (attr.unit) {
-              innerValueData.push({
-                '$': { 'property': 'Unit' },
-                'String': attr.unit,
-              });
-            }
-            const qualifiedValueObject: Record<string, unknown> = {
-              '$': {
-                'property': attr.name,
-                'type': 'Core/QualifiedValue'
-              },
-              'Data': [
-                {
-                  '$': { 'property': 'Value' },
-                  'PhysicalQuantity': { 'Data': innerValueData },
-                },
-                {
-                  '$': { 'property': 'DisplayText' },
-                  'String': displayText,
-                }
-              ]
-            };
-
-            // unitUri — links unit to standard unit ontology (e.g. QUDT)
-            if (attr.unitUri) {
-              (qualifiedValueObject['Data'] as Record<string, unknown>[]).push({
-                '$': { 'property': 'UnitReference' }, 'String': attr.unitUri
-              });
-            }
-
-            // nameUri — links attribute name to quantity kind (e.g. QUDT, ISO 15926)
-            if (attr.nameUri) {
-              qualifiedValueObject['References'] = [{
-                '$': { 'property': 'QuantityKindReference', 'objects': attr.nameUri }
-              }];
-            }
-
-            // Add Provenance at QualifiedValue level
-            if (attr.provenance) {
-              (qualifiedValueObject.Data as Record<string, unknown>[]).push({
-                '$': { 'property': 'Provenance' },
-                'String': attr.provenance
-              });
-            }
-
-            // Add Range at QualifiedValue level
-            if (attr.range) {
-              (qualifiedValueObject.Data as Record<string, unknown>[]).push({
-                '$': { 'property': 'Range' },
-                'String': attr.range
-              });
-            }
-
-            // Scope is available in DEXPI 2.0 but not typically used on QualifiedValue
-
-            (dexpiStep.Object as Record<string, unknown>[]).push(qualifiedValueObject);
+            if (!dexpiStep.Components) dexpiStep.Components = [];
+            (dexpiStep.Components as Record<string, unknown>[]).push(
+              this.buildQualifiedValueComponentsCarrier(attr),
+            );
           } else {
-            // Simple string value - add to Data
             (dexpiStep.Data as Record<string, unknown>[]).push({
-              '$': {
-                'property': attr.name
-              },
-              'String': attr.value
+              '$': { 'property': attr.name },
+              'String': attr.value,
             });
           }
         });
@@ -2683,102 +2564,26 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add all stream attributes as QualifiedValue Objects per DEXPI 2.0 schema
-      // Per XSD: Object has no 'property' attr — use Components property="attrName" containing the Object
-      //
-      // Kind dispatch (DataProperty vs CompositionProperty) is schema-driven:
-      // attribute names are looked up in the registry's declared properties
-      // for the resolved Stream class (via streamTypeToDexpiClass). Schema-
-      // data → flat <Data> child; schema-composition → QualifiedValue inside
-      // Components. Project-extension names the registry doesn't declare
-      // fall back to a metadata-presence heuristic; same convention as the
-      // ProcessStep emit path keeps the two unified.
-      const streamClassNameForKind = this.streamTypeToDexpiClass(stream.streamType);
-      const streamDeclaredKindByName = new Map<string, 'data' | 'composition' | 'reference'>();
-      if (this.registry.isValidClass(streamClassNameForKind)) {
-        for (const p of this.registry.getProperties(streamClassNameForKind)) {
-          streamDeclaredKindByName.set(p.name, p.kind);
-        }
-      }
-      const resolveStreamAttrKind = (attr: { name: string; unit?: string; unitUri?: string; nameUri?: string; scope?: string; range?: string; provenance?: string; qualifier?: string }): 'data' | 'composition' => {
-        const declared = streamDeclaredKindByName.get(attr.name);
-        if (declared === 'composition') return 'composition';
-        if (declared === 'data' || declared === 'reference') return 'data';
-        return (attr.unit || attr.unitUri || attr.nameUri ||
-                attr.scope || attr.range || attr.provenance || attr.qualifier) ? 'composition' : 'data';
-      };
+      // Add all stream attributes as QualifiedValue Objects per DEXPI 2.0 schema.
+      // Per XSD: Object has no 'property' attr — use Components property="attrName"
+      // containing the Object. Kind dispatch + carrier emit shared with
+      // ProcessStep / Port through helpers on this class.
+      const resolveStreamAttrKind = this.resolveAttrKindFn(this.streamTypeToDexpiClass(stream.streamType));
 
       if (stream.attributes && stream.attributes.length > 0) {
         stream.attributes.forEach((attr) => {
           if (!attr.name || !attr.value) return;
 
           if (resolveStreamAttrKind(attr) === 'composition') {
-            if (!dexpiStream.Components) {
-              dexpiStream.Components = [];
-            }
-
-            // Schema-driven dispatch can route a unit-less measurement attr
-            // into this branch (e.g. a CompositionProperty whose unit hasn't
-            // been authored yet); the unit-related children are conditional.
-            const qualifiedValueData: Record<string, unknown>[] = [
-              {
-                '$': { 'property': 'Value' },
-                'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
-                'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined
-              },
-              // DisplayText (lower=1) derived deterministically from inputs;
-              // falls back to just value when no unit is authored.
-              {
-                '$': { 'property': 'DisplayText' },
-                'String': attr.unit ? `${attr.value} ${attr.unit}`.trim() : attr.value,
-              }
-            ];
-            if (attr.unit) {
-              qualifiedValueData.push({
-                '$': { 'property': 'Unit' },
-                'String': attr.unit,
-              });
-            }
-
-            // unitUri — links the unit string to a standard unit ontology (e.g. QUDT)
-            if (attr.unitUri) {
-              qualifiedValueData.push({ '$': { 'property': 'UnitReference' }, 'String': attr.unitUri });
-            }
-
-            if (attr.provenance) {
-              qualifiedValueData.push({ '$': { 'property': 'Provenance' }, 'String': attr.provenance });
-            }
-            if (attr.range) {
-              qualifiedValueData.push({ '$': { 'property': 'Range' }, 'String': attr.range });
-            }
-
-            const componentEntry: Record<string, unknown> = {
-              '$': { 'property': attr.name },
-              'Object': [{
-                '$': { 'type': 'Core/QualifiedValue' },
-                'Data': qualifiedValueData
-              }]
-            };
-
-            // nameUri — links the attribute name to a standard quantity kind (e.g. QUDT, ISO 15926)
-            if (attr.nameUri) {
-              (componentEntry['Object'] as Record<string, unknown>[])[0]['References'] = [{
-                '$': { 'property': 'QuantityKindReference', 'objects': attr.nameUri }
-              }];
-            }
-
-            (dexpiStream.Components as Record<string, unknown>[]).push(componentEntry);
+            if (!dexpiStream.Components) dexpiStream.Components = [];
+            (dexpiStream.Components as Record<string, unknown>[]).push(
+              this.buildQualifiedValueComponentsCarrier(attr),
+            );
           } else {
-            // Simple string value - add to Data
-            const dataEntry: Record<string, unknown> = {
+            (dexpiStream.Data as Record<string, unknown>[]).push({
               '$': { 'property': attr.name },
-              'String': attr.value
-            };
-            // nameUri still applicable for non-unit attributes
-            if (attr.nameUri) {
-              dataEntry['nameUri'] = attr.nameUri;
-            }
-            (dexpiStream.Data as Record<string, unknown>[]).push(dataEntry);
+              'String': attr.value,
+            });
           }
         });
       }
@@ -3544,6 +3349,121 @@ export class BpmnToDexpiTransformer {
       cur = cur.parentNode as Element | null;
     }
     return null;
+  }
+
+  /**
+   * Build a `<Components property="X"><Object type="Core/QualifiedValue">…
+   * </Object></Components>` carrier for a single canonical-extension
+   * measurement attribute (Value + optional Unit / UnitReference / Scope /
+   * Range / Provenance / QuantityKindReference).
+   *
+   * Single source of truth for ProcessStep / Stream / Port composition emit.
+   * Before consolidation each site had its own near-duplicate inline block;
+   * the QuantityKindReference encoding alone appeared verbatim in three
+   * places. Going forward all three call this helper.
+   *
+   * Shape rules (no heuristics, no hardcoded class knowledge):
+   *   - Value goes in as-is. Numeric values get a `Double` slot, non-
+   *     numeric values fall back to `String` — this is the xml2js record
+   *     convention the rest of the emit path uses.
+   *   - DisplayText (lower=1 on Core/QualifiedValue) is derived
+   *     deterministically from `value + unit` when unit is present, else
+   *     just `value`. No format inference.
+   *   - Unit / UnitReference / Scope / Range / Provenance Data children
+   *     are emitted only when the corresponding attribute field is set.
+   *     Schema-driven dispatch upstream may route a unit-less measurement
+   *     attribute into this carrier (e.g. a CompositionProperty whose
+   *     unit hasn't been authored yet); the unit-related children stay
+   *     conditional rather than forcing empty placeholders.
+   *   - QuantityKindReference is the canonical-extension URI carrier on
+   *     the QV Object's References slot; emitted only when nameUri is
+   *     set. UnitReference is the parallel Data-child URI carrier for
+   *     the unit ontology link.
+   */
+  private buildQualifiedValueComponentsCarrier(attr: {
+    name: string;
+    value: string;
+    unit?: string;
+    unitUri?: string;
+    nameUri?: string;
+    scope?: string;
+    range?: string;
+    provenance?: string;
+  }): Record<string, unknown> {
+    const qvData: Record<string, unknown>[] = [
+      {
+        '$': { 'property': 'Value' },
+        'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
+        'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined,
+      },
+      {
+        '$': { 'property': 'DisplayText' },
+        'String': attr.unit ? `${attr.value} ${attr.unit}`.trim() : attr.value,
+      },
+    ];
+    if (attr.unit) qvData.push({ '$': { 'property': 'Unit' }, 'String': attr.unit });
+    if (attr.unitUri) qvData.push({ '$': { 'property': 'UnitReference' }, 'String': attr.unitUri });
+    if (attr.scope) qvData.push({ '$': { 'property': 'Scope' }, 'String': attr.scope });
+    if (attr.range) qvData.push({ '$': { 'property': 'Range' }, 'String': attr.range });
+    if (attr.provenance) qvData.push({ '$': { 'property': 'Provenance' }, 'String': attr.provenance });
+
+    const qvObject: Record<string, unknown> = {
+      '$': { 'type': 'Core/QualifiedValue' },
+      'Data': qvData,
+    };
+    if (attr.nameUri) {
+      qvObject.References = [{
+        '$': { 'property': 'QuantityKindReference', 'objects': attr.nameUri },
+      }];
+    }
+
+    return {
+      '$': { 'property': attr.name },
+      'Object': [qvObject],
+    };
+  }
+
+  /**
+   * Build the schema-driven attribute-kind dispatcher for a wrapping
+   * class. Returns a function that takes an attribute and returns
+   * 'data' or 'composition' based on:
+   *   1. Registry's declared kind for the attribute's name on the
+   *      wrapping class (primary path; covers schema-known properties).
+   *   2. Metadata-presence fallback when the property name isn't in the
+   *      schema — any unit / URI / scope / range / provenance / qualifier
+   *      present implies the author intended a measurement carrier.
+   *
+   * Single source of truth for the dispatcher previously duplicated
+   * across ProcessStep / Stream / Port emit. Schema-known property names
+   * always dispatch by their declared kind; the heuristic is a fallback
+   * for project-extension names the registry doesn't declare. Profile
+   * authors that want tight dispatch on custom names should declare them
+   * in a Profile XML and re-run with strict mode.
+   */
+  private resolveAttrKindFn(className: string): (attr: {
+    name: string;
+    unit?: string;
+    unitUri?: string;
+    nameUri?: string;
+    scope?: string;
+    range?: string;
+    provenance?: string;
+    qualifier?: string;
+  }) => 'data' | 'composition' {
+    const declaredKindByName = new Map<string, 'data' | 'composition' | 'reference'>();
+    if (this.registry.isValidClass(className)) {
+      for (const p of this.registry.getProperties(className)) {
+        declaredKindByName.set(p.name, p.kind);
+      }
+    }
+    return (attr) => {
+      const declared = declaredKindByName.get(attr.name);
+      if (declared === 'composition') return 'composition';
+      if (declared === 'data' || declared === 'reference') return 'data';
+      return (attr.unit || attr.unitUri || attr.nameUri ||
+              attr.scope || attr.range || attr.provenance || attr.qualifier)
+        ? 'composition' : 'data';
+    };
   }
 }
 
