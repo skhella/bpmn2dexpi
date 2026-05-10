@@ -196,6 +196,11 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
 
   useEffect(() => {
     if (!element) return;
+    // Sync draft state from the newly selected element. Same pattern as
+    // DexpiPropertiesPanel / StreamPropertiesPanel — load-from-businessObject
+    // happens once per selection, then the user's edits drive subsequent
+    // setDraft calls in writeDraft.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(extractDraftFromBusinessObject(element.businessObject));
   }, [element]);
 
@@ -221,15 +226,14 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
 
     let extensionElements = businessObject.extensionElements;
     if (!extensionElements) extensionElements = moddle.create('bpmn:ExtensionElements');
-    if (!extensionElements.values) extensionElements.values = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existing: any[] = extensionElements.values || [];
 
     // Drop any existing dexpi:Components carriers (we own them on this element)
     // and re-emit a single canonical one. dexpi:Element / other annotations
     // (rare on a dataObjectReference, but possible) are preserved.
-    extensionElements.values = extensionElements.values.filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (v: any) => v?.$type !== 'dexpi:Components',
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nextValues: any[] = existing.filter((v: any) => v?.$type !== 'dexpi:Components');
 
     if (next.property) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,8 +254,10 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
         property: next.property,
         objects: [qvObject],
       });
-      extensionElements.values.push(carrier);
+      nextValues.push(carrier);
     }
+
+    extensionElements = moddle.create('bpmn:ExtensionElements', { values: nextValues });
 
     // Keep the BPMN-side `name=` in sync with the property identity for
     // diagram readability (DEXPI Process representation in BPMN: the data
