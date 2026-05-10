@@ -127,7 +127,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Temperature">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -329,7 +329,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="RotationalFrequency">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -388,7 +388,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="MassFlow">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -399,7 +399,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Composition">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -410,7 +410,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Temperature">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -421,7 +421,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Level">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -432,7 +432,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Pressure">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -638,7 +638,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Temperature">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -649,7 +649,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Level">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -660,7 +660,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Pressure">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -671,7 +671,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Flow">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -690,7 +690,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="MassFlow">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -977,7 +977,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Temperature">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -988,7 +988,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Level">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -999,7 +999,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Flow">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -1010,7 +1010,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Composition">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -1156,7 +1156,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Duty">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -1167,7 +1167,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Flow">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>
@@ -1262,7 +1262,7 @@
           <bpmn:extensionElements>
             <dexpi:components property="Temperature">
               <dexpi:object type="Core/QualifiedValue">
-                <dexpi:data property="Provenance">Measured</dexpi:data>
+                <dexpi:data property="Provenance">Observed</dexpi:data>
                 <dexpi:data property="Range">Nominal</dexpi:data>
               </dexpi:object>
             </dexpi:components>

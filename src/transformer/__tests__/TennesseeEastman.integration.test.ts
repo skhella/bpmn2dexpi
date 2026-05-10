@@ -137,12 +137,13 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     // of references — one per BPMN dataObject mediating an instrumentation
     // flow. Slot ids are sanitised dataObjectReference ids
     // (e.g. "DataObjectReference_1en8e3c") — round-trippable, unique by
-    // construction. Provenance="Measured" is populated from the BPMN-side
-    // canonical authoring on every entry.
+    // construction. Provenance="Observed" is populated from the BPMN-side
+    // canonical authoring on every entry — the canonical Core/QuantityProvenance
+    // literal for instrument-derived values (Core.xml line 64).
     const qvSlotCount = countMatches(/<Object id="DataObjectReference_[^"]+" type="Core\/QualifiedValue"/g);
     expect(qvSlotCount).toBe(19);
-    const measuredCount = countMatches(/Core\/Enumerations\.Provenance\.Measured/g);
-    expect(measuredCount).toBe(19);
+    const observedCount = countMatches(/Core\/Enumerations\.Provenance\.Observed/g);
+    expect(observedCount).toBe(19);
   });
 
   it('logs no unannotated warnings for fully-annotated TEP (R1-C3)', () => {
