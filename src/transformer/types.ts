@@ -33,21 +33,53 @@ export interface InternalProcessStep {
    */
   processStepRef?: string;       // → ProcessStep (the measured / controlled step)
   measuredVariable?: string;     // variable identity (e.g. "Temperature", "Pressure")
+  /**
+   * BPMN dataObjectReference id of the DataObject mediating the measurement.
+   * Used at emit time as the stable id for both the QualifiedValue parameter
+   * slot on the connected ProcessStep and the MeasuredVariableReference target
+   * pointing at it. One InstrumentationActivity ↔ one BPMN DataObject ↔ one
+   * QualifiedValue, so a single id captures the full link.
+   */
+  measuredVariableSourceId?: string;
 
   /**
    * For ProcessSteps only.
-   * Set of measured-variable names that downstream InstrumentationActivities reference
-   * via this step's QualifiedValue parameter slots. On emission, each entry triggers
-   * a <Components property="<VarName>"> carrier wrapping a Core/QualifiedValue Object
-   * with id `<step_uid>_<VarName>` — the target of MeasuredVariableReference per
-   * DEXPI 2.0 Spec PDF p.900: "The measured variable is identified by reference
-   * to a parameter in any process step or port." Canonical names (Temperature,
-   * Pressure, AmbientTemperature, AmbientPressure) align with ProcessStep's declared
-   * composition properties; non-canonical names (Level, MassFlow, RotationalFrequency,
-   * Composition, Duty, ...) are emitted as Profile-extension parameter slots and
-   * surfaced by strict-mode for the Profile generator.
+   * One entry per BPMN DataObject mediating an instrumentation flow into this
+   * step. On emission each entry triggers a <Components property="<VarName>">
+   * carrier wrapping a Core/QualifiedValue Object whose id derives from the
+   * source dataObjectReference id — the stable target of MeasuredVariableReference
+   * per DEXPI 2.0 Spec PDF p.900: "The measured variable is identified by reference
+   * to a parameter in any process step or port." The Object's Data children are
+   * populated from the BPMN-side <dexpi:components property="X"><dexpi:object
+   * type="Core/QualifiedValue">…</dexpi:object></dexpi:components> authored on
+   * the dataObjectReference's extensionElements; missing fields fall back to
+   * <Undefined/> placeholders. Canonical variable names (Temperature, Pressure,
+   * Level, MassFlow, ...) match a CompositionProperty declared on the step's
+   * class; non-canonical names emit Components on the step too — the Profile
+   * generator declares them as CompositionProperty extensions on the step's
+   * class so the resulting XML is fully validatable end-to-end.
    */
-  measuredParameters?: Set<string>;
+  measuredParameters?: Array<{
+    varName: string;
+    /** BPMN dataObjectReference id (stable, round-trippable). */
+    dataObjectId: string;
+    /** Extracted from the dataObjectReference's extensionElements. May be empty. */
+    qv?: QualifiedValueData;
+  }>;
+}
+
+/**
+ * Subset of Core/QualifiedValue Data properties extracted from a BPMN-side
+ * canonical <dexpi:object type="Core/QualifiedValue"> carrier on a
+ * dataObjectReference. All fields optional; the user may have authored only
+ * some (e.g. only Provenance + Range with no measurement value yet).
+ */
+export interface QualifiedValueData {
+  provenance?: string;
+  range?: string;
+  value?: string;
+  unit?: string;
+  displayText?: string;
 }
 
 // ── Port record (enriched with step back-reference) ──────────────────────────

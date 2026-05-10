@@ -100,8 +100,11 @@ describe('Strict mode — all five post-XSD tiers wired', () => {
     );
     expect(summaryWarning).toBeDefined();
     // Property-name + kind is the remaining tier with findings on TEP
-    // (Profile-extension territory — custom property names like
-    // `MeasuredVariableLabel` and `MoleFlow` not declared in DEXPI 2.0).
+    // (Profile-extension territory — non-canonical CompositionProperty names
+    // like Level, MassFlow, Composition, Duty etc. emitted on ProcessStep
+    // classes that don't declare them in Process.xml; non-canonical
+    // ProcessStepReference/MeasuredVariableReference on
+    // ControllingProcessVariable; the Profile generator declares them all).
     // Cardinality, reference target-class and data-type are all clean.
     expect(summaryWarning).toContain('property-name + kind');
     expect(summaryWarning).not.toContain('cardinality');

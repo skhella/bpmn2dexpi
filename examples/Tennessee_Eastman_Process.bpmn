@@ -125,12 +125,14 @@
         </bpmn:task>
         <bpmn:dataObjectReference id="DataObjectReference_1hkzsql" name="Temperature" dataObjectRef="DataObject_1mlaa5n">
           <bpmn:extensionElements>
-            <QualifiedValue Provenance="Estimated" Range="Nominal">
-              <Value />
-              <Unit />
-            </QualifiedValue>
+            <dexpi:components property="Temperature">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
           </bpmn:extensionElements>
-        </bpmn:dataObjectReference>
+</bpmn:dataObjectReference>
         <bpmn:dataObject id="DataObject_1mlaa5n" />
       </bpmn:subProcess>
       <bpmn:startEvent id="Event_15gcv4n" name="MI5">
@@ -324,13 +326,15 @@
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:dataObjectReference id="DataObjectReference_1en8e3c" name="RotationalFrequency" dataObjectRef="DataObject_1g16uwy">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="RotationalFrequency">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1g16uwy" />
       <bpmn:startEvent id="Event_01fem2h" name="EEI1">
         <bpmn:extensionElements>
@@ -381,49 +385,59 @@
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:dataObjectReference id="DataObjectReference_0nl1j2n" name="MassFlow" dataObjectRef="DataObject_1bgb0nr">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="MassFlow">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1bgb0nr" />
       <bpmn:dataObjectReference id="DataObjectReference_10911pm" name="Composition" dataObjectRef="DataObject_0bx1zzj">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Composition">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0bx1zzj" />
       <bpmn:dataObjectReference id="DataObjectReference_1tuga5x" name="Temperature" dataObjectRef="DataObject_1c2qezm">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Temperature">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1c2qezm" />
       <bpmn:dataObjectReference id="DataObjectReference_0yc0qz3" name="Level" dataObjectRef="DataObject_004040c">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Level">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_004040c" />
       <bpmn:dataObjectReference id="DataObjectReference_06451do" name="Pressure" dataObjectRef="DataObject_0onczzy">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Pressure">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0onczzy" />
     </bpmn:subProcess>
     <bpmn:subProcess id="Activity_148nxrl" name="Separating">
@@ -621,40 +635,48 @@
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:dataObjectReference id="DataObjectReference_17j9mpn" name="Temperature" dataObjectRef="DataObject_18lyf9j">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Temperature">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_18lyf9j" />
       <bpmn:dataObjectReference id="DataObjectReference_1hdlnkz" name="Level" dataObjectRef="DataObject_1iz0sb2">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Level">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1iz0sb2" />
       <bpmn:dataObjectReference id="DataObjectReference_062zdx6" name="Pressure" dataObjectRef="DataObject_024kdr8">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Pressure">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_024kdr8" />
       <bpmn:dataObjectReference id="DataObjectReference_0bgjkij" name="Flow" dataObjectRef="DataObject_1kedu24">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Flow">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_1kedu24" />
       <bpmn:task id="Activity_0o7v7ax" name="MeasuringProcessVariable">
         <bpmn:extensionElements>
@@ -665,13 +687,15 @@
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:dataObjectReference id="DataObjectReference_1tv2egy" name="MassFlow" dataObjectRef="DataObject_0ttu44a">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="MassFlow">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0ttu44a" />
     </bpmn:subProcess>
     <bpmn:subProcess id="Activity_1h23lzf" name="StrippingDistilling">
@@ -950,40 +974,48 @@
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:dataObjectReference id="DataObjectReference_0mlmmqg" name="Temperature" dataObjectRef="DataObject_0hum65i">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Temperature">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0hum65i" />
       <bpmn:dataObjectReference id="DataObjectReference_1kiv6wz" name="Level" dataObjectRef="DataObject_0pe0tra">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Level">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0pe0tra" />
       <bpmn:dataObjectReference id="DataObjectReference_0yrw4gr" name="Flow" dataObjectRef="DataObject_0a5vvm0">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Flow">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0a5vvm0" />
       <bpmn:dataObjectReference id="DataObjectReference_1vk8nhv" name="Composition" dataObjectRef="DataObject_03oo3c1">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Composition">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_03oo3c1" />
     </bpmn:subProcess>
     <bpmn:subProcess id="Activity_0yezzw8" name="Compressing">
@@ -1121,22 +1153,26 @@
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:dataObjectReference id="DataObjectReference_1423urb" name="Duty" dataObjectRef="DataObject_0qoy00a">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Duty">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0qoy00a" />
       <bpmn:dataObjectReference id="DataObjectReference_07pbeoh" name="Flow" dataObjectRef="DataObject_0jroxws">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Flow">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0jroxws" />
       <bpmn:startEvent id="Event_1mp0d4h" name="EEI1">
         <bpmn:extensionElements>
@@ -1223,13 +1259,15 @@
         </bpmn:dataOutputAssociation>
       </bpmn:task>
       <bpmn:dataObjectReference id="DataObjectReference_0gzlyr5" name="Temperature" dataObjectRef="DataObject_0wus8pw">
-        <bpmn:extensionElements>
-          <QualifiedValue Provenance="Estimated" Range="Nominal">
-            <Value />
-            <Unit />
-          </QualifiedValue>
-        </bpmn:extensionElements>
-      </bpmn:dataObjectReference>
+          <bpmn:extensionElements>
+            <dexpi:components property="Temperature">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Provenance">Observed</dexpi:data>
+                <dexpi:data property="Range">Nominal</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </bpmn:extensionElements>
+</bpmn:dataObjectReference>
       <bpmn:dataObject id="DataObject_0wus8pw" />
       <bpmn:sequenceFlow id="Flow_1wfrjse" name="MO2 - MI1" sourceRef="Activity_1rs6esf" targetRef="Activity_061upw8">
         <bpmn:extensionElements>
