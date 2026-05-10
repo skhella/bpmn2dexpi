@@ -494,12 +494,7 @@ function walkRichElement(
     // skipping (or hard-failing) matches DEXPI 2.0's permissive
     // philosophy: still produce output, just inform the author.
     if (inDexpiNs && ll === 'port') {
-      // Read the port-class discriminator the same way the transformer
-      // does (BpmnToDexpiTransformer.ts:1662): prefer the canonical
-      // `portType` attr, fall back to legacy `type` for fixtures saved
-      // before the rename. Keeps validator + transformer aligned on the
-      // same attribute lookup chain.
-      const portType = child.getAttribute('portType') || child.getAttribute('type');
+      const portType = child.getAttribute('portType');
       const portIdLabel = child.getAttribute('portId') || child.getAttribute('id') || child.getAttribute('name') || '(unnamed)';
       const effectivePortType = portType && registry.isValidClass(portType)
         ? portType

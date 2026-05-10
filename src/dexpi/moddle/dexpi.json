@@ -32,7 +32,6 @@
         { "name": "id", "isAttr": true, "type": "String" },
         { "name": "portId", "isAttr": true, "type": "String" },
         { "name": "name", "isAttr": true, "type": "String" },
-        { "name": "type", "isAttr": true, "type": "String" },
         { "name": "portType", "isAttr": true, "type": "String" },
         { "name": "direction", "isAttr": true, "type": "String" },
         { "name": "label", "isAttr": true, "type": "String" },

@@ -851,15 +851,11 @@ function collectRequiredFlagsFromBpmn(
       // (MaterialPort, ThermalEnergyPort, …). When portType is absent
       // we default to MaterialPort — same convention the rest of the
       // codebase uses (UI addPort, legacy migration, transformer
-      // port reader). Read the discriminator with the same fallback
-      // chain the transformer uses (`portType` first, legacy `type`
-      // attr second) so this generator stays aligned with the
-      // transformer's view of port classes. The warning surfaces in
-      // the generator's warnings list so the user knows the default
-      // was applied; the required-flag scan still runs against
-      // MaterialPort, so authored overrides on these ports do reach
-      // the generated Profile.
-      const portType = el.getAttribute('portType') || el.getAttribute('type');
+      // port reader). The warning surfaces in the generator's warnings
+      // list so the user knows the default was applied; the required-
+      // flag scan still runs against MaterialPort, so authored
+      // overrides on these ports do reach the generated Profile.
+      const portType = el.getAttribute('portType');
       const portIdLabel = el.getAttribute('portId') || el.getAttribute('id') || el.getAttribute('name') || '(unnamed)';
       const className = portType || 'MaterialPort';
       if (!portType) {
