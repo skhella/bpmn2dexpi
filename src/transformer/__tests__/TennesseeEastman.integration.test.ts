@@ -99,42 +99,50 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
   // not own a Ports composition. Emitting <Object type="Process/Process.InformationPort">
   // under an instrumentation task — or an InformationFlow whose Source/Target
   // points at one — would violate the spec. The transformer drops both and
-  // expresses the relationship through ProcessStepReference (on
-  // MeasuringProcessVariable, the only subclass that declares it) plus a
-  // Profile-extension MeasuredVariableLabel for the variable identity.
+  // expresses the relationship through ProcessStepReference + MeasuredVariableReference
+  // pointing at a QualifiedValue parameter slot materialised on the connected
+  // ProcessStep. Both references emit uniformly across all InstrumentationActivity
+  // subclasses; non-canonical reference declarations are closed by Profile-extension.
   it('emits no InformationPorts or InformationFlows for instrumentation paths (DEXPI 2.0)', () => {
     expect(output).not.toMatch(/type="Process\/Process\.InformationPort"/);
     expect(output).not.toMatch(/type="Process\/Process\.InformationFlow"/);
   });
 
-  it('emits ProcessStepReference on MeasuringProcessVariable + canonical/Profile split for measured variable identity', () => {
+  it('emits canonical-on-ProcessStep linkage for every instrumentation activity (DEXPI 2.0 spec p.900)', () => {
     const countMatches = (re: RegExp) => (output.match(re) ?? []).length;
-    // 18 of 19 BPMN-side instrumentation→ProcessStep links resolve to a
-    // MeasuringProcessVariable; the 19th is a ControllingProcessVariable
-    // (which doesn't declare ProcessStepReference per the spec).
-    expect(countMatches(/property="ProcessStepReference"/g)).toBe(18);
+    // All 19 BPMN-side instrumentation→ProcessStep links emit
+    // ProcessStepReference + MeasuredVariableReference uniformly. DEXPI 2.0
+    // declares both on MeasuringProcessVariable; on
+    // ControllingProcessVariable (and the other InstrumentationActivity
+    // subclasses) they are closed by Profile-extension at export time.
+    // The transformer doesn't gate the emit by registry — the topological
+    // relationship exists for every instrumentation activity, and Profile
+    // declares whatever the schema doesn't.
+    expect(countMatches(/property="ProcessStepReference"/g)).toBe(19);
+    expect(countMatches(/property="MeasuredVariableReference"/g)).toBe(19);
 
-    // The variable identity is encoded in two ways depending on whether
-    // the variable name is a declared CompositionProperty on the referenced
-    // ProcessStep's class (registry-driven, walks supertype chain):
-    //   - Canonical: emit <References property="MeasuredVariableReference"/>
-    //     pointing at a materialised QualifiedValue parameter slot on the
-    //     ProcessStep. Used when ProcessStep.<VarName> exists in the
-    //     supertype chain (e.g. Temperature, Pressure on any ProcessStep).
-    //   - Profile-extension: emit <Data property="MeasuredVariableLabel">
-    //     on the InstrumentationActivity. Used for genuine vocabulary gaps
-    //     (e.g. Composition has no parameter-slot home anywhere on
-    //     ProcessStep) — the Profile generator captures these.
-    const refCount = countMatches(/property="MeasuredVariableReference"/g);
-    const labelCount = countMatches(/property="MeasuredVariableLabel"/g);
-    // Every instrumentation activity with a resolvable variable identity
-    // gets exactly one of the two encodings — sum equals the count of
-    // BPMN dataObject-mediated instrumentation flows in the fixture.
-    expect(refCount + labelCount).toBe(19);
-    // For the current TEP fixture, both encodings are exercised
-    // (validates that the canonical/Profile split is actually live).
-    expect(refCount).toBeGreaterThan(0);
-    expect(labelCount).toBeGreaterThan(0);
+    // The legacy Profile-extension MeasuredVariableLabel encoding (variable
+    // identity carried on the InstrumentationActivity as a Data property) is
+    // gone: the variable canonically lives on the step it parameterises, not
+    // on the activity that observes it. Every reference resolves to a
+    // QualifiedValue Object materialised on the connected ProcessStep with
+    // an id derived from the BPMN dataObjectReference id (round-trippable,
+    // unique by construction).
+    expect(countMatches(/property="MeasuredVariableLabel"/g)).toBe(0);
+
+    // Each MeasuredVariableReference resolves to a Components/Object on
+    // some ProcessStep. We don't grep the resolution here (the strict-mode
+    // and class-existence validators catch dangling refs), but we do check
+    // that the count of QualifiedValue parameter slots matches the count
+    // of references — one per BPMN dataObject mediating an instrumentation
+    // flow. Slot ids are sanitised dataObjectReference ids
+    // (e.g. "DataObjectReference_1en8e3c") — round-trippable, unique by
+    // construction. Provenance="Measured" is populated from the BPMN-side
+    // canonical authoring on every entry.
+    const qvSlotCount = countMatches(/<Object id="DataObjectReference_[^"]+" type="Core\/QualifiedValue"/g);
+    expect(qvSlotCount).toBe(19);
+    const measuredCount = countMatches(/Core\/Enumerations\.Provenance\.Measured/g);
+    expect(measuredCount).toBe(19);
   });
 
   it('logs no unannotated warnings for fully-annotated TEP (R1-C3)', () => {

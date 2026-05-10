@@ -807,15 +807,31 @@ export class BpmnToDexpiTransformer {
           const bare = s.type.replace(/^Process\./, '');
           return this.registry.hasAncestor(bare, 'InstrumentationActivity');
         };
+        // Resolve the dataObjectReference — the BPMN element that carries
+        // the canonical <dexpi:components property="X"><dexpi:object type="Core/QualifiedValue">
+        // authoring on its extensionElements. Note the variable is named
+        // "dataObjId" but per BPMN, dataInputAssociation/sourceRef and
+        // dataOutputAssociation/targetRef both point at the dataObjectReference
+        // id, not the underlying bpmn:dataObject id. We use that id directly
+        // as the stable id for both the QualifiedValue parameter slot on the
+        // connected ProcessStep and the MeasuredVariableReference target
+        // pointing at it — round-trippable, unique by construction.
+        const dataObjRefEl = (
+          process.querySelector(`[id="${dataObjId}"]`) ||
+          process.ownerDocument?.querySelector(`[id="${dataObjId}"]`)
+        ) as Element | null;
+        const dataObjRefId = dataObjId;
+        const qv = dataObjRefEl ? this.extractQualifiedValueFromDataObjectExtension(dataObjRefEl) : undefined;
         const remember = (psStep: InternalProcessStep, varName: string) => {
-          if (!psStep.measuredParameters) psStep.measuredParameters = new Set<string>();
-          psStep.measuredParameters.add(varName);
+          if (!psStep.measuredParameters) psStep.measuredParameters = [];
+          psStep.measuredParameters.push({ varName, dataObjectId: dataObjRefId, qv });
         };
         if (isInstr(sourceStep) && targetStep && !isInstr(targetStep)) {
           // MeasuringActivity → DataObject → ProcessStep:
           // source instrumentation references the target ProcessStep.
           sourceStep!.processStepRef = target!;
           sourceStep!.measuredVariable = name;
+          sourceStep!.measuredVariableSourceId = dataObjRefId;
           remember(targetStep, name);
         }
         if (targetStep && isInstr(targetStep) && sourceStep && !isInstr(sourceStep)) {
@@ -823,6 +839,7 @@ export class BpmnToDexpiTransformer {
           // target instrumentation references the source ProcessStep.
           targetStep.processStepRef = source;
           targetStep.measuredVariable = name;
+          targetStep.measuredVariableSourceId = dataObjRefId;
           remember(sourceStep, name);
         }
         // instr-to-instr: neither endpoint is a ProcessStep — no
@@ -830,8 +847,14 @@ export class BpmnToDexpiTransformer {
         // measuredVariable from the dataObject name; the spec captures the
         // relationship by their shared InstrumentationSystemActivity context.
         if (isInstr(sourceStep) && isInstr(targetStep)) {
-          if (!sourceStep!.measuredVariable) sourceStep!.measuredVariable = name;
-          if (!targetStep!.measuredVariable) targetStep!.measuredVariable = name;
+          if (!sourceStep!.measuredVariable) {
+            sourceStep!.measuredVariable = name;
+            sourceStep!.measuredVariableSourceId = dataObjRefId;
+          }
+          if (!targetStep!.measuredVariable) {
+            targetStep!.measuredVariable = name;
+            targetStep!.measuredVariableSourceId = dataObjRefId;
+          }
         }
       });
     });
@@ -1216,6 +1239,64 @@ export class BpmnToDexpiTransformer {
     };
     walk(parent);
     return out;
+  }
+
+  /**
+   * Extract a Core/QualifiedValue's authored Data fields from the
+   * extensionElements of a BPMN dataObjectReference. Canonical shape:
+   *   <bpmn:extensionElements>
+   *     <dexpi:components property="<VarName>">
+   *       <dexpi:object type="Core/QualifiedValue">
+   *         <dexpi:data property="Provenance">Measured</dexpi:data>
+   *         <dexpi:data property="Range">Nominal</dexpi:data>
+   *         <dexpi:data property="Value">…</dexpi:data>
+   *         <dexpi:data property="Unit">…</dexpi:data>
+   *       </dexpi:object>
+   *     </dexpi:components>
+   *   </bpmn:extensionElements>
+   * The property= name on the wrapping Components matches the
+   * dataObjectReference's name= attribute (e.g. "Temperature"). We don't
+   * filter on it here — there is exactly one Components per dataObjectReference
+   * in the canonical authoring — so we read the first inner Object's Data
+   * children unconditionally. Returns undefined when no canonical carrier is
+   * present (e.g. dataObjectReference with no extensionElements). All fields
+   * are optional; the user may have authored only a subset. Empty values are
+   * preserved as empty strings (not coerced to undefined) so the emit path
+   * can faithfully reflect "user-typed nothing" vs "user authored no field
+   * at all"; the emit path collapses both to <Undefined/>.
+   */
+  private extractQualifiedValueFromDataObjectExtension(
+    dataObjRefEl: Element,
+  ): import('./types').QualifiedValueData | undefined {
+    const ext = Array.from(dataObjRefEl.children).find((c: Element) =>
+      (c.localName || '').toLowerCase() === 'extensionelements'
+    ) as Element | undefined;
+    if (!ext) return undefined;
+    let qvObject: Element | undefined;
+    for (const child of Array.from(ext.children) as Element[]) {
+      if ((child.localName || '').toLowerCase() !== 'components') continue;
+      const inner = Array.from(child.children).find((o: Element) =>
+        (o.localName || '').toLowerCase() === 'object' &&
+        (o.getAttribute('type') === 'Core/QualifiedValue')
+      ) as Element | undefined;
+      if (inner) { qvObject = inner; break; }
+    }
+    if (!qvObject) return undefined;
+    const qv: import('./types').QualifiedValueData = {};
+    for (const d of Array.from(qvObject.children) as Element[]) {
+      if ((d.localName || '').toLowerCase() !== 'data') continue;
+      const prop = d.getAttribute('property');
+      if (!prop) continue;
+      const value = (d.textContent ?? '').trim();
+      switch (prop) {
+        case 'Provenance': qv.provenance = value; break;
+        case 'Range':      qv.range      = value; break;
+        case 'Value':      qv.value      = value; break;
+        case 'Unit':       qv.unit       = value; break;
+        case 'DisplayText':qv.displayText= value; break;
+      }
+    }
+    return qv;
   }
 
   private findCarrierComponentsQualifiedValue(parent: Element, propertyName: string): Element | undefined {
@@ -2056,18 +2137,23 @@ export class BpmnToDexpiTransformer {
             'String': step.name,
           });
         }
-        // Schema asymmetry, intentional and registry-driven (not heuristic):
-        // MeasuringProcessVariable declares ProcessStepReference (DEXPI 2.0
-        // Spec p.900); the other InstrumentationActivity subclasses
-        // (ControllingProcessVariable p.794, ConveyingSignal,
-        // CalculatingProcessVariable) do not declare any ProcessStep ref.
-        // Emit ProcessStepReference only when the registry confirms the
-        // class actually owns it. For the other subclasses the relationship
-        // to the controlled / signalled step is captured topologically in
-        // the source BPMN (round-trip recovers it) and in the variable label.
-        const ownedProperties = this.registry.size > 0 && bareStepType
-          ? new Set(this.registry.getProperties(bareStepType).map(p => p.name))
-          : new Set<string>();
+        // Both ProcessStepReference and MeasuredVariableReference express the
+        // canonical-on-ProcessStep linkage from each InstrumentationActivity
+        // back to the step (and the parameter slot on it) the activity
+        // observes / controls. DEXPI 2.0 declares both on
+        // MeasuringProcessVariable but not on the other InstrumentationActivity
+        // subclasses (ControllingProcessVariable p.794, ConveyingSignal,
+        // CalculatingProcessVariable) — yet the topological relationship
+        // exists for those too (a controller controls a process step's
+        // variable; a signal carries a process step's variable). We emit
+        // the references uniformly here based on topology; the Profile
+        // generator picks up the resulting strict-mode findings on
+        // ControllingProcessVariable / ConveyingSignal / etc. and declares
+        // ProcessStepReference + MeasuredVariableReference as ReferenceProperty
+        // extensions on those classes. Net effect: identical canonical shape
+        // across all InstrumentationActivity subclasses, with vocabulary
+        // gaps closed by Profile-extension at export time. Same dispatch
+        // pattern as the Components-on-ProcessStep emit below.
         // step.processStepRef is a BPMN element id (e.g. "Activity_18ratv8");
         // the corresponding emitted ProcessStep Object uses its sanitized
         // uid as the DEXPI id (e.g. "uid_Activity_18ratv8"). Resolve the BPMN
@@ -2075,7 +2161,7 @@ export class BpmnToDexpiTransformer {
         // the actual emitted Object id.
         const refStep = step.processStepRef ? this.processSteps.get(step.processStepRef) : undefined;
         const refStepEmittedId = refStep ? this.sanitizeId(refStep.uid) : undefined;
-        if (refStepEmittedId && ownedProperties.has('ProcessStepReference')) {
+        if (refStepEmittedId) {
           if (!dexpiStep.References) dexpiStep.References = [];
           (dexpiStep.References as Record<string, unknown>[]).push({
             '$': {
@@ -2084,53 +2170,19 @@ export class BpmnToDexpiTransformer {
             },
           });
         }
-        // Choose between schema-correct MeasuredVariableReference and a
-        // Profile-extension MeasuredVariableLabel based on whether the
-        // referenced ProcessStep's class actually declares the measured
-        // variable as a CompositionProperty (DEXPI 2.0 Spec p.900: "The
-        // measured variable is identified by reference to a parameter in
-        // any process step or port"). The decision is registry-driven and
-        // walks the full supertype chain — Temperature / Pressure are
-        // declared on ProcessStep itself, while Duty lives on
-        // ExchangingThermalEnergy, Level on StoringInSilo,
-        // RotationalFrequency on Agitating / Agglomerating /
-        // SupplyingMechanicalEnergy, etc. (Composition has no
-        // parameter-slot home anywhere on ProcessStep, since DEXPI's
-        // Composition is itself a complex class.) Variables whose name
-        // is not declared on the referenced step's class are surfaced as
-        // genuine vocabulary gaps via MeasuredVariableLabel; the Profile
-        // generator picks them up. ControllingProcessVariable does not
-        // declare MeasuredVariableReference itself (Spec p.794), so we
-        // registry-gate this emission too — same pattern as
-        // ProcessStepReference above.
-        const refStepProps = refStep && this.registry.size > 0
-          ? new Set(this.registry.getProperties(refStep.type.replace(/^Process\./, '')).map(p => p.name))
-          : new Set<string>();
-        const variableIsCanonical = !!step.measuredVariable && refStepProps.has(step.measuredVariable);
-        if (
-          refStepEmittedId &&
-          step.measuredVariable &&
-          variableIsCanonical &&
-          ownedProperties.has('MeasuredVariableReference')
-        ) {
+        // MeasuredVariableReference points at the QualifiedValue parameter
+        // slot on the referenced ProcessStep, materialised below (in the
+        // ProcessStep emit path) for every BPMN dataObject mediating an
+        // instrumentation flow — one slot per dataObject, ids derived from
+        // the dataObjectReference id so each measurement gets its own stable
+        // target.
+        if (refStepEmittedId && step.measuredVariableSourceId) {
           if (!dexpiStep.References) dexpiStep.References = [];
           (dexpiStep.References as Record<string, unknown>[]).push({
             '$': {
               'property': 'MeasuredVariableReference',
-              'objects': `#${refStepEmittedId}_${this.sanitizeId(step.measuredVariable)}`,
+              'objects': `#${this.sanitizeId(step.measuredVariableSourceId)}`,
             },
-          });
-        } else if (step.measuredVariable) {
-          // Profile-extension fallback: variable has no canonical slot on
-          // the referenced step's class. Carry the variable identity as a
-          // MeasuredVariableLabel Data property — strict-mode flags it,
-          // Profile generator captures it.
-          if (!Array.isArray(dexpiStep.Data)) {
-            dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
-          }
-          (dexpiStep.Data as Record<string, unknown>[]).push({
-            '$': { 'property': 'MeasuredVariableLabel' },
-            'String': step.measuredVariable,
           });
         }
       }
@@ -2351,66 +2403,105 @@ export class BpmnToDexpiTransformer {
       // downstream InstrumentationActivities reference via
       // MeasuredVariableReference (DEXPI 2.0 Spec p.900: "The measured
       // variable is identified by reference to a parameter in any process
-      // step or port"). One Components carrier per name; the wrapped
-      // QualifiedValue carries no value (the actual measurement lives on
-      // the InstrumentationActivity's OutputValue / MeasuredVariable
-      // composition slots), only an id stable enough for the reference to
-      // resolve. The id convention `<sanitized_step_uid>_<varName>` is
-      // matched by the MeasuredVariableReference emit above.
-      // Canonical names (Temperature, Pressure, AmbientTemperature,
-      // AmbientPressure) align with ProcessStep's declared composition
-      // properties — strict-mode reports nothing. Non-canonical names
-      // (Level, MassFlow, RotationalFrequency, Composition, Duty, ...)
-      // are flagged as Profile-extension findings the Profile generator
-      // captures — exactly the vocabulary-gap mechanism the spec's open
-      // type binding `<QualifiedValue with Type → Undefined | PhysicalQuantity>`
-      // anticipates. We emit only on non-instrumentation steps; emitting
-      // a measurable parameter on an InstrumentationActivity would itself
-      // be a schema violation (no Components composition declared).
-      if (!isInstrumentationActivity && step.measuredParameters && step.measuredParameters.size > 0) {
-        // Materialise QualifiedValue parameter slots only for variables
-        // whose name is a declared CompositionProperty on this step's
-        // class (registry-driven; walks the supertype chain). Non-canonical
-        // names are not fabricated as Components on the ProcessStep — the
-        // upstream InstrumentationActivity carries them as a
-        // MeasuredVariableLabel Profile-extension Data property instead.
-        // This keeps the ProcessStep's emitted shape clean of Profile-
-        // extension Components and confines vocabulary gaps to the
-        // instrumentation side.
-        const ownProps = this.registry.size > 0 && bareStepType
-          ? new Set(this.registry.getProperties(bareStepType).map(p => p.name))
-          : new Set<string>();
-        const canonicalVars = [...step.measuredParameters].filter(v => ownProps.has(v));
-        if (canonicalVars.length > 0) {
-          if (!dexpiStep.Components) {
-            dexpiStep.Components = [];
-          } else if (!Array.isArray(dexpiStep.Components)) {
-            dexpiStep.Components = [dexpiStep.Components as Record<string, unknown>];
-          }
-          const stepEmittedId = this.sanitizeId(step.uid);
-          for (const varName of canonicalVars) {
-            const safeVar = this.sanitizeId(varName);
-            // QualifiedValue declares Value (lower=1) and DisplayText
-            // (lower=1) — both UnionDataType (Builtin/Undefined | …). The
-            // DEXPI XSD requires <Data> to carry a typed child element;
-            // for placeholder slots that have no actual measurement we
-            // emit <Undefined/>. The actual measurement lives on the
-            // InstrumentationActivity that references this slot via
-            // MeasuredVariableReference.
-            (dexpiStep.Components as Record<string, unknown>[]).push({
-              '$': { 'property': varName },
-              'Object': {
-                '$': {
-                  'id': `${stepEmittedId}_${safeVar}`,
-                  'type': 'Core/QualifiedValue',
-                },
-                'Data': [
-                  { '$': { 'property': 'Value' }, 'Undefined': {} },
-                  { '$': { 'property': 'DisplayText' }, 'Undefined': {} },
-                ],
+      // step or port"). One Components carrier per BPMN dataObject mediating
+      // an instrumentation flow into this step — multi-cardinality is fine,
+      // CompositionProperty.upper is unbounded by default in Process.xml
+      // (any property without an explicit upper="1" is multi-valued), so
+      // multiple measurements of the same variable on the same step coexist
+      // as multiple Components-children with distinct ids derived from each
+      // source dataObject.
+      //
+      // The Object's Data children are populated from the canonical
+      // <dexpi:components property="X"><dexpi:object type="Core/QualifiedValue">…
+      // authoring on the dataObjectReference's extensionElements (read by
+      // extractQualifiedValueFromDataObjectExtension at extract time);
+      // missing fields fall back to <Undefined/>. Value (lower=1) and
+      // DisplayText (lower=1) are required by Core/QualifiedValue, so we
+      // always emit those two — using the extracted text when present,
+      // <Undefined/> otherwise.
+      //
+      // Canonical variable names (Temperature, Pressure on ProcessStep;
+      // Level on StoringInSilo; Duty on ExchangingThermalEnergy; etc.)
+      // match a CompositionProperty declared on this step's class.
+      // Non-canonical names are emitted on the step too — the Profile
+      // generator declares them as CompositionProperty extensions on the
+      // step's class, so the resulting XML is fully validatable end-to-end.
+      // (Previous design kept ProcessStep emit canonical-only and pushed
+      // gap-handling to the InstrumentationActivity side as a
+      // MeasuredVariableLabel Data property — now removed; the variable
+      // canonically lives on the step it parameterises, not on the
+      // instrumentation activity that observes it.)
+      //
+      // We emit only on non-instrumentation steps; emitting a measurable
+      // parameter on an InstrumentationActivity would itself be a schema
+      // violation (no Components composition declared on
+      // InstrumentationActivity).
+      if (!isInstrumentationActivity && step.measuredParameters && step.measuredParameters.length > 0) {
+        if (!dexpiStep.Components) {
+          dexpiStep.Components = [];
+        } else if (!Array.isArray(dexpiStep.Components)) {
+          dexpiStep.Components = [dexpiStep.Components as Record<string, unknown>];
+        }
+        for (const entry of step.measuredParameters) {
+          const slotId = this.sanitizeId(entry.dataObjectId);
+          const dataChildren: Record<string, unknown>[] = [];
+          if (entry.qv?.provenance) {
+            dataChildren.push({
+              '$': { 'property': 'Provenance' },
+              'DataReference': {
+                '$': { 'data': `Core/Enumerations.Provenance.${entry.qv.provenance}` },
               },
             });
           }
+          if (entry.qv?.range) {
+            dataChildren.push({
+              '$': { 'property': 'Range' },
+              'DataReference': {
+                '$': { 'data': `Core/Enumerations.Range.${entry.qv.range}` },
+              },
+            });
+          }
+          // QualifiedValue declares Value (lower=1) and DisplayText (lower=1)
+          // — both UnionDataType (Builtin/Undefined | …). Always emit them;
+          // populated from the extracted authoring or <Undefined/>.
+          if (entry.qv?.value) {
+            dataChildren.push({
+              '$': { 'property': 'Value' },
+              'String': entry.qv.value,
+            });
+          } else {
+            dataChildren.push({
+              '$': { 'property': 'Value' },
+              'Undefined': {},
+            });
+          }
+          if (entry.qv?.displayText) {
+            dataChildren.push({
+              '$': { 'property': 'DisplayText' },
+              'String': entry.qv.displayText,
+            });
+          } else {
+            dataChildren.push({
+              '$': { 'property': 'DisplayText' },
+              'Undefined': {},
+            });
+          }
+          if (entry.qv?.unit) {
+            dataChildren.push({
+              '$': { 'property': 'Unit' },
+              'String': entry.qv.unit,
+            });
+          }
+          (dexpiStep.Components as Record<string, unknown>[]).push({
+            '$': { 'property': entry.varName },
+            'Object': {
+              '$': {
+                'id': slotId,
+                'type': 'Core/QualifiedValue',
+              },
+              'Data': dataChildren,
+            },
+          });
         }
       }
 
