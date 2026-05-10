@@ -5,6 +5,7 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css';
 import dexpiExtension from './dexpi';
 import dexpiDescriptor from './dexpi/moddle/dexpi.json';
 import { DexpiPropertiesPanel, StreamPropertiesPanel } from './components/DexpiPropertiesPanel';
+import { DataObjectPropertiesPanel } from './components/DataObjectPropertiesPanel';
 import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
@@ -1152,6 +1153,8 @@ function App() {
               modeler={modeler}
               onClose={() => setSelectedMaterialItem(null)}
             />
+          ) : selectedElement && (selectedElement.type === 'bpmn:DataObjectReference' || selectedElement.type === 'bpmn:DataObject') ? (
+            <DataObjectPropertiesPanel element={selectedElement} modeler={modeler} />
           ) : selectedElement && selectedElement.type !== 'bpmn:SequenceFlow' && selectedElement.type !== 'bpmn:Association' && selectedElement.type !== 'bpmn:DataOutputAssociation' && selectedElement.type !== 'bpmn:DataInputAssociation' ? (
             <DexpiPropertiesPanel element={selectedElement} modeler={modeler} loadedProfiles={loadedProfiles} />
           ) : selectedElement && (selectedElement.type === 'bpmn:SequenceFlow' || selectedElement.type === 'bpmn:Association' || selectedElement.type === 'bpmn:DataOutputAssociation' || selectedElement.type === 'bpmn:DataInputAssociation') ? (
