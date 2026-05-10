@@ -131,10 +131,12 @@ describe('Profile generator — required-flag (narrow-only) pipeline', () => {
 });
 
 describe('Profile generator — required-flag on streams', () => {
-  // Streams use the bare-name <dexpi:attribute> form (no <dexpi:components>
-  // wrapper). The Profile generator derives the className from the BPMN-side
-  // streamType discriminator: MaterialFlow → Stream; ThermalEnergyFlow →
-  // ThermalEnergyFlow; etc. Same narrow-only enforcement as the step path.
+  // Streams use the canonical <dexpi:components property="X"> carrier with a
+  // <dexpi:object type="Core/QualifiedValue"> child since the canonical-
+  // storage migration (#36). The Profile generator derives the className
+  // from the BPMN-side streamType discriminator: MaterialFlow → Stream;
+  // ThermalEnergyFlow → ThermalEnergyFlow; etc. Same narrow-only
+  // enforcement as the step path.
 
   function bpmnStreamWithRequiredFlag(opts: {
     streamType: string;
@@ -149,9 +151,14 @@ describe('Profile generator — required-flag on streams', () => {
   <process id="p1">
     <sequenceFlow id="F1" sourceRef="A" targetRef="B">
       <extensionElements>
-        <dexpi:stream streamType="${opts.streamType}" identifier="F1" uid="uid_F1">
-          <dexpi:attribute name="${opts.property}" value="42" unit="kg/h"${opts.required ? ' required="true"' : ''}/>
-        </dexpi:stream>
+        <dexpi:Stream streamType="${opts.streamType}" identifier="F1" uid="uid_F1">
+          <dexpi:components property="${opts.property}"${opts.required ? ' required="true"' : ''}>
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value">42</dexpi:data>
+              <dexpi:data property="Unit">kg/h</dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Stream>
       </extensionElements>
     </sequenceFlow>
   </process>
@@ -228,5 +235,161 @@ describe('Profile generator — required-flag on streams', () => {
     const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
     expect(result.warnings.filter(w => w.includes('Required-flag override'))).toHaveLength(0);
     expect(result.xml).toMatch(/name="AnotherStreamProp"\s+lower="0"/);
+  });
+
+  it('flat <dexpi:data> required flag on a stream → narrowed to lower=1', () => {
+    // DataProperty side of the canonical-storage migration: enum-literal /
+    // string properties on streams are <dexpi:data property="X">v</dexpi:data>
+    // with required="true" as an XML attribute. The Profile generator must
+    // pick these up the same way it does <dexpi:components>.
+    const dexpi = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="src_port" type="Process/Process.MaterialPort"/>
+      <Object id="tgt_port" type="Process/Process.MaterialPort"/>
+      <Object id="s1" type="Process/Process.Stream">
+        <Data property="MyStreamFlag">on</Data>
+      </Object>
+    </Model>`;
+    const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://example.org/dexpi"
+             targetNamespace="https://t/">
+  <process id="p1">
+    <sequenceFlow id="F1" sourceRef="A" targetRef="B">
+      <extensionElements>
+        <dexpi:Stream streamType="MaterialFlow" identifier="F1" uid="uid_F1">
+          <dexpi:data property="MyStreamFlag" required="true">on</dexpi:data>
+        </dexpi:Stream>
+      </extensionElements>
+    </sequenceFlow>
+  </process>
+</definitions>`;
+    const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
+    expect(result.xml).toMatch(/name="MyStreamFlag"\s+lower="1"/);
+  });
+});
+
+describe('Profile generator — required-flag on ports (#38 follow-up)', () => {
+  // Ports gained DEXPI attribute authoring in PR #38. The Profile generator
+  // walks `<dexpi:port>` elements alongside `<dexpi:element>` and
+  // `<dexpi:Stream>`, using `port.portType` as the wrapping class so
+  // required-flag narrowing on a port attribute scopes to the port's
+  // subclass (MaterialPort, ThermalEnergyPort, …) rather than its enclosing
+  // ProcessStep.
+
+  it('required <dexpi:components> on a port → narrowed under the portType class', () => {
+    const dexpi = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="src_port" type="Process/Process.MaterialPort">
+        <Components property="MyPortRate">
+          <Object type="Core/QualifiedValue">
+            <Data property="Value">42</Data>
+          </Object>
+        </Components>
+      </Object>
+      <Object id="s1" type="Process/Process.Stream"/>
+    </Model>`;
+    const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://example.org/dexpi"
+             targetNamespace="https://t/">
+  <process id="p1">
+    <task id="A">
+      <extensionElements>
+        <dexpi:element dexpiType="Compressing">
+          <dexpi:port portId="src_port" name="MO1" portType="MaterialPort" direction="Outlet">
+            <dexpi:components property="MyPortRate" required="true">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Value">42</dexpi:data>
+                <dexpi:data property="Unit">kg/h</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </dexpi:port>
+        </dexpi:element>
+      </extensionElements>
+    </task>
+  </process>
+</definitions>`;
+    const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
+    // The narrowed declaration should land on a MaterialPort ConcreteClass
+    // (per-class scope), not on the wrapping Compressing class.
+    expect(result.xml).toMatch(/<ConcreteClass\s+name="MaterialPort"/);
+    const matMatch = result.xml.match(/<ConcreteClass[^>]*name="MaterialPort"[\s\S]*?<\/ConcreteClass>/);
+    expect(matMatch, 'expected a MaterialPort ConcreteClass block').toBeDefined();
+    expect(matMatch![0]).toMatch(/name="MyPortRate"\s+lower="1"/);
+  });
+
+  it('required <dexpi:data> on a port → flat-data port property narrowed', () => {
+    const dexpi = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="src_port" type="Process/Process.MaterialPort">
+        <Data property="MyPortFlag">on</Data>
+      </Object>
+      <Object id="s1" type="Process/Process.Stream"/>
+    </Model>`;
+    const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://example.org/dexpi"
+             targetNamespace="https://t/">
+  <process id="p1">
+    <task id="A">
+      <extensionElements>
+        <dexpi:element dexpiType="Compressing">
+          <dexpi:port portId="src_port" name="MO1" portType="MaterialPort" direction="Outlet">
+            <dexpi:data property="MyPortFlag" required="true">on</dexpi:data>
+          </dexpi:port>
+        </dexpi:element>
+      </extensionElements>
+    </task>
+  </process>
+</definitions>`;
+    const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
+    expect(result.xml).toMatch(/name="MyPortFlag"\s+lower="1"/);
+  });
+
+  it('port without portType → defaults to MaterialPort + warns + still narrows', () => {
+    // Aligns with the rest of the codebase (UI addPort, legacy migration,
+    // transformer port reader): missing portType assumes MaterialPort.
+    // The Profile generator surfaces a structural warning so the user
+    // knows the default was applied, AND still narrows the required
+    // property under MaterialPort so the user's authored intent reaches
+    // the generated Profile.
+    const dexpi = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="src_port" type="Process/Process.MaterialPort">
+        <Components property="UnscopedPortProp">
+          <Object type="Core/QualifiedValue">
+            <Data property="Value">1</Data>
+          </Object>
+        </Components>
+      </Object>
+      <Object id="s1" type="Process/Process.Stream"/>
+    </Model>`;
+    const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:dexpi="http://example.org/dexpi"
+             targetNamespace="https://t/">
+  <process id="p1">
+    <task id="A">
+      <extensionElements>
+        <dexpi:element dexpiType="Compressing">
+          <dexpi:port portId="src_port" name="MO1" direction="Outlet">
+            <dexpi:components property="UnscopedPortProp" required="true">
+              <dexpi:object type="Core/QualifiedValue">
+                <dexpi:data property="Value">1</dexpi:data>
+              </dexpi:object>
+            </dexpi:components>
+          </dexpi:port>
+        </dexpi:element>
+      </extensionElements>
+    </task>
+  </process>
+</definitions>`;
+    const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
+    // Warning surfaces in the generator's warnings list.
+    const missingTypeWarning = result.warnings.find(w =>
+      w.includes('missing portType') && w.includes('src_port'),
+    );
+    expect(missingTypeWarning, JSON.stringify(result.warnings, null, 2)).toBeDefined();
+    expect(missingTypeWarning).toContain('defaulted to MaterialPort');
+    // The required property is narrowed against the MaterialPort default —
+    // user's authored intent reaches the Profile.
+    expect(result.xml).toMatch(/name="UnscopedPortProp"\s+lower="1"/);
   });
 });
