@@ -23,10 +23,18 @@
       class sorted by (kind, name). Same input -> byte-identical output.
 -->
 <Profile mode="extend" uri="https://bpmn2dexpi.local/profiles/generated">
+  <ConcreteClass name="Compressing" superTypes="/Process.GeneratingFlow">
+    <CompositionProperty name="Duty" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+  </ConcreteClass>
   <ConcreteClass name="ControllingProcessVariable" superTypes="/Process.InstrumentationActivity">
-    <DataProperty name="MeasuredVariableLabel" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
+    <ReferenceProperty name="MeasuredVariableReference" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </ReferenceProperty>
+    <ReferenceProperty name="ProcessStepReference" lower="0" upper="1">
+      <ClassReference type="/Process.DrivingByMotor"/>
+    </ReferenceProperty>
   </ConcreteClass>
   <ConcreteClass name="CustomMaterialComponent" superTypes="/Process.MaterialComponent">
     <CompositionProperty name="AntoineA" lower="0" upper="1">
@@ -112,14 +120,40 @@
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
   </ConcreteClass>
-  <ConcreteClass name="MeasuringProcessVariable" superTypes="/Process.InstrumentationActivity">
-    <DataProperty name="MeasuredVariableLabel" lower="0" upper="1">
-      <DataTypeReference type="Builtin/String"/>
-    </DataProperty>
+  <ConcreteClass name="Pumping" superTypes="/Process.GeneratingFlow">
+    <CompositionProperty name="MassFlow" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
   </ConcreteClass>
   <ConcreteClass name="QualifiedValue" superTypes="Core/ConceptualObject">
     <DataProperty name="UnitReference" lower="0" upper="1">
       <DataTypeReference type="Builtin/AnyURI"/>
     </DataProperty>
+  </ConcreteClass>
+  <ConcreteClass name="ReactingChemicals" superTypes="/Process.ProcessStep">
+    <CompositionProperty name="Composition" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="Level" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+    <CompositionProperty name="MassFlow" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+  </ConcreteClass>
+  <ConcreteClass name="RegulatingFlow" superTypes="/Process.SteeringFlow">
+    <CompositionProperty name="Composition" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+  </ConcreteClass>
+  <ConcreteClass name="SeparatingByPhaseSeparation" superTypes="/Process.Separating">
+    <CompositionProperty name="Level" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
+  </ConcreteClass>
+  <ConcreteClass name="SplittingMaterial" superTypes="/Process.Splitting">
+    <CompositionProperty name="Level" lower="0" upper="1">
+      <ClassReference type="Core/QualifiedValue"/>
+    </CompositionProperty>
   </ConcreteClass>
 </Profile>
