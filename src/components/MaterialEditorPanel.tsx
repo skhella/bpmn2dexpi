@@ -173,6 +173,7 @@ const NonQvCompositionField: React.FC<NonQvCompositionFieldProps> = ({
       <button
         type="button"
         onClick={addRecord}
+        className="btn"
         style={{ marginTop: '0.4em', cursor: 'pointer' }}
         disabled={innerDeclaredProps.length === 0}
       >
