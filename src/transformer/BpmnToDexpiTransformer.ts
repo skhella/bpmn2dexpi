@@ -354,8 +354,9 @@ export class BpmnToDexpiTransformer {
    *   Mode 3 'unvalidated' — no annotation, or neither dexpiType nor
    *     customSuperType is recognised. Falls back to generic ProcessStep.
    *     The warning is specific about which input was missing or unknown
-   *     so the user can fix the source. No fuzzy "did you mean?" hint
-   *     (R1-C3: heuristic class matching is out of scope).
+   *     so the user can fix the source. No fuzzy "did you mean?" hint —
+   *     heuristic class matching is out of scope of the proposed
+   *     representation.
    */
   private resolveStepType(
     annotatedType: string | undefined,
@@ -484,7 +485,7 @@ export class BpmnToDexpiTransformer {
       });
     }
     
-    // Register ports — detect and warn on duplicate name+direction within this step (R1-C4)
+    // Register ports — detect and warn on duplicate name+direction within this step.
     const seenPortKeys = new Set<string>();
     processStep.ports.forEach((port: DexpiPort) => {
       const key = `${port.name}::${port.direction}`;

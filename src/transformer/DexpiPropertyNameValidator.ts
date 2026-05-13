@@ -2,7 +2,7 @@
  * DexpiPropertyNameValidator
  *
  * Strict-mode metamodel-fidelity check that complements the XSD validator
- * (DexpiOutputValidator / R1-C2). The XSD treats every Data / Components /
+ * (DexpiOutputValidator). The XSD treats every Data / Components /
  * References `property=` attribute as an opaque string and accepts canonical-
  * name violations like property="ListOfMaterialComponents" silently. This
  * module asserts that every property name actually exists on the wrapping

@@ -7,7 +7,7 @@
  * invokes it on the canonical TEP fixture both as-stored (BPMN
  * extensionElements) and after transformation (DEXPI XML output).
  *
- * Why this exists: XSD validation (R1-C2 / DexpiOutputValidator) treats
+ * Why this exists: XSD validation (DexpiOutputValidator) treats
  * property names as opaque strings. This suite is what backs the paper's
  * property-name fidelity claims and prevents regressions on the Tier-1
  * canonical-name fixes landed in this branch.

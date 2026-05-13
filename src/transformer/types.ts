@@ -360,8 +360,8 @@ export interface ValidationResult {
  *                         back to generic 'ProcessStep' with a warning naming the
  *                         specific failure (missing annotation vs. unknown
  *                         supertype). No fuzzy suggestions — the UI must offer a
- *                         supertype picker for custom classes (see R1-C3: no
- *                         heuristic class suggestions).
+ *                         supertype picker for custom classes; heuristic class
+ *                         suggestions are out of scope.
  */
 export type StepTypingMode = 'dexpi-validated' | 'custom-supertype' | 'unvalidated';
 

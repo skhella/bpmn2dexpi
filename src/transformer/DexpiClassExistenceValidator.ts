@@ -18,7 +18,8 @@
  *       registry at validation time (caller bug, not a transformer bug).
  *
  * Pure registry lookup. No string similarity, no fuzzy matching, no fallback
- * suggestions (R1-C3: no heuristics in the methodology).
+ * suggestions — heuristic class matching is out of scope of the proposed
+ * representation.
  */
 
 import type { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';

@@ -1,5 +1,5 @@
 /**
- * DexpiOutputValidator (R1-C2)
+ * DexpiOutputValidator
  *
  * Validates DEXPI 2.0 XML produced by BpmnToDexpiTransformer against the
  * official DEXPI XML Schema (DEXPI_XML_Schema.xsd, bundled in dexpi-schema-files/).

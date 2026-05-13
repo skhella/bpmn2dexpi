@@ -11,8 +11,8 @@
  *      validator accepts the Profile-declared property names.
  *
  *   2. Negative: the same BPMN without the Profile loaded triggers the
- *      existing Mode-2 fallback (R1-C3) — transformer warns, falls back
- *      to abstract ProcessStep, and output stays canonically valid.
+ *      existing Mode-2 fallback — transformer warns, falls back to abstract
+ *      ProcessStep, and output stays canonically valid.
  *
  *   3. Conflict / unresolved-supertype: malformed Profiles (clashing
  *      with Process.xml's class names, or referencing non-existent

@@ -1,11 +1,11 @@
 /**
- * Integration test – Tennessee Eastman benchmark (R1-C1 / R1-C2)
+ * Integration test – Tennessee Eastman benchmark
  *
  * Uses the real BPMN file from examples/ to verify:
  *  1. The transformer completes without throwing
  *  2. The output is well-formed XML
  *  3. All expected DEXPI Process types appear in the output
- *  4. XSD validation against the official DEXPI XML Schema passes (R1-C2)
+ *  4. XSD validation against the official DEXPI XML Schema passes
  *  5. Structural validator also passes (browser-safe fallback)
  *  6. Heuristic warning system fires for un-annotated example elements
  *  7. No transformer errors emitted
@@ -53,7 +53,7 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(output).toContain('prefix="Process"');
   });
 
-  it('validates against the official DEXPI 2.0 XSD schema (R1-C2)', async () => {
+  it('validates against the official DEXPI 2.0 XSD schema', async () => {
     const result = await validateDexpiOutputXsd(output, XSD_PATH);
     if (!result.valid) {
       console.error('XSD validation errors:', result.errors.slice(0, 10));
@@ -146,7 +146,7 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(observedCount).toBe(19);
   });
 
-  it('logs no unannotated warnings for fully-annotated TEP (R1-C3)', () => {
+  it('logs no unannotated warnings for fully-annotated TEP', () => {
     // TEP example file is fully annotated with dexpi:element, so the transformer
     // uses Mode 1 (dexpi-validated) for all elements — no unannotated warnings expected.
     // The warning system is exercised by unit tests in BpmnToDexpiTransformer.unit.test.ts.
