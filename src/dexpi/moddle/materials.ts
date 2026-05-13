@@ -95,8 +95,15 @@ export interface MaterialState {
   label: string;
   description?: string;
   flow?: {
-    moleFlow?: { value: number; unit: string };
-    massFlow?: { value: number; unit: string };
+    /**
+     * Scalar QualifiedValue properties on the MaterialStateType, one entry
+     * per <dexpi:components property="X"><dexpi:object type="Core/QualifiedValue">
+     * authored on the BPMN side. Canonical names declared on MaterialStateType
+     * in Process.xml (MassFlow, VolumeFlow, ...) coexist here alongside
+     * project-extension names (MoleFlow, etc.); the Profile generator declares
+     * any non-canonical names at export time. No property is special-cased.
+     */
+    scalars?: { property: string; value: string; unit?: string }[];
     composition?: {
       basis: string;
       display: string;

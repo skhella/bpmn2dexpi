@@ -183,6 +183,143 @@ const NonQvCompositionField: React.FC<NonQvCompositionFieldProps> = ({
   );
 };
 
+/**
+ * Editor for the generic list of scalar QualifiedValue properties on a
+ * MaterialStateType (state.flow.scalars). No property name is special-cased;
+ * the user picks one of the canonical CompositionProperty<Core/QualifiedValue>
+ * names declared on MaterialStateType in Process.xml (registry-driven
+ * dropdown), or types a custom name that the Profile generator will declare
+ * as a CompositionProperty extension on MaterialStateType at export time.
+ *
+ * Same registry-driven dropdown + custom-extension pattern as the
+ * DataObjectPropertiesPanel uses for instrumentation variables; both are
+ * variants of "pick a canonical scalar QV property or invent one".
+ */
+interface ScalarPropertiesEditorProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  edited: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setEdited: (next: any) => void;
+  registry: DexpiProcessClassRegistry | null;
+}
+const ScalarPropertiesEditor: React.FC<ScalarPropertiesEditorProps> = ({ edited, setEdited, registry }) => {
+  const scalars: { property: string; value: string; unit?: string }[] =
+    edited.flow?.scalars ?? [];
+
+  // Canonical scalar QualifiedValue property names on MaterialStateType,
+  // walked through the supertype chain. Filter to composition + Core/QualifiedValue.
+  const canonical = registry?.isValidClass('MaterialStateType')
+    ? registry.getProperties('MaterialStateType')
+        .filter(p => p.kind === 'composition' &&
+          (p.targetType === 'Core/QualifiedValue' || p.targetType?.endsWith('/QualifiedValue')))
+        .map(p => p.name)
+        .sort()
+    : [];
+
+  const writeScalars = (next: { property: string; value: string; unit?: string }[]) => {
+    setEdited({
+      ...edited,
+      flow: { ...edited.flow, scalars: next },
+    });
+  };
+  const updateRow = (i: number, patch: Partial<{ property: string; value: string; unit: string }>) => {
+    const next = scalars.map((s, idx) => idx === i ? { ...s, ...patch } : s);
+    writeScalars(next);
+  };
+  const addRow = () => writeScalars([...scalars, { property: '', value: '', unit: '' }]);
+  const removeRow = (i: number) => writeScalars(scalars.filter((_, idx) => idx !== i));
+
+  return (
+    <div className="form-group">
+      <label>Scalar properties:</label>
+      {scalars.length === 0 && (
+        <div style={{ fontSize: '0.8em', color: '#888' }}>
+          No scalar properties authored. Click "+ Add property" to add a flow
+          value (e.g. MassFlow, VolumeFlow, MoleFlow).
+        </div>
+      )}
+      {scalars.map((s, i) => {
+        const isCustom = !canonical.includes(s.property);
+        return (
+          <div
+            key={i}
+            style={{
+              display: 'flex', gap: '6px', alignItems: 'flex-start',
+              border: '1px solid #ddd', padding: '0.4em', borderRadius: '4px',
+              marginTop: i === 0 ? 0 : '0.3em',
+            }}
+          >
+            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' }}>
+              <label style={{ fontSize: '0.85em', display: 'flex', flexDirection: 'column' }}>
+                <span style={{ color: '#666' }}>Property</span>
+                {canonical.length > 0 ? (
+                  <select
+                    value={isCustom && s.property ? '__custom__' : s.property}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '__custom__') {
+                        updateRow(i, { property: s.property || '' });
+                      } else {
+                        updateRow(i, { property: v });
+                      }
+                    }}
+                  >
+                    <option value="">— choose —</option>
+                    {canonical.map(p => <option key={p} value={p}>{p}</option>)}
+                    <option value="__custom__">Custom (Profile-extension) …</option>
+                  </select>
+                ) : null}
+                {(canonical.length === 0 || isCustom) ? (
+                  <input
+                    type="text"
+                    value={s.property}
+                    placeholder="e.g. MoleFlow"
+                    onChange={(e) => updateRow(i, { property: e.target.value })}
+                    style={{ marginTop: canonical.length > 0 ? '4px' : 0 }}
+                  />
+                ) : null}
+              </label>
+              <label style={{ fontSize: '0.85em', display: 'flex', flexDirection: 'column' }}>
+                <span style={{ color: '#666' }}>Value</span>
+                <input
+                  type="text"
+                  value={s.value}
+                  onChange={(e) => updateRow(i, { value: e.target.value })}
+                />
+              </label>
+              <label style={{ fontSize: '0.85em', display: 'flex', flexDirection: 'column' }}>
+                <span style={{ color: '#666' }}>Unit</span>
+                <input
+                  type="text"
+                  value={s.unit ?? ''}
+                  placeholder="e.g. KilomolePerHour"
+                  onChange={(e) => updateRow(i, { unit: e.target.value })}
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={() => removeRow(i)}
+              style={{ flex: '0 0 auto', cursor: 'pointer' }}
+              title="Remove row"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={addRow}
+        className="btn"
+        style={{ marginTop: '0.4em', cursor: 'pointer' }}
+      >
+        + Add property
+      </button>
+    </div>
+  );
+};
+
 interface MaterialEditorPanelProps {
   item: {
     type: 'template' | 'component' | 'state';
@@ -361,9 +498,10 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
             state.label = edited.label;
             state.description = edited.description;
             if (!state.flow) state.flow = {};
-            if (!state.flow.moleFlow) state.flow.moleFlow = {};
-            state.flow.moleFlow.value = edited.flow?.moleFlow?.value || '';
-            state.flow.moleFlow.unit = edited.flow?.moleFlow?.unit || 'kmol/h';
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            state.flow.scalars = (edited.flow?.scalars ?? []).filter((s: any) =>
+              s && s.property && s.value !== '' && s.value !== undefined && s.value !== null
+            );
             if (edited.flow?.composition?.fractions) {
               if (!state.flow.composition) state.flow.composition = {};
               state.flow.composition.fractions = edited.flow.composition.fractions.map((f: any) => ({
@@ -474,43 +612,7 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
                 rows={3}
               />
             </div>
-            <div className="form-group">
-              <label>Mole Flow:</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="number"
-                  value={edited.flow?.moleFlow?.value || ''}
-                  onChange={(e) => setEdited({
-                    ...edited,
-                    flow: {
-                      ...edited.flow,
-                      moleFlow: {
-                        ...(edited.flow?.moleFlow || {}),
-                        value: e.target.value,
-                      },
-                    },
-                  })}
-                  placeholder="Value"
-                  style={{ flex: 1 }}
-                />
-                <input
-                  type="text"
-                  value={edited.flow?.moleFlow?.unit || 'kmol/h'}
-                  onChange={(e) => setEdited({
-                    ...edited,
-                    flow: {
-                      ...edited.flow,
-                      moleFlow: {
-                        ...(edited.flow?.moleFlow || {}),
-                        unit: e.target.value,
-                      },
-                    },
-                  })}
-                  placeholder="Unit"
-                  style={{ width: '80px' }}
-                />
-              </div>
-            </div>
+            <ScalarPropertiesEditor edited={edited} setEdited={setEdited} registry={baseRegistry} />
             <div className="form-group">
               <label>Template Reference:</label>
               <input

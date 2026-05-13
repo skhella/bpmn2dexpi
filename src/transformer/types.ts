@@ -202,11 +202,6 @@ export interface InternalMaterialState {
   stateTypeRef?: string;
 }
 
-export interface MoleFlowData {
-  value: string;
-  unit: string;
-}
-
 export interface FractionData {
   value: string;
   componentRef: string;
@@ -218,8 +213,23 @@ export interface CompositionData {
   fractions: FractionData[];
 }
 
+/**
+ * Scalar QualifiedValue property authored as a direct
+ * <dexpi:components property="X"><dexpi:object type="Core/QualifiedValue">
+ * child of MaterialStateType. No property name is special-cased: canonical
+ * names declared on MaterialStateType in Process.xml (MassFlow, VolumeFlow,
+ * ...) and project-extension names (e.g. MoleFlow) flow through this single
+ * shape, and the Profile generator declares any non-canonical names at
+ * export time.
+ */
+export interface ScalarFlowProperty {
+  property: string;
+  value: string;
+  unit?: string;
+}
+
 export interface FlowData {
-  moleFlow?: MoleFlowData;
+  scalars?: ScalarFlowProperty[];
   composition?: CompositionData;
 }
 
