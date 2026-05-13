@@ -1135,47 +1135,13 @@ export class BpmnToDexpiTransformer {
       }
     }
 
-    // Legacy inline-Flow fallback for fixtures saved before the
-    // MaterialState→MaterialStateType→Composition restructure.
-    if (!flow) {
-      const flowElement = Array.from(state.children).find((c: Element) =>
-        (c.localName || '').toLowerCase() === 'flow'
-      );
-      if (flowElement) {
-        const moleFlowElement = Array.from(flowElement.children).find((c: Element) =>
-          (c.localName || '').toLowerCase() === 'moleflow'
-        );
-        const compositionElement = Array.from(flowElement.children).find((c: Element) =>
-          (c.localName || '').toLowerCase() === 'composition'
-        );
-        flow = {};
-        if (moleFlowElement) {
-          flow.moleFlow = {
-            value: this.getChildText(moleFlowElement as Element, 'Value'),
-            unit: this.getChildText(moleFlowElement as Element, 'Unit'),
-          };
-        }
-        if (compositionElement) {
-          const fractions = this.findByLocalName(compositionElement as Element, 'Fraction');
-          flow.composition = {
-            basis: this.getChildText(compositionElement as Element, 'Basis'),
-            display: this.getChildText(compositionElement as Element, 'Display'),
-            fractions: fractions.map(f => ({
-              value: this.getChildText(f, 'Value'),
-              componentRef: this.getChildText(f, 'ComponentReference'),
-            })),
-          };
-        }
-      }
-    }
-
-    // Synthesize a MaterialStateType internal record. Prefer the resolved
-    // uid from the State reference; fall back to a derived uid for legacy
-    // inline-Flow fixtures (the old "${uid}_Type" convention).
-    const stateTypeUid = resolvedStateTypeUid ?? `${uid}_Type`;
-    if (flow) {
-      this.materialStateTypes.set(stateTypeUid, {
-        uid: stateTypeUid,
+    // Synthesize a MaterialStateType internal record from the resolved
+    // State reference. Only emitted when both the reference and a non-empty
+    // flow record exist; otherwise the MaterialState stands alone without
+    // a back-link.
+    if (resolvedStateTypeUid && flow) {
+      this.materialStateTypes.set(resolvedStateTypeUid, {
+        uid: resolvedStateTypeUid,
         identifier: `${identifier}_Type`,
         label: `${label} - Flow Data`,
         description: `Flow data for ${label}`,
@@ -1190,7 +1156,7 @@ export class BpmnToDexpiTransformer {
       label: caseName ? `${caseName} - ${label}` : label,
       description,
       caseName: caseName,
-      stateTypeRef: flow ? stateTypeUid : undefined,
+      stateTypeRef: (resolvedStateTypeUid && flow) ? resolvedStateTypeUid : undefined,
     });
   }
 
@@ -1324,50 +1290,34 @@ export class BpmnToDexpiTransformer {
   }
 
   /**
-   * Read a DataProperty value from a DEXPI rich-content element. Prefers
-   * the carrier-wrapped form
+   * Read a DataProperty value from a DEXPI rich-content element in the
+   * canonical carrier-wrapped form
    *   <dexpi:data property="Identifier">X</dexpi:data>
-   * (kind recorded explicitly via the carrier element name), and falls
-   * back to the legacy bare-name form
-   *   <Identifier>X</Identifier>
-   * for content saved before the carrier migration. Both shapes coexist
-   * during the migration window; the bare-name fallback is kept as a
-   * defensive read-path for hand-authored legacy BPMN files and is not
-   * exercised by the canonical TEP fixture or the UI write paths.
+   * Returns the trimmed text content, or empty string when not present.
    */
   private getChildText(parent: Element, childName: string): string {
-    // Carrier form first.
     for (const c of Array.from(parent.children) as Element[]) {
       if ((c.localName === 'data' || c.localName === 'Data') &&
           c.getAttribute('property') === childName) {
         return (c.textContent ?? '').trim();
       }
     }
-    // Bare-name fallback.
-    const child = Array.from(parent.children).find((c: Element) =>
-      c.tagName === childName || c.localName === childName
-    );
-    return child?.textContent || '';
+    return '';
   }
 
   /**
    * Read a ReferenceProperty's target attribute from a DEXPI rich-content
-   * element. Prefers carrier-wrapped form
+   * element in the canonical carrier-wrapped form
    *   <dexpi:references property="MaterialTemplateReference" uidRef="X"/>
-   * (kind = reference, recorded explicitly), and accepts the DEXPI XSD
-   * `objects="#X"` form alongside `uidRef`. Falls back to legacy bare-name
-   *   <MaterialTemplateReference uidRef="X"/>
-   * for content saved before the carrier migration.
+   * Also accepts the DEXPI XSD `objects="#X"` form when `uidRef` is
+   * requested, so the reader is symmetric with the standalone DEXPI XML
+   * shape (which uses `objects=`) without forcing every carrier author to
+   * know that.
    */
   private getChildValue(parent: Element, childName: string, attrName: string): string {
-    // Carrier form first (References).
     for (const c of Array.from(parent.children) as Element[]) {
       if ((c.localName === 'references' || c.localName === 'References') &&
           c.getAttribute('property') === childName) {
-        // For uidRef requests, also accept the DEXPI XSD `objects="#X"`
-        // form so the reader is symmetric with the standalone DEXPI XML
-        // shape (which uses `objects=`) without forcing every carrier
-        // author to know that.
         const direct = c.getAttribute(attrName);
         if (direct) return direct;
         if (attrName === 'uidRef') {
@@ -1377,11 +1327,7 @@ export class BpmnToDexpiTransformer {
         return '';
       }
     }
-    // Bare-name fallback.
-    const child = Array.from(parent.children).find((c: Element) =>
-      c.tagName === childName || c.localName === childName
-    );
-    return child?.getAttribute(attrName) || '';
+    return '';
   }
 
   private extractDexpiExtension(element: Element): DexpiElement | null {
