@@ -1,6 +1,5 @@
 import React from 'react';
 import type { DexpiElement, DexpiPort, DexpiStream } from '../dexpi/moddle';
-import { DexpiEnumerations } from '../utils/dexpiEnumerations';
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
 // Vite ?raw import — bundles Process.xml as a string at build time (no runtime fetch needed)
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
@@ -11,7 +10,10 @@ import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
 // Profiles, the panel rebuilds an augmented registry on demand via
 // useStepClasses() below, so Profile-declared classes (e.g. BiologicalReactor)
 // surface in the dexpiType dropdown alongside the standard DEXPI 2.0 classes.
-const DEXPI_REGISTRY = DexpiProcessClassRegistry.fromXml(processXmlRaw);
+const DEXPI_REGISTRY = DexpiProcessClassRegistry.fromXmlSources([
+  { name: 'Process.xml', xml: processXmlRaw },
+  { name: 'Core.xml', xml: coreXmlRaw },
+]);
 
 /**
  * Look up whether a property is required (lower>=1) on a class via the
@@ -1276,7 +1278,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
               }}
             >
               <option value="">-- Select Hierarchy Level --</option>
-              {DexpiEnumerations.ProcessStepHierarchyLevel.map(level => (
+              {(DEXPI_REGISTRY.getEnumerationLiterals('ProcessStepHierarchyLevel') ?? []).map(level => (
                 <option key={level} value={level}>{level}</option>
               ))}
             </select>
@@ -1363,7 +1365,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
                 value={port.direction} 
                 onChange={(e) => updatePort(port.portId, { direction: e.target.value as any })}
               >
-                {DexpiEnumerations.PortDirection.map(dir => (
+                {(DEXPI_REGISTRY.getEnumerationLiterals('PortDirection') ?? []).map(dir => (
                   <option key={dir} value={dir}>{dir}</option>
                 ))}
               </select>
@@ -1938,7 +1940,7 @@ const ProcessStepAttributesSection: React.FC<{
               onChange={(e) => updateAttribute(index, { scope: e.target.value })}
             >
               <option value="">-- Select Scope --</option>
-              {DexpiEnumerations.Scope.map(scope => (
+              {(DEXPI_REGISTRY.getEnumerationLiterals('Scope') ?? []).map(scope => (
                 <option key={scope} value={scope}>{scope}</option>
               ))}
             </select>
@@ -1951,7 +1953,7 @@ const ProcessStepAttributesSection: React.FC<{
               onChange={(e) => updateAttribute(index, { range: e.target.value })}
             >
               <option value="">-- Select Range --</option>
-              {DexpiEnumerations.Range.map(range => (
+              {(DEXPI_REGISTRY.getEnumerationLiterals('QuantityRange') ?? []).map(range => (
                 <option key={range} value={range}>{range}</option>
               ))}
             </select>
@@ -1964,7 +1966,7 @@ const ProcessStepAttributesSection: React.FC<{
               onChange={(e) => updateAttribute(index, { provenance: e.target.value })}
             >
               <option value="">-- Select Provenance --</option>
-              {DexpiEnumerations.Provenance.map(prov => (
+              {(DEXPI_REGISTRY.getEnumerationLiterals('QuantityProvenance') ?? []).map(prov => (
                 <option key={prov} value={prov}>{prov}</option>
               ))}
             </select>
@@ -3238,7 +3240,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 onChange={(e) => updateAttribute(index, { scope: e.target.value })}
               >
                 <option value="">-- Select Scope --</option>
-                {DexpiEnumerations.Scope.map(scope => (
+                {(DEXPI_REGISTRY.getEnumerationLiterals('Scope') ?? []).map(scope => (
                   <option key={scope} value={scope}>{scope}</option>
                 ))}
               </select>
@@ -3251,7 +3253,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 onChange={(e) => updateAttribute(index, { range: e.target.value })}
               >
                 <option value="">-- Select Range --</option>
-                {DexpiEnumerations.Range.map(range => (
+                {(DEXPI_REGISTRY.getEnumerationLiterals('QuantityRange') ?? []).map(range => (
                   <option key={range} value={range}>{range}</option>
                 ))}
               </select>
@@ -3264,7 +3266,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 onChange={(e) => updateAttribute(index, { provenance: e.target.value })}
               >
                 <option value="">-- Select Provenance --</option>
-                {DexpiEnumerations.Provenance.map(prov => (
+                {(DEXPI_REGISTRY.getEnumerationLiterals('QuantityProvenance') ?? []).map(prov => (
                   <option key={prov} value={prov}>{prov}</option>
                 ))}
               </select>
