@@ -1794,7 +1794,7 @@ export class BpmnToDexpiTransformer {
     }));
   }
 
-  private buildDexpiModel(_options: TransformOptions): Record<string, unknown> {
+  private buildDexpiModel(options: TransformOptions): Record<string, unknown> {
     const modelUid = this.generateUid();
 
     // Pre-compute port → ProcessConnection (Stream / InformationFlow) Object id
@@ -1972,12 +1972,18 @@ export class BpmnToDexpiTransformer {
       }
     }
 
-    // Build the full Model structure following DEXPI 2.0.0 specification
+    // Build the full Model structure following DEXPI 2.0.0 specification.
+    // Model/@name and Model/@uri are XSD-required. `name` must match
+    // [A-Za-z_][A-Za-z_0-9]* (the DEXPI XSD `name` simple type); `uri` is
+    // xsd:anyURI, so a URN is valid and avoids implying the model is
+    // publishable. Both values flow from TransformOptions when provided.
+    const modelName = this.sanitizeId(options.projectName || 'process_model');
+    const modelUri = options.modelUri || `urn:bpmn2dexpi:model:${modelName}`;
     const model: Record<string, unknown> = {
       'Model': {
         '$': {
-          'name': 'process_model',
-          'uri': 'http://www.example.org'
+          'name': modelName,
+          'uri': modelUri
         },
         'Import': [
           {
