@@ -10,6 +10,7 @@ A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DE
 - **Profile-based extensibility** — declare custom classes or property extensions in a Profile XML, or auto-generate a Profile from any model to close vocabulary gaps
 - **Material library** — materials, compositions, and thermodynamic states
 - **Typed ports & streams** — Material / Energy / Information, with flow rates, compositions, and qualified parameters
+- **Instrumentation variables on ProcessStep** — measured / controlled variables author canonically on the connected ProcessStep (DEXPI 2.0 spec p.900); a dedicated panel on connected `DataObject`s offers a property dropdown sourced from the connected step's class
 - **CLI tool** — batch-convert BPMN to DEXPI 2.0 XML from the terminal or Python
 - **Neo4j export** — push process graphs directly to a Neo4j graph database
 
@@ -51,7 +52,7 @@ See [CLI_USAGE.md](./CLI_USAGE.md) for more.
 
 ## Web Interface
 
-Open `http://localhost:5173`, drag elements from the palette, connect with typed flows, configure ports and stream properties in the side panel, and export to DEXPI 2.0 XML or Neo4j.
+Open `http://localhost:5173`, drag elements from the palette, connect with typed flows, configure ports and stream properties in the side panel, edit instrumentation variables on connected `DataObject`s, and export to DEXPI 2.0 XML or Neo4j.
 
 <img src="./examples/Web-Interface-Screenshot.png" alt="Web Interface Screenshot" width="90%" />
 
