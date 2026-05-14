@@ -743,24 +743,18 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           // Try name-based inference for subprocesses too
           dtype = 'ProcessStep';
         } else if (element.type === 'bpmn:Task' || element.type.includes('Task')) {
-          const di = element.di;
-          let fill = '';
-          if (di) {
-            fill = di.fill || di.$attrs?.['bioc:fill'] || di.$attrs?.fill || '';
-          }
-          const hasDataOutput = businessObject.dataOutputAssociations?.length > 0;
-          const hasDataInput = businessObject.dataInputAssociations?.length > 0;
-          const isGreen = fill.toLowerCase().includes('#c8e6c9') || 
-                        fill.toLowerCase().includes('c8e6c9') ||
-                        (hasDataOutput && !hasDataInput);
-
-          if (isGreen) {
-            dtype = 'InstrumentationActivity';
-          } else {
-            // Try to infer from task name using the registry — shows a meaningful type
-            // instead of always defaulting to ProcessStep for unannotated imports
-            dtype = 'ProcessStep';
-          }
+          // No dexpiType annotation on this task — fall back to the generic
+          // ProcessStep, mirroring the transformer's behaviour. Inferring a
+          // specific subclass from BPMN fill colour or data-association
+          // topology would be guessing: colour is a presentation attribute,
+          // not semantic, and the "data-out without data-in" pattern is a
+          // TEP-specific instrumentation shape that doesn't generalise (a
+          // CalculatingProcessVariable consumes inputs and produces outputs;
+          // a regular ProcessStep may emit a DataObject without consuming
+          // one). The user picks a specific class via the dropdown; the
+          // renderer's applyDexpiTypeColor() then paints the right colour
+          // from the chosen type — the canonical type→colour direction.
+          dtype = 'ProcessStep';
         }
       }
       
