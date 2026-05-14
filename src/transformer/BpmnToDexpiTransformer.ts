@@ -1074,22 +1074,32 @@ export class BpmnToDexpiTransformer {
       if (mst) {
         resolvedStateTypeUid = stateTypeRefUid;
         flow = {};
-        // State-level scalar MoleFlow lives on MaterialStateType. DEXPI
-        // 2.0's MaterialStateType has scalar MassFlow / VolumeFlow but no
-        // scalar MoleFlow — a real vocabulary gap. We Profile-extend
-        // MaterialStateType with a scalar MoleFlow (parallel to its
-        // existing scalar MassFlow); the Profile generator captures this
-        // as a genuine project-specific extension. Composition's MoleFlow
-        // (Process.xml line 426) is a different concept: a multi-valued
-        // PER-COMPONENT vector keyed to the MaterialTemplate's component
-        // list, NOT a state-level scalar.
-        const moleFlowQv = this.findCarrierComponentsQualifiedValue(mst, 'MoleFlow');
-        if (moleFlowQv) {
-          flow.moleFlow = {
-            value: this.getChildText(moleFlowQv, 'Value'),
-            unit: this.getChildText(moleFlowQv, 'Unit'),
-          };
+        // Scalar QualifiedValue properties on MaterialStateType. Generic
+        // pass — every <dexpi:components property="X"><dexpi:object
+        // type="Core/QualifiedValue"> child flows through the same shape.
+        // Canonical names declared on MaterialStateType (MassFlow,
+        // VolumeFlow, ...) and project-extension names (MoleFlow on TEP,
+        // and anything else a user authors) are treated identically; the
+        // Profile generator captures non-canonical names at export time.
+        // The "Composition" property is a reference, not a Components
+        // carrier with an inline QualifiedValue, so it's handled below.
+        const scalars: import('./types').ScalarFlowProperty[] = [];
+        for (const child of Array.from(mst.children) as Element[]) {
+          if ((child.localName || '').toLowerCase() !== 'components') continue;
+          const property = child.getAttribute('property');
+          if (!property) continue;
+          const qv = Array.from(child.children).find((o: Element) =>
+            (o.localName || '').toLowerCase() === 'object' &&
+            o.getAttribute('type') === 'Core/QualifiedValue'
+          ) as Element | undefined;
+          if (!qv) continue;
+          scalars.push({
+            property,
+            value: this.getChildText(qv, 'Value'),
+            unit: this.getChildText(qv, 'Unit') || undefined,
+          });
         }
+        if (scalars.length > 0) flow.scalars = scalars;
         // Composition reference → resolve to Composition sibling block.
         const compRefUid = this.getChildValue(mst, 'Composition', 'uidRef');
         if (compRefUid) {
@@ -3103,32 +3113,41 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // State-level scalar MoleFlow on MaterialStateType. This is
-      // Profile-extension territory: DEXPI 2.0's MaterialStateType
-      // declares scalar MassFlow / VolumeFlow but no scalar MoleFlow —
-      // a real vocabulary gap that the Profile mechanism fills. The
-      // strict-mode validator surfaces this as a fidelity finding; the
-      // Profile generator captures it as MaterialStateType.MoleFlow
-      // alongside the genuine CustomMaterialComponent extensions.
-      // Composition.MoleFlow is a different concept (multi-valued
-      // per-component vector); not used by TEP at the state level.
-      if (stateType.flow?.moleFlow) {
+      // Scalar QualifiedValue properties on MaterialStateType. Generic
+      // emit: each entry round-trips one <dexpi:components property="X">
+      // <dexpi:object type="Core/QualifiedValue"> child authored on the
+      // BPMN side, regardless of whether the property name is declared in
+      // Process.xml (canonical: MassFlow, VolumeFlow, ...) or a project
+      // extension (e.g. MoleFlow). The strict-mode validator surfaces
+      // non-canonical names; the Profile generator declares them as
+      // CompositionProperty extensions on MaterialStateType.
+      if (stateType.flow?.scalars && stateType.flow.scalars.length > 0) {
         if (!dexpiStateType.Components) {
           dexpiStateType.Components = [];
         }
-        const mfValue = stateType.flow.moleFlow.value;
-        const mfUnit = stateType.flow.moleFlow.unit;
-        (dexpiStateType.Components as Record<string, unknown>[]).push({
-          '$': { 'property': 'MoleFlow' },
-          'Object': [{
-            '$': { 'type': 'Core/QualifiedValue' },
-            'Data': [
-              { '$': { 'property': 'Value' }, 'Double': parseFloat(mfValue) || 0 },
-              { '$': { 'property': 'Unit' }, 'String': mfUnit },
-              { '$': { 'property': 'DisplayText' }, 'String': `${mfValue} ${mfUnit}`.trim() },
-            ],
-          }],
-        });
+        for (const s of stateType.flow.scalars) {
+          const parsed = parseFloat(s.value);
+          const numericValue: Record<string, unknown> = Number.isFinite(parsed)
+            ? { 'Double': parsed }
+            : { 'Undefined': {} };
+          const dataChildren: Record<string, unknown>[] = [
+            { '$': { 'property': 'Value' }, ...numericValue },
+          ];
+          if (s.unit) {
+            dataChildren.push({ '$': { 'property': 'Unit' }, 'String': s.unit });
+          }
+          dataChildren.push({
+            '$': { 'property': 'DisplayText' },
+            'String': s.unit ? `${s.value} ${s.unit}`.trim() : s.value,
+          });
+          (dexpiStateType.Components as Record<string, unknown>[]).push({
+            '$': { 'property': s.property },
+            'Object': [{
+              '$': { 'type': 'Core/QualifiedValue' },
+              'Data': dataChildren,
+            }],
+          });
+        }
       }
 
       // MaterialStateType.Composition is a ReferenceProperty per Process.xml

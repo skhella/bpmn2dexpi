@@ -476,14 +476,24 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         ? siblings.find((v: any) => v.uid === compositionUid)
         : null;
 
-      // MoleFlow scalar lives on MaterialStateType (Profile-extension fill
-      // for DEXPI 2.0's vocabulary gap). Read via the Components carrier.
-      let moleFlow: { value: number; unit: string } | undefined;
+      // Scalar QualifiedValue properties on MaterialStateType. Generic
+      // pass — every <dexpi:components property="X"><dexpi:object
+      // type="Core/QualifiedValue"> child flows through the same shape.
+      // Canonical names declared in Process.xml (MassFlow, VolumeFlow, ...)
+      // and project-extension names (MoleFlow, etc.) are treated identically;
+      // the Profile generator captures non-canonical names at export time.
+      const scalars: { property: string; value: string; unit?: string }[] = [];
       if (stateType) {
-        const moleFlowQv = readComponentsObject(stateType, 'MoleFlow');
-        if (moleFlowQv) {
-          const { values, unit } = readQualifiedValueVector(moleFlowQv);
-          if (values[0]) moleFlow = { value: parseFloat(values[0]) || 0, unit };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const child of (stateType.$children ?? []) as any[]) {
+          if (child?.$type !== 'Components') continue;
+          const property = child.property;
+          if (!property) continue;
+          const qv = readComponentsObject(stateType, property);
+          if (!qv) continue;
+          const { values, unit } = readQualifiedValueVector(qv);
+          if (values.length === 0) continue;
+          scalars.push({ property, value: values[0], unit: unit || undefined });
         }
       }
 
@@ -514,31 +524,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
           }
         }
       }
-      // Legacy inline-Flow fallback (for fixtures saved before the
-      // MaterialState restructure). Runs BEFORE the rich-object mapping
-      // so it can contribute raw values to rawFractionValues, which then
-      // get paired with component refs in a single mapping step below.
-      if (!moleFlow || rawFractionValues.length === 0) {
-        const flowChild = stateVal.$children?.find((c: any) => c.$type === 'Flow');
-        if (flowChild) {
-          const moleFlowChild = flowChild.$children?.find((c: any) => c.$type === 'MoleFlow');
-          if (moleFlowChild && !moleFlow) {
-            moleFlow = {
-              value: parseFloat(moleFlowChild.$children?.find((c: any) => c.$type === 'Value')?.$body || '0'),
-              unit: moleFlowChild.$children?.find((c: any) => c.$type === 'Unit')?.$body || '',
-            };
-          }
-          const compositionChild = flowChild.$children?.find((c: any) => c.$type === 'Composition');
-          if (compositionChild && rawFractionValues.length === 0) {
-            display = display || compositionChild.$children?.find((c: any) => c.$type === 'Display')?.$body || '';
-            basis = basis || compositionChild.$children?.find((c: any) => c.$type === 'Basis')?.$body || '';
-            rawFractionValues = (compositionChild.$children
-              ?.filter((c: any) => c.$type === 'Fraction')
-              .map((f: any) =>
-                parseFloat(f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0'))) || [];
-          }
-        }
-      }
 
       // Resolve component refs for this state via the host stream's template.
       const templateUid = templateByState[stateVal.uid];
@@ -557,8 +542,8 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         identifier: readData(stateVal, 'Identifier') || getChildText(stateVal, 'Identifier'),
         label: readData(stateVal, 'Label') || getChildText(stateVal, 'Label'),
         description: readData(stateVal, 'Description') || getChildText(stateVal, 'Description'),
-        flow: (moleFlow || fractions.length > 0) ? {
-          moleFlow,
+        flow: (scalars.length > 0 || fractions.length > 0) ? {
+          scalars: scalars.length > 0 ? scalars : undefined,
           composition: (display || fractions.length > 0) ? { basis, display, fractions } : undefined,
         } : undefined,
         templateRef: undefined, // No longer carried on MaterialState (redundant inverse ref dropped during restructure)
@@ -709,7 +694,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       label: `New State ${states.length + 1}`,
       description: '',
       flow: {
-        moleFlow: { value: 0, unit: 'KilomolePerHour' },
+        scalars: [],
         composition: { basis: 'Mole', display: 'Fraction', fractions: [] }
       }
     };
@@ -1164,14 +1149,13 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         if (state.description) dataChildren.push(buildDataChild('Description', state.description));
 
         const componentsChildren: unknown[] = [];
-        // Scalar MoleFlow as its own QualifiedValue carrier.
-        if (state.flow?.moleFlow?.value != null) {
+        // Generic scalar QualifiedValue properties. Each entry round-trips
+        // one <dexpi:components property="X"><dexpi:object type="Core/QualifiedValue">
+        // child — no property name is special-cased.
+        for (const s of state.flow?.scalars ?? []) {
+          if (s.value === undefined || s.value === null || s.value === '') continue;
           componentsChildren.push(
-            buildQVComponents(
-              'MoleFlow',
-              String(state.flow.moleFlow.value),
-              state.flow.moleFlow.unit,
-            ),
+            buildQVComponents(s.property, String(s.value), s.unit ?? ''),
           );
         }
         // Composition: nested Components carrier with a Core/QualifiedValue
@@ -1355,7 +1339,8 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                       </div>
                     </div>
                     <div className="item-meta">
-                      {state.identifier} • {state.flow?.moleFlow?.value} {state.flow?.moleFlow?.unit}
+                      {state.identifier}
+                      {state.flow?.scalars?.map(s => ` • ${s.property} ${s.value}${s.unit ? ' ' + s.unit : ''}`).join('')}
                     </div>
                     {state.referencedByStreams && state.referencedByStreams.length > 0 && (
                       <div className="item-streams">
@@ -1579,7 +1564,7 @@ const StateEditor: React.FC<{
                   templateRef: selectedTemplateUid,
                   flow: {
                     ...edited.flow,
-                    moleFlow: edited.flow?.moleFlow,
+                    scalars: edited.flow?.scalars,
                     composition: numComponents > 0 ? {
                       basis: edited.flow?.composition?.basis || 'Mole',
                       display: edited.flow?.composition?.display || 'Percentage',
@@ -1601,42 +1586,76 @@ const StateEditor: React.FC<{
 
         <div className="property-group">
           <h5>Flow Properties</h5>
-          <label>
-            Mole Flow Value:
-            <input
-              type="number"
-              value={edited.flow?.moleFlow?.value || 0}
-              onChange={(e) => setEdited({
-                ...edited,
-                flow: {
-                  ...edited.flow,
-                  moleFlow: { 
-                    value: parseFloat(e.target.value), 
-                    unit: edited.flow?.moleFlow?.unit || 'KilomolePerHour' 
-                  },
-                  composition: edited.flow?.composition
-                }
-              })}
-            />
-          </label>
-          <label>
-            Unit:
-            <input
-              type="text"
-              value={edited.flow?.moleFlow?.unit || 'KilomolePerHour'}
-              onChange={(e) => setEdited({
-                ...edited,
-                flow: {
-                  ...edited.flow,
-                  moleFlow: { 
-                    value: edited.flow?.moleFlow?.value || 0, 
-                    unit: e.target.value 
-                  },
-                  composition: edited.flow?.composition
-                }
-              })}
-            />
-          </label>
+          {/* Generic scalar QualifiedValue properties on MaterialStateType.
+              No property name is special-cased — the user can author any
+              scalar property; the Profile generator declares non-canonical
+              names at export time. */}
+          {(edited.flow?.scalars ?? []).map((s: { property: string; value: string; unit?: string }, i: number) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex', gap: '6px', alignItems: 'flex-start',
+                border: '1px solid #ddd', padding: '0.4em', borderRadius: '4px',
+                marginTop: i === 0 ? 0 : '0.3em',
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Property (e.g. MoleFlow)"
+                value={s.property}
+                onChange={(e) => {
+                  const next = [...(edited.flow?.scalars ?? [])];
+                  next[i] = { ...next[i], property: e.target.value };
+                  setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
+                }}
+                style={{ flex: 1 }}
+              />
+              <input
+                type="text"
+                placeholder="Value"
+                value={s.value}
+                onChange={(e) => {
+                  const next = [...(edited.flow?.scalars ?? [])];
+                  next[i] = { ...next[i], value: e.target.value };
+                  setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
+                }}
+                style={{ flex: 1 }}
+              />
+              <input
+                type="text"
+                placeholder="Unit"
+                value={s.unit ?? ''}
+                onChange={(e) => {
+                  const next = [...(edited.flow?.scalars ?? [])];
+                  next[i] = { ...next[i], unit: e.target.value };
+                  setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
+                }}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const next = (edited.flow?.scalars ?? []).filter((_: unknown, idx: number) => idx !== i);
+                  setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
+                }}
+                style={{ flex: '0 0 auto' }}
+                title="Remove row"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn"
+            style={{ marginTop: '0.4em' }}
+            onClick={() => {
+              const next = [...(edited.flow?.scalars ?? []), { property: '', value: '', unit: '' }];
+              setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
+            }}
+          >
+            + Add property
+          </button>
         </div>
 
         <div className="property-group" style={{ background: '#f5f5f5', padding: '12px', borderRadius: '4px' }}>
@@ -1650,7 +1669,7 @@ const StateEditor: React.FC<{
                 ...edited,
                 flow: {
                   ...edited.flow,
-                  moleFlow: edited.flow?.moleFlow,
+                  scalars: edited.flow?.scalars,
                   composition: {
                     basis: e.target.value,
                     display: edited.flow?.composition?.display || '',
@@ -1670,7 +1689,7 @@ const StateEditor: React.FC<{
                 ...edited,
                 flow: {
                   ...edited.flow,
-                  moleFlow: edited.flow?.moleFlow,
+                  scalars: edited.flow?.scalars,
                   composition: {
                     basis: edited.flow?.composition?.basis || '',
                     display: e.target.value,
@@ -1703,7 +1722,7 @@ const StateEditor: React.FC<{
                         ...edited,
                         flow: {
                           ...edited.flow,
-                          moleFlow: edited.flow?.moleFlow,
+                          scalars: edited.flow?.scalars,
                           composition: {
                             basis: edited.flow?.composition?.basis || '',
                             display: edited.flow?.composition?.display || '',
@@ -1723,7 +1742,7 @@ const StateEditor: React.FC<{
                         ...edited,
                         flow: {
                           ...edited.flow,
-                          moleFlow: edited.flow?.moleFlow,
+                          scalars: edited.flow?.scalars,
                           composition: {
                             basis: edited.flow?.composition?.basis || '',
                             display: edited.flow?.composition?.display || '',
