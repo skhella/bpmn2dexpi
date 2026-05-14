@@ -1,5 +1,5 @@
 /**
- * Unit tests for DexpiOutputValidator (R1-C2)
+ * Unit tests for DexpiOutputValidator.
  * Uses the actual DEXPI 2.0 output schema produced by BpmnToDexpiTransformer.
  */
 

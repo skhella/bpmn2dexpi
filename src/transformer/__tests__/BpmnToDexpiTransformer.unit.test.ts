@@ -1,11 +1,11 @@
 /**
- * Unit tests for BpmnToDexpiTransformer
+ * Unit tests for BpmnToDexpiTransformer.
  *
- * Covers (per rebuttal commitments):
- *  R1-C1  – automated tests exist
- *  R1-C3  – extensionElements annotation is authoritative; unannotated tasks default to ProcessStep with a warning
- *  R1-C4  – duplicate port name+direction emits a warning
- *  R1-C6  – TypeScript compilation validates no `any` types remain (build-time)
+ * Covers:
+ *  - extensionElements annotation is authoritative; unannotated tasks default
+ *    to ProcessStep with a warning
+ *  - duplicate port name+direction emits a warning
+ *  - TypeScript compilation validates no `any` types remain (build-time)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -66,8 +66,8 @@ function seqFlow(id: string, src: string, tgt: string): string {
 
 describe('BpmnToDexpiTransformer – unit tests', () => {
 
-  // ── R1-C3: extensionElements is authoritative ─────────────────────────────
-  describe('R1-C3 – type resolution', () => {
+  // ── extensionElements is authoritative ────────────────────────────────────
+  describe('type resolution from extensionElements', () => {
     it('uses dexpiType from extensionElements without emitting a warning', async () => {
       const xml = bpmn(`
         ${annotatedTask('T1', 'ReactingChemicals', 'ReactingChemicals')}
@@ -150,8 +150,8 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
     });
   });
 
-  // ── R1-C4: duplicate port detection ──────────────────────────────────────
-  describe('R1-C4 – duplicate port detection', () => {
+  // ── duplicate port detection ─────────────────────────────────────────────
+  describe('duplicate port detection', () => {
     it('emits a warning when two ports share the same name and direction', async () => {
       const ports = `
         <dexpi:port portId="p1" name="MO1" direction="Outlet" portType="MaterialPort"/>
