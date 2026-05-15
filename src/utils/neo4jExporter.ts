@@ -71,7 +71,10 @@ export interface StreamConnection {
   sourceStepId: string;
   targetStepId: string;
   attributes: AttributeMap;
+  /** Resolved from `<References property="MaterialStateReference" objects="#X"/>`. */
   materialStateRef?: string;
+  /** Resolved from `<References property="MaterialTemplateReference" objects="#X"/>`. */
+  materialTemplateRef?: string;
 }
 
 export interface MaterialTemplate {
@@ -94,8 +97,20 @@ export interface MaterialState {
   id: string;
   identifier: string;
   label: string;
-  templateRef?: string;
+  /**
+   * MaterialStateType this state references via Process.xml's
+   * `MaterialState.State` ReferenceProperty (lower=1, upper=1). Resolved
+   * from the `<References property="State" objects="#X"/>` element on the
+   * MaterialState block.
+   */
   typeRef?: string;
+  /**
+   * Resolved MaterialTemplate uid. Process.xml does NOT declare a template
+   * reference on MaterialState directly; the link is via the Stream that
+   * carries this state (`Stream.MaterialTemplateReference`). Computed
+   * during parse by walking all streams once.
+   */
+  templateRef?: string;
   attributes: AttributeMap;
 }
 
@@ -103,8 +118,20 @@ export interface MaterialStateType {
   id: string;
   identifier: string;
   label: string;
-  templateRef?: string;
-  fractions: { componentRef: string; massFraction?: string; moleFraction?: string }[];
+  /**
+   * Composition object uid this state type references via Process.xml's
+   * `MaterialStateType.Composition` ReferenceProperty (lower=1, upper=1).
+   */
+  compositionRef?: string;
+  /**
+   * Per-component fractions, resolved by pairing the Composition Object's
+   * Values vector (positional) with the relevant MaterialTemplate's
+   * ListOfComponents (also positional). The template is found by walking
+   * the state→template map built from Stream references. `value` is the
+   * fraction value as a string (preserving the schema's QualifiedValue
+   * Values shape); `basis` is `"Mole"` or `"Mass"`.
+   */
+  fractions: { componentRef: string; value: string; basis: 'Mole' | 'Mass' }[];
   attributes: AttributeMap;
 }
 
@@ -272,6 +299,40 @@ function getDataValue(element: Element, property: string): string {
     return stringEl?.textContent || numberEl?.textContent || '';
   }
   return '';
+}
+
+/**
+ * Read all target uids from a canonical `<References property="X" objects="#a #b #c"/>`
+ * child of `parent`. The DEXPI XSD's `objects` attribute is whitespace-
+ * separated for multi-target references (e.g. `ListOfMaterialComponents.Component`
+ * for an N-component template); single-target references use the same
+ * encoding with one entry. Returns an empty array if no matching child
+ * exists or the attribute is empty.
+ */
+function readRefTargetUids(parent: Element, propertyName: string): string[] {
+  const refEl = parent.querySelector(`References[property="${propertyName}"]`);
+  if (!refEl) return [];
+  const objects = refEl.getAttribute('objects');
+  if (objects) {
+    return objects.trim().split(/\s+/).map(s => s.replace(/^#/, '')).filter(Boolean);
+  }
+  // Legacy / verbose encoding: child <ObjectReference object="#X"/> entries.
+  const childRefs = Array.from(refEl.querySelectorAll('ObjectReference'));
+  return childRefs
+    .map(c => c.getAttribute('objects')?.replace(/^#/, '')
+           ?? c.getAttribute('object')?.replace(/^#/, '')
+           ?? c.getAttribute('ref')
+           ?? '')
+    .filter(Boolean);
+}
+
+/**
+ * Single-target convenience over `readRefTargetUids`. Returns the first
+ * uid if any, else undefined. Use for ReferenceProperty entries declared
+ * with `upper=1` (e.g. MaterialState.State, Stream.MaterialTemplateReference).
+ */
+function readRefTargetUid(parent: Element, propertyName: string): string | undefined {
+  return readRefTargetUids(parent, propertyName)[0];
 }
 
 /**
@@ -447,12 +508,13 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
       // Use the new flow type determination based on port labels
       const flowType = determineFlowType(sourcePortInfo.label);
       
-      let materialStateRef: string | undefined;
-      const matStateRefEl = streamObj.querySelector('References[property="MaterialStateReference"] ObjectReference');
-      if (matStateRefEl) {
-        materialStateRef = matStateRefEl.getAttribute('ref') || undefined;
-      }
-      
+      // Process.xml declares both references on Stream
+      // (lower=0, upper=1 each). Read via the canonical attribute form
+      // the transformer emits (`<References objects="#X"/>`); falls back
+      // to the older child-ObjectReference encoding for compatibility.
+      const materialStateRef = readRefTargetUid(streamObj, 'MaterialStateReference');
+      const materialTemplateRef = readRefTargetUid(streamObj, 'MaterialTemplateReference');
+
       const attributes = extractAllAttributes(streamObj);
       
       streams.push({
@@ -465,27 +527,40 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
         sourceStepId: sourcePortInfo.ownerStepId,
         targetStepId: targetPortInfo.ownerStepId,
         attributes,
-        materialStateRef
+        materialStateRef,
+        materialTemplateRef,
       });
     }
   }
   
-  // Parse Material Templates
+  // Parse ListOfMaterialComponents — a separate Object class that holds
+  // the actual per-template list of component uids. Process.xml declares
+  // MaterialTemplate.ListOfComponents as a ReferenceProperty pointing at
+  // a ListOfMaterialComponents Object (so each MaterialTemplate has the
+  // list one indirection away). The ListOfMaterialComponents object
+  // itself has a multi-target Component reference whose `objects`
+  // attribute is space-separated component uids.
+  const listOfComponentsByUid = new Map<string, string[]>();
+  const lomcsContainer = processModel.querySelector('Components[property="ListsOfMaterialComponents"]');
+  if (lomcsContainer) {
+    for (const lomcObj of Array.from(lomcsContainer.querySelectorAll(':scope > Object'))) {
+      const id = lomcObj.getAttribute('id') || '';
+      const componentUids = readRefTargetUids(lomcObj, 'Component');
+      listOfComponentsByUid.set(id, componentUids);
+    }
+  }
+
+  // Parse Material Templates. Follow the ListOfComponents reference to
+  // resolve the per-template component uids list.
   const templatesContainer = processModel.querySelector('Components[property="MaterialTemplates"]');
   if (templatesContainer) {
     for (const templateObj of Array.from(templatesContainer.querySelectorAll(':scope > Object'))) {
       const id = templateObj.getAttribute('id') || '';
       const identifier = getDataValue(templateObj, 'Identifier');
       const label = getDataValue(templateObj, 'Label');
-      
-      const components: string[] = [];
-      const componentsContainer = templateObj.querySelector('Components[property="Components"]');
-      if (componentsContainer) {
-        for (const compRef of Array.from(componentsContainer.querySelectorAll('ObjectReference'))) {
-          components.push(compRef.getAttribute('ref') || '');
-        }
-      }
-      
+      const lomcUid = readRefTargetUid(templateObj, 'ListOfComponents');
+      const components = lomcUid ? (listOfComponentsByUid.get(lomcUid) ?? []) : [];
+
       materialTemplates.push({ id, identifier, label, components, attributes: extractAllAttributes(templateObj) });
     }
   }
@@ -507,6 +582,37 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
     }
   }
   
+  // Parse Compositions — the per-stateType fraction vector lives here.
+  // Each Composition Object holds Display + a single QualifiedValue
+  // Components carrier whose property name encodes the basis
+  // (MoleFractiona — sic per Process.xml — or MassFractions) and whose
+  // Data property="Values" entries are the positional per-component
+  // fraction values. Build a uid → {basis, values} map for the
+  // MaterialStateType pass below to consult.
+  type CompositionData = { basis: 'Mole' | 'Mass'; values: string[] };
+  const compositionDataByUid = new Map<string, CompositionData>();
+  const compositionsContainer = processModel.querySelector('Components[property="Compositions"]');
+  if (compositionsContainer) {
+    for (const compObj of Array.from(compositionsContainer.querySelectorAll(':scope > Object'))) {
+      const compId = compObj.getAttribute('id') || '';
+      // Identify the fractions carrier by canonical property name.
+      const moleCarrier = compObj.querySelector(':scope > Components[property="MoleFractiona"]');
+      const massCarrier = compObj.querySelector(':scope > Components[property="MassFractions"]');
+      const carrier = moleCarrier ?? massCarrier;
+      if (!carrier) continue;
+      const basis: 'Mole' | 'Mass' = moleCarrier ? 'Mole' : 'Mass';
+      const qvObject = carrier.querySelector(':scope > Object[type="Core/QualifiedValue"]');
+      if (!qvObject) continue;
+      const valueEls = Array.from(qvObject.querySelectorAll(':scope > Data[property="Values"]'));
+      const values: string[] = [];
+      for (const v of valueEls) {
+        const txt = v.querySelector('String')?.textContent ?? v.textContent ?? '';
+        values.push(txt.trim());
+      }
+      if (values.length > 0) compositionDataByUid.set(compId, { basis, values });
+    }
+  }
+
   // Parse Material State Types
   const stateTypesContainer = processModel.querySelector('Components[property="MaterialStateTypes"]');
   if (stateTypesContainer) {
@@ -514,52 +620,89 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
       const id = typeObj.getAttribute('id') || '';
       const identifier = getDataValue(typeObj, 'Identifier');
       const label = getDataValue(typeObj, 'Label');
-      
-      let templateRef: string | undefined;
-      const templateRefEl = typeObj.querySelector('References[property="TemplateReference"] ObjectReference');
-      if (templateRefEl) templateRef = templateRefEl.getAttribute('ref') || undefined;
-      
-      const fractions: { componentRef: string; massFraction?: string; moleFraction?: string }[] = [];
-      const fractionsContainer = typeObj.querySelector('Components[property="Fractions"]');
-      if (fractionsContainer) {
-        for (const fracObj of Array.from(fractionsContainer.querySelectorAll(':scope > Object'))) {
-          const compRefEl = fracObj.querySelector('References[property="ComponentReference"] ObjectReference');
-          const compRef = compRefEl?.getAttribute('ref') || '';
-          const massValueEl = fracObj.querySelector('Object[property="MassFraction"] Data[property="NumericalValue"] String');
-          const moleValueEl = fracObj.querySelector('Object[property="MoleFraction"] Data[property="NumericalValue"] String');
-          
-          fractions.push({
-            componentRef: compRef,
-            massFraction: massValueEl?.textContent || undefined,
-            moleFraction: moleValueEl?.textContent || undefined
-          });
-        }
-      }
-      
-      materialStateTypes.push({ id, identifier, label, templateRef, fractions, attributes: extractAllAttributes(typeObj) });
+      // Resolve the Composition reference (Process.xml MaterialStateType.Composition,
+      // lower=1, upper=1, target /Process.Composition). The fraction values
+      // and basis are pulled from the Composition map; the componentRef
+      // pairing happens later, once the state→template map is available.
+      const compositionRef = readRefTargetUid(typeObj, 'Composition');
+
+      // Fractions are populated in a post-pass below so we can pair
+      // values with template.componentRefs by walking the streams.
+      materialStateTypes.push({
+        id, identifier, label,
+        compositionRef,
+        fractions: [],
+        attributes: extractAllAttributes(typeObj),
+      });
     }
   }
-  
-  // Parse Material States
+
+  // Parse Material States. Process.xml's MaterialState declares a State
+  // reference to MaterialStateType (lower=1, upper=1). It does NOT
+  // declare a MaterialTemplateReference — that lives on Stream.
   const statesContainer = processModel.querySelector('Components[property="MaterialStates"]');
   if (statesContainer) {
     for (const stateObj of Array.from(statesContainer.querySelectorAll(':scope > Object'))) {
       const id = stateObj.getAttribute('id') || '';
       const identifier = getDataValue(stateObj, 'Identifier');
       const label = getDataValue(stateObj, 'Label');
-      
-      let templateRef: string | undefined;
-      const templateRefEl = stateObj.querySelector('References[property="TemplateReference"] ObjectReference');
-      if (templateRefEl) templateRef = templateRefEl.getAttribute('ref') || undefined;
-      
-      let typeRef: string | undefined;
-      const typeRefEl = stateObj.querySelector('References[property="TypeReference"] ObjectReference');
-      if (typeRefEl) typeRef = typeRefEl.getAttribute('ref') || undefined;
-      
-      materialStates.push({ id, identifier, label, templateRef, typeRef, attributes: extractAllAttributes(stateObj) });
+      const typeRef = readRefTargetUid(stateObj, 'State');
+      // templateRef is filled in by the post-pass below, sourced from the
+      // Stream that carries this state.
+      materialStates.push({
+        id, identifier, label,
+        typeRef,
+        templateRef: undefined,
+        attributes: extractAllAttributes(stateObj),
+      });
     }
   }
-  
+
+  // Post-pass: resolve state → template via the streams. Walk every
+  // Stream that has both a MaterialStateReference AND a
+  // MaterialTemplateReference; record the pairing. If two streams point
+  // the same state at different templates the model is internally
+  // inconsistent — take the first pairing and move on (downstream
+  // queries can detect the divergence if it matters).
+  const stateToTemplate = new Map<string, string>();
+  for (const stream of streams) {
+    if (!stream.materialStateRef || !stream.materialTemplateRef) continue;
+    if (!stateToTemplate.has(stream.materialStateRef)) {
+      stateToTemplate.set(stream.materialStateRef, stream.materialTemplateRef);
+    }
+  }
+  for (const state of materialStates) {
+    state.templateRef = stateToTemplate.get(state.id);
+  }
+
+  // Resolve per-stateType fractions. For each MaterialStateType, find a
+  // MaterialState that references it; from there look up the linked
+  // MaterialTemplate (via the streams pass) and pair fractions[i] with
+  // template.componentRefs[i] positionally. If no template is reachable
+  // (orphan stateType — happens when no stream carries the state) we
+  // leave fractions empty rather than emit half-resolved (state, value)
+  // pairs without a component identity.
+  const templateById = new Map(materialTemplates.map(t => [t.id, t] as const));
+  for (const stateType of materialStateTypes) {
+    if (!stateType.compositionRef) continue;
+    const comp = compositionDataByUid.get(stateType.compositionRef);
+    if (!comp) continue;
+    // Find any state that uses this stateType, then the template that
+    // state is associated with via the streams.
+    const linkedState = materialStates.find(s => s.typeRef === stateType.id);
+    const templateUid = linkedState ? stateToTemplate.get(linkedState.id) : undefined;
+    const template = templateUid ? templateById.get(templateUid) : undefined;
+    if (!template) continue;
+    const n = Math.min(comp.values.length, template.components.length);
+    for (let i = 0; i < n; i++) {
+      stateType.fractions.push({
+        componentRef: template.components[i],
+        value: comp.values[i],
+        basis: comp.basis,
+      });
+    }
+  }
+
   return { processSteps, ports, streams, materialTemplates, materialComponents, materialStates, materialStateTypes };
 }
 
@@ -734,19 +877,22 @@ CREATE (mt)-[:HAS_COMPONENT]->(mc)`);
       ...stateType.attributes
     });
     queries.push(`CREATE (:MaterialStateType {${props}})`);
-    
-    if (stateType.templateRef) {
-      queries.push(`
-MATCH (mst:MaterialStateType {id: '${escapeString(stateType.id)}'})
-MATCH (mt:MaterialTemplate {id: '${escapeString(stateType.templateRef)}'})
-CREATE (mst)-[:USES_TEMPLATE]->(mt)`);
-    }
-    
+
+    // No (MaterialStateType)-[:USES_TEMPLATE]->(MaterialTemplate) edge:
+    // Process.xml puts MaterialTemplateReference on Stream (not on
+    // MaterialStateType). The state→template linkage is emitted below
+    // via (MaterialState)-[:USES_TEMPLATE], sourced from the streams.
+
     for (const frac of stateType.fractions) {
       if (frac.componentRef) {
-        const fracProps: string[] = [];
-        if (frac.massFraction) fracProps.push(`massFraction: ${frac.massFraction}`);
-        if (frac.moleFraction) fracProps.push(`moleFraction: ${frac.moleFraction}`);
+        // Single value-per-component edge tagged with the basis
+        // (Mole or Mass) — matches the Process.xml shape where one
+        // Composition carries one fractions vector under a single basis
+        // (MoleFractiona xor MassFractions).
+        const fracProps: string[] = [
+          `value: ${frac.value}`,
+          `basis: '${frac.basis}'`,
+        ];
         queries.push(`
 MATCH (mst:MaterialStateType {id: '${escapeString(stateType.id)}'})
 MATCH (mc:MaterialComponent {id: '${escapeString(frac.componentRef)}'})
