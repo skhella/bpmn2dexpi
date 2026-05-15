@@ -1055,7 +1055,7 @@ export class BpmnToDexpiTransformer {
     // Restructured form (Process.xml-aligned): MaterialState references a
     // sibling MaterialStateType via <dexpi:references property="State"
     // uidRef="..."/>; the MaterialStateType holds MoleFlow + a Composition
-    // reference; the Composition holds Display + MoleFractions/MassFractions.
+    // reference; the Composition holds Display + MoleFractiona/MassFractions.
     // Read this chain when present.
     const stateTypeRefUid = this.getChildValue(state, 'State', 'uidRef');
     let flow: import('./types').FlowData | null = null;
