@@ -293,6 +293,14 @@ export interface TransformOptions {
   projectDescription?: string;
   author?: string;
   /**
+   * URI for the emitted DEXPI Model wrapper (Model/@uri, XSD-required).
+   * Defaults to `urn:bpmn2dexpi:model:<sanitized projectName>` — a local
+   * URN that validates as `xsd:anyURI` without pretending to be a
+   * publishable URL. Set explicitly when the model has a real home
+   * (e.g. `"https://acme.com/dexpi/models/tep-2026"`).
+   */
+  modelUri?: string;
+  /**
    * Optional raw Process.xml content. Required in browser environments where
    * the transformer cannot read from the filesystem; in Node it falls back to
    * reading dexpi-schema-files/Process.xml from disk if omitted.
