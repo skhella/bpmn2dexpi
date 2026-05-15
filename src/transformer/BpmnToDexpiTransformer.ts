@@ -2602,6 +2602,20 @@ export class BpmnToDexpiTransformer {
         });
       }
 
+      // Add MaterialTemplateReference if present. Process.xml declares this as
+      // a ReferenceProperty on Stream (lower=0, upper=1, target /Process.MaterialTemplate).
+      // Emit shape mirrors the MaterialStateReference block above; both are the
+      // canonical Stream-side references that let consumers interpret the
+      // stream's per-component fractions against the template's ListOfComponents.
+      if (stream.templateReference) {
+        (dexpiStream.References as Record<string, unknown>[]).push({
+          '$': {
+            'property': 'MaterialTemplateReference',
+            'objects': `#${this.sanitizeId(stream.templateReference)}`
+          }
+        });
+      }
+
       // Add Label if present
       if (stream.name) {
         (dexpiStream.Data as Record<string, unknown>[]).push({
@@ -3100,18 +3114,9 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add MaterialTemplateReference if present
-      if (stateType.templateRef) {
-        if (!dexpiStateType.References) {
-          dexpiStateType.References = [];
-        }
-        (dexpiStateType.References as Record<string, unknown>[]).push({
-          '$': {
-            'property': 'MaterialTemplateReference',
-            'objects': `#${this.sanitizeId(stateType.templateRef)}`
-          }
-        });
-      }
+      // (No MaterialTemplateReference here — Process.xml declares that
+      // ReferenceProperty on Stream and MaterialPort, not on MaterialStateType.
+      // The canonical Stream-side emit lives in buildStreams above.)
 
       // Scalar QualifiedValue properties on MaterialStateType. Generic
       // emit: each entry round-trips one <dexpi:components property="X">
