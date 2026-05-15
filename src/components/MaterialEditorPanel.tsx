@@ -4,6 +4,7 @@ import { DexpiProcessClassRegistry, type DexpiProperty } from '../transformer/De
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
 import type { MaterialComponent, MaterialComponentProperty } from '../dexpi/moddle/materials';
+import { findMaterialStatesContainer } from '../utils/materialContainers';
 
 // Build the registry once per module so every editor render reuses the same
 // parsed Process.xml + Core.xml. Profile-extension classes (loaded into the
@@ -463,10 +464,7 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
     const moddle = modeler.get('moddle');
 
     // Locate the MaterialComponent (by uid) in whichever DataObjectReference's
-    // extensionElements actually hosts it. The legacy code used a name-based
-    // probe ("MaterialStates"-or-includes-"Material") that could land on the
-    // wrong DataObjectRef when both MaterialTemplates and MaterialStates
-    // coexist. Searching by uid is unambiguous.
+    // extensionElements actually hosts it. Searching by uid is unambiguous.
     const allDataObjs = elementRegistry.filter((el: any) => el.type === 'bpmn:DataObjectReference');
     let host: any = null;
     let componentModdle: any = null;
@@ -561,18 +559,10 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
       return;
     }
 
-    // Template / state save paths kept as-is — refactoring those is out of
-    // scope for the schema-driven MaterialComponent editor PR. Their hosts
-    // live under MaterialStates DataObjectReferences, the canonical save
-    // path through MaterialLibraryPanel.saveMaterialData is already the
-    // primary write surface for them.
     const modeling = modeler.get('modeling');
     const elementRegistry = modeler.get('elementRegistry');
     const allElements = elementRegistry.filter((el: any) => el.type === 'bpmn:DataObjectReference');
-    const materialStatesElement = allElements.find((el: any) =>
-      el.businessObject.name &&
-      (el.businessObject.name === 'MaterialStates' || el.businessObject.name.includes('Material'))
-    );
+    const materialStatesElement = findMaterialStatesContainer(allElements);
     if (!materialStatesElement) {
       alert('MaterialStates element not found');
       return;

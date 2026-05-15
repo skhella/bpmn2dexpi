@@ -12,6 +12,11 @@ import type { MaterialTemplate, MaterialComponent, MaterialState } from '../dexp
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
+import {
+  findMaterialStatesContainer,
+  findMaterialTemplatesContainer,
+  findAllMaterialStatesContainers,
+} from '../utils/materialContainers';
 
 // Registry built once per module — used by ComponentEditor to enumerate
 // concrete subclasses of MaterialComponent for the Type dropdown so new
@@ -192,11 +197,10 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     const elementRegistry = modeler.get('elementRegistry');
     const allElements = elementRegistry.getAll();
 
-    // Find MaterialTemplates DataObjectReference
-    const templatesDataObj = allElements.find((el: any) => 
-      el.type === 'bpmn:DataObjectReference' && 
-      el.businessObject.name === 'MaterialTemplates'
-    );
+    // Find MaterialTemplates DataObjectReference (content-based: any
+    // DataObjectReference whose extensionElements carry MaterialTemplate
+    // or MaterialComponent entries — robust to user-rename of the shape).
+    const templatesDataObj = findMaterialTemplatesContainer(allElements);
 
     const loadedTemplates: MaterialTemplate[] = [];
     const loadedComponents: MaterialComponent[] = [];
@@ -424,11 +428,10 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       });
     }
 
-    // Load states from ALL DataObjectReference elements with MaterialStates
-    const allStateDataObjs = allElements.filter((el: any) => 
-      el.type === 'bpmn:DataObjectReference' && 
-      (el.businessObject.name?.includes('MaterialStates') || el.businessObject.name === 'MaterialStates')
-    );
+    // Load states from ALL DataObjectReferences carrying MaterialState /
+    // Case extensionElements (content-based — matches whatever shape the
+    // user named).
+    const allStateDataObjs = findAllMaterialStatesContainers(allElements);
 
     const loadedStates: MaterialState[] = [];
     const groupedStates: { [key: string]: MaterialState[] } = {};
@@ -708,13 +711,9 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     const modeling = modeler.get('modeling');
     const moddle = modeler.get('moddle');
     
-    // Find or create the MaterialStates DataObjectReference
+    // Find or create the MaterialStates DataObjectReference (content-based).
     const allElements = elementRegistry.getAll();
-    let statesDataObj = allElements.find((el: any) => 
-      el.type === 'bpmn:DataObjectReference' && 
-      (el.businessObject.name === 'MaterialStates' || 
-       el.businessObject.name?.includes('MaterialStates'))
-    );
+    let statesDataObj = findMaterialStatesContainer(allElements);
 
     if (!statesDataObj) {
       // Create new MaterialStates DataObjectReference if it doesn't exist
@@ -777,14 +776,29 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     const modeling = modeler.get('modeling');
     const moddle = modeler.get('moddle');
 
-    // Find the MaterialStates DataObjectReference
+    // Find the MaterialStates DataObjectReference whose extensionElements
+    // actually contain the Case being renamed (content-based — supports both
+    // a single container holding multiple Cases and the legacy form of one
+    // container per Case).
     const allElements = elementRegistry.getAll();
-    const statesDataObj = allElements.find((el: any) => 
-      el.type === 'bpmn:DataObjectReference' && 
-      (el.businessObject.name === 'MaterialStates' || 
-       el.businessObject.name?.includes('MaterialStates') ||
-       el.businessObject.name === currentName)
-    );
+    const stateContainers = findAllMaterialStatesContainers(allElements);
+    const statesDataObj = stateContainers.find((el: any) => {
+      const values = el.businessObject?.extensionElements?.values ?? [];
+      // Case-wrapped form: look for a Case whose CaseName matches.
+      const hasMatchingCase = values.some((v: any) => {
+        if (v.$type !== 'Case' && v.$type !== 'dexpi:Case') return false;
+        const nameEl = v.$children?.find((c: any) =>
+          c.$type === 'CaseName' || c.$type === 'dexpi:CaseName'
+        );
+        return nameEl?.$body === currentName;
+      });
+      if (hasMatchingCase) return true;
+      // Legacy form: standalone CaseName sibling with matching body.
+      const standaloneName = values.find((v: any) =>
+        (v.$type === 'CaseName' || v.$type === 'dexpi:CaseName') && v.$body === currentName
+      );
+      return Boolean(standaloneName);
+    }) ?? stateContainers[0];
 
     if (statesDataObj) {
       const bo = statesDataObj.businessObject;
@@ -871,11 +885,8 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     const elementRegistry = modeler.get('elementRegistry');
     const elementFactory = modeler.get('elementFactory');
     
-    // Find or create MaterialTemplates DataObjectReference
-    let templatesDataObj = elementRegistry.getAll().find((el: any) => 
-      el.type === 'bpmn:DataObjectReference' && 
-      el.businessObject.name === 'MaterialTemplates'
-    );
+    // Find or create MaterialTemplates DataObjectReference (content-based).
+    let templatesDataObj = findMaterialTemplatesContainer(elementRegistry.getAll());
 
     if (!templatesDataObj) {
       // Create new DataObjectReference for templates
@@ -1089,11 +1100,8 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
     extensionElements.values = values;
     modeling.updateProperties(templatesDataObj, { extensionElements });
 
-    // Find or create MaterialStates DataObjectReference
-    let statesDataObj = elementRegistry.getAll().find((el: any) => 
-      el.type === 'bpmn:DataObjectReference' && 
-      (el.businessObject.name === 'Base Case MaterialStates' || el.businessObject.name === 'MaterialStates')
-    );
+    // Find or create MaterialStates DataObjectReference (content-based).
+    let statesDataObj = findMaterialStatesContainer(elementRegistry.getAll());
 
     if (!statesDataObj) {
       const dataObject = elementFactory.createShape({ type: 'bpmn:DataObjectReference' });
