@@ -94,6 +94,27 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(countTypeAttr('MaterialComponent')).toBeGreaterThanOrEqual(8);
   });
 
+  // Stream-side canonical references: Process.xml declares both
+  // MaterialTemplateReference and MaterialStateReference as ReferenceProperty
+  // (lower=0, upper=1) on Stream. The TEP fixture authors both on every
+  // material stream; the transformer must round-trip both to the emitted
+  // DEXPI XML. Without this assertion, a regression in either Stream-side
+  // emit path is invisible to the XSD validator (both refs are optional
+  // and silent loss is XSD-valid).
+  it('emits Stream-side MaterialTemplateReference + MaterialStateReference for every authored stream', () => {
+    const countMatches = (re: RegExp) => (output.match(re) ?? []).length;
+    const templateRefs = countMatches(/property="MaterialTemplateReference"/g);
+    const stateRefs    = countMatches(/property="MaterialStateReference"/g);
+    // The TEP fixture authors both references on all 11 material streams.
+    expect(templateRefs).toBe(11);
+    expect(stateRefs).toBe(11);
+    // Sanity: every reference resolves to a known target by id-prefix
+    // pattern. We don't grep specific uids here (those can change with
+    // fixture edits), but we assert no reference has an empty objects= attr.
+    expect(output).not.toMatch(/property="MaterialTemplateReference"\s+objects=""/);
+    expect(output).not.toMatch(/property="MaterialStateReference"\s+objects=""/);
+  });
+
   // DEXPI 2.0 schema-correct instrumentation handling: InstrumentationActivity
   // is a sibling of ProcessStep (both inherit from ConceptualObject) and does
   // not own a Ports composition. Emitting <Object type="Process/Process.InformationPort">
