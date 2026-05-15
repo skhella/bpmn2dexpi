@@ -1179,9 +1179,13 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
           }));
         }
 
+        // Process.xml declares no ReferenceProperty on MaterialState (its
+        // only outgoing reference is `State` to MaterialStateType, handled
+        // elsewhere). MaterialTemplateReference and StreamReference are
+        // emitted by the canonical owners (Stream side); writing them on
+        // the MaterialState BPMN block would be a wrong-host emit the
+        // transformer correctly ignores. No children to emit here.
         const referencesChildren: unknown[] = [];
-        if (state.templateRef) referencesChildren.push(buildReferenceChild('MaterialTemplateReference', state.templateRef));
-        if (state.streamRef) referencesChildren.push(buildReferenceChild('StreamReference', state.streamRef));
 
         const moddleProps: Record<string, unknown> = { uid: state.uid };
         if (dataChildren.length > 0) moddleProps.data = dataChildren;
@@ -1374,7 +1378,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       {editingState && (
         <StateEditor
           state={editingState}
-          templates={templates}
           onSave={saveState}
           onCancel={() => setEditingState(null)}
         />
@@ -1493,10 +1496,9 @@ const ComponentEditor: React.FC<{
 // State Editor Modal
 const StateEditor: React.FC<{
   state: MaterialState;
-  templates: MaterialTemplate[];
   onSave: (state: MaterialState) => void;
   onCancel: () => void;
-}> = ({ state, templates, onSave, onCancel }) => {
+}> = ({ state, onSave, onCancel }) => {
   const [edited, setEdited] = React.useState(state);
 
   return (
@@ -1536,52 +1538,13 @@ const StateEditor: React.FC<{
           </label>
         </div>
 
-        <div className="property-group">
-          <label>
-            Template Reference:
-            <select
-              value={edited.templateRef || ''}
-              onChange={(e) => {
-                const selectedTemplateUid = e.target.value;
-                const selectedTemplate = templates.find(t => t.uid === selectedTemplateUid);
-                
-                // Get number of components from template
-                const numComponents = selectedTemplate?.numberOfComponents || 0;
-                
-                // Create or resize fractions array to match template's component count
-                let newFractions = edited.flow?.composition?.fractions || [];
-                if (numComponents > 0) {
-                  // Resize array: keep existing values, pad with 0s, or trim
-                  // @ts-expect-error — fractions type-shape mismatch (see TODO at top of file)
-                  newFractions = Array(numComponents).fill(0).map((_, idx) =>
-                    newFractions[idx] !== undefined ? newFractions[idx] : 0
-                  );
-                }
-                
-                setEdited({ 
-                  ...edited, 
-                  templateRef: selectedTemplateUid,
-                  flow: {
-                    ...edited.flow,
-                    scalars: edited.flow?.scalars,
-                    composition: numComponents > 0 ? {
-                      basis: edited.flow?.composition?.basis || 'Mole',
-                      display: edited.flow?.composition?.display || 'Percentage',
-                      fractions: newFractions
-                    } : edited.flow?.composition
-                  }
-                });
-              }}
-            >
-              <option value="">None</option>
-              {templates.map(t => (
-                <option key={t.uid} value={t.uid}>
-                  {t.label} ({t.numberOfComponents} components)
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        {/* Template Reference editing lives on the Stream properties panel
+            (StreamPropertiesPanel.MaterialTemplateReference dropdown), which
+            is where Process.xml actually declares the reference — on Stream,
+            not on MaterialState. The previous dropdown here wrote the
+            reference onto the MaterialState BPMN block, which the
+            transformer ignored at export. Removed; users select the
+            template per-stream via the canonical Stream-side editor. */}
 
         <div className="property-group">
           <h5>Flow Properties</h5>
