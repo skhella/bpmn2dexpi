@@ -45,15 +45,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
+import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
 
-const REGISTRY = DexpiProcessClassRegistry.fromXml(processXmlRaw);
+// Build from both Process.xml + Core.xml so Core-declared enums
+// (QuantityProvenance, QuantityRange) resolve via getEnumerationLiterals.
+// Same pattern as DexpiPropertiesPanel + MaterialEditorPanel.
+const REGISTRY = DexpiProcessClassRegistry.fromXmlSources([
+  { name: 'Process.xml', xml: processXmlRaw },
+  { name: 'Core.xml', xml: coreXmlRaw },
+]);
 
-// Core/QuantityProvenance literals (Core.xml line 64). "Observed" is the
-// canonical literal for instrument-derived values.
-const PROVENANCE_LITERALS = ['Calculated', 'Estimated', 'Observed', 'Set', 'Specified'] as const;
+// Enum literal lists sourced from the schema so a future DEXPI version
+// that adds / renames a literal is picked up automatically. Default
+// values stay as plain constants because they're UX choices ("Observed"
+// is the canonical literal for instrument-derived values; "Nominal" is
+// the typical range qualifier), not enum-membership claims.
+const PROVENANCE_LITERALS = REGISTRY.getEnumerationLiterals('QuantityProvenance') ?? [];
 const DEFAULT_PROVENANCE = 'Observed';
-// Core/QuantityRange literals (Core.xml line 71).
-const RANGE_LITERALS = ['Actual', 'Average', 'LowerLimit', 'Nominal', 'Normal', 'UpperLimit'] as const;
+const RANGE_LITERALS = REGISTRY.getEnumerationLiterals('QuantityRange') ?? [];
 const DEFAULT_RANGE = 'Nominal';
 
 interface QualifiedValueDraft {
