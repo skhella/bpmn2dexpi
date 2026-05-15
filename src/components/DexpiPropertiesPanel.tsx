@@ -2230,6 +2230,12 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
   const [materialTemplate, setMaterialTemplate] = React.useState<any>(null);
   const [allMaterialStates, setAllMaterialStates] = React.useState<any[]>([]);
   const [currentStateUidRef, setCurrentStateUidRef] = React.useState<string>('');
+  // All MaterialTemplate Objects declared in the project (read from any
+  // dataObjectReference whose extensionElements.values contains MaterialTemplate
+  // entries). Powers the Stream-side MaterialTemplateReference dropdown.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [allMaterialTemplates, setAllMaterialTemplates] = React.useState<any[]>([]);
+  const [currentTemplateUidRef, setCurrentTemplateUidRef] = React.useState<string>('');
   // uid → moddle element index across all DataObject extension entries.
   // Used to follow Process.xml-aligned MaterialState → MaterialStateType →
   // Composition reference chains: the state has a State ref whose uidRef
@@ -2650,21 +2656,41 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               setCurrentStateUidRef('');
             }
             
-            if (templateRef?.uidRef) {
-              // Find the actual MaterialTemplate
-              const elementRegistry = modeler.get('elementRegistry');
-              const allElements = elementRegistry.getAll();
-              const templateDataObj = allElements.find((el: any) => 
-                el.type === 'bpmn:DataObjectReference' && 
-                el.businessObject.name === 'MaterialTemplates'
-              );
-              
-              if (templateDataObj?.businessObject?.extensionElements?.values) {
-                const template = templateDataObj.businessObject.extensionElements.values.find((val: any) => 
-                  (val.$type === 'MaterialTemplate' || val.$type?.includes('MaterialTemplate')) && val.uid === templateRef.uidRef
-                );
-                setMaterialTemplate(template);
+            setCurrentTemplateUidRef(templateRef?.uidRef ?? '');
+
+            // Discover all MaterialTemplate Objects declared anywhere in the
+            // project. Mirrors the MaterialState gathering above. Templates
+            // live under DataObjectReference elements (any name), in their
+            // extensionElements.values as <dexpi:MaterialTemplate uid="..."/>
+            // entries. We need all of them to power the editable dropdown.
+            const elementRegistry = modeler.get('elementRegistry');
+            const allElements = elementRegistry.getAll();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const allTemplates: any[] = [];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const el of allElements as any[]) {
+              if (el.type !== 'bpmn:DataObjectReference') continue;
+              const vals = el.businessObject?.extensionElements?.values;
+              if (!Array.isArray(vals)) continue;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              for (const val of vals as any[]) {
+                if (!val || !val.uid) continue;
+                const t = (val.$type || '').toString();
+                // Match MaterialTemplate, dexpi:MaterialTemplate; reject
+                // ListOfMaterialComponents and MaterialComponent (which
+                // contain "MaterialComponent" substring but aren't templates).
+                if (t === 'MaterialTemplate' || t === 'dexpi:MaterialTemplate' ||
+                    (t.endsWith(':MaterialTemplate') || t.endsWith('/MaterialTemplate'))) {
+                  allTemplates.push(val);
+                }
               }
+            }
+            setAllMaterialTemplates(allTemplates);
+
+            if (templateRef?.uidRef) {
+              // Resolve the currently-bound template for the read-only info card.
+              const template = allTemplates.find(t => t.uid === templateRef.uidRef);
+              setMaterialTemplate(template ?? null);
             }
           }
         } else {
@@ -2737,6 +2763,74 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
       extensionElements
     });
   };
+
+  /**
+   * Update the stream's MaterialTemplateReference. Empty string clears the
+   * reference; a non-empty uidRef sets a new <dexpi:references property=
+   * "MaterialTemplateReference" uidRef="X"/> on the dexpi:Stream, replacing
+   * any existing one. Process.xml declares this ReferenceProperty on Stream
+   * (lower=0 upper=1, target /Process.MaterialTemplate); the dropdown writes
+   * the canonical shape the transformer's extract reads at line 1562.
+   */
+  const updateTemplateRef = (newUidRef: string) => {
+    if (!modeler || !element) return;
+    const modeling = modeler.get('modeling');
+    const moddle = modeler.get('moddle');
+    const businessObject = element.businessObject;
+    let extensionElements = businessObject.extensionElements;
+    if (!extensionElements) {
+      extensionElements = moddle.create('bpmn:ExtensionElements');
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let dexpiStream = (extensionElements.values ?? []).find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (e: any) => e.$type === 'dexpi:Stream'
+    );
+    if (!dexpiStream) {
+      dexpiStream = moddle.create('dexpi:Stream');
+      if (!extensionElements.values) {
+        // eslint-disable-next-line react-hooks/immutability
+        extensionElements.values = [];
+      }
+      extensionElements.values.push(dexpiStream);
+    }
+    // Filter existing references to drop any MaterialTemplateReference (and
+    // its legacy TemplateReference alias); rebuild from scratch.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const refs = (dexpiStream.references ?? []).filter((r: any) =>
+      r?.property !== 'MaterialTemplateReference' && r?.property !== 'TemplateReference'
+    );
+    if (newUidRef) {
+      refs.push(moddle.create('dexpi:References', {
+        property: 'MaterialTemplateReference',
+        uidRef: newUidRef,
+      }));
+    }
+    dexpiStream.references = refs;
+    setCurrentTemplateUidRef(newUidRef);
+    // Refresh the read-only info card to match.
+    const newTpl = allMaterialTemplates.find(t => t.uid === newUidRef);
+    setMaterialTemplate(newTpl ?? null);
+
+    modeling.updateProperties(element, { extensionElements });
+  };
+
+  // Smart default for MaterialTemplateReference: when the stream has no
+  // current template binding AND the project declares exactly one
+  // MaterialTemplate, pre-bind to that one. Saves the user a click in the
+  // overwhelmingly common single-template project. Multi-template projects
+  // require an explicit pick (no guessing).
+  React.useEffect(() => {
+    if (!hasData) return;
+    if (currentTemplateUidRef) return;          // already bound — keep
+    if (allMaterialTemplates.length !== 1) return; // 0 or 2+ → no default
+    updateTemplateRef(allMaterialTemplates[0].uid);
+    // updateTemplateRef captures `element`/`modeler`/`allMaterialTemplates`
+    // by closure; running once per stream-selection settles by writing the
+    // ref and updating currentTemplateUidRef, which exits the effect on
+    // subsequent renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasData, allMaterialTemplates, currentTemplateUidRef]);
 
   // Auto-create empty placeholder attributes for required-but-not-auto-emitted
   // properties on the wrapping Stream class (e.g. InformationFlow.InformationValue).
@@ -3163,16 +3257,33 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
         )}
       </div>
 
-      {/* Material Template Information */}
-      {materialTemplate && (
+      {/* MaterialTemplateReference editor — Process.xml declares the
+          reference on Stream (lower=0 upper=1, target /Process.MaterialTemplate).
+          Dropdown is populated from every MaterialTemplate Object found in
+          the project. Empty value clears the reference. */}
+      {allMaterialTemplates.length > 0 && (
         <div className="property-group" style={{ background: '#f3e5f5', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
           <h4 style={{ margin: '0 0 8px 0', color: '#7b1fa2' }}>🧪 Material Template</h4>
-          <div style={{ fontSize: '0.9rem' }}>
-            <div><strong>Label:</strong> {readDexpiData(materialTemplate, 'Label')}</div>
-            <div><strong>Identifier:</strong> {readDexpiData(materialTemplate, 'Identifier')}</div>
-            <div><strong>Components:</strong> {readDexpiData(materialTemplate, 'NumberOfMaterialComponents')}</div>
-            <div><strong>Phases:</strong> {readDexpiData(materialTemplate, 'NumberOfPhases')}</div>
-          </div>
+          <label>
+            Reference:
+            <select
+              value={currentTemplateUidRef}
+              onChange={(e) => updateTemplateRef(e.target.value)}
+            >
+              <option value="">— none —</option>
+              {allMaterialTemplates.map(t => {
+                const label = readDexpiData(t, 'Label') || readDexpiData(t, 'Identifier') || t.uid;
+                return <option key={t.uid} value={t.uid}>{label}</option>;
+              })}
+            </select>
+          </label>
+          {materialTemplate && (
+            <div style={{ fontSize: '0.85rem', marginTop: '8px', color: '#555' }}>
+              <div><strong>Identifier:</strong> {readDexpiData(materialTemplate, 'Identifier')}</div>
+              <div><strong>Components:</strong> {readDexpiData(materialTemplate, 'NumberOfMaterialComponents')}</div>
+              <div><strong>Phases:</strong> {readDexpiData(materialTemplate, 'NumberOfPhases')}</div>
+            </div>
+          )}
         </div>
       )}
 
