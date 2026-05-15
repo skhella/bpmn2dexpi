@@ -613,16 +613,6 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
               />
             </div>
             <ScalarPropertiesEditor edited={edited} setEdited={setEdited} registry={baseRegistry} />
-            <div className="form-group">
-              <label>Template Reference:</label>
-              <input
-                type="text"
-                value={edited.templateRef || ''}
-                readOnly
-                disabled
-                title="Set by material template"
-              />
-            </div>
             {edited.flow?.composition?.fractions && edited.flow.composition.fractions.length > 0 && (
               <div className="form-group">
                 <label>Composition (Mole Fractions):</label>

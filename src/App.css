@@ -140,7 +140,10 @@
   font-weight: 500;
 }
 
-.property-group input,
+/* Full-width applies to text-style inputs and selects only; checkbox /
+   radio inputs sit inside their own flex label and must keep their native
+   width so the label text renders next to them, not below. */
+.property-group input:not([type="checkbox"]):not([type="radio"]),
 .property-group select {
   width: 100%;
   padding: 0.5rem;
