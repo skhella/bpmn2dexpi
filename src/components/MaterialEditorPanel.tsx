@@ -320,6 +320,112 @@ const ScalarPropertiesEditor: React.FC<ScalarPropertiesEditorProps> = ({ edited,
   );
 };
 
+/**
+ * Basis + Display picker for a Composition. Two side-by-side dropdowns:
+ *
+ *   - **Basis** — selects which CompositionProperty name carries the
+ *     fractions vector on the emitted Composition Object. Process.xml
+ *     declares only two on Composition: MoleFractiona (the schema typo,
+ *     preserved verbatim) and MassFractions. A "Custom (Profile-extension)"
+ *     option follows the established dropdown pattern; the value is the
+ *     property name to emit, and the Profile generator declares it as a
+ *     CompositionProperty extension on Composition at export time. Smart
+ *     default for fresh compositions: "Mole" (TEP's case; most chemical
+ *     processes).
+ *
+ *   - **Display** — selects the value of Composition.Display
+ *     (DataProperty whose target is Core/Enumerations.CompositionDisplay).
+ *     Three canonical literals: AbsoluteValue / Fraction / Percent. No
+ *     custom option — the Profile generator does not extend enum literals,
+ *     so a custom Display value would become a permanent strict-mode
+ *     finding with no auto-fix path. Display is conceptually closed; the
+ *     three values cover every meaningful mode.
+ *
+ * Both selections persist into edited.flow.composition.{basis, display};
+ * the dynamic label and the transformer emit derive from those fields.
+ */
+interface CompositionBasisAndDisplayPickerProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  edited: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setEdited: (next: any) => void;
+  registry: DexpiProcessClassRegistry | null;
+}
+const CompositionBasisAndDisplayPicker: React.FC<CompositionBasisAndDisplayPickerProps> = ({
+  edited, setEdited, registry,
+}) => {
+  const canonicalBasisOptions = ['Mole', 'Mass'];
+  const currentBasis = edited.flow?.composition?.basis || 'Mole';
+  const isCustomBasis = !canonicalBasisOptions.includes(currentBasis);
+
+  // Display literals come from the schema's CompositionDisplay enum;
+  // re-fetched from the registry so a schema bump picks them up
+  // automatically. Falls back to the canonical three if registry is
+  // unavailable (e.g. Process.xml load failed).
+  const displayOptions = registry?.getEnumerationLiterals('CompositionDisplay')
+    ?? ['AbsoluteValue', 'Fraction', 'Percent'];
+  const currentDisplay = edited.flow?.composition?.display || 'Fraction';
+
+  const writeBasis = (basis: string) => {
+    setEdited({
+      ...edited,
+      flow: {
+        ...edited.flow,
+        composition: { ...edited.flow.composition, basis },
+      },
+    });
+  };
+  const writeDisplay = (display: string) => {
+    setEdited({
+      ...edited,
+      flow: {
+        ...edited.flow,
+        composition: { ...edited.flow.composition, display },
+      },
+    });
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+      <label style={{ flex: 1, fontSize: '0.85em', display: 'flex', flexDirection: 'column' }}>
+        <span style={{ color: '#666' }}>Basis</span>
+        <select
+          value={isCustomBasis ? '__custom__' : currentBasis}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '__custom__') {
+              writeBasis(isCustomBasis ? currentBasis : '');
+            } else {
+              writeBasis(v);
+            }
+          }}
+        >
+          {canonicalBasisOptions.map(b => <option key={b} value={b}>{b}</option>)}
+          <option value="__custom__">Custom (Profile-extension) …</option>
+        </select>
+        {isCustomBasis && (
+          <input
+            type="text"
+            value={currentBasis}
+            onChange={(e) => writeBasis(e.target.value)}
+            placeholder="e.g. VolumeFractions"
+            style={{ marginTop: '4px' }}
+          />
+        )}
+      </label>
+      <label style={{ flex: 1, fontSize: '0.85em', display: 'flex', flexDirection: 'column' }}>
+        <span style={{ color: '#666' }}>Display</span>
+        <select
+          value={currentDisplay}
+          onChange={(e) => writeDisplay(e.target.value)}
+        >
+          {displayOptions.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+};
+
 interface MaterialEditorPanelProps {
   item: {
     type: 'template' | 'component' | 'state';
@@ -615,7 +721,26 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
             <ScalarPropertiesEditor edited={edited} setEdited={setEdited} registry={baseRegistry} />
             {edited.flow?.composition?.fractions && edited.flow.composition.fractions.length > 0 && (
               <div className="form-group">
-                <label>Composition (Mole Fractions):</label>
+                <CompositionBasisAndDisplayPicker edited={edited} setEdited={setEdited} registry={baseRegistry} />
+                {(() => {
+                  // Dynamic label derived from basis + display. Basis comes
+                  // from which Composition CompositionProperty carries the
+                  // fractions vector (MoleFractiona / MassFractions); display
+                  // is the CompositionDisplay enum literal. Translation
+                  // table maps the canonical enum literal to a readable
+                  // plural form for the label (AbsoluteValue → "Absolute
+                  // Values"); falls back to the literal itself for any
+                  // future enum addition.
+                  const basis = (edited.flow.composition.basis || 'Mole');
+                  const display = (edited.flow.composition.display || 'Fraction');
+                  const displayLabelMap: Record<string, string> = {
+                    Fraction: 'Fractions',
+                    Percent: 'Percents',
+                    AbsoluteValue: 'Absolute Values',
+                  };
+                  const displayLabel = displayLabelMap[display] ?? display;
+                  return <label>Composition ({basis} {displayLabel}):</label>;
+                })()}
                 <div style={{
                   border: '1px solid #dee2e6',
                   borderRadius: '4px',
