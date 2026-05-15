@@ -1109,23 +1109,19 @@ export class BpmnToDexpiTransformer {
           ) as Element | undefined;
           if (comp) {
             const display = this.getChildText(comp, 'Display');
-            // Composition's fractions properties per Process.xml are
-            // MoleFractiona (sic — typo for MoleFractions in the published
-            // schema; faithful reproduction here, flagged upstream),
-            // MassFractions, VolumeFractions. Each is a CompositionProperty
+            // Composition's fraction properties per Process.xml are
+            // MoleFractiona (sic — typo preserved from the published
+            // schema) and MassFractions. Each is a CompositionProperty
             // wrapping a QualifiedValue<PhysicalQuantityVector> whose
             // Values DataProperty is multi-valued (one <dexpi:data
             // property="Values">v</dexpi:data> per component).
             const fractionsQv =
               this.findCarrierComponentsQualifiedValue(comp, 'MoleFractiona') ??
-              this.findCarrierComponentsQualifiedValue(comp, 'MassFractions') ??
-              this.findCarrierComponentsQualifiedValue(comp, 'VolumeFractions');
+              this.findCarrierComponentsQualifiedValue(comp, 'MassFractions');
             const basis = fractionsQv
               ? (this.findCarrierComponentsPropertyName(comp, 'MoleFractiona')
                   ? 'Mole'
-                  : this.findCarrierComponentsPropertyName(comp, 'MassFractions')
-                    ? 'Mass'
-                    : 'Volume')
+                  : 'Mass')
               : '';
             const values: { value: string }[] = [];
             if (fractionsQv) {
@@ -3193,10 +3189,21 @@ export class BpmnToDexpiTransformer {
    * resolves locally.
    *
    * Per Process.xml, Composition declares Display + per-component fractions
-   * vectors (MoleFractiona [sic] / MassFractions / VolumeFractions). Display
-   * is the only piece carried through the InternalMaterialStateType today;
-   * the per-component vectors are not yet exercised by the canonical TEP
-   * fixture.
+   * Build the DEXPI Composition Objects from the captured InternalMaterialStateType
+   * records. Per Process.xml's `Composition` class, this emits:
+   *   - `<Data property="Display">` — the AbsoluteValue / Fraction / Percent
+   *     enum literal (Composition.Display, lower=0, upper=1)
+   *   - `<Components property="MoleFractiona">` or `<Components property="MassFractions">`
+   *     wrapping a Core/QualifiedValue Object whose `<Data property="Values">`
+   *     children carry the per-component fraction vector. Process.xml declares
+   *     both as CompositionProperty (lower=0); exactly one is emitted per
+   *     Composition, selected by the basis ("Mole" → `MoleFractiona`, the
+   *     schema typo is faithful, "Mass" → `MassFractions`).
+   *
+   * Composition Objects are emitted under `ProcessModel.Compositions` with a
+   * deterministic id derived from the state type's uid so the
+   * MaterialStateType's `<References property="Composition" objects="#...">`
+   * resolves locally.
    */
   private buildCompositions(): Record<string, unknown>[] {
     const out: Record<string, unknown>[] = [];
@@ -3219,6 +3226,46 @@ export class BpmnToDexpiTransformer {
       if (compositionData.length > 0) {
         compositionObj.Data = compositionData;
       }
+
+      // Per-component fraction vector. Schema only declares MoleFractiona
+      // and MassFractions on Composition; the basis selects which carrier
+      // property name to use.
+      const fractions = stateType.flow.composition.fractions ?? [];
+      if (fractions.length > 0) {
+        const basisLabel = (stateType.flow.composition.basis || 'Mole').toLowerCase();
+        const carrierProperty = basisLabel === 'mass' ? 'MassFractions' : 'MoleFractiona';
+        // QualifiedValue's PhysicalQuantityVector binding inlines `Values`
+        // (multi-valued) + `Unit`. Core/QualifiedValue still declares scalar
+        // `Value` (lower=1) and `DisplayText` (lower=1) which the cardinality
+        // validator enforces against every QualifiedValue Object regardless
+        // of binding. Emit them as `<Undefined/>` placeholders so the
+        // required-bound is satisfied without inventing a misleading scalar
+        // for what is semantically a vector quantity (same convention the
+        // canonical-on-ProcessStep parameter slots use).
+        const qvData: Record<string, unknown>[] = [
+          { '$': { 'property': 'Value' }, 'Undefined': {} },
+          { '$': { 'property': 'DisplayText' }, 'Undefined': {} },
+        ];
+        for (const f of fractions) {
+          qvData.push({
+            '$': { 'property': 'Values' },
+            'String': f.value,
+          });
+        }
+        qvData.push({
+          '$': { 'property': 'Unit' },
+          'String': 'Fraction',
+        });
+        const fractionsComponents = {
+          '$': { 'property': carrierProperty },
+          'Object': [{
+            '$': { 'type': 'Core/QualifiedValue' },
+            'Data': qvData,
+          }],
+        };
+        compositionObj.Components = [fractionsComponents];
+      }
+
       out.push(compositionObj);
     });
     return out;
