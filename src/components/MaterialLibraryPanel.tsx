@@ -498,11 +498,11 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       }
 
       // Composition's per-component fractions live on Composition.MoleFractiona
-      // (sic — Process.xml typo) / MassFractions / VolumeFractions, encoded
-      // as a multi-valued PhysicalQuantityVector inside QualifiedValue.
-      // Each fraction is paired with its MaterialComponent uid via the
-      // host Stream's MaterialTemplateReference (lookup at index N matches
-      // the template's ListOfComponents at index N).
+      // (sic — Process.xml typo) or MassFractions, encoded as a multi-valued
+      // PhysicalQuantityVector inside QualifiedValue. Each fraction is paired
+      // with its MaterialComponent uid via the host Stream's
+      // MaterialTemplateReference (lookup at index N matches the template's
+      // ListOfComponents at index N).
       let basis = '';
       let fractionUnit = 'Fraction';
       let rawFractionValues: number[] = [];
@@ -512,7 +512,6 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         for (const [propName, basisLabel] of [
           ['MoleFractiona', 'Mole'],
           ['MassFractions', 'Mass'],
-          ['VolumeFractions', 'Volume'],
         ] as const) {
           const qv = readComponentsObject(composition, propName);
           if (qv) {

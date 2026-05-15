@@ -3195,8 +3195,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
 
               const fractions = composition
                 ? (readQualifiedValue(composition, 'MoleFractiona') ??
-                   readQualifiedValue(composition, 'MassFractions') ??
-                   readQualifiedValue(composition, 'VolumeFractions'))
+                   readQualifiedValue(composition, 'MassFractions'))
                 : null;
               const legacyFractions = legacyComposition?.$children?.filter((c: any) => c.$type === 'Fraction') ?? [];
               const fractionValues = fractions?.values ??

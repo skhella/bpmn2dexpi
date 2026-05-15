@@ -94,6 +94,28 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(countTypeAttr('MaterialComponent')).toBeGreaterThanOrEqual(8);
   });
 
+  // Composition's per-component fractions: Process.xml declares
+  // MoleFractiona (sic — schema typo) and MassFractions as
+  // CompositionProperty<QualifiedValue> on Composition (lower=0 each).
+  // The TEP fixture authors a 8-component MoleFractiona vector on every
+  // MaterialStateType's referenced Composition. The transformer must
+  // round-trip them to the emitted DEXPI XML or the export is
+  // semantically incomplete (XSD-valid but missing the per-component
+  // breakdown). Same silent-loss category the Stream-side reference
+  // emit had before the fix landed.
+  it('emits Composition per-component fraction vectors for every authored MaterialStateType', () => {
+    const countMatches = (re: RegExp) => (output.match(re) ?? []).length;
+    // TEP authors Mole-basis fractions; one MoleFractiona Components
+    // carrier per Composition (11 states → 11 carriers).
+    expect(countMatches(/property="MoleFractiona"/g)).toBe(11);
+    expect(countMatches(/property="MassFractions"/g)).toBe(0);
+    // Each carrier wraps a Core/QualifiedValue Object with N
+    // <Data property="Values">…</Data> entries (TEP: 8 components per
+    // template → 88 Values data entries total across the 11 carriers).
+    const valuesData = countMatches(/<Data property="Values"/g);
+    expect(valuesData).toBe(88);
+  });
+
   // Stream-side canonical references: Process.xml declares both
   // MaterialTemplateReference and MaterialStateReference as ReferenceProperty
   // (lower=0, upper=1) on Stream. The TEP fixture authors both on every
