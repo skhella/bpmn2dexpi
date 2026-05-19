@@ -8,6 +8,7 @@
 // (which shape wins?), migration of any saved models, and updates across the
 // importer/exporter — out of scope for the Profile-generator branch.
 import React from 'react';
+import { createPortal } from 'react-dom';
 import type { MaterialTemplate, MaterialComponent, MaterialState } from '../dexpi/moddle/materials';
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
@@ -1403,7 +1404,7 @@ const TemplateEditor: React.FC<{
 }> = ({ template, onSave, onCancel }) => {
   const [edited, setEdited] = React.useState(template);
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <h4>Edit Template</h4>
@@ -1443,7 +1444,8 @@ const TemplateEditor: React.FC<{
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -1455,7 +1457,7 @@ const ComponentEditor: React.FC<{
 }> = ({ component, onSave, onCancel }) => {
   const [edited, setEdited] = React.useState(component);
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <h4>Edit Component</h4>
@@ -1497,7 +1499,8 @@ const ComponentEditor: React.FC<{
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -1509,7 +1512,7 @@ const StateEditor: React.FC<{
 }> = ({ state, onSave, onCancel }) => {
   const [edited, setEdited] = React.useState(state);
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '80vh', overflow: 'auto' }}>
         <h4>Material State Details</h4>
@@ -1755,6 +1758,7 @@ const StateEditor: React.FC<{
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
