@@ -195,6 +195,12 @@ function App() {
   // SVG export filename dialog — same single-field pattern.
   const [showSvgExportDialog, setShowSvgExportDialog] = useState<boolean>(false);
   const [svgExportFilename, setSvgExportFilename] = useState<string>('process-diagram.svg');
+
+  // Generate-Profile filename dialog. Derived output (not a user model
+  // export) so it lives in its own state alongside the other filename
+  // dialogs for consistency.
+  const [showProfileExportDialog, setShowProfileExportDialog] = useState<boolean>(false);
+  const [profileExportFilename, setProfileExportFilename] = useState<string>('generated-profile.xml');
   const isNavigatingBack = useRef(false);
   
   // Update global flag for port visibility
@@ -817,6 +823,11 @@ function App() {
    * validation to pass against this model in this session. That keeps
    * generation observable / reviewable rather than silent.
    */
+  const openGenerateProfileDialog = () => {
+    if (!modeler) return;
+    setShowProfileExportDialog(true);
+  };
+
   const handleGenerateProfile = async () => {
     if (!modeler) return;
     try {
@@ -848,7 +859,8 @@ function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'generated-profile.xml';
+      const rawName = (profileExportFilename || '').trim() || 'generated-profile.xml';
+      a.download = /\.xml$/i.test(rawName) ? rawName : `${rawName}.xml`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -1140,7 +1152,7 @@ function App() {
                       Import Profile
                     </button>
                     <button
-                      onClick={() => { handleGenerateProfile(); setShowDexpiMenu(false); }}
+                      onClick={() => { openGenerateProfileDialog(); setShowDexpiMenu(false); }}
                       className="btn"
                       style={{ flex: '1 1 auto' }}
                       title="Generate a DEXPI Profile from the current model that fills every metamodel-fidelity gap. Re-import the downloaded file to apply it."
@@ -1326,7 +1338,7 @@ function App() {
                 Dismiss
               </button>
               <button
-                onClick={() => { setStrictWarning(null); handleGenerateProfile(); }}
+                onClick={() => { setStrictWarning(null); openGenerateProfileDialog(); }}
                 className="btn btn-primary"
               >
                 Generate Profile
@@ -1343,6 +1355,71 @@ function App() {
         isExporting={neo4jExporting}
         progress={neo4jProgress}
       />
+
+      {showProfileExportDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-export-dialog-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowProfileExportDialog(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#222',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              padding: '1.25em',
+              maxWidth: '480px',
+              width: '90%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85em',
+            }}
+          >
+            <h3 id="profile-export-dialog-title" style={{ margin: 0 }}>Generate DEXPI Profile</h3>
+            <div style={{ fontSize: '0.85em', color: '#555' }}>
+              Walks the current model, infers project-specific class /
+              property extensions, and downloads a deterministic Profile
+              XML that closes any strict-mode fidelity gaps. Re-import the
+              file to apply it in this session.
+            </div>
+
+            <div className="form-group">
+              <label>Filename:</label>
+              <input
+                type="text"
+                value={profileExportFilename}
+                onChange={(e) => setProfileExportFilename(e.target.value)}
+                placeholder="generated-profile.xml"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5em', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowProfileExportDialog(false)} className="btn">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowProfileExportDialog(false); handleGenerateProfile(); }}
+                className="btn btn-primary"
+              >
+                Generate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSvgExportDialog && (
         <div
