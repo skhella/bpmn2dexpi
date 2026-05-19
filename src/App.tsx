@@ -167,6 +167,23 @@ function App() {
   const [showNeo4jModal, setShowNeo4jModal] = useState(false);
   const [neo4jExporting, setNeo4jExporting] = useState(false);
   const [neo4jProgress, setNeo4jProgress] = useState<{ current: number; total: number; stage: string } | null>(null);
+
+  // Pre-export dialog. Opens when the user clicks Export DEXPI XML; collects
+  // the filename + model-metadata fields (projectName / projectDescription /
+  // author) that previously hardcoded into handleExportDexpi. Values persist
+  // across exports within the session so re-exports don't require retyping.
+  const [showExportDialog, setShowExportDialog] = useState<boolean>(false);
+  const [exportOptions, setExportOptions] = useState<{
+    filename: string;
+    projectName: string;
+    projectDescription: string;
+    author: string;
+  }>({
+    filename: 'process-model-dexpi.xml',
+    projectName: 'DEXPI Process Model',
+    projectDescription: 'Generated from BPMN.io',
+    author: 'bpmn2dexpi',
+  });
   const isNavigatingBack = useRef(false);
   
   // Update global flag for port visibility
@@ -533,6 +550,13 @@ function App() {
     }
   };
 
+  // Opens the export-options dialog. The user-supplied filename and metadata
+  // fields are then passed into the actual transform via handleExportDexpi.
+  const openExportDexpiDialog = () => {
+    if (!modeler) return;
+    setShowExportDialog(true);
+  };
+
   const handleExportDexpi = async () => {
     if (!modeler) return;
 
@@ -540,7 +564,7 @@ function App() {
       // Step 1: Generate BPMN XML with DEXPI extensions
       const result = await modeler.saveXML({ format: true });
       const bpmnXml = result.xml;
-      
+
       if (!bpmnXml) {
         setValidationMessage('No BPMN XML to transform');
         return;
@@ -555,11 +579,11 @@ function App() {
       // dexpi:element content on round-trip. preprocessBpmnXml normalizes any
       // legacy port wrappers to flat ports.
       const xmlForTransform = preprocessBpmnXml(bpmnXml);
-      
+
       const dexpiXml = await transformer.transform(xmlForTransform, {
-        projectName: 'DEXPI Process Model',
-        projectDescription: 'Generated from BPMN.io',
-        author: 'bpmn2dexpi',
+        projectName: exportOptions.projectName,
+        projectDescription: exportOptions.projectDescription,
+        author: exportOptions.author,
         processXml: processXmlRaw,
         // Strict mode needs Core.xml in the registry too so the validator
         // can walk supertype chains across Process → Core. Always pass it
@@ -582,7 +606,10 @@ function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'process-model-dexpi.xml';
+      // Trim whitespace and ensure a .xml suffix so users can paste a bare
+      // name in the dialog without remembering the extension.
+      const rawName = (exportOptions.filename || '').trim() || 'process-model-dexpi.xml';
+      a.download = /\.xml$/i.test(rawName) ? rawName : `${rawName}.xml`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -952,7 +979,7 @@ function App() {
                     🔗 Neo4j
                   </button>
                   <button
-                    onClick={() => { handleExportDexpi(); setShowExportsMenu(false); }}
+                    onClick={() => { openExportDexpiDialog(); setShowExportsMenu(false); }}
                     className="btn btn-primary"
                     style={{ textAlign: 'left' }}
                     title="Transform the BPMN model and export DEXPI 2.0 XML (also available as the primary toolbar button)"
@@ -1113,7 +1140,7 @@ function App() {
               </>
             )}
           </div>
-          <button onClick={handleExportDexpi} className="btn btn-primary">Export DEXPI XML</button>
+          <button onClick={openExportDexpiDialog} className="btn btn-primary">Export DEXPI XML</button>
         </div>
       </header>
       
@@ -1294,6 +1321,97 @@ function App() {
         isExporting={neo4jExporting}
         progress={neo4jProgress}
       />
+
+      {showExportDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="export-dialog-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowExportDialog(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#222',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              padding: '1.25em',
+              maxWidth: '480px',
+              width: '90%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85em',
+            }}
+          >
+            <h3 id="export-dialog-title" style={{ margin: 0 }}>Export DEXPI XML</h3>
+            <div style={{ fontSize: '0.85em', color: '#555' }}>
+              These values are embedded in the exported DEXPI Model (project
+              name, description, author) and used as the download filename.
+              Defaults match the previous hardcoded export.
+            </div>
+
+            <div className="form-group">
+              <label>Filename:</label>
+              <input
+                type="text"
+                value={exportOptions.filename}
+                onChange={(e) => setExportOptions({ ...exportOptions, filename: e.target.value })}
+                placeholder="process-model-dexpi.xml"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Project name:</label>
+              <input
+                type="text"
+                value={exportOptions.projectName}
+                onChange={(e) => setExportOptions({ ...exportOptions, projectName: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Project description:</label>
+              <input
+                type="text"
+                value={exportOptions.projectDescription}
+                onChange={(e) => setExportOptions({ ...exportOptions, projectDescription: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Author:</label>
+              <input
+                type="text"
+                value={exportOptions.author}
+                onChange={(e) => setExportOptions({ ...exportOptions, author: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5em', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowExportDialog(false)} className="btn">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowExportDialog(false); handleExportDexpi(); }}
+                className="btn btn-primary"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
