@@ -8,6 +8,7 @@
 // (which shape wins?), migration of any saved models, and updates across the
 // importer/exporter — out of scope for the Profile-generator branch.
 import React from 'react';
+import { createPortal } from 'react-dom';
 import type { MaterialTemplate, MaterialComponent, MaterialState } from '../dexpi/moddle/materials';
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
@@ -1403,47 +1404,48 @@ const TemplateEditor: React.FC<{
 }> = ({ template, onSave, onCancel }) => {
   const [edited, setEdited] = React.useState(template);
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <h4>Edit Template</h4>
-        <label>
-          Identifier:
+        <div className="form-group">
+          <label>Identifier:</label>
           <input
             type="text"
             value={edited.identifier}
             onChange={(e) => setEdited({ ...edited, identifier: e.target.value })}
           />
-        </label>
-        <label>
-          Label:
+        </div>
+        <div className="form-group">
+          <label>Label:</label>
           <input
             type="text"
             value={edited.label}
             onChange={(e) => setEdited({ ...edited, label: e.target.value })}
           />
-        </label>
-        <label>
-          Description:
+        </div>
+        <div className="form-group">
+          <label>Description:</label>
           <textarea
             value={edited.description}
             onChange={(e) => setEdited({ ...edited, description: e.target.value })}
           />
-        </label>
-        <label>
-          Number of Phases:
+        </div>
+        <div className="form-group">
+          <label>Number of Phases:</label>
           <input
             type="number"
             value={edited.numberOfPhases}
             onChange={(e) => setEdited({ ...edited, numberOfPhases: parseInt(e.target.value) })}
           />
-        </label>
+        </div>
         <div className="modal-actions">
           <button className="btn-save" onClick={() => onSave(edited)}>Save</button>
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -1455,28 +1457,28 @@ const ComponentEditor: React.FC<{
 }> = ({ component, onSave, onCancel }) => {
   const [edited, setEdited] = React.useState(component);
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <h4>Edit Component</h4>
-        <label>
-          Identifier:
+        <div className="form-group">
+          <label>Identifier:</label>
           <input
             type="text"
             value={edited.identifier}
             onChange={(e) => setEdited({ ...edited, identifier: e.target.value })}
           />
-        </label>
-        <label>
-          Label:
+        </div>
+        <div className="form-group">
+          <label>Label:</label>
           <input
             type="text"
             value={edited.label}
             onChange={(e) => setEdited({ ...edited, label: e.target.value })}
           />
-        </label>
-        <label>
-          Type:
+        </div>
+        <div className="form-group">
+          <label>Type:</label>
           <select
             value={edited.type}
             onChange={(e) => setEdited({ ...edited, type: e.target.value as MaterialComponent['type'] })}
@@ -1485,7 +1487,7 @@ const ComponentEditor: React.FC<{
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
-        </label>
+        </div>
         {/* The "+ Add Component" modal stays minimal — just the structural
             fields needed to seed a new component. ChEBI_identifier /
             IUPAC_identifier / ProjectReference and any project-extension
@@ -1497,7 +1499,8 @@ const ComponentEditor: React.FC<{
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -1509,7 +1512,7 @@ const StateEditor: React.FC<{
 }> = ({ state, onSave, onCancel }) => {
   const [edited, setEdited] = React.useState(state);
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '80vh', overflow: 'auto' }}>
         <h4>Material State Details</h4>
@@ -1755,6 +1758,7 @@ const StateEditor: React.FC<{
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
