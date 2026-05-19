@@ -874,6 +874,13 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
   };
 
   const updatePort = (portId: string, updates: Partial<DexpiPort>) => {
+    // Capture the existing port's name before applying the update, so we can
+    // cascade a rename into any SequenceFlow labels that encode this port's
+    // name. The label is the contract DexpiRenderer uses to anchor connection
+    // endpoints to specific ports (DexpiRenderer.ts ~466), so leaving stale
+    // labels behind after a rename also misroutes the port anchoring.
+    const portBeingUpdated = ports.find(p => p.portId === portId);
+    const oldPortName = portBeingUpdated?.name;
     const updatedPorts = ports.map(p => {
       if (p.portId === portId) {
         // Check if this is a legacy port
@@ -970,6 +977,49 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       });
     } else {
       updateDexpiElement({ ports: updatedPorts });
+    }
+
+    // Cascade a port rename into every SequenceFlow label that encodes the
+    // old name. Labels follow one of two shapes ("Src - Tgt" or
+    // "Src - Stream N - Tgt"); the first token is the source-side port name
+    // and the last token is the target-side. Rewrite whichever end belongs
+    // to this element. DexpiRenderer parses these labels to anchor connection
+    // endpoints to specific ports, so the label is also the implicit
+    // identifier — leaving it stale breaks port anchoring after rename.
+    if (
+      updates.name !== undefined &&
+      oldPortName !== undefined &&
+      updates.name !== oldPortName
+    ) {
+      const elementRegistry = modeler.get('elementRegistry');
+      const modeling = modeler.get('modeling');
+      const elementId = element.businessObject.id;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const touchingFlows = elementRegistry.filter((el: any) =>
+        el.type === 'bpmn:SequenceFlow' &&
+        (el.source?.id === elementId || el.target?.id === elementId)
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const conn of touchingFlows as any[]) {
+        const bo = conn.businessObject;
+        const currentName = (bo.name || '').trim();
+        if (!currentName) continue;
+        const parts = currentName.split(' - ').map((s: string) => s.trim());
+        if (parts.length < 2) continue;
+        const lastIdx = parts.length - 1;
+        let changed = false;
+        if (conn.source?.id === elementId && parts[0] === oldPortName) {
+          parts[0] = updates.name;
+          changed = true;
+        }
+        if (conn.target?.id === elementId && parts[lastIdx] === oldPortName) {
+          parts[lastIdx] = updates.name;
+          changed = true;
+        }
+        if (changed) {
+          modeling.updateProperties(conn, { name: parts.join(' - ') });
+        }
+      }
     }
   };
 
