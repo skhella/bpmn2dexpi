@@ -184,6 +184,13 @@ function App() {
     projectDescription: 'Generated from BPMN.io',
     author: 'bpmn2dexpi',
   });
+
+  // BPMN export filename dialog. BPMN doesn't carry the project / author
+  // metadata DEXPI does, so this is a single-field modal — but kept as a
+  // dedicated dialog rather than a native prompt() for visual consistency
+  // with the DEXPI export flow.
+  const [showBpmnExportDialog, setShowBpmnExportDialog] = useState<boolean>(false);
+  const [bpmnExportFilename, setBpmnExportFilename] = useState<string>('process-model.bpmn');
   const isNavigatingBack = useRef(false);
   
   // Update global flag for port visibility
@@ -534,20 +541,26 @@ function App() {
     try {
       const result = await modeler.saveXML({ format: true });
       const xml = result.xml;
-      
+
       const blob = new Blob([xml || ''], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'process-model.bpmn';
+      const rawName = (bpmnExportFilename || '').trim() || 'process-model.bpmn';
+      a.download = /\.bpmn$/i.test(rawName) ? rawName : `${rawName}.bpmn`;
       a.click();
       URL.revokeObjectURL(url);
-      
+
       setValidationMessage('BPMN XML exported successfully!');
     } catch (err) {
       console.error('Export failed:', err);
       setValidationMessage('Export failed: ' + (err as Error).message);
     }
+  };
+
+  const openExportBpmnDialog = () => {
+    if (!modeler) return;
+    setShowBpmnExportDialog(true);
   };
 
   // Opens the export-options dialog. The user-supplied filename and metadata
@@ -957,7 +970,7 @@ function App() {
                   }}
                 >
                   <button
-                    onClick={() => { handleExportBpmn(); setShowExportsMenu(false); }}
+                    onClick={() => { openExportBpmnDialog(); setShowExportsMenu(false); }}
                     className="btn"
                     style={{ textAlign: 'left' }}
                   >
@@ -1321,6 +1334,69 @@ function App() {
         isExporting={neo4jExporting}
         progress={neo4jProgress}
       />
+
+      {showBpmnExportDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bpmn-export-dialog-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowBpmnExportDialog(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#222',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              padding: '1.25em',
+              maxWidth: '480px',
+              width: '90%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85em',
+            }}
+          >
+            <h3 id="bpmn-export-dialog-title" style={{ margin: 0 }}>Export BPMN</h3>
+            <div style={{ fontSize: '0.85em', color: '#555' }}>
+              Saves the current diagram (DEXPI annotations included) as a
+              BPMN 2.0 XML file. Import it again later to continue editing.
+            </div>
+
+            <div className="form-group">
+              <label>Filename:</label>
+              <input
+                type="text"
+                value={bpmnExportFilename}
+                onChange={(e) => setBpmnExportFilename(e.target.value)}
+                placeholder="process-model.bpmn"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5em', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowBpmnExportDialog(false)} className="btn">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowBpmnExportDialog(false); handleExportBpmn(); }}
+                className="btn btn-primary"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showExportDialog && (
         <div
