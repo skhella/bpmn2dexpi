@@ -167,6 +167,40 @@ function App() {
   const [showNeo4jModal, setShowNeo4jModal] = useState(false);
   const [neo4jExporting, setNeo4jExporting] = useState(false);
   const [neo4jProgress, setNeo4jProgress] = useState<{ current: number; total: number; stage: string } | null>(null);
+
+  // Pre-export dialog. Opens when the user clicks Export DEXPI XML; collects
+  // the filename + model-metadata fields (projectName / projectDescription /
+  // author) that previously hardcoded into handleExportDexpi. Values persist
+  // across exports within the session so re-exports don't require retyping.
+  const [showExportDialog, setShowExportDialog] = useState<boolean>(false);
+  const [exportOptions, setExportOptions] = useState<{
+    filename: string;
+    projectName: string;
+    projectDescription: string;
+    author: string;
+  }>({
+    filename: 'process-model-dexpi.xml',
+    projectName: 'DEXPI Process Model',
+    projectDescription: 'Generated from BPMN.io',
+    author: 'bpmn2dexpi',
+  });
+
+  // BPMN export filename dialog. BPMN doesn't carry the project / author
+  // metadata DEXPI does, so this is a single-field modal — but kept as a
+  // dedicated dialog rather than a native prompt() for visual consistency
+  // with the DEXPI export flow.
+  const [showBpmnExportDialog, setShowBpmnExportDialog] = useState<boolean>(false);
+  const [bpmnExportFilename, setBpmnExportFilename] = useState<string>('process-model.bpmn');
+
+  // SVG export filename dialog — same single-field pattern.
+  const [showSvgExportDialog, setShowSvgExportDialog] = useState<boolean>(false);
+  const [svgExportFilename, setSvgExportFilename] = useState<string>('process-diagram.svg');
+
+  // Generate-Profile filename dialog. Derived output (not a user model
+  // export) so it lives in its own state alongside the other filename
+  // dialogs for consistency.
+  const [showProfileExportDialog, setShowProfileExportDialog] = useState<boolean>(false);
+  const [profileExportFilename, setProfileExportFilename] = useState<string>('generated-profile.xml');
   const isNavigatingBack = useRef(false);
   
   // Update global flag for port visibility
@@ -517,20 +551,33 @@ function App() {
     try {
       const result = await modeler.saveXML({ format: true });
       const xml = result.xml;
-      
+
       const blob = new Blob([xml || ''], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'process-model.bpmn';
+      const rawName = (bpmnExportFilename || '').trim() || 'process-model.bpmn';
+      a.download = /\.bpmn$/i.test(rawName) ? rawName : `${rawName}.bpmn`;
       a.click();
       URL.revokeObjectURL(url);
-      
+
       setValidationMessage('BPMN XML exported successfully!');
     } catch (err) {
       console.error('Export failed:', err);
       setValidationMessage('Export failed: ' + (err as Error).message);
     }
+  };
+
+  const openExportBpmnDialog = () => {
+    if (!modeler) return;
+    setShowBpmnExportDialog(true);
+  };
+
+  // Opens the export-options dialog. The user-supplied filename and metadata
+  // fields are then passed into the actual transform via handleExportDexpi.
+  const openExportDexpiDialog = () => {
+    if (!modeler) return;
+    setShowExportDialog(true);
   };
 
   const handleExportDexpi = async () => {
@@ -540,7 +587,7 @@ function App() {
       // Step 1: Generate BPMN XML with DEXPI extensions
       const result = await modeler.saveXML({ format: true });
       const bpmnXml = result.xml;
-      
+
       if (!bpmnXml) {
         setValidationMessage('No BPMN XML to transform');
         return;
@@ -555,11 +602,11 @@ function App() {
       // dexpi:element content on round-trip. preprocessBpmnXml normalizes any
       // legacy port wrappers to flat ports.
       const xmlForTransform = preprocessBpmnXml(bpmnXml);
-      
+
       const dexpiXml = await transformer.transform(xmlForTransform, {
-        projectName: 'DEXPI Process Model',
-        projectDescription: 'Generated from BPMN.io',
-        author: 'bpmn2dexpi',
+        projectName: exportOptions.projectName,
+        projectDescription: exportOptions.projectDescription,
+        author: exportOptions.author,
         processXml: processXmlRaw,
         // Strict mode needs Core.xml in the registry too so the validator
         // can walk supertype chains across Process → Core. Always pass it
@@ -582,7 +629,10 @@ function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'process-model-dexpi.xml';
+      // Trim whitespace and ensure a .xml suffix so users can paste a bare
+      // name in the dialog without remembering the extension.
+      const rawName = (exportOptions.filename || '').trim() || 'process-model-dexpi.xml';
+      a.download = /\.xml$/i.test(rawName) ? rawName : `${rawName}.xml`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -655,21 +705,26 @@ function App() {
 
     try {
       const { svg } = await modeler.saveSVG();
-      
-      // Download SVG
+
       const blob = new Blob([svg], { type: 'image/svg+xml' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'process-diagram.svg';
+      const rawName = (svgExportFilename || '').trim() || 'process-diagram.svg';
+      a.download = /\.svg$/i.test(rawName) ? rawName : `${rawName}.svg`;
       a.click();
       URL.revokeObjectURL(url);
-      
+
       setValidationMessage('SVG exported successfully!');
     } catch (err) {
       console.error('SVG export failed:', err);
       setValidationMessage('SVG export failed: ' + (err as Error).message);
     }
+  };
+
+  const openExportSvgDialog = () => {
+    if (!modeler) return;
+    setShowSvgExportDialog(true);
   };
 
   const handleExportNeo4j = async (config: Neo4jConfig, _options: { clearDatabase: boolean }) => {
@@ -768,6 +823,11 @@ function App() {
    * validation to pass against this model in this session. That keeps
    * generation observable / reviewable rather than silent.
    */
+  const openGenerateProfileDialog = () => {
+    if (!modeler) return;
+    setShowProfileExportDialog(true);
+  };
+
   const handleGenerateProfile = async () => {
     if (!modeler) return;
     try {
@@ -799,7 +859,8 @@ function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'generated-profile.xml';
+      const rawName = (profileExportFilename || '').trim() || 'generated-profile.xml';
+      a.download = /\.xml$/i.test(rawName) ? rawName : `${rawName}.xml`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -930,14 +991,14 @@ function App() {
                   }}
                 >
                   <button
-                    onClick={() => { handleExportBpmn(); setShowExportsMenu(false); }}
+                    onClick={() => { openExportBpmnDialog(); setShowExportsMenu(false); }}
                     className="btn"
                     style={{ textAlign: 'left' }}
                   >
                     Export BPMN
                   </button>
                   <button
-                    onClick={() => { handleExportSvg(); setShowExportsMenu(false); }}
+                    onClick={() => { openExportSvgDialog(); setShowExportsMenu(false); }}
                     className="btn"
                     style={{ textAlign: 'left' }}
                   >
@@ -952,7 +1013,7 @@ function App() {
                     🔗 Neo4j
                   </button>
                   <button
-                    onClick={() => { handleExportDexpi(); setShowExportsMenu(false); }}
+                    onClick={() => { openExportDexpiDialog(); setShowExportsMenu(false); }}
                     className="btn btn-primary"
                     style={{ textAlign: 'left' }}
                     title="Transform the BPMN model and export DEXPI 2.0 XML (also available as the primary toolbar button)"
@@ -1091,7 +1152,7 @@ function App() {
                       Import Profile
                     </button>
                     <button
-                      onClick={() => { handleGenerateProfile(); setShowDexpiMenu(false); }}
+                      onClick={() => { openGenerateProfileDialog(); setShowDexpiMenu(false); }}
                       className="btn"
                       style={{ flex: '1 1 auto' }}
                       title="Generate a DEXPI Profile from the current model that fills every metamodel-fidelity gap. Re-import the downloaded file to apply it."
@@ -1113,7 +1174,7 @@ function App() {
               </>
             )}
           </div>
-          <button onClick={handleExportDexpi} className="btn btn-primary">Export DEXPI XML</button>
+          <button onClick={openExportDexpiDialog} className="btn btn-primary">Export DEXPI XML</button>
         </div>
       </header>
       
@@ -1277,7 +1338,7 @@ function App() {
                 Dismiss
               </button>
               <button
-                onClick={() => { setStrictWarning(null); handleGenerateProfile(); }}
+                onClick={() => { setStrictWarning(null); openGenerateProfileDialog(); }}
                 className="btn btn-primary"
               >
                 Generate Profile
@@ -1294,6 +1355,288 @@ function App() {
         isExporting={neo4jExporting}
         progress={neo4jProgress}
       />
+
+      {showProfileExportDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-export-dialog-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowProfileExportDialog(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#222',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              padding: '1.25em',
+              maxWidth: '480px',
+              width: '90%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85em',
+            }}
+          >
+            <h3 id="profile-export-dialog-title" style={{ margin: 0 }}>Generate DEXPI Profile</h3>
+            <div style={{ fontSize: '0.85em', color: '#555' }}>
+              Walks the current model, infers project-specific class /
+              property extensions, and downloads a deterministic Profile
+              XML that closes any strict-mode fidelity gaps. Re-import the
+              file to apply it in this session.
+            </div>
+
+            <div className="form-group">
+              <label>Filename:</label>
+              <input
+                type="text"
+                value={profileExportFilename}
+                onChange={(e) => setProfileExportFilename(e.target.value)}
+                placeholder="generated-profile.xml"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5em', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowProfileExportDialog(false)} className="btn">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowProfileExportDialog(false); handleGenerateProfile(); }}
+                className="btn btn-primary"
+              >
+                Generate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSvgExportDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="svg-export-dialog-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowSvgExportDialog(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#222',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              padding: '1.25em',
+              maxWidth: '480px',
+              width: '90%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85em',
+            }}
+          >
+            <h3 id="svg-export-dialog-title" style={{ margin: 0 }}>Export SVG</h3>
+            <div style={{ fontSize: '0.85em', color: '#555' }}>
+              Saves the current diagram as a vector SVG for embedding in
+              documents or publications.
+            </div>
+
+            <div className="form-group">
+              <label>Filename:</label>
+              <input
+                type="text"
+                value={svgExportFilename}
+                onChange={(e) => setSvgExportFilename(e.target.value)}
+                placeholder="process-diagram.svg"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5em', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowSvgExportDialog(false)} className="btn">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowSvgExportDialog(false); handleExportSvg(); }}
+                className="btn btn-primary"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBpmnExportDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bpmn-export-dialog-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowBpmnExportDialog(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#222',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              padding: '1.25em',
+              maxWidth: '480px',
+              width: '90%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85em',
+            }}
+          >
+            <h3 id="bpmn-export-dialog-title" style={{ margin: 0 }}>Export BPMN</h3>
+            <div style={{ fontSize: '0.85em', color: '#555' }}>
+              Saves the current diagram (DEXPI annotations included) as a
+              BPMN 2.0 XML file. Import it again later to continue editing.
+            </div>
+
+            <div className="form-group">
+              <label>Filename:</label>
+              <input
+                type="text"
+                value={bpmnExportFilename}
+                onChange={(e) => setBpmnExportFilename(e.target.value)}
+                placeholder="process-model.bpmn"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5em', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowBpmnExportDialog(false)} className="btn">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowBpmnExportDialog(false); handleExportBpmn(); }}
+                className="btn btn-primary"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExportDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="export-dialog-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowExportDialog(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#222',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              padding: '1.25em',
+              maxWidth: '480px',
+              width: '90%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85em',
+            }}
+          >
+            <h3 id="export-dialog-title" style={{ margin: 0 }}>Export DEXPI XML</h3>
+            <div style={{ fontSize: '0.85em', color: '#555' }}>
+              These values are embedded in the exported DEXPI Model (project
+              name, description, author) and used as the download filename.
+              Defaults match the previous hardcoded export.
+            </div>
+
+            <div className="form-group">
+              <label>Filename:</label>
+              <input
+                type="text"
+                value={exportOptions.filename}
+                onChange={(e) => setExportOptions({ ...exportOptions, filename: e.target.value })}
+                placeholder="process-model-dexpi.xml"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Project name:</label>
+              <input
+                type="text"
+                value={exportOptions.projectName}
+                onChange={(e) => setExportOptions({ ...exportOptions, projectName: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Project description:</label>
+              <input
+                type="text"
+                value={exportOptions.projectDescription}
+                onChange={(e) => setExportOptions({ ...exportOptions, projectDescription: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Author:</label>
+              <input
+                type="text"
+                value={exportOptions.author}
+                onChange={(e) => setExportOptions({ ...exportOptions, author: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5em', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowExportDialog(false)} className="btn">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowExportDialog(false); handleExportDexpi(); }}
+                className="btn btn-primary"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
