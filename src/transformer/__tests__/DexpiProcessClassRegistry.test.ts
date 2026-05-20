@@ -148,26 +148,27 @@ describe('DexpiProcessClassRegistry multi-source loading', () => {
     ).toThrow(/unresolved supertype.*NonExistentParent/is);
   });
 
-  it('rejects two sources declaring the same class name', () => {
+  it('merges two sources declaring the same class name and records a warning', () => {
     const dupe = {
       name: 'Dupe.xml',
       xml: `<Model name="Dupe" uri="https://test/dupe">
         <ConcreteClass name="Pumping" superTypes="Core/ConceptualObject"/>
       </Model>`,
     };
-    expect(() =>
-      DexpiProcessClassRegistry.fromXmlSources([
-        { name: 'Process.xml', xml: processXml },
-        { name: 'Core.xml', xml: coreXml },
-        dupe,
-      ])
-    ).toThrow(/duplicate class names.*Pumping/is);
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+      dupe,
+    ]);
+    expect(reg.isValidClass('Pumping')).toBe(true);
+    expect(reg.getClass('Pumping')!.sourceFile).toBe('Process.xml');
+    expect(reg.mergeWarnings.some(w => w.includes('Pumping') && w.includes('Dupe.xml'))).toBe(true);
   });
 });
 
-// ── Profile mode="extend" merge semantics ─────────────────────────────────
+// ── Profile merge semantics ───────────────────────────────────────────────
 
-describe('DexpiProcessClassRegistry profile mode="extend"', () => {
+describe('DexpiProcessClassRegistry uniform Profile merge', () => {
   const CORE_XML_PATH = join(__dirname, '../../../dexpi-schema-files/Core.xml');
   const processXml = readFileSync(PROCESS_XML_PATH, 'utf-8');
   const coreXml = readFileSync(CORE_XML_PATH, 'utf-8');
@@ -200,21 +201,29 @@ describe('DexpiProcessClassRegistry profile mode="extend"', () => {
     expect(reg.getClass('Composition')!.sourceFile).toBe('Process.xml');
   });
 
-  it('without mode="extend" still rejects conflicts (back-compat)', () => {
-    const conflictingProfile = {
-      name: 'conflicting.xml',
+  it('merges regardless of whether a Profile carries the legacy mode="extend" marker', () => {
+    // The two-mode design has been retired; same-name class redeclarations
+    // merge additively whether the Profile root is <Model> or
+    // <Profile mode="extend">. Verified by loading a marker-less Profile
+    // whose declaration would have collided under the old reject default.
+    const markerlessProfile = {
+      name: 'markerless.xml',
       xml: `<?xml version="1.0" encoding="UTF-8"?>
-        <Model name="Conflicting" uri="https://test/conflicting">
-          <ConcreteClass name="Composition" superTypes="Core/ConceptualObject"/>
-        </Model>`,
+        <Profile uri="https://test/markerless">
+          <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
+            <DataProperty name="LegacyField" lower="0" upper="1">
+              <DataTypeReference type="Builtin/String"/>
+            </DataProperty>
+          </ConcreteClass>
+        </Profile>`,
     };
-    expect(() =>
-      DexpiProcessClassRegistry.fromXmlSources([
-        { name: 'Process.xml', xml: processXml },
-        { name: 'Core.xml', xml: coreXml },
-        conflictingProfile,
-      ])
-    ).toThrow(/duplicate class names.*Composition/is);
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+      markerlessProfile,
+    ]);
+    expect(reg.getProperties('Composition').map(p => p.name)).toContain('LegacyField');
+    expect(reg.mergeWarnings.some(w => w.includes('Composition') && w.includes('markerless.xml'))).toBe(true);
   });
 
   it('extend Profile can also add genuinely new classes alongside extensions', () => {

@@ -144,19 +144,23 @@ describe('DEXPI Profile import', () => {
     expect(failures, JSON.stringify(failures.slice(0, 3), null, 2)).toEqual([]);
   });
 
-  it('rejects a Profile whose class name conflicts with Process.xml', async () => {
-    const conflictProfile = `<?xml version="1.0" encoding="UTF-8"?>
-      <Model name="ConflictTest" uri="https://test/conflict">
+  it('merges a Profile whose class name overlaps with Process.xml (uniform merge)', async () => {
+    // Same-name redeclarations are merged additively into the existing
+    // class rather than rejected (the two-mode design has been retired).
+    // The transform completes without throwing; downstream tooling that
+    // wants to flag the overlap can inspect the registry's mergeWarnings.
+    const overlappingProfile = `<?xml version="1.0" encoding="UTF-8"?>
+      <Profile uri="https://test/overlap">
         <ConcreteClass name="Pumping" superTypes="Core/ConceptualObject"/>
-      </Model>`;
+      </Profile>`;
     const t = new BpmnToDexpiTransformer();
-    await expect(
-      t.transform(BIOREACTOR_BPMN, {
-        processXml: PROCESS_XML,
-        coreXml: CORE_XML,
-        profileXmls: [{ name: 'conflict.xml', xml: conflictProfile }],
-      })
-    ).rejects.toThrow(/duplicate class names.*Pumping/is);
+    const out = await t.transform(BIOREACTOR_BPMN, {
+      processXml: PROCESS_XML,
+      coreXml: CORE_XML,
+      profileXmls: [{ name: 'overlap.xml', xml: overlappingProfile }],
+    });
+    expect(typeof out).toBe('string');
+    expect(out.length).toBeGreaterThan(0);
   });
 
   it('rejects a Profile that references an unknown supertype', async () => {

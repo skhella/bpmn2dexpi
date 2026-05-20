@@ -90,13 +90,23 @@ export class DexpiProcessClassRegistry {
    * of the declared literals.
    */
   private readonly enumerations: Map<string, string[]>;
+  /**
+   * Same-name merge warnings collected during construction. Empty unless
+   * a loaded source (typically a Profile) redeclared a class already
+   * present from an earlier source. Each entry names the class plus the
+   * two sources involved. Non-fatal — the merge proceeds — but surfaced
+   * so callers can flag potential typos or unintended name collisions.
+   */
+  readonly mergeWarnings: ReadonlyArray<string>;
 
   private constructor(
     classes: Map<string, DexpiClassInfo>,
     enumerations: Map<string, string[]> = new Map(),
+    mergeWarnings: ReadonlyArray<string> = [],
   ) {
     this.classes = classes;
     this.enumerations = enumerations;
+    this.mergeWarnings = mergeWarnings;
   }
 
   // ── Factories ─────────────────────────────────────────────────────────────
@@ -141,10 +151,10 @@ export class DexpiProcessClassRegistry {
     const strict = options.strictSupertypes ?? true;
     const classes = new Map<string, DexpiClassInfo>();
     const enumerations = new Map<string, string[]>();
-    const conflicts: string[] = [];
+    const mergeWarnings: string[] = [];
 
     for (const source of sources) {
-      const { classes: parsed, enumerations: parsedEnums, mode } = parseSchemaXml(source);
+      const { classes: parsed, enumerations: parsedEnums } = parseSchemaXml(source);
       // Merge enumerations: later sources override earlier ones for the
       // same name. The TEP fixture currently has no enum collisions across
       // Process+Core; if a Profile redefines an enum, the Profile's
@@ -155,47 +165,29 @@ export class DexpiProcessClassRegistry {
       for (const cls of parsed) {
         // Bare-name dedup assumes class names are globally unique across all
         // loaded DEXPI sources. This holds for DEXPI 2.0 — Process.xml + Core.xml
-        // do not collide on any concrete or abstract class name. If a future
-        // DEXPI release introduces a package that reuses a name (e.g. a second
-        // 'Stream' under a different package), this dedup would surface it as
-        // a conflict and the registry would need to switch to package-qualified
-        // identity ('Process.Stream' vs 'Other.Stream') here and in callers.
+        // do not collide on any concrete or abstract class name. A redeclaration
+        // by a Profile (the normal extension case) merges additively into the
+        // existing class: kind, supertypes, description, sourceFile preserved;
+        // only properties not already declared by name are appended. A warning
+        // is recorded so callers can surface unintended collisions (e.g.
+        // hand-authored Profile typoing a standard class name) without blocking
+        // the load. The paper describes this as a "uniform mechanism" — there
+        // is no second mode and no marker required.
         const existing = classes.get(cls.name);
         if (existing) {
-          // Profile-level mode="extend" semantics: when the *source*
-          // declares this Profile as an extension Profile, the registry
-          // merges new property declarations into the existing class
-          // (typically a Process.xml or Core.xml class) rather than
-          // rejecting the conflict. Existing kind, supertypes, description,
-          // sourceFile are preserved; only properties not already declared
-          // by name are appended. Hand-authored Profiles without the
-          // mode marker keep the default reject-on-conflict behavior.
-          //
-          // The marker is bpmn2dexpi-specific until DEXPI publishes a
-          // standard Profile-extension idiom; on migration this branch
-          // would route through whatever the standard names instead.
-          if (mode === 'extend') {
-            const existingPropNames = new Set(existing.properties.map(p => p.name));
-            for (const np of cls.properties) {
-              if (!existingPropNames.has(np.name)) {
-                existing.properties.push(np);
-              }
+          const existingPropNames = new Set(existing.properties.map(p => p.name));
+          for (const np of cls.properties) {
+            if (!existingPropNames.has(np.name)) {
+              existing.properties.push(np);
             }
-            continue;
           }
-          conflicts.push(
-            `Class "${cls.name}" declared in both "${existing.sourceFile}" and "${cls.sourceFile}"`
+          mergeWarnings.push(
+            `Class "${cls.name}" from "${cls.sourceFile}" merged into prior declaration from "${existing.sourceFile}"`
           );
           continue;
         }
         classes.set(cls.name, cls);
       }
-    }
-
-    if (conflicts.length > 0) {
-      throw new Error(
-        `DEXPI schema merge conflict — duplicate class names:\n  ${conflicts.join('\n  ')}`
-      );
     }
 
     if (strict) {
@@ -214,7 +206,7 @@ export class DexpiProcessClassRegistry {
       }
     }
 
-    return new DexpiProcessClassRegistry(classes, enumerations);
+    return new DexpiProcessClassRegistry(classes, enumerations, mergeWarnings);
   }
 
   /**
@@ -383,9 +375,9 @@ export class DexpiProcessClassRegistry {
    * Return a NEW registry containing the current classes plus the merge
    * of an additional schema XML. Used by the Profile generator to build
    * intermediate registries during iterative generation without retaining
-   * the original schema sources. Honors the same Profile mode="extend"
-   * semantics as fromXmlSources(): without the marker, conflicts throw;
-   * with it, properties are merged into existing classes.
+   * the original schema sources. Same uniform merge semantics as
+   * fromXmlSources(): same-name classes merge additively, with a warning
+   * recorded for surfacing by callers.
    *
    * The current registry is left untouched.
    */
@@ -395,35 +387,27 @@ export class DexpiProcessClassRegistry {
     for (const [k, v] of this.classes) {
       cloned.set(k, { ...v, properties: [...v.properties], superTypes: [...v.superTypes] });
     }
-    const { classes: parsed, enumerations: parsedEnums, mode } = parseSchemaXml({ name, xml });
+    const { classes: parsed, enumerations: parsedEnums } = parseSchemaXml({ name, xml });
     // Clone enums + merge new ones (later wins for same name).
     const clonedEnums = new Map<string, string[]>();
     for (const [k, v] of this.enumerations) clonedEnums.set(k, [...v]);
     for (const [k, v] of parsedEnums) clonedEnums.set(k, v);
-    const conflicts: string[] = [];
+    const mergeWarnings: string[] = [...this.mergeWarnings];
     for (const cls of parsed) {
       const existing = cloned.get(cls.name);
       if (existing) {
-        if (mode === 'extend') {
-          const existingPropNames = new Set(existing.properties.map(p => p.name));
-          for (const np of cls.properties) {
-            if (!existingPropNames.has(np.name)) existing.properties.push(np);
-          }
-          continue;
+        const existingPropNames = new Set(existing.properties.map(p => p.name));
+        for (const np of cls.properties) {
+          if (!existingPropNames.has(np.name)) existing.properties.push(np);
         }
-        conflicts.push(
-          `Class "${cls.name}" declared in both "${existing.sourceFile}" and "${cls.sourceFile}"`
+        mergeWarnings.push(
+          `Class "${cls.name}" from "${cls.sourceFile}" merged into prior declaration from "${existing.sourceFile}"`
         );
         continue;
       }
       cloned.set(cls.name, cls);
     }
-    if (conflicts.length > 0) {
-      throw new Error(
-        `DEXPI schema merge conflict — duplicate class names:\n  ${conflicts.join('\n  ')}`
-      );
-    }
-    return new DexpiProcessClassRegistry(cloned, clonedEnums);
+    return new DexpiProcessClassRegistry(cloned, clonedEnums, mergeWarnings);
   }
 
   /**
@@ -487,25 +471,10 @@ export class DexpiProcessClassRegistry {
 
 // ── Schema-XML parsing internals ──────────────────────────────────────────
 
-/**
- * Profile-level merge mode read from the root element's `mode` attribute.
- * Recognized values:
- *   'extend' — Profile extends existing classes; conflicts merge instead
- *              of rejecting (per Step 9 design: <Profile mode="extend">).
- *   undefined — default reject-on-conflict semantics.
- *
- * Marker is bpmn2dexpi-specific. When DEXPI publishes a standard Profile-
- * extension idiom, the parser will route through that signal instead and
- * this attribute can be deprecated.
- */
-type SchemaMode = 'extend' | undefined;
-
 interface ParsedSchema {
   classes: DexpiClassInfo[];
   /** Map of enumeration name → literal names (in declaration order). */
   enumerations: Map<string, string[]>;
-  /** Root-level merge directive — see SchemaMode. */
-  mode: SchemaMode;
 }
 
 /**
@@ -514,18 +483,15 @@ interface ParsedSchema {
  * 'Core/ConceptualObject' → 'ConceptualObject'; '/Process.X' → 'X'). Refs
  * into non-imported namespaces (currently 'MetaData/...') are dropped.
  *
- * Also reads the root element's `mode` attribute (works for both `<Model>`
- * and `<Profile>` roots) so the caller can switch between merge and
- * reject conflict semantics per Profile.
+ * The root element's `mode` attribute (used to be read here for a two-mode
+ * Profile merge design) is now ignored — the registry always merges same-
+ * name class declarations additively and warns. Old Profile files that
+ * still carry mode="extend" parse fine; the attribute is silently dropped.
  */
 function parseSchemaXml(source: SchemaSource): ParsedSchema {
   const parser = new DOMParser();
   const doc = parser.parseFromString(source.xml, 'text/xml');
   const out: DexpiClassInfo[] = [];
-
-  const root = doc.documentElement;
-  const rawMode = root?.getAttribute('mode');
-  const mode: SchemaMode = rawMode === 'extend' ? 'extend' : undefined;
 
   const extract = (tagName: string, kind: ClassKind) => {
     const elements = Array.from(doc.querySelectorAll(tagName));
@@ -561,7 +527,7 @@ function parseSchemaXml(source: SchemaSource): ParsedSchema {
     enumerations.set(name, literals);
   }
 
-  return { classes: out, enumerations, mode };
+  return { classes: out, enumerations };
 }
 
 /**

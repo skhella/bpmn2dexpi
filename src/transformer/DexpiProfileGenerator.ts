@@ -14,13 +14,12 @@
  * known reference) and for users who want to commit generated Profiles
  * to source control.
  *
- * Generated Profiles use the bpmn2dexpi-specific Profile-level marker
- *   <Profile mode="extend"> ... </Profile>
- * which signals the registry to merge the Profile's property declarations
- * into the existing classes by name (rather than reject as conflict). The
- * marker is documented as project-internal until DEXPI publishes a
- * standard Profile-extension idiom; see the registry source for migration
- * notes.
+ * Generated Profiles are emitted as plain
+ *   <Profile uri="..."> ... </Profile>
+ * The registry merges any same-name class declarations into the existing
+ * class additively (uniform mechanism — no second mode, no marker
+ * required). Collisions are non-fatal but surface as merge warnings so
+ * callers can flag unintended ones.
  *
  * Type inference is conservative: every DataProperty gets
  * Builtin/Undefined, every ReferenceProperty / CompositionProperty gets
@@ -71,10 +70,11 @@ const PROFILE_HEADER_COMMENT = `
 
   Conventions used by the generator:
 
-    - Profile-level mode="extend" marker: signals the registry to merge
-      these property declarations into existing classes by name rather
-      than reject the conflict. This marker is bpmn2dexpi-specific; when
-      DEXPI publishes a standard Profile-extension idiom, regenerate.
+    - Uniform-merge load semantics: same-name class declarations merge
+      additively into the registry — kind, supertypes, description,
+      sourceFile preserved; only properties not already declared by name
+      are appended. The registry records a warning per merge so callers
+      can surface unintended collisions.
 
     - Conservative type inference: DataProperty values are typed as
       Builtin/Undefined; ReferenceProperty / CompositionProperty targets
@@ -1008,7 +1008,7 @@ function renderProfileXml(
   const lines: string[] = [];
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push(`<!--${PROFILE_HEADER_COMMENT}-->`);
-  lines.push('<Profile mode="extend" uri="https://bpmn2dexpi.local/profiles/generated">');
+  lines.push('<Profile uri="https://bpmn2dexpi.local/profiles/generated">');
   for (const cls of classes) {
     lines.push(renderClassXml(cls, registry));
   }

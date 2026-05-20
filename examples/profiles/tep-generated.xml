@@ -7,10 +7,11 @@
 
   Conventions used by the generator:
 
-    - Profile-level mode="extend" marker: signals the registry to merge
-      these property declarations into existing classes by name rather
-      than reject the conflict. This marker is bpmn2dexpi-specific; when
-      DEXPI publishes a standard Profile-extension idiom, regenerate.
+    - Uniform-merge load semantics: same-name class declarations merge
+      additively into the registry — kind, supertypes, description,
+      sourceFile preserved; only properties not already declared by name
+      are appended. The registry records a warning per merge so callers
+      can surface unintended collisions.
 
     - Conservative type inference: DataProperty values are typed as
       Builtin/Undefined; ReferenceProperty / CompositionProperty targets
@@ -22,7 +23,7 @@
     - Deterministic ordering: classes alphabetical; properties within a
       class sorted by (kind, name). Same input -> byte-identical output.
 -->
-<Profile mode="extend" uri="https://bpmn2dexpi.local/profiles/generated">
+<Profile uri="https://bpmn2dexpi.local/profiles/generated">
   <ConcreteClass name="Compressing" superTypes="/Process.GeneratingFlow">
     <CompositionProperty name="Duty" lower="0" upper="1">
       <ClassReference type="Core/QualifiedValue"/>
