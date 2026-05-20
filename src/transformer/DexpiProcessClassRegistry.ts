@@ -482,11 +482,6 @@ interface ParsedSchema {
  * file, with supertypes resolved to bare names (cross-namespace refs like
  * 'Core/ConceptualObject' → 'ConceptualObject'; '/Process.X' → 'X'). Refs
  * into non-imported namespaces (currently 'MetaData/...') are dropped.
- *
- * The root element's `mode` attribute (used to be read here for a two-mode
- * Profile merge design) is now ignored — the registry always merges same-
- * name class declarations additively and warns. Old Profile files that
- * still carry mode="extend" parse fine; the attribute is silently dropped.
  */
 function parseSchemaXml(source: SchemaSource): ParsedSchema {
   const parser = new DOMParser();

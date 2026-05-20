@@ -173,11 +173,11 @@ describe('DexpiProcessClassRegistry uniform Profile merge', () => {
   const processXml = readFileSync(PROCESS_XML_PATH, 'utf-8');
   const coreXml = readFileSync(CORE_XML_PATH, 'utf-8');
 
-  it('merges new properties into existing class instead of rejecting', () => {
+  it('merges new properties into existing class additively', () => {
     const extendingProfile = {
       name: 'extending.xml',
       xml: `<?xml version="1.0" encoding="UTF-8"?>
-        <Profile mode="extend" uri="https://test/extending">
+        <Profile uri="https://test/extending">
           <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
             <DataProperty name="Basis" lower="0" upper="1">
               <DataTypeReference type="Builtin/String"/>
@@ -196,41 +196,18 @@ describe('DexpiProcessClassRegistry uniform Profile merge', () => {
     // Original class properties are still present.
     expect(props).toContain('Display');
     expect(props).toContain('MassFlow');
-    // sourceFile of Composition stays as Process.xml — extend doesn't
+    // sourceFile of Composition stays as Process.xml — merge doesn't
     // re-attribute the class to the Profile.
     expect(reg.getClass('Composition')!.sourceFile).toBe('Process.xml');
+    // Non-blocking warning recorded so callers can surface unintended collisions.
+    expect(reg.mergeWarnings.some(w => w.includes('Composition') && w.includes('extending.xml'))).toBe(true);
   });
 
-  it('merges regardless of whether a Profile carries the legacy mode="extend" marker', () => {
-    // The two-mode design has been retired; same-name class redeclarations
-    // merge additively whether the Profile root is <Model> or
-    // <Profile mode="extend">. Verified by loading a marker-less Profile
-    // whose declaration would have collided under the old reject default.
-    const markerlessProfile = {
-      name: 'markerless.xml',
-      xml: `<?xml version="1.0" encoding="UTF-8"?>
-        <Profile uri="https://test/markerless">
-          <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
-            <DataProperty name="LegacyField" lower="0" upper="1">
-              <DataTypeReference type="Builtin/String"/>
-            </DataProperty>
-          </ConcreteClass>
-        </Profile>`,
-    };
-    const reg = DexpiProcessClassRegistry.fromXmlSources([
-      { name: 'Process.xml', xml: processXml },
-      { name: 'Core.xml', xml: coreXml },
-      markerlessProfile,
-    ]);
-    expect(reg.getProperties('Composition').map(p => p.name)).toContain('LegacyField');
-    expect(reg.mergeWarnings.some(w => w.includes('Composition') && w.includes('markerless.xml'))).toBe(true);
-  });
-
-  it('extend Profile can also add genuinely new classes alongside extensions', () => {
+  it('a single Profile can add new classes alongside additions to existing ones', () => {
     const mixedProfile = {
       name: 'mixed.xml',
       xml: `<?xml version="1.0" encoding="UTF-8"?>
-        <Profile mode="extend" uri="https://test/mixed">
+        <Profile uri="https://test/mixed">
           <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
             <DataProperty name="Basis" lower="0" upper="1">
               <DataTypeReference type="Builtin/String"/>
@@ -250,18 +227,22 @@ describe('DexpiProcessClassRegistry uniform Profile merge', () => {
     ]);
     // Extension landed on existing class.
     expect(reg.getProperties('Composition').map(p => p.name)).toContain('Basis');
-    // New class was added normally (not merged anywhere).
+    // New class was added normally (no merge, no warning for it).
     expect(reg.isValidClass('BiologicalReactor')).toBe(true);
     expect(reg.hasAncestor('BiologicalReactor', 'ProcessStep')).toBe(true);
+    // Warning fires only for the same-name overlap (Composition), not for
+    // the genuinely new class.
+    expect(reg.mergeWarnings.filter(w => w.includes('Composition')).length).toBe(1);
+    expect(reg.mergeWarnings.some(w => w.includes('BiologicalReactor'))).toBe(false);
   });
 
-  it('extend Profile silently skips properties already on the existing class', () => {
-    // Composition already has Display from Process.xml — re-declaring
-    // it in an extend Profile should not error and should not duplicate.
+  it('silently skips properties already on the existing class (no duplicates)', () => {
+    // Composition already has Display from Process.xml — re-declaring it
+    // in a Profile should not error and should not duplicate.
     const profile = {
       name: 'redundant.xml',
       xml: `<?xml version="1.0" encoding="UTF-8"?>
-        <Profile mode="extend" uri="https://test/redundant">
+        <Profile uri="https://test/redundant">
           <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
             <DataProperty name="Display" lower="0" upper="1">
               <DataTypeReference type="Builtin/String"/>
