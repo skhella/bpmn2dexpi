@@ -105,6 +105,8 @@ Profiles are runtime-only — they live for the current CLI process or browser s
 
 Profiles are loaded with uniform-merge semantics: same-name class declarations merge additively into the active vocabulary (kind, supertypes, and existing properties preserved; new properties from the Profile appended). The registry records a non-blocking warning per merge so callers can surface unintended collisions (e.g. a hand-authored Profile typoing a standard class name).
 
+This follows the conceptual extensibility approach DEXPI 2.0 is being designed for, but the precise idiom is not yet standardized. Generated Profiles may need migration when DEXPI publishes its canonical Profile mechanism.
+
 ## Testing
 
 ```bash
