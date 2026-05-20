@@ -864,21 +864,35 @@ function App() {
   const handleImportProfile = (file: File) => {
     file.text().then(xml => {
       const candidate = { name: file.name, xml };
+      let mergeWarnings: ReadonlyArray<string> = [];
       try {
-        DexpiProcessClassRegistry.fromXmlSources([
+        const reg = DexpiProcessClassRegistry.fromXmlSources([
           { name: 'Process.xml', xml: processXmlRaw },
           { name: 'Core.xml', xml: coreXmlRaw },
           ...loadedProfiles,
           candidate,
         ]);
+        // Filter to warnings caused by *this* Profile so users only see
+        // collisions introduced by the file they just imported (warnings
+        // from prior loads are already known to them).
+        mergeWarnings = reg.mergeWarnings.filter(w => w.includes(`"${file.name}"`));
       } catch (err) {
         // Registry already produces clear, actionable messages naming the
-        // conflicting class or unresolved supertype — surface verbatim.
+        // unresolved supertype — surface verbatim.
         setValidationMessage(`✗ Profile "${file.name}" rejected: ${(err as Error).message}`);
         return;
       }
       setLoadedProfiles(prev => [...prev, candidate]);
-      setValidationMessage(`✓ Profile "${file.name}" loaded (per-session).`);
+      if (mergeWarnings.length > 0) {
+        // Same-name class redeclarations merge additively but are surfaced
+        // here so users notice unintended collisions (e.g. a typo of a
+        // standard class name).
+        setValidationMessage(
+          `✓ Profile "${file.name}" loaded (per-session) — ${mergeWarnings.length} same-name merge${mergeWarnings.length === 1 ? '' : 's'}: ${mergeWarnings.join('; ')}`
+        );
+      } else {
+        setValidationMessage(`✓ Profile "${file.name}" loaded (per-session).`);
+      }
     }).catch(err => {
       setValidationMessage(`✗ Profile "${file.name}" read failed: ${err.message}`);
     });
