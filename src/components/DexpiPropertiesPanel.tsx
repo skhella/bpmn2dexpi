@@ -1112,7 +1112,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           <div className="dexpi-properties-panel">
             <h3>Process Variable</h3>
             <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '0.85rem', color: '#2e7d32' }}>
-              🔬 Exported as <code>InformationVariant</code> in the DEXPI InformationFlow.
+              Exported as <code>InformationVariant</code> in the DEXPI InformationFlow.
             </div>
             {name && (
               <div className="property-group" style={{ marginTop: '12px' }}>
@@ -1127,7 +1127,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
         <div className="dexpi-properties-panel">
           <h3>Material / Simulation Data</h3>
           <div style={{ padding: '8px', backgroundColor: '#f3e5f5', borderRadius: '4px', fontSize: '0.85rem', color: '#6a1b9a' }}>
-            📊 MaterialTemplate or simulation case — edit via the <strong>Materials panel</strong> in the toolbar.
+            MaterialTemplate or simulation case — edit via the <strong>Materials panel</strong> in the toolbar.
           </div>
           {name && <div className="property-group" style={{ marginTop: '12px' }}><label>Name: <strong>{name}</strong></label></div>}
         </div>
@@ -1378,7 +1378,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           <div key={port.portId} className="port-item">
             <div className="port-header">
               <strong>{port.name}</strong>
-              {isPortConnected(port) && <span style={{ fontSize: '0.8em', color: '#666', marginLeft: '8px' }}>🔗 connected</span>}
+              {isPortConnected(port) && <span style={{ fontSize: '0.8em', color: '#666', marginLeft: '8px' }}>connected</span>}
               <button onClick={() => removePort(port.portId)} className="btn-remove">×</button>
             </div>
             
@@ -3057,7 +3057,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
 
       {/* Material State Information */}
       <div className="property-group" style={{ background: '#e3f2fd', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
-        <h4 style={{ margin: '0 0 8px 0', color: '#1976d2' }}>📊 Material State</h4>
+        <h4 style={{ margin: '0 0 8px 0', color: '#1976d2' }}>Material State</h4>
         <label style={{ marginBottom: '8px', display: 'block' }}>
           Select State:
           <select 
@@ -3319,7 +3319,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           the project. Empty value clears the reference. */}
       {allMaterialTemplates.length > 0 && (
         <div className="property-group" style={{ background: '#f3e5f5', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
-          <h4 style={{ margin: '0 0 8px 0', color: '#7b1fa2' }}>🧪 Material Template</h4>
+          <h4 style={{ margin: '0 0 8px 0', color: '#7b1fa2' }}>Material Template</h4>
           <label>
             Reference:
             <select

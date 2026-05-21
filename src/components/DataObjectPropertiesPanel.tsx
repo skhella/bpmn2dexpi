@@ -228,7 +228,7 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
       <div className="dexpi-properties-panel">
         <h3>Material / Simulation Data</h3>
         <div style={{ padding: '8px', backgroundColor: '#f3e5f5', borderRadius: '4px', fontSize: '0.85rem', color: '#6a1b9a' }}>
-          📊 MaterialTemplate or simulation case — edit via the <strong>Materials panel</strong> in the toolbar.
+          MaterialTemplate or simulation case — edit via the <strong>Materials panel</strong> in the toolbar.
         </div>
       </div>
     );
@@ -291,7 +291,7 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
     <div className="dexpi-properties-panel">
       <h3>Process Variable</h3>
       <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '0.85rem', color: '#2e7d32', marginBottom: '12px' }}>
-        🔬 Carries a <code>Core/QualifiedValue</code> on the connected ProcessStep
+        Carries a <code>Core/QualifiedValue</code> on the connected ProcessStep
         {connected ? <> (<strong>{connected.className}</strong>)</> : <> — <em>no ProcessStep reachable; pick any property name and the Profile generator will declare it</em></>}.
       </div>
 

@@ -1265,7 +1265,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
           {selectedTemplate && (
             <div style={{ flex: '0 0 50%', overflowY: 'auto', borderLeft: '2px solid #ddd', paddingLeft: '10px' }}>
               <div style={{ position: 'sticky', top: 0, background: 'white', paddingBottom: '10px', borderBottom: '1px solid #eee', marginBottom: '10px' }}>
-                <h3 style={{ margin: '0 0 5px 0' }}>📦 Components in {selectedTemplate.label}</h3>
+                <h3 style={{ margin: '0 0 5px 0' }}>Components in {selectedTemplate.label}</h3>
                 <button onClick={addComponent} className="btn-add" style={{ marginTop: '5px' }}>+ Add Component</button>
               </div>
               <div className="material-list">

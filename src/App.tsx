@@ -893,10 +893,10 @@ function App() {
       });
 
       if (exportResult.success) {
-        setValidationMessage(`✅ ${exportResult.message}`);
+        setValidationMessage(`✓ ${exportResult.message}`);
         setShowNeo4jModal(false);
       } else {
-        setValidationMessage(`❌ ${exportResult.message}`);
+        setValidationMessage(`✗ ${exportResult.message}`);
       }
     } catch (err) {
       console.error('Neo4j export failed:', err);
