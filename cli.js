@@ -50,10 +50,11 @@ Flags:
                   into the registry. Profile classes become recognized
                   dexpiType targets, and Profile properties are accepted
                   by --strict validation. May be repeated to load multiple
-                  profiles in one run. Profiles must not declare class
-                  names that collide with Process.xml or Core.xml unless
-                  they use Profile-level mode="extend" semantics; conflict
-                  cases are rejected with a clear error otherwise.
+                  profiles in one run. Same-name class redeclarations
+                  across loaded sources merge additively into the active
+                  vocabulary; each merge is printed to stderr as a non-
+                  blocking warning so unintended collisions (e.g. typoing
+                  a standard class name) surface during the run.
 
   --generate-profile FILE
                   After transforming, emit a DEXPI Profile XML to FILE
