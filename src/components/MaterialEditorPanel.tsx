@@ -622,9 +622,9 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
     <div className="properties-panel-content">
       <div className="panel-header">
         <h3>
-          {item.type === 'template' && '📋 Material Template'}
-          {item.type === 'component' && '🧪 Material Component'}
-          {item.type === 'state' && '⚗️ Material State'}
+          {item.type === 'template' && 'Material Template'}
+          {item.type === 'component' && 'Material Component'}
+          {item.type === 'state' && 'Material State'}
         </h3>
         <button onClick={onClose} className="btn-close" title="Close">×</button>
       </div>

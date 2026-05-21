@@ -1104,7 +1104,7 @@ function App() {
             className={`btn ${showMaterialLibrary ? 'btn-active' : ''}`}
             title="Toggle material library"
           >
-            {showMaterialLibrary ? '📚 Materials' : '📚 Materials'}
+            {showMaterialLibrary ? 'Materials' : 'Materials'}
           </button>
           <button onClick={handleNewDiagram} className="btn" title="Start a new empty diagram">New</button>
           <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
@@ -1162,7 +1162,7 @@ function App() {
                     style={{ textAlign: 'left' }}
                     title="Export to Neo4j Graph Database"
                   >
-                    🔗 Neo4j
+                    Neo4j
                   </button>
                   <button
                     onClick={() => { openExportDexpiDialog(); setShowExportsMenu(false); }}
@@ -1296,7 +1296,7 @@ function App() {
                           }}
                           title={`Profile loaded: ${p.name}`}
                         >
-                          📄 {p.name}
+                          {p.name}
                         </span>
                       ))}
                     </div>
