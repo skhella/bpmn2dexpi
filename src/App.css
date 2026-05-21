@@ -260,6 +260,12 @@
   align-items: center;
   gap: 1rem;
   animation: slideIn 0.3s;
+  /* Above the side panels (properties: 10, material library: 1000) so
+     transient feedback like Profile-import warnings is actually visible
+     when those panels are open. Below modal-overlay (10000) so dialogs
+     still cover the toast when both are showing. */
+  z-index: 1500;
+  max-width: min(560px, calc(100vw - 40px));
 }
 
 @keyframes slideIn {
