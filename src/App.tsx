@@ -1162,7 +1162,7 @@ function App() {
                     style={{ textAlign: 'left' }}
                     title="Export to Neo4j Graph Database"
                   >
-                    Neo4j
+                    Export to Neo4j
                   </button>
                   <button
                     onClick={() => { openExportDexpiDialog(); setShowExportsMenu(false); }}
