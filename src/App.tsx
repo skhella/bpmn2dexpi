@@ -614,6 +614,65 @@ function App() {
     };
   }, []);
 
+  /**
+   * Run the full strict-mode validation pipeline against the current model
+   * without producing a download. Mirrors the strict half of handleExportDexpi
+   * — same registry, same transformer, same five-tier grouping — but skips
+   * the Blob/download step and shows the strictWarning modal so users get
+   * fidelity feedback on demand instead of having to export-then-read.
+   * Produces a success banner when zero findings.
+   */
+  const handleValidateNow = async () => {
+    if (!modeler) return;
+    try {
+      const result = await modeler.saveXML({ format: true });
+      const bpmnXml = result.xml;
+      if (!bpmnXml) {
+        setValidationMessage('No BPMN XML to validate.');
+        return;
+      }
+      const xmlForTransform = preprocessBpmnXml(bpmnXml);
+      await transformer.transform(xmlForTransform, {
+        processXml: processXmlRaw,
+        coreXml: coreXmlRaw,
+        profileXmls: loadedProfiles,
+        strict: true,
+      });
+      const tierResults: { tier: string; result: typeof transformer.lastPropertyNameValidation }[] = [
+        { tier: 'property-name + kind',  result: transformer.lastPropertyNameValidation },
+        { tier: 'data-type',             result: transformer.lastDataTypeValidation },
+        { tier: 'reference target-class',result: transformer.lastReferenceValidation },
+        { tier: 'cardinality',           result: transformer.lastCardinalityValidation },
+        { tier: 'class existence',       result: transformer.lastClassExistenceValidation },
+      ];
+      const groupList: { tier: string; key: string; count: number; sample: string }[] = [];
+      let total = 0;
+      for (const { tier, result: tierResult } of tierResults) {
+        if (!tierResult || tierResult.valid) continue;
+        const groups = new Map<string, { count: number; sample: string }>();
+        for (const err of tierResult.errors) {
+          total++;
+          const colon = err.indexOf(':');
+          const key = colon >= 0 ? err.slice(0, colon) : err;
+          const sample = colon >= 0 ? err.slice(colon + 1).trim() : '';
+          const g = groups.get(key);
+          if (g) g.count++;
+          else groups.set(key, { count: 1, sample });
+        }
+        for (const [key, { count, sample }] of groups) {
+          groupList.push({ tier, key, count, sample });
+        }
+      }
+      if (total === 0) {
+        setValidationMessage('✓ No strict-mode fidelity findings on the current model.');
+      } else {
+        setStrictWarning({ totalCount: total, groups: groupList });
+      }
+    } catch (err) {
+      setValidationMessage(`Validation failed: ${(err as Error).message}`);
+    }
+  };
+
   const handleExportBpmn = async () => {
     if (!modeler) return;
 
@@ -1198,6 +1257,13 @@ function App() {
                       </div>
                     </span>
                   </label>
+                  <button
+                    onClick={() => { handleValidateNow(); setShowDexpiMenu(false); }}
+                    className="btn"
+                    title="Run the full five-tier strict validation against the current model without exporting. Findings show in the same warning dialog the export path uses."
+                  >
+                    Validate now
+                  </button>
                   <hr style={{ border: 'none', borderTop: '1px solid #eee', margin: 0 }} />
                   <div style={{ fontWeight: 600, color: '#222' }}>DEXPI Profiles</div>
                   <div style={{ color: '#666', fontStyle: 'italic', fontSize: '0.9em' }}>
