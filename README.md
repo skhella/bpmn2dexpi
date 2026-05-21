@@ -87,25 +87,16 @@ Every export is checked against the official DEXPI 2.0 XML Schema, so the file y
 
 Turn on **Strict mode** (export dialog checkbox, `--strict` CLI flag, or `{ strict: true }` on `transformer.transform()`) for deeper fidelity checks: property names, data types, reference targets, required-property cardinality, and class existence. Strict mode never blocks the export — it produces a summary dialog (or CLI output) listing what doesn't match the schema, so you can fix it in the panel or capture it in a generated Profile.
 
-## Extension mechanisms
+## Profiles
 
-Two complementary ways to handle process content beyond the core DEXPI 2.0 vocabulary:
+A Profile is an XML file declaring classes or properties beyond the DEXPI 2.0 standard vocabulary (`Process.xml` + `Core.xml`). Loaded Profiles populate the type dropdown and are accepted by strict-mode validation. Profiles live only for the current process or browser session — re-import to apply.
 
-**Profiles** — declare project-specific classes or property extensions in a Profile XML using DEXPI's metamodel grammar. Loaded Profiles populate the type dropdown and are recognized under strict-mode validation. A reference Profile lives in `examples/profiles/sample-extension.xml`; the TEP-derived `examples/profiles/tep-generated.xml` shows a worked example.
+- **Import** — UI: *Import Profile* in the DEXPI menu. CLI: `--profile FILE` (repeatable). Library: `profileXmls` option on `transformer.transform()`. Same-name class declarations merge additively into the active vocabulary; the registry records a non-blocking warning per merge so unintended collisions (e.g. a typoed standard class name) are visible.
+- **Generate** — walk the current model and emit a Profile XML that closes every fidelity gap. UI: *Generate Profile*. CLI: `--generate-profile FILE`. Output is deterministic — alphabetical, no timestamps — so generated Profiles are safe to commit.
 
-### Loading and generating Profiles
+A reference Profile lives in `examples/profiles/sample-extension.xml`; `examples/profiles/tep-generated.xml` is a worked example derived from the Tennessee Eastman fixture.
 
-- **UI** — *Import Profile* loads an XML file; *Generate Profile* walks the current model and emits a Profile XML that closes any strict-mode gaps.
-- **CLI** — `--profile FILE` (repeatable) loads Profiles; `--generate-profile FILE` writes a Profile derived from the input model.
-- **Library API** — pass `profileXmls: [{ name, xml }]` to `transformer.transform()`.
-
-The generator is deterministic (alphabetical, no timestamps — safe to commit) and infers types and bounds from the actual model so the Profile is precise rather than permissive. To make authoring less guesswork, the properties panel auto-shows the attributes a class needs (e.g. `Method` on a Compressor) as empty rows ready to fill in, and a **Required in generated Profile** checkbox lets you tag project-specific attributes so they're enforced on reload.
-
-Profiles are runtime-only — they live for the current CLI process or browser session and are not persisted.
-
-Profiles are loaded with uniform-merge semantics: same-name class declarations merge additively into the active vocabulary (kind, supertypes, and existing properties preserved; new properties from the Profile appended). The registry records a non-blocking warning per merge so callers can surface unintended collisions (e.g. a hand-authored Profile typoing a standard class name).
-
-This follows the conceptual extensibility approach DEXPI 2.0 is being designed for, but the precise idiom is not yet standardized. Generated Profiles may need migration when DEXPI publishes its canonical Profile mechanism.
+This approach follows the conceptual extensibility direction DEXPI 2.0 is being designed for, but the canonical Profile idiom is not yet standardized — generated Profiles may need migration once it is.
 
 ## Testing
 
