@@ -403,7 +403,7 @@ function App() {
     isNavigatingBack.current = true;
     const canvas = modeler.get('canvas') as any;
     const elementRegistry = modeler.get('elementRegistry') as any;
-    
+
     // Get parent plane ID from stack
     const newStack = [...planeStack];
     const parentId = newStack.pop();
@@ -416,11 +416,58 @@ function App() {
         canvas.zoom('fit-viewport');
       }
     }
-    
+
     // Reset flag after a short delay to allow root.set to process
     setTimeout(() => {
       isNavigatingBack.current = false;
     }, 100);
+  };
+
+  /**
+   * Reset the entire UI to its default state. Triggered by clicking the
+   * app logo / title (a familiar "home" affordance on most web apps).
+   * The underlying BPMN model is untouched — this only resets transient
+   * UI state, so it doesn't need a confirmation prompt:
+   *   - pop the subprocess plane stack to root and fit-viewport the canvas
+   *   - clear element / material-item selection
+   *   - close the Material Library overlay
+   *   - dismiss the DEXPI / Exports popover menus
+   *   - dismiss the strict-mode warning + all export dialogs + Neo4j modal
+   */
+  const handleHomeReset = () => {
+    if (!modeler) return;
+    // Navigate back to the bottom of the plane stack in one step. The stack
+    // holds parent ids in push order, so the bottom is the original top-level
+    // plane.
+    if (planeStack.length > 0) {
+      isNavigatingBack.current = true;
+      const elementRegistry = modeler.get('elementRegistry') as any;
+      const canvas = modeler.get('canvas') as any;
+      const rootId = planeStack[0];
+      const rootElement = elementRegistry.get(rootId);
+      if (rootElement) {
+        canvas.setRootElement(rootElement);
+      }
+      setPlaneStack([]);
+      setCurrentPlane(null);
+      setTimeout(() => { isNavigatingBack.current = false; }, 100);
+    }
+    // Zoom-to-fit even when no plane navigation happened — handles the
+    // common case of "I panned/zoomed and want to reset the view".
+    const canvas = modeler.get('canvas') as any;
+    canvas.zoom('fit-viewport');
+    // Close every transient overlay so the user lands on a clean canvas.
+    setSelectedElement(null);
+    setSelectedMaterialItem(null);
+    setShowMaterialLibrary(false);
+    setShowDexpiMenu(false);
+    setShowExportsMenu(false);
+    setStrictWarning(null);
+    setShowNeo4jModal(false);
+    setShowExportDialog(false);
+    setShowBpmnExportDialog(false);
+    setShowSvgExportDialog(false);
+    setShowProfileExportDialog(false);
   };
 
   useEffect(() => {
@@ -927,7 +974,16 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Reset to default view"
+          title="Reset to default view"
+          onClick={handleHomeReset}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleHomeReset(); } }}
+          className="app-home-target"
+          style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
+        >
           <img src={logoImg} alt="bpmn2dexpi logo" style={{ height: '40px' }} />
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <h1 style={{ marginBottom: 0 }}>BPMN2DEXPI</h1>
