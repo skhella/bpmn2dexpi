@@ -89,12 +89,12 @@ Turn on **Strict mode** (export dialog checkbox, `--strict` CLI flag, or `{ stri
 
 ## Profiles
 
-A Profile is an XML file declaring classes or properties beyond the DEXPI 2.0 standard vocabulary (`Process.xml` + `Core.xml`). Loaded Profiles populate the type dropdown and are accepted by strict-mode validation. Profiles live only for the current process or browser session — re-import to apply.
+A Profile is an XML file that adds project-specific classes or properties on top of the DEXPI 2.0 standard vocabulary — useful when your project needs concepts the standard doesn't cover. Profiles live per-session; re-import after page reload.
 
-- **Import** — UI: *Import Profile* in the DEXPI menu. CLI: `--profile FILE` (repeatable). Library: `profileXmls` option on `transformer.transform()`. Same-name class redeclarations merge additively into the active vocabulary with a non-blocking warning; divergent supertypes or property kinds throw with a named-source diagnostic.
-- **Generate** — walk the current model and emit a Profile XML that closes every fidelity gap. UI: *Generate Profile*. CLI: `--generate-profile FILE`. Output is deterministic — alphabetical, no timestamps — so generated Profiles are safe to commit.
+- **Import** — UI: *Import Profile* in the DEXPI menu. CLI: `--profile FILE` (repeatable). Library: `profileXmls` option on `transformer.transform()`.
+- **Generate** — walk the current model and emit a Profile that closes every fidelity gap. UI: *Generate Profile*. CLI: `--generate-profile FILE`. Output is deterministic — safe to commit.
 
-A reference Profile lives in `examples/profiles/sample-extension.xml`; `examples/profiles/tep-generated.xml` is a worked example derived from the Tennessee Eastman fixture.
+Reference Profiles live in `examples/profiles/` (`sample-extension.xml`, `tep-generated.xml`).
 
 This approach follows the conceptual extensibility direction DEXPI 2.0 is being designed for, but the canonical Profile idiom is not yet standardized — generated Profiles may need migration once it is.
 
