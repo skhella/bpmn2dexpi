@@ -1,6 +1,7 @@
 import React from 'react';
 import type { DexpiElement, DexpiPort, DexpiStream } from '../dexpi/moddle';
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
+import { findAllMaterialStatesContainers } from '../utils/materialContainers';
 // Vite ?raw import — bundles Process.xml as a string at build time (no runtime fetch needed)
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
@@ -10,10 +11,22 @@ import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
 // Profiles, the panel rebuilds an augmented registry on demand via
 // useStepClasses() below, so Profile-declared classes (e.g. BiologicalReactor)
 // surface in the dexpiType dropdown alongside the standard DEXPI 2.0 classes.
-const DEXPI_REGISTRY = DexpiProcessClassRegistry.fromXmlSources([
-  { name: 'Process.xml', xml: processXmlRaw },
-  { name: 'Core.xml', xml: coreXmlRaw },
-]);
+// Guarded build: matches the pattern used in MaterialEditorPanel and
+// MaterialLibraryPanel. If a future schema edit breaks fromXmlSources
+// (unresolved supertype, malformed XML), this panel falls back to an
+// empty registry instead of throwing at module-evaluation time and
+// crashing the entire app on import.
+const DEXPI_REGISTRY: DexpiProcessClassRegistry = (() => {
+  try {
+    return DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXmlRaw },
+      { name: 'Core.xml', xml: coreXmlRaw },
+    ]);
+  } catch (e) {
+    console.warn('DexpiPropertiesPanel: schema registry build failed:', e);
+    return DexpiProcessClassRegistry.empty();
+  }
+})();
 
 /**
  * Look up whether a property is required (lower>=1) on a class via the
@@ -2331,10 +2344,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
     // Load all material states for dropdown
     const elementRegistry = modeler.get('elementRegistry');
     const allElements = elementRegistry.getAll();
-    const stateDataObjs = allElements.filter((el: any) => 
-      el.type === 'bpmn:DataObjectReference' && 
-      (el.businessObject.name?.includes('MaterialStates') || el.businessObject.name === 'MaterialStates')
-    );
+    const stateDataObjs = findAllMaterialStatesContainers(allElements);
     
     const states: any[] = [];
     // Cross-reference map: every DataObject extension entry by uid, used
@@ -2678,10 +2688,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               // Find the actual MaterialState from DataObjectReference elements
               const elementRegistry = modeler.get('elementRegistry');
               const allElements = elementRegistry.getAll();
-              const stateDataObjs = allElements.filter((el: any) => 
-                el.type === 'bpmn:DataObjectReference' && 
-                (el.businessObject.name?.includes('MaterialStates') || el.businessObject.name === 'MaterialStates')
-              );
+              const stateDataObjs = findAllMaterialStatesContainers(allElements);
               
               let foundState = null;
               for (const dataObj of stateDataObjs) {

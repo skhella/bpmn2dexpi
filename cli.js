@@ -171,29 +171,45 @@ async function main() {
       );
     }
 
-    // Strict-mode property-name validation: surface findings to stderr and
-    // exit non-zero so scripts can detect them, but the output file (if
-    // any) has already been written above.
-    if (strict && transformer.lastPropertyNameValidation && !transformer.lastPropertyNameValidation.valid) {
-      const errs = transformer.lastPropertyNameValidation.errors;
-      console.error(
-        `⚠ Strict-mode property-name fidelity check found ${errs.length} violation(s) ` +
-        `against the DEXPI 2.0 metamodel:`
-      );
-      // Group identical violations for compact display.
-      const counts = new Map();
-      for (const e of errs) counts.set(e, (counts.get(e) ?? 0) + 1);
-      for (const [msg, n] of counts) {
-        console.error(`  ✗ ${msg}${n > 1 ? `  (×${n})` : ''}`);
+    // Strict-mode validation: surface findings across ALL five tiers
+    // (property-name + kind, data-type, reference target-class,
+    // cardinality, class-existence) and exit non-zero if any tier
+    // reports violations. Earlier this block only read
+    // lastPropertyNameValidation, silently dropping the other four
+    // tiers — the UI surfaces all five, the CLI now matches.
+    if (strict) {
+      const tierResults = [
+        { tier: 'property-name + kind',  result: transformer.lastPropertyNameValidation },
+        { tier: 'data-type',             result: transformer.lastDataTypeValidation },
+        { tier: 'reference target-class',result: transformer.lastReferenceValidation },
+        { tier: 'cardinality',           result: transformer.lastCardinalityValidation },
+        { tier: 'class existence',       result: transformer.lastClassExistenceValidation },
+      ];
+      let totalViolations = 0;
+      for (const { tier, result } of tierResults) {
+        if (!result || result.valid) continue;
+        const errs = result.errors;
+        totalViolations += errs.length;
+        console.error(
+          `⚠ Strict-mode ${tier} check found ${errs.length} violation(s):`
+        );
+        // Group identical violations for compact display.
+        const counts = new Map();
+        for (const e of errs) counts.set(e, (counts.get(e) ?? 0) + 1);
+        for (const [msg, n] of counts) {
+          console.error(`  ✗ ${msg}${n > 1 ? `  (×${n})` : ''}`);
+        }
       }
-      console.error(
-        '\n(Output file was still written. DEXPI 2.0 permissive philosophy: ' +
-        'any XSD-valid output is exchangeable.)'
-      );
-      // Reference formatFailures so the import isn't dead — keeps it
-      // tree-shakable but available for future richer rendering.
-      void formatFailures;
-      process.exit(2);
+      if (totalViolations > 0) {
+        console.error(
+          '\n(Output file was still written. DEXPI 2.0 permissive philosophy: ' +
+          'any XSD-valid output is exchangeable.)'
+        );
+        // Reference formatFailures so the import isn't dead — keeps it
+        // tree-shakable but available for future richer rendering.
+        void formatFailures;
+        process.exit(2);
+      }
     }
 
     process.exit(0);

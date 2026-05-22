@@ -19,26 +19,49 @@ export const Neo4jExportModal: React.FC<Neo4jExportModalProps> = ({
 }) => {
   const SESSION_PASSWORD_KEY = 'neo4j_password_session';
 
+  // Storage helpers — wrap every access so disabled-storage contexts
+  // (Safari ITP private mode, sandboxed iframes, embedded WebViews
+  // with storage policies) don't crash the modal at render time.
+  const safeLocalGet = (k: string) => {
+    try { return localStorage.getItem(k); } catch { return null; }
+  };
+  const safeSessionGet = (k: string) => {
+    try { return sessionStorage.getItem(k); } catch { return null; }
+  };
+  const safeLocalSet = (k: string, v: string) => {
+    try { localStorage.setItem(k, v); } catch { /* storage disabled or full */ }
+  };
+  const safeLocalRemove = (k: string) => {
+    try { localStorage.removeItem(k); } catch { /* storage disabled */ }
+  };
+  const safeSessionSet = (k: string, v: string) => {
+    try { sessionStorage.setItem(k, v); } catch { /* storage disabled */ }
+  };
+  const safeSessionRemove = (k: string) => {
+    try { sessionStorage.removeItem(k); } catch { /* storage disabled */ }
+  };
+
   const [config, setConfig] = useState<Neo4jConfig>({
-    uri: localStorage.getItem('neo4j_uri') || 'bolt://localhost:7687',
-    user: localStorage.getItem('neo4j_user') || 'neo4j',
-    password: sessionStorage.getItem(SESSION_PASSWORD_KEY) || '',
-    database: localStorage.getItem('neo4j_database') || 'neo4j'
+    uri: safeLocalGet('neo4j_uri') || 'bolt://localhost:7687',
+    user: safeLocalGet('neo4j_user') || 'neo4j',
+    password: safeSessionGet(SESSION_PASSWORD_KEY) || '',
+    database: safeLocalGet('neo4j_database') || 'neo4j'
   });
   const [clearDatabase, setClearDatabase] = useState(true);
   const [saveCredentials, setSaveCredentials] = useState(true);
 
   useEffect(() => {
     // Remove any previously persisted password from older versions.
-    localStorage.removeItem('neo4j_password');
+    safeLocalRemove('neo4j_password');
   }, []);
 
   useEffect(() => {
     if (config.password) {
-      sessionStorage.setItem(SESSION_PASSWORD_KEY, config.password);
+      safeSessionSet(SESSION_PASSWORD_KEY, config.password);
       return;
     }
-    sessionStorage.removeItem(SESSION_PASSWORD_KEY);
+    safeSessionRemove(SESSION_PASSWORD_KEY);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.password]);
 
   if (!isOpen) return null;
@@ -46,11 +69,11 @@ export const Neo4jExportModal: React.FC<Neo4jExportModalProps> = ({
   const handleExport = () => {
     // Save credentials if requested
     if (saveCredentials) {
-      localStorage.setItem('neo4j_uri', config.uri);
-      localStorage.setItem('neo4j_user', config.user);
-      localStorage.setItem('neo4j_database', config.database || 'neo4j');
+      safeLocalSet('neo4j_uri', config.uri);
+      safeLocalSet('neo4j_user', config.user);
+      safeLocalSet('neo4j_database', config.database || 'neo4j');
     }
-    
+
     onExport(config, { clearDatabase });
   };
 

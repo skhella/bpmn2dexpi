@@ -264,8 +264,17 @@ export class DexpiProcessClassRegistry {
         name: CORE_SCHEMA_FILENAME,
         xml: readFileSync(join(schemaDir, CORE_SCHEMA_FILENAME), 'utf-8'),
       });
-    } catch {
-      console.warn('[bpmn2dexpi] Could not load Process.xml/Core.xml from disk — using empty registry.');
+    } catch (err) {
+      // Don't bare-swallow: include the underlying error so a broken
+      // install (missing schema file, permissions error, malformed XML)
+      // is visible. An empty registry causes every strict-mode validator
+      // to silently pass — the user must know the registry is degraded
+      // so they don't trust a green --strict run that ran no rules.
+      console.error(
+        '[bpmn2dexpi] Could not load Process.xml/Core.xml from disk — strict-mode ' +
+        'validation will silently pass because the registry is empty. Underlying error: ' +
+        ((err as Error)?.message ?? String(err))
+      );
       return DexpiProcessClassRegistry.empty();
     }
 
