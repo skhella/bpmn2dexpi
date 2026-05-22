@@ -16,6 +16,10 @@ import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../dexpi-schema-files/Core.xml?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
+import {
+  isMaterialStatesContainer,
+  isMaterialTemplatesContainer,
+} from './utils/materialContainers';
 import logoImg from './assets/cropped_logo_B2P.png';
 import './App.css';
 
@@ -500,12 +504,17 @@ function App() {
         setSelectedMaterialItem(null);
       }
       
-      // Auto-open Material Library when clicking on material data objects
+      // Auto-open Material Library when clicking a DataObjectReference
+      // that actually carries materials data. Content-based detection
+      // (the same helper the panel and transformer use) — so a renamed
+      // container still triggers the auto-open, matching the materials-
+      // routing contract introduced in PR #61.
       if (element?.type === 'bpmn:DataObjectReference') {
-        const name = element.businessObject?.name;
-        if (name === 'MaterialTemplates' || name === 'MaterialStates' || name === 'Base Case MaterialStates') {
-          const tab = name === 'MaterialTemplates' ? 'templates' : 'states';
-          setMaterialLibraryTab(tab);
+        if (isMaterialTemplatesContainer(element)) {
+          setMaterialLibraryTab('templates');
+          setShowMaterialLibrary(true);
+        } else if (isMaterialStatesContainer(element)) {
+          setMaterialLibraryTab('states');
           setShowMaterialLibrary(true);
         }
       }

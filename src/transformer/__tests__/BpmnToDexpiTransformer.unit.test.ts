@@ -252,8 +252,31 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
       const xml = bpmn('');
       const t = new BpmnToDexpiTransformer();
       const out = await t.transform(xml);
-      expect(typeof out).toBe('string');
-      expect(out.length).toBeGreaterThan(0);
+      // Assert real shape — not just `typeof string` (the return type
+      // already guarantees that) and `length > 0` (any XML prologue
+      // satisfies it). A regression that emits 38 bytes of useless
+      // <?xml ...?> with no <Model> envelope must fail here.
+      const parsed = new DOMParser().parseFromString(out, 'text/xml');
+      expect(parsed.querySelector('parsererror')).toBeNull();
+      const root = parsed.documentElement;
+      expect(root.localName || root.tagName.split(':').pop()).toBe('Model');
+      // The ProcessSteps container exists but holds no step Objects.
+      const processStepsContainers = Array.from(parsed.querySelectorAll('Components'))
+        .filter(c => c.getAttribute('property') === 'ProcessSteps');
+      // ProcessSteps Components may or may not be emitted when empty;
+      // the strong assertion is that no <Object> with a step type is
+      // present in the document at all.
+      const stepObjects = Array.from(parsed.querySelectorAll('Object'))
+        .filter(o => /Process\.(ProcessStep|Source|Sink|.*ing)$/.test(o.getAttribute('type') ?? ''));
+      expect(stepObjects).toHaveLength(0);
+      // If a ProcessSteps Components element was emitted, it must be
+      // empty (no direct <Object> children).
+      for (const c of processStepsContainers) {
+        const direct = Array.from(c.children).filter(
+          el => (el.localName || el.tagName.split(':').pop()) === 'Object'
+        );
+        expect(direct).toHaveLength(0);
+      }
     });
   });
 

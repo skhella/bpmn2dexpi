@@ -21,7 +21,7 @@
  * in lockstep with the generator without manual regeneration.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { JSDOM } from 'jsdom';
@@ -55,39 +55,39 @@ const BASE_REGISTRY = DexpiProcessClassRegistry.fromXmlSources([
 
 // ── CI suite ─────────────────────────────────────────────────────────────
 //
-// The strict-mode contract for the test suite is *intentionally hard-coded*
-// here. The user-facing default for the strict flag (in the transformer,
-// CLI, and UI) is `false` — DEXPI 2.0's permissive philosophy makes
-// XSD-only the right Mode 1 default. But the CI guarantee that backs the
-// paper's fidelity claims must not depend on the user-facing default; if
-// someone later flips the runtime default to true (or vice versa), the
-// CI gate must keep enforcing strict mode regardless.
-const ENFORCE_STRICT_IN_CI = true;
+// Strict-mode fidelity validation always runs in this suite, regardless
+// of the user-facing default for the strict flag (off by default in the
+// transformer / CLI / UI per DEXPI 2.0's permissive philosophy). The CI
+// gate backing the paper's fidelity claims is non-negotiable.
 
 describe('DEXPI property-name fidelity (Process.xml + Core.xml + generated TEP Profile)', () => {
-  // Build the augmented registry once: Process + Core + the Profile that
-  // the generator produces from TEP. This is the strict-mode registry
-  // every consumer of TEP-derived models would use to validate fidelity.
+  // Build the augmented registry once in beforeAll so every test gets a
+  // ready-to-use registry regardless of test order or filter (vitest
+  // doesn't guarantee `it` ordering, and `-t` / `--shard` can invoke a
+  // subset of tests). The first test now only verifies round-trip
+  // integrity; the registry itself is produced in beforeAll.
   const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
   let augmentedRegistry: DexpiProcessClassRegistry;
+  let roundTripDeclarations = 0;
 
-  it('the generator round-trip yields a registry that consumes its own output', { timeout: 15_000 }, async () => {
+  beforeAll(async () => {
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(bpmn);
     const generated = generateProfileFromDexpiXml(out, BASE_REGISTRY, { bpmnXml: bpmn });
-    expect(generated.declarations).toBeGreaterThan(0);
-    // The Profile must be loadable into a fresh registry — round-trip
-    // integrity. Failure here would be a generator bug.
+    roundTripDeclarations = generated.declarations;
     augmentedRegistry = DexpiProcessClassRegistry.fromXmlSources([
       { name: 'Process.xml', xml: PROCESS_XML },
       { name: 'Core.xml', xml: CORE_XML },
       { name: 'tep-generated.xml', xml: generated.xml },
     ]);
+  }, 15_000);
+
+  it('the generator round-trip yields a registry that consumes its own output', () => {
+    expect(roundTripDeclarations).toBeGreaterThan(0);
     expect(augmentedRegistry.size).toBeGreaterThan(0);
   });
 
   it('TEP BPMN extensionElements use canonical property names', () => {
-    if (!ENFORCE_STRICT_IN_CI) return;
     const failures = validateBpmnExtensionElements(
       bpmn, 'Tennessee_Eastman_Process.bpmn', augmentedRegistry,
     );
@@ -95,7 +95,6 @@ describe('DEXPI property-name fidelity (Process.xml + Core.xml + generated TEP P
   });
 
   it('TEP BPMN → DEXPI XML output uses canonical property names', async () => {
-    if (!ENFORCE_STRICT_IN_CI) return;
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(bpmn);
     const failures = validateEmittedDexpiXml(out, 'TEP→DEXPI XML output', augmentedRegistry);

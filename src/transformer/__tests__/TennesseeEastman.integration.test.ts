@@ -58,6 +58,12 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     if (!result.valid) {
       console.error('XSD validation errors:', result.errors.slice(0, 10));
     }
+    // Pin mode='xsd' so a missing xmllint on this machine fails loudly
+    // instead of silently degrading to the structural fallback (which
+    // would also report valid:true / errors:[] on most reasonable
+    // output). The paper's "validated against the official DEXPI 2.0
+    // XSD schema" claim depends on this assertion holding.
+    expect(result.mode).toBe('xsd');
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   }, 15_000); // xmllint subprocess — allow 15 s
@@ -109,6 +115,12 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     // carrier per Composition (11 states → 11 carriers).
     expect(countMatches(/property="MoleFractiona"/g)).toBe(11);
     expect(countMatches(/property="MassFractions"/g)).toBe(0);
+    // VolumeFractions is not in Process.xml — only Mole and Mass basis
+    // exist on Composition. Pin a hard zero so a regression that
+    // reintroduces VolumeFractions (forgotten schema quirk) surfaces
+    // immediately rather than emitting a non-canonical property that
+    // XSD validation would silently accept.
+    expect(countMatches(/property="VolumeFractions"/g)).toBe(0);
     // Each carrier wraps a Core/QualifiedValue Object with N
     // <Data property="Values">…</Data> entries (TEP: 8 components per
     // template → 88 Values data entries total across the 11 carriers).
@@ -217,8 +229,24 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
 
   it('transformer resets cleanly for a second transform on the same instance', async () => {
     const bpmnXml = readFileSync(BPMN_PATH, 'utf-8');
-    const output2 = await transformer.transform(bpmnXml);
-    const ratio = Math.abs(output2.length - output.length) / output.length;
-    expect(ratio).toBeLessThan(0.01);
+    // Same options as beforeEach so the only differences between the
+    // two outputs are the documented non-determinism sources
+    // (timestamp, random id slugs) — anything else would indicate
+    // state leaking between transform() calls on the same instance.
+    const output2 = await transformer.transform(bpmnXml, {
+      projectName: 'Tennessee Eastman Process',
+      author: 'Test Suite',
+    });
+    // Structural equality after normalizing the two known sources of
+    // non-determinism: ExportDateTime (current clock) and the random
+    // ID slugs (u_<base36ts>_<base36rand>) the id factory emits.
+    // The earlier 1 % length tolerance let real state leaks through
+    // — small duplicate / drop on a ~100 kB output is well under 1 %.
+    const normalize = (s: string) =>
+      s
+        .replace(/\bu_[A-Z0-9]+_[a-z0-9]+\b/g, 'u_DET_DET')
+        .replace(/#u_[A-Z0-9]+_[a-z0-9]+/g, '#u_DET_DET')
+        .replace(/<String>\d{4}-\d{2}-\d{2}T[\d:.]+Z<\/String>/g, '<String>DET-TIMESTAMP</String>');
+    expect(normalize(output2)).toBe(normalize(output));
   });
 });
