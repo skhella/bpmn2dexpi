@@ -632,18 +632,23 @@ function App() {
         return;
       }
       const xmlForTransform = preprocessBpmnXml(bpmnXml);
-      await transformer.transform(xmlForTransform, {
+      // Per-call transformer instance — see the same rationale in
+      // handleExportDexpi. Without this, a concurrent Validate-now +
+      // Export DEXPI XML would race on the module-singleton's
+      // last*Validation fields and surface the wrong findings.
+      const t = new BpmnToDexpiTransformer();
+      await t.transform(xmlForTransform, {
         processXml: processXmlRaw,
         coreXml: coreXmlRaw,
         profileXmls: loadedProfiles,
         strict: true,
       });
-      const tierResults: { tier: string; result: typeof transformer.lastPropertyNameValidation }[] = [
-        { tier: 'property-name + kind',  result: transformer.lastPropertyNameValidation },
-        { tier: 'data-type',             result: transformer.lastDataTypeValidation },
-        { tier: 'reference target-class',result: transformer.lastReferenceValidation },
-        { tier: 'cardinality',           result: transformer.lastCardinalityValidation },
-        { tier: 'class existence',       result: transformer.lastClassExistenceValidation },
+      const tierResults: { tier: string; result: typeof t.lastPropertyNameValidation }[] = [
+        { tier: 'property-name + kind',  result: t.lastPropertyNameValidation },
+        { tier: 'data-type',             result: t.lastDataTypeValidation },
+        { tier: 'reference target-class',result: t.lastReferenceValidation },
+        { tier: 'cardinality',           result: t.lastCardinalityValidation },
+        { tier: 'class existence',       result: t.lastClassExistenceValidation },
       ];
       const groupList: { tier: string; key: string; count: number; sample: string }[] = [];
       let total = 0;
