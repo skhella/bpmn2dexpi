@@ -915,34 +915,55 @@ function App() {
   /**
    * DEXPI Profile import — per-session only.
    *
-   * Pre-flight: build a strict registry from Process.xml + Core.xml +
-   * already-loaded Profiles + the candidate Profile. The registry's
-   * conflict (duplicate class names) and unresolved-supertype checks run
-   * synchronously; on failure we surface the exact registry error to the
-   * user and DO NOT add the Profile to state.
+   * Pre-flight: build a registry from Process.xml + Core.xml +
+   * already-loaded Profiles + the candidate Profile. Two registry
+   * outcomes are surfaced:
    *
-   * On success, append to loadedProfiles. Subsequent DEXPI exports include
-   * the Profile automatically. Profiles are NOT persisted to localStorage —
-   * a page reload clears them and the user must re-import.
+   *   - Throw → unresolved supertype, OR divergent supertypes/property
+   *     kinds across same-name redeclarations. We catch and surface
+   *     the error to the user; the Profile is NOT added to state.
+   *
+   *   - Non-blocking warnings (registry.mergeWarnings) → additive
+   *     same-name merges (the normal extension case). We filter to
+   *     warnings naming this file and prepend them to the success
+   *     message so unintended collisions stay visible.
+   *
+   * On success, append to loadedProfiles. Subsequent DEXPI exports
+   * include the Profile automatically. Profiles are NOT persisted to
+   * localStorage — a page reload clears them and the user must re-import.
    */
   const handleImportProfile = (file: File) => {
     file.text().then(xml => {
       const candidate = { name: file.name, xml };
+      let mergeWarnings: ReadonlyArray<string> = [];
       try {
-        DexpiProcessClassRegistry.fromXmlSources([
+        const reg = DexpiProcessClassRegistry.fromXmlSources([
           { name: 'Process.xml', xml: processXmlRaw },
           { name: 'Core.xml', xml: coreXmlRaw },
           ...loadedProfiles,
           candidate,
         ]);
+        // Filter to warnings caused by *this* Profile so users only see
+        // collisions introduced by the file they just imported (warnings
+        // from prior loads are already known to them).
+        mergeWarnings = reg.mergeWarnings.filter(w => w.includes(`"${file.name}"`));
       } catch (err) {
         // Registry already produces clear, actionable messages naming the
-        // conflicting class or unresolved supertype — surface verbatim.
+        // unresolved supertype — surface verbatim.
         setValidationMessage(`✗ Profile "${file.name}" rejected: ${(err as Error).message}`);
         return;
       }
       setLoadedProfiles(prev => [...prev, candidate]);
-      setValidationMessage(`✓ Profile "${file.name}" loaded (per-session).`);
+      if (mergeWarnings.length > 0) {
+        // Same-name class redeclarations merge additively but are surfaced
+        // here so users notice unintended collisions (e.g. a typo of a
+        // standard class name).
+        setValidationMessage(
+          `✓ Profile "${file.name}" loaded (per-session) — ${mergeWarnings.length} same-name merge${mergeWarnings.length === 1 ? '' : 's'}: ${mergeWarnings.join('; ')}`
+        );
+      } else {
+        setValidationMessage(`✓ Profile "${file.name}" loaded (per-session).`);
+      }
     }).catch(err => {
       setValidationMessage(`✗ Profile "${file.name}" read failed: ${err.message}`);
     });

@@ -89,21 +89,14 @@ Turn on **Strict mode** (export dialog checkbox, `--strict` CLI flag, or `{ stri
 
 ## Extension mechanisms
 
-Two complementary ways to handle process content beyond the core DEXPI 2.0 vocabulary:
+A Profile is an XML file that adds project-specific classes or properties on top of the DEXPI 2.0 standard vocabulary — useful when your project needs concepts the standard doesn't cover. Profiles live per-session; re-import after page reload.
 
-**Profiles** — declare project-specific classes or property extensions in a Profile XML using DEXPI's metamodel grammar. Loaded Profiles populate the type dropdown and are recognized under strict-mode validation. A reference Profile lives in `examples/profiles/sample-extension.xml`; the TEP-derived `examples/profiles/tep-generated.xml` shows a worked example.
+- **Import** — UI: *Import Profile* in the DEXPI menu. CLI: `--profile FILE` (repeatable). Library: `profileXmls` option on `transformer.transform()`.
+- **Generate** — walk the current model and emit a Profile that closes every fidelity gap. UI: *Generate Profile*. CLI: `--generate-profile FILE`. Output is deterministic — safe to commit.
 
-### Loading and generating Profiles
+Reference Profiles live in `examples/profiles/` (`sample-extension.xml`, `tep-generated.xml`).
 
-- **UI** — *Import Profile* loads an XML file; *Generate Profile* walks the current model and emits a Profile XML that closes any strict-mode gaps.
-- **CLI** — `--profile FILE` (repeatable) loads Profiles; `--generate-profile FILE` writes a Profile derived from the input model.
-- **Library API** — pass `profileXmls: [{ name, xml }]` to `transformer.transform()`.
-
-The generator is deterministic (alphabetical, no timestamps — safe to commit) and infers types and bounds from the actual model so the Profile is precise rather than permissive. To make authoring less guesswork, the properties panel auto-shows the attributes a class needs (e.g. `Method` on a Compressor) as empty rows ready to fill in, and a **Required in generated Profile** checkbox lets you tag project-specific attributes so they're enforced on reload.
-
-Profiles are runtime-only — they live for the current CLI process or browser session and are not persisted.
-
-The Profile-level `mode="extend"` marker and its merge-on-conflict semantics are bpmn2dexpi-specific — they follow the conceptual extensibility approach DEXPI 2.0 is being designed for, but the precise idiom is not yet standardized. Generated Profiles may need migration when DEXPI publishes its canonical Profile mechanism.
+This approach follows the conceptual extensibility direction DEXPI 2.0 is being designed for, but the canonical Profile idiom is not yet standardized — generated Profiles may need migration once it is.
 
 ## Testing
 

@@ -148,10 +148,34 @@ describe('DexpiProcessClassRegistry multi-source loading', () => {
     ).toThrow(/unresolved supertype.*NonExistentParent/is);
   });
 
-  it('rejects two sources declaring the same class name', () => {
+  it('merges two sources declaring the same class name and records a warning', () => {
+    // Additive merge: same supertypes (must match — supertype divergence
+    // throws). Adds one new property to the standard Pumping class.
     const dupe = {
       name: 'Dupe.xml',
       xml: `<Model name="Dupe" uri="https://test/dupe">
+        <ConcreteClass name="Pumping" superTypes="/Process.GeneratingFlow">
+          <DataProperty name="ExtensionAddedProp" lower="0" upper="1">
+            <DataTypeReference type="Builtin/String"/>
+          </DataProperty>
+        </ConcreteClass>
+      </Model>`,
+    };
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+      dupe,
+    ]);
+    expect(reg.isValidClass('Pumping')).toBe(true);
+    expect(reg.getClass('Pumping')!.sourceFile).toBe('Process.xml');
+    expect(reg.mergeWarnings.some(w => w.includes('Pumping') && w.includes('Dupe.xml'))).toBe(true);
+    expect(reg.getProperties('Pumping').some(p => p.name === 'ExtensionAddedProp')).toBe(true);
+  });
+
+  it('throws when two sources declare the same class with divergent supertypes', () => {
+    const divergent = {
+      name: 'Divergent.xml',
+      xml: `<Model name="Divergent" uri="https://test/divergent">
         <ConcreteClass name="Pumping" superTypes="Core/ConceptualObject"/>
       </Model>`,
     };
@@ -159,24 +183,85 @@ describe('DexpiProcessClassRegistry multi-source loading', () => {
       DexpiProcessClassRegistry.fromXmlSources([
         { name: 'Process.xml', xml: processXml },
         { name: 'Core.xml', xml: coreXml },
-        dupe,
+        divergent,
       ])
-    ).toThrow(/duplicate class names.*Pumping/is);
+    ).toThrow(/Pumping.*supertype divergence/is);
+  });
+
+  it('throws when two sources declare the same property with divergent kinds', () => {
+    // Same Composition class + supertype; redeclares the standard Display
+    // data-property as a reference — kind divergence.
+    const kindDivergent = {
+      name: 'KindDivergent.xml',
+      xml: `<Profile uri="https://test/kindd">
+        <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
+          <ReferenceProperty name="Display" lower="0" upper="1">
+            <ClassReference type="Core/ConceptualObject"/>
+          </ReferenceProperty>
+        </ConcreteClass>
+      </Profile>`,
+    };
+    expect(() =>
+      DexpiProcessClassRegistry.fromXmlSources([
+        { name: 'Process.xml', xml: processXml },
+        { name: 'Core.xml', xml: coreXml },
+        kindDivergent,
+      ])
+    ).toThrow(/property "Display" kind divergence/is);
+  });
+
+  it('merges three same-name redeclarations additively and warns for each', () => {
+    // Multi-source composition pinning: two Profiles each add a property
+    // to the standard Composition class. Verifies both the additive merge
+    // and per-source warning attribution (not just any warning).
+    const profileA = {
+      name: 'ProfileA.xml',
+      xml: `<Profile uri="https://test/A">
+        <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
+          <DataProperty name="FromProfileA" lower="0" upper="1">
+            <DataTypeReference type="Builtin/String"/>
+          </DataProperty>
+        </ConcreteClass>
+      </Profile>`,
+    };
+    const profileB = {
+      name: 'ProfileB.xml',
+      xml: `<Profile uri="https://test/B">
+        <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
+          <DataProperty name="FromProfileB" lower="0" upper="1">
+            <DataTypeReference type="Builtin/String"/>
+          </DataProperty>
+        </ConcreteClass>
+      </Profile>`,
+    };
+    const reg = DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXml },
+      { name: 'Core.xml', xml: coreXml },
+      profileA,
+      profileB,
+    ]);
+    const props = reg.getProperties('Composition').map(p => p.name);
+    expect(props).toContain('FromProfileA');
+    expect(props).toContain('FromProfileB');
+    expect(props).toContain('Display'); // Process.xml's original still present
+    expect(reg.mergeWarnings.filter(w => w.includes('Composition')).length).toBe(2);
+    expect(reg.mergeWarnings.some(w => w.includes('ProfileA.xml'))).toBe(true);
+    expect(reg.mergeWarnings.some(w => w.includes('ProfileB.xml'))).toBe(true);
   });
 });
 
-// ── Profile mode="extend" merge semantics ─────────────────────────────────
+// ── Profile merge semantics ───────────────────────────────────────────────
 
-describe('DexpiProcessClassRegistry profile mode="extend"', () => {
+describe('DexpiProcessClassRegistry uniform Profile merge', () => {
   const CORE_XML_PATH = join(__dirname, '../../../dexpi-schema-files/Core.xml');
   const processXml = readFileSync(PROCESS_XML_PATH, 'utf-8');
   const coreXml = readFileSync(CORE_XML_PATH, 'utf-8');
 
-  it('merges new properties into existing class instead of rejecting', () => {
+  it('merges new properties into existing class additively', () => {
     const extendingProfile = {
       name: 'extending.xml',
       xml: `<?xml version="1.0" encoding="UTF-8"?>
-        <Profile mode="extend" uri="https://test/extending">
+        <Profile uri="https://test/extending">
           <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
             <DataProperty name="Basis" lower="0" upper="1">
               <DataTypeReference type="Builtin/String"/>
@@ -195,33 +280,18 @@ describe('DexpiProcessClassRegistry profile mode="extend"', () => {
     // Original class properties are still present.
     expect(props).toContain('Display');
     expect(props).toContain('MassFlow');
-    // sourceFile of Composition stays as Process.xml — extend doesn't
+    // sourceFile of Composition stays as Process.xml — merge doesn't
     // re-attribute the class to the Profile.
     expect(reg.getClass('Composition')!.sourceFile).toBe('Process.xml');
+    // Non-blocking warning recorded so callers can surface unintended collisions.
+    expect(reg.mergeWarnings.some(w => w.includes('Composition') && w.includes('extending.xml'))).toBe(true);
   });
 
-  it('without mode="extend" still rejects conflicts (back-compat)', () => {
-    const conflictingProfile = {
-      name: 'conflicting.xml',
-      xml: `<?xml version="1.0" encoding="UTF-8"?>
-        <Model name="Conflicting" uri="https://test/conflicting">
-          <ConcreteClass name="Composition" superTypes="Core/ConceptualObject"/>
-        </Model>`,
-    };
-    expect(() =>
-      DexpiProcessClassRegistry.fromXmlSources([
-        { name: 'Process.xml', xml: processXml },
-        { name: 'Core.xml', xml: coreXml },
-        conflictingProfile,
-      ])
-    ).toThrow(/duplicate class names.*Composition/is);
-  });
-
-  it('extend Profile can also add genuinely new classes alongside extensions', () => {
+  it('a single Profile can add new classes alongside additions to existing ones', () => {
     const mixedProfile = {
       name: 'mixed.xml',
       xml: `<?xml version="1.0" encoding="UTF-8"?>
-        <Profile mode="extend" uri="https://test/mixed">
+        <Profile uri="https://test/mixed">
           <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
             <DataProperty name="Basis" lower="0" upper="1">
               <DataTypeReference type="Builtin/String"/>
@@ -241,18 +311,22 @@ describe('DexpiProcessClassRegistry profile mode="extend"', () => {
     ]);
     // Extension landed on existing class.
     expect(reg.getProperties('Composition').map(p => p.name)).toContain('Basis');
-    // New class was added normally (not merged anywhere).
+    // New class was added normally (no merge, no warning for it).
     expect(reg.isValidClass('BiologicalReactor')).toBe(true);
     expect(reg.hasAncestor('BiologicalReactor', 'ProcessStep')).toBe(true);
+    // Warning fires only for the same-name overlap (Composition), not for
+    // the genuinely new class.
+    expect(reg.mergeWarnings.filter(w => w.includes('Composition')).length).toBe(1);
+    expect(reg.mergeWarnings.some(w => w.includes('BiologicalReactor'))).toBe(false);
   });
 
-  it('extend Profile silently skips properties already on the existing class', () => {
-    // Composition already has Display from Process.xml — re-declaring
-    // it in an extend Profile should not error and should not duplicate.
+  it('silently skips properties already on the existing class (no duplicates)', () => {
+    // Composition already has Display from Process.xml — re-declaring it
+    // in a Profile should not error and should not duplicate.
     const profile = {
       name: 'redundant.xml',
       xml: `<?xml version="1.0" encoding="UTF-8"?>
-        <Profile mode="extend" uri="https://test/redundant">
+        <Profile uri="https://test/redundant">
           <ConcreteClass name="Composition" superTypes="Core/ConceptualObject">
             <DataProperty name="Display" lower="0" upper="1">
               <DataTypeReference type="Builtin/String"/>

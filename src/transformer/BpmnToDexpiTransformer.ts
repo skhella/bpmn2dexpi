@@ -145,6 +145,15 @@ export class BpmnToDexpiTransformer {
     } else {
       this.registry = await DexpiProcessClassRegistry.load(options.processXml);
     }
+    // Surface every same-name additive merge the registry recorded as a
+    // logger warning so all transformer consumers (CLI, App.tsx export
+    // path, Generate Profile, Neo4j export) see them. handleImportProfile
+    // in App.tsx still reads registry.mergeWarnings directly to surface
+    // them in the per-import banner before append; this path covers the
+    // every-transform downstream surface.
+    for (const w of this.registry.mergeWarnings) {
+      this.logger.warn(`Profile merge: ${w}`);
+    }
     if (this.registry.size === 0) {
       this.logger.warn(
         'Could not load dexpi-schema-files/Process.xml — class validation disabled. ' +

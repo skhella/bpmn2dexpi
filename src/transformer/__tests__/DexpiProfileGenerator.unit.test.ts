@@ -78,7 +78,7 @@ describe('DEXPI Profile generator', () => {
     const result = generateProfileFromDexpiXml(cleanXml, freshRegistry());
     expect(result.declarations).toBe(0);
     expect(result.classCount).toBe(0);
-    expect(result.xml).toContain('<Profile mode="extend"');
+    expect(result.xml).toContain('<Profile ');
     expect(result.xml).toContain('</Profile>');
   });
 
@@ -239,7 +239,7 @@ describe('DEXPI Profile generation round-trip on TEP fixture', () => {
       'precondition: there must be some fidelity gap for the generator to fill — ' +
       'otherwise this round-trip test is vacuous'
     ).toBeGreaterThan(0);
-    expect(generated.xml).toContain('<Profile mode="extend"');
+    expect(generated.xml).toContain('<Profile ');
 
     // (c) round-trip integrity: a FRESH registry must consume what the
     // generator produced. If this fails, the generator emitted something
