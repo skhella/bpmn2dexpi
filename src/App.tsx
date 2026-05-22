@@ -9,7 +9,7 @@ import { DataObjectPropertiesPanel } from './components/DataObjectPropertiesPane
 import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
-import { transformer } from './transformer/BpmnToDexpiTransformer';
+import { BpmnToDexpiTransformer } from './transformer/BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
 import { generateProfileFromDexpiXml } from './transformer/DexpiProfileGenerator';
 import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
@@ -24,6 +24,19 @@ import logoImg from './assets/cropped_logo_B2P.png';
 import './App.css';
 
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
+
+// localStorage helpers — wrap every access so disabled-storage contexts
+// (Firefox strict-privacy, Safari ITP, sandboxed iframes, storage-quota
+// errors) don't crash the modeler-init effect at app start.
+const safeLocalGetItem = (key: string): string | null => {
+  try { return localStorage.getItem(key); } catch { return null; }
+};
+const safeLocalSetItem = (key: string, value: string): void => {
+  try { localStorage.setItem(key, value); } catch { /* storage disabled or quota exceeded */ }
+};
+const safeLocalRemoveItem = (key: string): void => {
+  try { localStorage.removeItem(key); } catch { /* storage disabled */ }
+};
 
 /**
  * Normalise BPMN XML before feeding it to bpmn-js so files from any source
@@ -555,7 +568,7 @@ function App() {
     });
 
     // Restore autosaved diagram or use initial empty diagram
-    const savedXml = localStorage.getItem(AUTOSAVE_KEY);
+    const savedXml = safeLocalGetItem(AUTOSAVE_KEY);
     const diagramToLoad = savedXml || initialDiagram;
 
     const preprocessedToLoad = preprocessBpmnXml(diagramToLoad);
@@ -573,7 +586,7 @@ function App() {
       // Auto-save on every diagram change
       eventBus.on('commandStack.changed', () => {
         bpmnModeler.saveXML({ format: true }).then(({ xml }) => {
-          if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
+          if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
         });
       });
 
@@ -585,7 +598,7 @@ function App() {
       console.error('Failed to import BPMN:', err);
       // If autosaved data was corrupted, fall back to empty diagram
       if (savedXml) {
-        localStorage.removeItem(AUTOSAVE_KEY);
+        safeLocalRemoveItem(AUTOSAVE_KEY);
         bpmnModeler.importXML(preprocessBpmnXml(initialDiagram)).then(() => {
           refreshAllElementsAfterImport(bpmnModeler);
           setModeler(bpmnModeler);
@@ -659,7 +672,14 @@ function App() {
       // legacy port wrappers to flat ports.
       const xmlForTransform = preprocessBpmnXml(bpmnXml);
 
-      const dexpiXml = await transformer.transform(xmlForTransform, {
+      // Per-call transformer instance instead of the module singleton —
+      // isolates this handler's strict-mode validation reads from any
+      // concurrent transform() (e.g. a parallel Generate Profile, or a
+      // future on-demand Validate-now button) that would otherwise
+      // overwrite the shared last*Validation fields between this
+      // handler's await and the modal-population code below.
+      const t = new BpmnToDexpiTransformer();
+      const dexpiXml = await t.transform(xmlForTransform, {
         projectName: exportOptions.projectName,
         projectDescription: exportOptions.projectDescription,
         author: exportOptions.author,
@@ -697,12 +717,12 @@ function App() {
       // dialog informs the user about fidelity gaps so they can take a one-click
       // Generate-Profile action to close them.
       if (strictMode) {
-        const tierResults: { tier: string; result: typeof transformer.lastPropertyNameValidation }[] = [
-          { tier: 'property-name + kind',  result: transformer.lastPropertyNameValidation },
-          { tier: 'data-type',             result: transformer.lastDataTypeValidation },
-          { tier: 'reference target-class',result: transformer.lastReferenceValidation },
-          { tier: 'cardinality',           result: transformer.lastCardinalityValidation },
-          { tier: 'class existence',       result: transformer.lastClassExistenceValidation },
+        const tierResults: { tier: string; result: typeof t.lastPropertyNameValidation }[] = [
+          { tier: 'property-name + kind',  result: t.lastPropertyNameValidation },
+          { tier: 'data-type',             result: t.lastDataTypeValidation },
+          { tier: 'reference target-class',result: t.lastReferenceValidation },
+          { tier: 'cardinality',           result: t.lastCardinalityValidation },
+          { tier: 'class existence',       result: t.lastClassExistenceValidation },
         ];
         // Group identical "ClassName.PropertyName" prefixes per tier so the modal
         // shows a compact list with counts rather than every single occurrence.
@@ -739,7 +759,9 @@ function App() {
         // Non-strict mode: surface transformer logger warnings (unmapped types,
         // fallback-to-ProcessStep, missing supertypes) so the user knows their
         // export carries an advisory before the next strict-mode run flags it.
-        const warnings = transformer.logger.warnings;
+        // Reads the per-call instance's logger (see comment above on the
+        // per-call transformer rationale).
+        const warnings = t.logger.warnings;
         if (warnings.length > 0) {
           setValidationMessage(
             `DEXPI XML exported with ${warnings.length} transformer warning${warnings.length === 1 ? '' : 's'} — see browser console.`,
@@ -800,8 +822,11 @@ function App() {
         return;
       }
 
-      // Transform to DEXPI XML
-      const dexpiXml = await transformer.transform(bpmnXml, { processXml: processXmlRaw });
+      // Transform to DEXPI XML (per-call instance so a concurrent
+      // export / generate doesn't race on the singleton's logger and
+      // last*Validation fields).
+      const t = new BpmnToDexpiTransformer();
+      const dexpiXml = await t.transform(bpmnXml, { processXml: processXmlRaw });
       
       // Export to Neo4j
       const exportResult = await exportToNeo4j(dexpiXml, config, (current: number, total: number) => {
@@ -895,9 +920,12 @@ function App() {
       }
       const xmlForTransform = preprocessBpmnXml(bpmnXml);
       // Run a regular (non-strict) transform to obtain the emitted DEXPI XML
-      // we'll walk for gaps. profileXmls is included so the generator only
-      // surfaces NEW gaps not already covered by loaded Profiles.
-      const dexpiXml = await transformer.transform(xmlForTransform, {
+      // we'll walk for gaps. Per-call instance so a concurrent DEXPI
+      // export doesn't race on the singleton's state. profileXmls is
+      // included so the generator only surfaces NEW gaps not already
+      // covered by loaded Profiles.
+      const t = new BpmnToDexpiTransformer();
+      const dexpiXml = await t.transform(xmlForTransform, {
         projectName: 'DEXPI Process Model',
         author: 'bpmn2dexpi',
         processXml: processXmlRaw,
@@ -951,7 +979,7 @@ function App() {
         refreshAllElementsAfterImport(modeler);
         // Save imported diagram immediately
         const { xml } = await modeler.saveXML({ format: true });
-        if (xml) localStorage.setItem(AUTOSAVE_KEY, xml);
+        if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
         setValidationMessage('BPMN imported successfully!');
         // Reset navigation state
         setPlaneStack([]);
@@ -971,7 +999,7 @@ function App() {
     if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
     await modeler.importXML(preprocessBpmnXml(initialDiagram));
     refreshAllElementsAfterImport(modeler);
-    localStorage.removeItem(AUTOSAVE_KEY);
+    safeLocalRemoveItem(AUTOSAVE_KEY);
     setPlaneStack([]);
     setCurrentPlane(null);
     setSelectedElement(null);

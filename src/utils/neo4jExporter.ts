@@ -453,11 +453,13 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
         if (portsContainer) {
           const portObjects = portsContainer.querySelectorAll(':scope > Object');
           for (const portObj of Array.from(portObjects)) {
-            const portId = portObj.getAttribute('id') || '';
-            allPorts.push(ports.get(portId)!);
+            const portId = portObj.getAttribute('id');
+            if (!portId) continue;
+            const p = ports.get(portId);
+            if (p) allPorts.push(p);
           }
         }
-        const isNavigational = isNavigationalEvent(type, allPorts.filter(p => p));
+        const isNavigational = isNavigationalEvent(type, allPorts);
         
         processSteps.push({
           id,
@@ -494,11 +496,20 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
       const identifier = getDataValue(streamObj, 'Identifier');
       const label = getDataValue(streamObj, 'Label');
       
+      // objects= is a whitespace-separated list of `#uid` refs in the
+      // canonical multi-target form. Source/Target are upper=1 single-
+      // target on Stream, so the realistic parse is "first id stripped
+      // of its leading #". replace('#', '') would only strip the leading
+      // marker of the first id and keep the rest of the string verbatim
+      // (including any additional ' #uid' tokens), silently mis-routing
+      // any future multi-target authoring through ports.get(undefined).
+      const firstUid = (raw: string | null | undefined): string =>
+        (raw ?? '').trim().split(/\s+/)[0]?.replace(/^#/, '') || '';
       const sourceRef = streamObj.querySelector('References[property="Source"]');
-      const sourcePortId = sourceRef?.getAttribute('objects')?.replace('#', '') || '';
-      
+      const sourcePortId = firstUid(sourceRef?.getAttribute('objects'));
+
       const targetRef = streamObj.querySelector('References[property="Target"]');
-      const targetPortId = targetRef?.getAttribute('objects')?.replace('#', '') || '';
+      const targetPortId = firstUid(targetRef?.getAttribute('objects'));
       
       const sourcePortInfo = ports.get(sourcePortId);
       const targetPortInfo = ports.get(targetPortId);

@@ -49,11 +49,19 @@ import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
 
 // Build from both Process.xml + Core.xml so Core-declared enums
 // (QuantityProvenance, QuantityRange) resolve via getEnumerationLiterals.
-// Same pattern as DexpiPropertiesPanel + MaterialEditorPanel.
-const REGISTRY = DexpiProcessClassRegistry.fromXmlSources([
-  { name: 'Process.xml', xml: processXmlRaw },
-  { name: 'Core.xml', xml: coreXmlRaw },
-]);
+// Guarded so a future schema breakage doesn't crash module-evaluation
+// (same pattern as MaterialEditorPanel / MaterialLibraryPanel).
+const REGISTRY: DexpiProcessClassRegistry = (() => {
+  try {
+    return DexpiProcessClassRegistry.fromXmlSources([
+      { name: 'Process.xml', xml: processXmlRaw },
+      { name: 'Core.xml', xml: coreXmlRaw },
+    ]);
+  } catch (e) {
+    console.warn('DataObjectPropertiesPanel: schema registry build failed:', e);
+    return DexpiProcessClassRegistry.empty();
+  }
+})();
 
 // Enum literal lists sourced from the schema so a future DEXPI version
 // that adds / renames a literal is picked up automatically. Default
