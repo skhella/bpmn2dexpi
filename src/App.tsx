@@ -614,6 +614,70 @@ function App() {
     };
   }, []);
 
+  /**
+   * Run the full strict-mode validation pipeline against the current model
+   * without producing a download. Mirrors the strict half of handleExportDexpi
+   * — same registry, same transformer, same five-tier grouping — but skips
+   * the Blob/download step and shows the strictWarning modal so users get
+   * fidelity feedback on demand instead of having to export-then-read.
+   * Produces a success banner when zero findings.
+   */
+  const handleValidateNow = async () => {
+    if (!modeler) return;
+    try {
+      const result = await modeler.saveXML({ format: true });
+      const bpmnXml = result.xml;
+      if (!bpmnXml) {
+        setValidationMessage('No BPMN XML to validate.');
+        return;
+      }
+      const xmlForTransform = preprocessBpmnXml(bpmnXml);
+      // Per-call transformer instance — see the same rationale in
+      // handleExportDexpi. Without this, a concurrent Validate-now +
+      // Export DEXPI XML would race on the module-singleton's
+      // last*Validation fields and surface the wrong findings.
+      const t = new BpmnToDexpiTransformer();
+      await t.transform(xmlForTransform, {
+        processXml: processXmlRaw,
+        coreXml: coreXmlRaw,
+        profileXmls: loadedProfiles,
+        strict: true,
+      });
+      const tierResults: { tier: string; result: typeof t.lastPropertyNameValidation }[] = [
+        { tier: 'property-name + kind',  result: t.lastPropertyNameValidation },
+        { tier: 'data-type',             result: t.lastDataTypeValidation },
+        { tier: 'reference target-class',result: t.lastReferenceValidation },
+        { tier: 'cardinality',           result: t.lastCardinalityValidation },
+        { tier: 'class existence',       result: t.lastClassExistenceValidation },
+      ];
+      const groupList: { tier: string; key: string; count: number; sample: string }[] = [];
+      let total = 0;
+      for (const { tier, result: tierResult } of tierResults) {
+        if (!tierResult || tierResult.valid) continue;
+        const groups = new Map<string, { count: number; sample: string }>();
+        for (const err of tierResult.errors) {
+          total++;
+          const colon = err.indexOf(':');
+          const key = colon >= 0 ? err.slice(0, colon) : err;
+          const sample = colon >= 0 ? err.slice(colon + 1).trim() : '';
+          const g = groups.get(key);
+          if (g) g.count++;
+          else groups.set(key, { count: 1, sample });
+        }
+        for (const [key, { count, sample }] of groups) {
+          groupList.push({ tier, key, count, sample });
+        }
+      }
+      if (total === 0) {
+        setValidationMessage('✓ No strict-mode fidelity findings on the current model.');
+      } else {
+        setStrictWarning({ totalCount: total, groups: groupList });
+      }
+    } catch (err) {
+      setValidationMessage(`Validation failed: ${(err as Error).message}`);
+    }
+  };
+
   const handleExportBpmn = async () => {
     if (!modeler) return;
 
@@ -834,10 +898,10 @@ function App() {
       });
 
       if (exportResult.success) {
-        setValidationMessage(`✅ ${exportResult.message}`);
+        setValidationMessage(`✓ ${exportResult.message}`);
         setShowNeo4jModal(false);
       } else {
-        setValidationMessage(`❌ ${exportResult.message}`);
+        setValidationMessage(`✗ ${exportResult.message}`);
       }
     } catch (err) {
       console.error('Neo4j export failed:', err);
@@ -1045,7 +1109,7 @@ function App() {
             className={`btn ${showMaterialLibrary ? 'btn-active' : ''}`}
             title="Toggle material library"
           >
-            {showMaterialLibrary ? '📚 Materials' : '📚 Materials'}
+            {showMaterialLibrary ? 'Materials' : 'Materials'}
           </button>
           <button onClick={handleNewDiagram} className="btn" title="Start a new empty diagram">New</button>
           <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
@@ -1103,7 +1167,7 @@ function App() {
                     style={{ textAlign: 'left' }}
                     title="Export to Neo4j Graph Database"
                   >
-                    🔗 Neo4j
+                    Export to Neo4j
                   </button>
                   <button
                     onClick={() => { openExportDexpiDialog(); setShowExportsMenu(false); }}
@@ -1198,6 +1262,13 @@ function App() {
                       </div>
                     </span>
                   </label>
+                  <button
+                    onClick={() => { handleValidateNow(); setShowDexpiMenu(false); }}
+                    className="btn"
+                    title="Run the full five-tier strict validation against the current model without exporting. Findings show in the same warning dialog the export path uses."
+                  >
+                    Validate now
+                  </button>
                   <hr style={{ border: 'none', borderTop: '1px solid #eee', margin: 0 }} />
                   <div style={{ fontWeight: 600, color: '#222' }}>DEXPI Profiles</div>
                   <div style={{ color: '#666', fontStyle: 'italic', fontSize: '0.9em' }}>
@@ -1230,7 +1301,7 @@ function App() {
                           }}
                           title={`Profile loaded: ${p.name}`}
                         >
-                          📄 {p.name}
+                          {p.name}
                         </span>
                       ))}
                     </div>

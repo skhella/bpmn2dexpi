@@ -1252,7 +1252,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                         onClick={(e) => { e.stopPropagation(); deleteTemplate(template.uid); }} 
                         className="btn-icon" 
                         title="Delete"
-                      >🗑️</button>
+                      >×</button>
                     </div>
                   </div>
                   <div className="item-meta">
@@ -1265,7 +1265,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
           {selectedTemplate && (
             <div style={{ flex: '0 0 50%', overflowY: 'auto', borderLeft: '2px solid #ddd', paddingLeft: '10px' }}>
               <div style={{ position: 'sticky', top: 0, background: 'white', paddingBottom: '10px', borderBottom: '1px solid #eee', marginBottom: '10px' }}>
-                <h3 style={{ margin: '0 0 5px 0' }}>📦 Components in {selectedTemplate.label}</h3>
+                <h3 style={{ margin: '0 0 5px 0' }}>Components in {selectedTemplate.label}</h3>
                 <button onClick={addComponent} className="btn-add" style={{ marginTop: '5px' }}>+ Add Component</button>
               </div>
               <div className="material-list">
@@ -1289,7 +1289,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                               onClick={(e) => { e.stopPropagation(); deleteComponent(component.uid); }} 
                               className="btn-icon" 
                               title="Delete"
-                            >🗑️</button>
+                            >×</button>
                           </div>
                         </div>
                         <div className="item-meta">
@@ -1335,7 +1335,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                     title="Rename Case"
                     style={{ fontSize: '0.85em' }}
                   >
-                    ✏️
+                    Edit
                   </button>
                 </div>
                 {expandedGroups[groupName] && groupStates.map(state => (
@@ -1347,7 +1347,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                     <div className="item-header">
                       <strong>{state.label}</strong>
                       <div className="item-actions">
-                        <button onClick={(e) => { e.stopPropagation(); deleteState(state.uid); }} className="btn-icon" title="Delete">🗑️</button>
+                        <button onClick={(e) => { e.stopPropagation(); deleteState(state.uid); }} className="btn-icon" title="Delete">×</button>
                       </div>
                     </div>
                     <div className="item-meta">
@@ -1356,7 +1356,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                     </div>
                     {state.referencedByStreams && state.referencedByStreams.length > 0 && (
                       <div className="item-streams">
-                        📊 Used by: {state.referencedByStreams.join(', ')}
+                        Used by: {state.referencedByStreams.join(', ')}
                       </div>
                     )}
                   </div>
@@ -1728,7 +1728,7 @@ const StateEditor: React.FC<{
                     title="Remove"
                     style={{ padding: '2px 6px' }}
                   >
-                    🗑️
+                    ×
                   </button>
                 </div>
               ))}
@@ -1744,7 +1744,7 @@ const StateEditor: React.FC<{
 
         {edited.referencedByStreams && edited.referencedByStreams.length > 0 && (
           <div className="property-group" style={{ background: '#e3f2fd', padding: '12px', borderRadius: '4px' }}>
-            <h5>📊 Used by Streams</h5>
+            <h5>Used by Streams</h5>
             <div style={{ fontSize: '0.9rem' }}>
               {edited.referencedByStreams.map((stream, idx) => (
                 <div key={idx} style={{ padding: '4px 0' }}>• {stream}</div>
