@@ -128,15 +128,18 @@ async function main() {
     const bpmnXml = readFileSync(inputPath, 'utf-8');
 
     // Load DEXPI Profile extensions, if any. Each profile XML is read off
-    // disk once; the registry-level conflict + unresolved-supertype checks
-    // run inside transform() and surface with clear, actionable messages.
+    // disk once; the registry's unresolved-supertype + divergent-declaration
+    // checks run inside transform() and throw with clear, actionable
+    // messages. Same-name additive merges produce non-blocking warnings
+    // that the transformer pipes through its logger (surfaced on stderr
+    // by the warnings-printing block further down).
     const profileXmls = profilePaths.map(p => ({
       name: p.split('/').pop() || p,
       xml: readFileSync(p, 'utf-8'),
     }));
 
     // Transform to DEXPI. strict + profileXmls flow into transform()'s
-    // registry construction; profile-loading errors (conflict / unresolved
+    // registry construction; profile-loading errors (divergent declarations / unresolved
     // supertype) throw and are caught below.
     const dexpiXml = await transformer.transform(bpmnXml, { strict, profileXmls });
 

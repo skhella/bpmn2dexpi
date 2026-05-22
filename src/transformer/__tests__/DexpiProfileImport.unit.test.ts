@@ -144,14 +144,18 @@ describe('DEXPI Profile import', () => {
     expect(failures, JSON.stringify(failures.slice(0, 3), null, 2)).toEqual([]);
   });
 
-  it('merges a Profile whose class name overlaps with Process.xml (uniform merge)', async () => {
-    // Same-name redeclarations are merged additively into the existing
-    // class rather than rejected (the two-mode design has been retired).
-    // The transform completes without throwing; downstream tooling that
-    // wants to flag the overlap can inspect the registry's mergeWarnings.
+  it('merges a Profile whose class name overlaps with Process.xml (uniform additive merge)', async () => {
+    // Additive merge: same supertypes (supertype divergence throws — see
+    // the divergence test below). Profile adds a new property to the
+    // standard Pumping class; merge succeeds with a non-blocking warning
+    // surfaced via the transformer logger.
     const overlappingProfile = `<?xml version="1.0" encoding="UTF-8"?>
       <Profile uri="https://test/overlap">
-        <ConcreteClass name="Pumping" superTypes="Core/ConceptualObject"/>
+        <ConcreteClass name="Pumping" superTypes="/Process.GeneratingFlow">
+          <DataProperty name="ProfileAddedField" lower="0" upper="1">
+            <DataTypeReference type="Builtin/String"/>
+          </DataProperty>
+        </ConcreteClass>
       </Profile>`;
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(BIOREACTOR_BPMN, {
@@ -161,6 +165,30 @@ describe('DEXPI Profile import', () => {
     });
     expect(typeof out).toBe('string');
     expect(out.length).toBeGreaterThan(0);
+    // The merge surfaced as a logger warning prefixed with "Profile merge:"
+    // (BpmnToDexpiTransformer pipes registry.mergeWarnings through logger.warn
+    // so every consumer — CLI, App.tsx export, Generate Profile — sees them).
+    expect(
+      t.logger.warnings.some(w => /Profile merge:.*Pumping.*overlap\.xml/.test(w))
+    ).toBe(true);
+  });
+
+  it('rejects a Profile that overlaps with a Process.xml class but with divergent supertypes', async () => {
+    // Supertype divergence is unsafe to merge silently — the additive
+    // merge can't represent two different supertype lists. Throws with
+    // a named-source diagnostic so the author can fix the Profile.
+    const divergentProfile = `<?xml version="1.0" encoding="UTF-8"?>
+      <Profile uri="https://test/divergent">
+        <ConcreteClass name="Pumping" superTypes="Core/ConceptualObject"/>
+      </Profile>`;
+    const t = new BpmnToDexpiTransformer();
+    await expect(
+      t.transform(BIOREACTOR_BPMN, {
+        processXml: PROCESS_XML,
+        coreXml: CORE_XML,
+        profileXmls: [{ name: 'divergent.xml', xml: divergentProfile }],
+      })
+    ).rejects.toThrow(/Pumping.*supertype divergence/is);
   });
 
   it('rejects a Profile that references an unknown supertype', async () => {

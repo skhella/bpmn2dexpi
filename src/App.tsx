@@ -851,15 +851,22 @@ function App() {
   /**
    * DEXPI Profile import — per-session only.
    *
-   * Pre-flight: build a strict registry from Process.xml + Core.xml +
-   * already-loaded Profiles + the candidate Profile. The registry's
-   * conflict (duplicate class names) and unresolved-supertype checks run
-   * synchronously; on failure we surface the exact registry error to the
-   * user and DO NOT add the Profile to state.
+   * Pre-flight: build a registry from Process.xml + Core.xml +
+   * already-loaded Profiles + the candidate Profile. Two registry
+   * outcomes are surfaced:
    *
-   * On success, append to loadedProfiles. Subsequent DEXPI exports include
-   * the Profile automatically. Profiles are NOT persisted to localStorage —
-   * a page reload clears them and the user must re-import.
+   *   - Throw → unresolved supertype, OR divergent supertypes/property
+   *     kinds across same-name redeclarations. We catch and surface
+   *     the error to the user; the Profile is NOT added to state.
+   *
+   *   - Non-blocking warnings (registry.mergeWarnings) → additive
+   *     same-name merges (the normal extension case). We filter to
+   *     warnings naming this file and prepend them to the success
+   *     message so unintended collisions stay visible.
+   *
+   * On success, append to loadedProfiles. Subsequent DEXPI exports
+   * include the Profile automatically. Profiles are NOT persisted to
+   * localStorage — a page reload clears them and the user must re-import.
    */
   const handleImportProfile = (file: File) => {
     file.text().then(xml => {

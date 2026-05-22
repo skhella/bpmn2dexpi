@@ -153,6 +153,8 @@ export class DexpiProcessClassRegistry {
     const enumerations = new Map<string, string[]>();
     const mergeWarnings: string[] = [];
 
+    const conflicts: string[] = [];
+
     for (const source of sources) {
       const { classes: parsed, enumerations: parsedEnums } = parseSchemaXml(source);
       // Merge enumerations: later sources override earlier ones for the
@@ -164,20 +166,62 @@ export class DexpiProcessClassRegistry {
       }
       for (const cls of parsed) {
         // Bare-name dedup assumes class names are globally unique across all
-        // loaded DEXPI sources. This holds for DEXPI 2.0 — Process.xml + Core.xml
-        // do not collide on any concrete or abstract class name. A redeclaration
-        // by a Profile (the normal extension case) merges additively into the
-        // existing class: kind, supertypes, description, sourceFile preserved;
-        // only properties not already declared by name are appended. A warning
-        // is recorded so callers can surface unintended collisions (e.g.
-        // hand-authored Profile typoing a standard class name) without blocking
-        // the load. The paper describes this as a "uniform mechanism" — there
-        // is no second mode and no marker required.
+        // loaded DEXPI sources. This holds for DEXPI 2.0 — Process.xml +
+        // Core.xml do not collide on any concrete or abstract class name.
+        //
+        // A redeclaration by a Profile is the normal extension case and
+        // merges additively into the existing class — kind, supertypes,
+        // description, sourceFile preserved; only properties not already
+        // declared by name are appended. A mergeWarning is recorded so
+        // callers can surface unintended collisions (e.g. a hand-authored
+        // Profile typoing a standard class name) without blocking the load.
+        //
+        // Two collision shapes are NOT additive and DO throw because they
+        // would silently produce a wrong-shape registry — the additive
+        // merge can't represent them faithfully:
+        //   1. Divergent supertypes — `class Compressor superTypes='X'`
+        //      vs `Compressor superTypes='Y'`. The registry would keep
+        //      one and silently discard the author's other intent.
+        //   2. Divergent property kinds — `DataProperty Foo` in one
+        //      source vs `ReferenceProperty Foo` in another on the same
+        //      class. Strict-mode would then validate against the wrong
+        //      kind and accept emission shapes the second author intended
+        //      to reject.
+        // These cases are the only ones that the old reject-on-conflict
+        // default protected meaningfully; we preserve that protection
+        // selectively. Everything else (additive property names with
+        // matching kind, identical supertypes) just merges + warns.
         const existing = classes.get(cls.name);
         if (existing) {
-          const existingPropNames = new Set(existing.properties.map(p => p.name));
+          // 1. Supertype divergence.
+          const existingSupers = [...existing.superTypes].sort().join(',');
+          const incomingSupers = [...cls.superTypes].sort().join(',');
+          if (existingSupers !== incomingSupers) {
+            conflicts.push(
+              `Class "${cls.name}" supertype divergence: ` +
+              `"${existing.sourceFile}" declares [${existing.superTypes.join(', ') || '(none)'}], ` +
+              `"${cls.sourceFile}" declares [${cls.superTypes.join(', ') || '(none)'}]`
+            );
+            continue;
+          }
+          // 2. Property-kind divergence (same name, different kind).
+          const existingByName = new Map(existing.properties.map(p => [p.name, p]));
+          let propConflict = false;
           for (const np of cls.properties) {
-            if (!existingPropNames.has(np.name)) {
+            const ep = existingByName.get(np.name);
+            if (ep && ep.kind !== np.kind) {
+              conflicts.push(
+                `Class "${cls.name}" property "${np.name}" kind divergence: ` +
+                `"${existing.sourceFile}" declares ${ep.kind}, ` +
+                `"${cls.sourceFile}" declares ${np.kind}`
+              );
+              propConflict = true;
+            }
+          }
+          if (propConflict) continue;
+          // 3. Pure additive merge — append only new property names.
+          for (const np of cls.properties) {
+            if (!existingByName.has(np.name)) {
               existing.properties.push(np);
             }
           }
@@ -188,6 +232,12 @@ export class DexpiProcessClassRegistry {
         }
         classes.set(cls.name, cls);
       }
+    }
+
+    if (conflicts.length > 0) {
+      throw new Error(
+        `DEXPI schema merge conflict — divergent declarations:\n  ${conflicts.join('\n  ')}`
+      );
     }
 
     if (strict) {
@@ -393,12 +443,41 @@ export class DexpiProcessClassRegistry {
     for (const [k, v] of this.enumerations) clonedEnums.set(k, [...v]);
     for (const [k, v] of parsedEnums) clonedEnums.set(k, v);
     const mergeWarnings: string[] = [...this.mergeWarnings];
+    const conflicts: string[] = [];
+    // Same selective-throw semantics as fromXmlSources — divergent
+    // supertypes or property kinds are not faithfully representable
+    // by an additive merge, so they throw rather than silently
+    // produce a wrong-shape registry. See the fromXmlSources block
+    // for the full rationale.
     for (const cls of parsed) {
       const existing = cloned.get(cls.name);
       if (existing) {
-        const existingPropNames = new Set(existing.properties.map(p => p.name));
+        const existingSupers = [...existing.superTypes].sort().join(',');
+        const incomingSupers = [...cls.superTypes].sort().join(',');
+        if (existingSupers !== incomingSupers) {
+          conflicts.push(
+            `Class "${cls.name}" supertype divergence: ` +
+            `"${existing.sourceFile}" declares [${existing.superTypes.join(', ') || '(none)'}], ` +
+            `"${cls.sourceFile}" declares [${cls.superTypes.join(', ') || '(none)'}]`
+          );
+          continue;
+        }
+        const existingByName = new Map(existing.properties.map(p => [p.name, p]));
+        let propConflict = false;
         for (const np of cls.properties) {
-          if (!existingPropNames.has(np.name)) existing.properties.push(np);
+          const ep = existingByName.get(np.name);
+          if (ep && ep.kind !== np.kind) {
+            conflicts.push(
+              `Class "${cls.name}" property "${np.name}" kind divergence: ` +
+              `"${existing.sourceFile}" declares ${ep.kind}, ` +
+              `"${cls.sourceFile}" declares ${np.kind}`
+            );
+            propConflict = true;
+          }
+        }
+        if (propConflict) continue;
+        for (const np of cls.properties) {
+          if (!existingByName.has(np.name)) existing.properties.push(np);
         }
         mergeWarnings.push(
           `Class "${cls.name}" from "${cls.sourceFile}" merged into prior declaration from "${existing.sourceFile}"`
@@ -406,6 +485,11 @@ export class DexpiProcessClassRegistry {
         continue;
       }
       cloned.set(cls.name, cls);
+    }
+    if (conflicts.length > 0) {
+      throw new Error(
+        `DEXPI schema merge conflict — divergent declarations:\n  ${conflicts.join('\n  ')}`
+      );
     }
     return new DexpiProcessClassRegistry(cloned, clonedEnums, mergeWarnings);
   }

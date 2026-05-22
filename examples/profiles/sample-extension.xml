@@ -16,18 +16,28 @@
   reference any combination of Process.xml / Core.xml supertypes, and
   carry DataProperty / ReferenceProperty / CompositionProperty entries.
 
-  Conflict rules (enforced at registry load time, surfaced as clear errors
-  in CLI and UI):
+  Merge rules (enforced at registry load time):
 
-    1. A Profile class name must NOT collide with any class name already
-       declared in Process.xml, Core.xml, or another loaded Profile.
-       Conflicts are rejected — the Profile cannot be loaded until it is
-       renamed or the conflicting Profile is unloaded.
+    1. Same-name class redeclarations merge additively into the existing
+       class — new property names from this Profile are appended; the
+       existing kind, supertypes, and previously-declared properties are
+       preserved. A non-blocking warning is recorded so callers can
+       surface unintended collisions (e.g. a typo of a standard class
+       name). The warning surfaces on stderr (CLI) and in the validation
+       banner (UI).
 
-    2. Every supertype reference in the Profile must resolve to a class in
-       a loaded schema (Process / Core / Profile). Unresolved references
-       are rejected — the Profile cannot be loaded until the supertype is
-       fixed or the schema providing it is loaded first.
+    2. Two same-name collisions DO throw rather than merge silently,
+       because the additive merge can't represent them faithfully:
+         a. Divergent supertypes — different parent class declared by
+            two sources for the same class name.
+         b. Divergent property kinds — the same property name declared
+            as a DataProperty in one source and a ReferenceProperty (or
+            CompositionProperty) in another.
+
+    3. Every supertype reference in the Profile must resolve to a class
+       in a loaded schema (Process / Core / Profile). Unresolved
+       references throw — the Profile cannot be loaded until the
+       supertype is fixed or the schema providing it is loaded first.
 
   CLI: bpmn2dexpi (with the profile flag) examples/profiles/sample-extension.xml input.bpmn output.xml
   UI:  click "Import DEXPI Profile" and pick this file.

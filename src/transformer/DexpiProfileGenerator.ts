@@ -1024,6 +1024,12 @@ function renderClassXml(cls: GeneratedClass, registry: DexpiProcessClassRegistry
   //      already-declared class with new properties — preserve its parent).
   //   3. Core/ConceptualObject as the most permissive fallback for genuinely
   //      new classes the model used without prior declaration.
+  //
+  // Special case: when extending ConceptualObject itself (the root class,
+  // which has no supertypes in Core.xml), emitting `superTypes="Core/ConceptualObject"`
+  // would be self-referential and the registry's supertype-divergence check
+  // would reject the resulting Profile on reload. Emit an empty supertypes=
+  // for that case so the parser yields the same empty list Core.xml has.
   let supertype: string;
   if (cls.customSuperType) {
     supertype = qualifyUserSupertype(cls.customSuperType, registry);
@@ -1031,6 +1037,10 @@ function renderClassXml(cls: GeneratedClass, registry: DexpiProcessClassRegistry
     const info = registry.getClass(cls.name);
     if (info && info.superTypes.length > 0) {
       supertype = qualifySupertype(info.superTypes[0], registry);
+    } else if (info) {
+      // Class exists in registry with no supertypes — it is the universal
+      // root. Don't fabricate a self-reference.
+      supertype = '';
     } else {
       supertype = 'Core/ConceptualObject';
     }
