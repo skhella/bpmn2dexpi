@@ -201,6 +201,30 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(observedCount).toBe(19);
   });
 
+  // Core/QualifiedValue declares Value and DisplayText as lower=1.
+  // When the BPMN authoring carries no scalar value (the common case
+  // for instrumentation parameter slots — the variable is observed but
+  // not pre-populated), the transformer emits <Undefined/> rather than
+  // skipping the property, per the canonical Core/UnionDataType pattern
+  // (Builtin/Undefined is one of the union members).
+  //
+  // No previous test pinned this. A refactor that silently drops the
+  // placeholder (emitting an empty <Data property="Value"/> or skipping
+  // the property entirely) leaves XSD validation passing and every
+  // count-based assertion above holding, but produces non-canonical
+  // output that downstream tools relying on the lower=1 contract would
+  // break on. The check here is structural: every instrumentation
+  // parameter slot must carry <Undefined/> as its Value and DisplayText
+  // child.
+  it('emits <Undefined/> placeholders for required-but-unauthored scalars on every instrumentation slot', () => {
+    const slots = output.match(/<Object id="DataObjectReference_[^"]+" type="Core\/QualifiedValue"[\s\S]*?<\/Object>/g) ?? [];
+    expect(slots).toHaveLength(19);
+    for (const slot of slots) {
+      expect(slot).toMatch(/<Data property="Value">[\s\S]*?<Undefined\s*\/>[\s\S]*?<\/Data>/);
+      expect(slot).toMatch(/<Data property="DisplayText">[\s\S]*?<Undefined\s*\/>[\s\S]*?<\/Data>/);
+    }
+  });
+
   it('logs no unannotated warnings for fully-annotated TEP', () => {
     // TEP example file is fully annotated with dexpi:element, so the transformer
     // uses Mode 1 (dexpi-validated) for all elements — no unannotated warnings expected.
