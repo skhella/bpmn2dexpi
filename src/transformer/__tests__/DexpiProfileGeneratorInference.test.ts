@@ -143,13 +143,11 @@ describe('Profile generator — target-class inference', () => {
     expect(result.xml).toMatch(/<ClassReference type="\/Process\.MaterialTemplate"\/>/);
   });
 
-  it('falls back to Core/ConceptualObject when no targets are observed', () => {
-    // Custom property whose values are all Data (no References).
-    // Wait — this would emit as DataProperty kind. To trigger
-    // ReferenceProperty inference with no observed targets, you'd need
-    // a manually-constructed accumulator state — skip; in practice this
-    // case doesn't arise because the generator collects properties from
-    // observed carrier elements.
-    expect(true).toBe(true);
-  });
+  // Note: the "falls back to Core/ConceptualObject when no targets are
+  // observed" case is unreachable through the normal generator flow —
+  // the generator only declares ReferenceProperty for properties it
+  // actually saw on a References carrier, so the no-observed-targets
+  // branch only fires when called with a hand-constructed accumulator.
+  // The previous test for that case asserted `expect(true).toBe(true)`,
+  // which is a tautology and was removed.
 });

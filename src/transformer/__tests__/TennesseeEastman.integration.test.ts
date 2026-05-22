@@ -58,6 +58,12 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     if (!result.valid) {
       console.error('XSD validation errors:', result.errors.slice(0, 10));
     }
+    // Pin mode='xsd' so a missing xmllint on this machine fails loudly
+    // instead of silently degrading to the structural fallback (which
+    // would also report valid:true / errors:[] on most reasonable
+    // output). The paper's "validated against the official DEXPI 2.0
+    // XSD schema" claim depends on this assertion holding.
+    expect(result.mode).toBe('xsd');
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   }, 15_000); // xmllint subprocess — allow 15 s
@@ -109,6 +115,12 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     // carrier per Composition (11 states → 11 carriers).
     expect(countMatches(/property="MoleFractiona"/g)).toBe(11);
     expect(countMatches(/property="MassFractions"/g)).toBe(0);
+    // VolumeFractions is not in Process.xml — only Mole and Mass basis
+    // exist on Composition. Pin a hard zero so a regression that
+    // reintroduces VolumeFractions (forgotten schema quirk) surfaces
+    // immediately rather than emitting a non-canonical property that
+    // XSD validation would silently accept.
+    expect(countMatches(/property="VolumeFractions"/g)).toBe(0);
     // Each carrier wraps a Core/QualifiedValue Object with N
     // <Data property="Values">…</Data> entries (TEP: 8 components per
     // template → 88 Values data entries total across the 11 carriers).
@@ -189,6 +201,30 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(observedCount).toBe(19);
   });
 
+  // Core/QualifiedValue declares Value and DisplayText as lower=1.
+  // When the BPMN authoring carries no scalar value (the common case
+  // for instrumentation parameter slots — the variable is observed but
+  // not pre-populated), the transformer emits <Undefined/> rather than
+  // skipping the property, per the canonical Core/UnionDataType pattern
+  // (Builtin/Undefined is one of the union members).
+  //
+  // No previous test pinned this. A refactor that silently drops the
+  // placeholder (emitting an empty <Data property="Value"/> or skipping
+  // the property entirely) leaves XSD validation passing and every
+  // count-based assertion above holding, but produces non-canonical
+  // output that downstream tools relying on the lower=1 contract would
+  // break on. The check here is structural: every instrumentation
+  // parameter slot must carry <Undefined/> as its Value and DisplayText
+  // child.
+  it('emits <Undefined/> placeholders for required-but-unauthored scalars on every instrumentation slot', () => {
+    const slots = output.match(/<Object id="DataObjectReference_[^"]+" type="Core\/QualifiedValue"[\s\S]*?<\/Object>/g) ?? [];
+    expect(slots).toHaveLength(19);
+    for (const slot of slots) {
+      expect(slot).toMatch(/<Data property="Value">[\s\S]*?<Undefined\s*\/>[\s\S]*?<\/Data>/);
+      expect(slot).toMatch(/<Data property="DisplayText">[\s\S]*?<Undefined\s*\/>[\s\S]*?<\/Data>/);
+    }
+  });
+
   it('logs no unannotated warnings for fully-annotated TEP', () => {
     // TEP example file is fully annotated with dexpi:element, so the transformer
     // uses Mode 1 (dexpi-validated) for all elements — no unannotated warnings expected.
@@ -217,8 +253,24 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
 
   it('transformer resets cleanly for a second transform on the same instance', async () => {
     const bpmnXml = readFileSync(BPMN_PATH, 'utf-8');
-    const output2 = await transformer.transform(bpmnXml);
-    const ratio = Math.abs(output2.length - output.length) / output.length;
-    expect(ratio).toBeLessThan(0.01);
+    // Same options as beforeEach so the only differences between the
+    // two outputs are the documented non-determinism sources
+    // (timestamp, random id slugs) — anything else would indicate
+    // state leaking between transform() calls on the same instance.
+    const output2 = await transformer.transform(bpmnXml, {
+      projectName: 'Tennessee Eastman Process',
+      author: 'Test Suite',
+    });
+    // Structural equality after normalizing the two known sources of
+    // non-determinism: ExportDateTime (current clock) and the random
+    // ID slugs (u_<base36ts>_<base36rand>) the id factory emits.
+    // The earlier 1 % length tolerance let real state leaks through
+    // — small duplicate / drop on a ~100 kB output is well under 1 %.
+    const normalize = (s: string) =>
+      s
+        .replace(/\bu_[A-Z0-9]+_[a-z0-9]+\b/g, 'u_DET_DET')
+        .replace(/#u_[A-Z0-9]+_[a-z0-9]+/g, '#u_DET_DET')
+        .replace(/<String>\d{4}-\d{2}-\d{2}T[\d:.]+Z<\/String>/g, '<String>DET-TIMESTAMP</String>');
+    expect(normalize(output2)).toBe(normalize(output));
   });
 });
