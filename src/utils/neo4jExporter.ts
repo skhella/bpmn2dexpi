@@ -842,14 +842,25 @@ function analyzeSubprocessFlows(
   return subprocessFlows;
 }
 
+export interface GenerateCypherOptions {
+  /**
+   * When `true` (default) prepend `MATCH (n) DETACH DELETE n` so the
+   * export wipes the database first. Set to `false` for additive
+   * runs that append onto an existing graph.
+   */
+  clearDatabase?: boolean;
+}
+
 /**
  * Generate Cypher queries for Neo4j import
  */
-export function generateCypherQueries(data: DexpiGraphData): string[] {
+export function generateCypherQueries(data: DexpiGraphData, options: GenerateCypherOptions = {}): string[] {
+  const { clearDatabase = true } = options;
   const queries: string[] = [];
-  
-  // Clear existing data
-  queries.push('MATCH (n) DETACH DELETE n');
+
+  if (clearDatabase) {
+    queries.push('MATCH (n) DETACH DELETE n');
+  }
   
   // Create Material Components
   for (const comp of data.materialComponents) {
@@ -936,12 +947,25 @@ CREATE (ms)-[:HAS_TYPE]->(mst)`);
   
   // Create Process Steps with ports as properties
   // Use proper node types: ProcessStep, Source, Sink, InstrumentationActivity
+  //
+  // Property naming covers two consumers:
+  //  - camelCase (`inputPorts`, `outputPorts`) — bpmn2dexpi internal contract
+  //  - snake_case (`name`, `input_ports`, `output_ports`, counts,
+  //    `is_instrumentation_activity`) — matches the Bloom perspective and the
+  //    downstream PCA / DEXPI enrichment queries which look up nodes by
+  //    `coalesce(n.name, n.label)` and expect the DEXPI class name in `name`
+  //    rather than the (often free-text) BPMN caption.
   for (const step of data.processSteps) {
     const props = buildPropsString({
       id: step.id, identifier: step.identifier, label: step.label, type: step.type,
+      name: step.type,
       hierarchy_level: step.hierarchy_level, isSubProcess: step.isSubProcess,
       isNavigational: step.isNavigational,
       inputPorts: step.inputPorts, outputPorts: step.outputPorts,
+      input_ports: step.inputPorts, output_ports: step.outputPorts,
+      input_ports_count: step.inputPorts.length,
+      output_ports_count: step.outputPorts.length,
+      is_instrumentation_activity: step.nodeType === 'InstrumentationActivity',
       ...step.attributes
     });
     const typeLabel = escapeLabel(step.type);
@@ -1104,21 +1128,16 @@ function escapeLabel(str: string): string {
  * Execute Cypher queries against Neo4j (browser-compatible using HTTP API)
  */
 export async function executeNeo4jQueries(
-  config: Neo4jConfig, 
+  config: Neo4jConfig,
   queries: string[],
   onProgress?: (current: number, total: number) => void
 ): Promise<{ success: boolean; message: string; stats?: ExportStats }> {
-  const { uri, user, password, database = 'neo4j' } = config;
-  
-  let httpUri = uri;
-  if (uri.startsWith('bolt://')) {
-    httpUri = uri.replace('bolt://', 'http://').replace(':7687', ':7474');
-  } else if (uri.startsWith('neo4j://')) {
-    httpUri = uri.replace('neo4j://', 'http://').replace(':7687', ':7474');
-  }
-  
-  const endpoint = `${httpUri}/db/${database}/tx/commit`;
-  const auth = btoa(`${user}:${password}`);
+  // URL + auth translation lives in one place. Handles Aura's
+  // neo4j+s:// / bolt+s:// URIs (HTTPS port 7473) and UTF-8 passwords
+  // — the inline btoa form throws InvalidCharacterError on any
+  // non-Latin1 character (umlauts, Greek letters, etc.).
+  const { neo4jHttpDetails } = await import('./neo4jHttpShared');
+  const { endpoint, authHeader } = neo4jHttpDetails(config);
   
   let successCount = 0;
   let errorCount = 0;
@@ -1133,7 +1152,7 @@ export async function executeNeo4jQueries(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${auth}`,
+          'Authorization': authHeader,
           'Accept': 'application/json'
         },
         body: JSON.stringify({
