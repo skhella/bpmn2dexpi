@@ -957,6 +957,9 @@ CREATE (ms)-[:HAS_TYPE]->(mst)`);
       hierarchy_level: step.hierarchy_level, isSubProcess: step.isSubProcess,
       isNavigational: step.isNavigational,
       inputPorts: step.inputPorts, outputPorts: step.outputPorts,
+      input_ports_count: step.inputPorts.length,
+      output_ports_count: step.outputPorts.length,
+      is_instrumentation_activity: step.nodeType === 'InstrumentationActivity',
       ...step.attributes
     });
     const typeLabel = escapeLabel(step.type);
