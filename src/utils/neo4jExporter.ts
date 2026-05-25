@@ -947,9 +947,13 @@ CREATE (ms)-[:HAS_TYPE]->(mst)`);
   
   // Create Process Steps with ports as properties.
   // Node types: ProcessStep, Source, Sink, InstrumentationActivity.
+  // `name` is set to the DEXPI class so Neo4j Browser / Bloom show
+  // the class instead of the (often free-text) BPMN caption as the
+  // node's default display label.
   for (const step of data.processSteps) {
     const props = buildPropsString({
       id: step.id, identifier: step.identifier, label: step.label, type: step.type,
+      name: step.type,
       hierarchy_level: step.hierarchy_level, isSubProcess: step.isSubProcess,
       isNavigational: step.isNavigational,
       inputPorts: step.inputPorts, outputPorts: step.outputPorts,
