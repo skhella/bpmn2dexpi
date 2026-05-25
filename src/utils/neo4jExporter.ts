@@ -945,27 +945,14 @@ CREATE (ms)-[:HAS_TYPE]->(mst)`);
     }
   }
   
-  // Create Process Steps with ports as properties
-  // Use proper node types: ProcessStep, Source, Sink, InstrumentationActivity
-  //
-  // Property naming covers two consumers:
-  //  - camelCase (`inputPorts`, `outputPorts`) — bpmn2dexpi internal contract
-  //  - snake_case (`name`, `input_ports`, `output_ports`, counts,
-  //    `is_instrumentation_activity`) — matches the Bloom perspective and the
-  //    downstream PCA / DEXPI enrichment queries which look up nodes by
-  //    `coalesce(n.name, n.label)` and expect the DEXPI class name in `name`
-  //    rather than the (often free-text) BPMN caption.
+  // Create Process Steps with ports as properties.
+  // Node types: ProcessStep, Source, Sink, InstrumentationActivity.
   for (const step of data.processSteps) {
     const props = buildPropsString({
       id: step.id, identifier: step.identifier, label: step.label, type: step.type,
-      name: step.type,
       hierarchy_level: step.hierarchy_level, isSubProcess: step.isSubProcess,
       isNavigational: step.isNavigational,
       inputPorts: step.inputPorts, outputPorts: step.outputPorts,
-      input_ports: step.inputPorts, output_ports: step.outputPorts,
-      input_ports_count: step.inputPorts.length,
-      output_ports_count: step.outputPorts.length,
-      is_instrumentation_activity: step.nodeType === 'InstrumentationActivity',
       ...step.attributes
     });
     const typeLabel = escapeLabel(step.type);
