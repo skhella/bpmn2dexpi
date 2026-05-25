@@ -1,12 +1,6 @@
 /**
- * Shared Neo4j HTTP-API helpers used by both the batched exporter
- * (`executeNeo4jQueries` in `neo4jExporter.ts`) and the
- * single-statement deep-enrichment client (`runCypher` in
- * `enrichment/deepEnrichment/neo4jHttp.ts`).
- *
- * Kept in one place so URL translation and basic-auth encoding stay
- * consistent — a divergence here means "deep enrichment works against
- * Aura but the base export 404s" or vice-versa.
+ * Shared Neo4j HTTP-API helpers: Bolt-style URI translation and
+ * basic-auth header encoding for the REST tx-commit endpoint.
  */
 
 import type { Neo4jConfig } from './neo4jExporter';
