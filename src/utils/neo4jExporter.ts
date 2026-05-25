@@ -11,13 +11,26 @@
  */
 
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
-import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
 
-// Build registry once at module load — synchronous, browser-safe (same approach
-// as DexpiRenderer / DexpiPropertiesPanel). Drives DEXPI-class classification
-// (e.g. recognising MeasuringProcessVariable as an InstrumentationActivity)
-// without hardcoded subtype lists.
-const NEO4J_REGISTRY = DexpiProcessClassRegistry.fromXml(processXmlRaw);
+// Registry is initialised lazily so the module can load in environments
+// where the Vite `?raw` import isn't available (Node / CLI). Callers must
+// invoke `setNeo4jProcessXml` once before `parseDexpiXml` / `exportToNeo4j`.
+// In the browser this is wired up at app boot (see `src/App.tsx`); in the
+// CLI it's wired up after reading `dexpi-schema-files/Process.xml` from disk.
+let neo4jRegistry: DexpiProcessClassRegistry | null = null;
+
+export function setNeo4jProcessXml(processXmlContent: string): void {
+  neo4jRegistry = DexpiProcessClassRegistry.fromXml(processXmlContent);
+}
+
+function getNeo4jRegistry(): DexpiProcessClassRegistry {
+  if (!neo4jRegistry) {
+    throw new Error(
+      'Neo4j exporter not initialised: call setNeo4jProcessXml(processXml) with the contents of dexpi-schema-files/Process.xml before invoking parseDexpiXml / exportToNeo4j.',
+    );
+  }
+  return neo4jRegistry;
+}
 
 interface ExportStats {
   nodes?: number;
@@ -432,13 +445,14 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
         // registry didn't load (e.g. Process.xml ?raw import failed).
         let nodeType: 'ProcessStep' | 'Source' | 'Sink' | 'InstrumentationActivity' = 'ProcessStep';
         const bareName = (type.split('.').pop() || '').trim();
+        const registry = getNeo4jRegistry();
 
-        if (NEO4J_REGISTRY.size > 0) {
-          if (NEO4J_REGISTRY.hasAncestor(bareName, 'Source')) {
+        if (registry.size > 0) {
+          if (registry.hasAncestor(bareName, 'Source')) {
             nodeType = 'Source';
-          } else if (NEO4J_REGISTRY.hasAncestor(bareName, 'Sink')) {
+          } else if (registry.hasAncestor(bareName, 'Sink')) {
             nodeType = 'Sink';
-          } else if (NEO4J_REGISTRY.hasAncestor(bareName, 'InstrumentationActivity')) {
+          } else if (registry.hasAncestor(bareName, 'InstrumentationActivity')) {
             nodeType = 'InstrumentationActivity';
           }
         } else {

@@ -14,8 +14,13 @@ import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegist
 import { generateProfileFromDexpiXml } from './transformer/DexpiProfileGenerator';
 import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../dexpi-schema-files/Core.xml?raw';
-import { exportToNeo4j } from './utils/neo4jExporter';
+import { exportToNeo4j, setNeo4jProcessXml } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
+
+// Initialise the Neo4j exporter's DEXPI class registry once at module load.
+// The exporter is environment-agnostic (also used by the Node CLI) and so
+// doesn't import Process.xml itself — every caller supplies it.
+setNeo4jProcessXml(processXmlRaw);
 import {
   isMaterialStatesContainer,
   isMaterialTemplatesContainer,

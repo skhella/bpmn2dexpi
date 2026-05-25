@@ -27,7 +27,10 @@ Object.assign(globalThis, {
 });
 
 import { BpmnToDexpiTransformer } from '../../transformer/BpmnToDexpiTransformer';
-import { parseDexpiXml, generateCypherQueries } from '../neo4jExporter';
+import { parseDexpiXml, generateCypherQueries, setNeo4jProcessXml } from '../neo4jExporter';
+import processXmlRaw from '../../../dexpi-schema-files/Process.xml?raw';
+
+setNeo4jProcessXml(processXmlRaw);
 
 const TEP_BPMN_PATH = join(__dirname, '../../../examples/Tennessee_Eastman_Process.bpmn');
 

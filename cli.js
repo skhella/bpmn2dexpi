@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * CLI tool for converting BPMN files to DEXPI XML
- * Usage: node cli.js [--strict] input.bpmn [output.xml]
- * Or: npm run transform input.bpmn [output.xml]
+ * CLI for the bpmn2dexpi project. Two modes:
+ *   - default     : convert a BPMN file to DEXPI XML
+ *                   node cli.js [--strict] input.bpmn [output.xml]
+ *   - export-neo4j: push DEXPI graph data into a Neo4j database
+ *                   node cli.js export-neo4j <input.bpmn|.xml> [flags]
  */
 
 import { readFileSync, writeFileSync } from 'fs';
@@ -23,6 +25,13 @@ const { generateProfileFromDexpiXml } = await import('./src/transformer/DexpiPro
 const { DexpiProcessClassRegistry } = await import('./src/transformer/DexpiProcessClassRegistry.ts');
 
 const args = process.argv.slice(2);
+
+// Subcommand dispatch. Anything else falls through to the historical
+// BPMN → DEXPI XML flow so existing invocations keep working unchanged.
+if (args[0] === 'export-neo4j') {
+  await runExportNeo4j(args.slice(1));
+  process.exit(0);
+}
 
 if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
   console.log(`
@@ -75,6 +84,14 @@ Examples:
   node cli.js --generate-profile profile.xml process.bpmn output.xml
                                                  # Generate Profile + DEXPI
   npm run transform process.bpmn output.xml      # Using npm script
+
+Subcommands:
+  export-neo4j <input> [flags]
+                  Push DEXPI graph data into a Neo4j database (same
+                  pipeline as the in-app "Export to Neo4j" button).
+                  Input may be a BPMN file with dexpi:* extensions
+                  (transformed first) or a DEXPI XML file (used as-is).
+                  Run \`node cli.js export-neo4j --help\` for details.
 
 From Python:
   import subprocess
@@ -227,3 +244,185 @@ async function main() {
 }
 
 main();
+
+/**
+ * Push DEXPI graph data into a Neo4j database.
+ *
+ * Reuses the same parse → Cypher → HTTP pipeline that the React app's
+ * "Export to Neo4j" button drives (`src/utils/neo4jExporter.ts`), so any
+ * fix or schema change there flows into the CLI automatically.
+ *
+ * Input handling:
+ *   - .bpmn / .xml extension auto-detected; override with --from bpmn|dexpi-xml
+ *   - BPMN inputs go through the BpmnToDexpiTransformer first
+ *   - DEXPI XML inputs are parsed directly
+ *
+ * Credentials:
+ *   - Defaults from env (NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD / NEO4J_DATABASE)
+ *   - CLI flags (--uri / --user / --password / --database) override
+ *   - --database defaults to "neo4j" if neither env nor flag set
+ */
+async function runExportNeo4j(subArgs) {
+  if (subArgs.length === 0 || subArgs.includes('--help') || subArgs.includes('-h')) {
+    console.log(`
+bpmn2dexpi export-neo4j - push DEXPI graph data into Neo4j
+
+Usage:
+  node cli.js export-neo4j <input> [flags]
+
+Arguments:
+  input           Path to a BPMN file (with dexpi:* extensions) OR a DEXPI XML
+                  file. Detected by extension unless --from is given.
+
+Flags:
+  --from <kind>   Force input type: "bpmn" or "dexpi-xml". Overrides extension
+                  detection.
+
+  --uri <uri>     Neo4j URI. Bolt-style URIs (bolt://, bolt+s://, neo4j://,
+                  neo4j+s://) are accepted and translated to the HTTP API
+                  endpoint internally — the exporter pushes Cypher over the
+                  REST tx-commit handler, not the Bolt driver, so this works
+                  against AuraDB without a driver dependency.
+                  Falls back to env NEO4J_URI.
+
+  --user <name>   Neo4j username. Falls back to env NEO4J_USER.
+
+  --password <p>  Neo4j password. Falls back to env NEO4J_PASSWORD.
+                  Prefer the env var to keep secrets out of shell history.
+
+  --database <db> Neo4j database name. Falls back to env NEO4J_DATABASE,
+                  then to "neo4j" (the default for Community/Aura).
+
+  --no-clear      Skip wiping the target database before export. Default is
+                  to issue MATCH (n) DETACH DELETE n first (matching the UI's
+                  default behaviour).
+
+Environment variables:
+  NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE
+
+Examples:
+  # BPMN with dexpi: extensions, env-var credentials
+  export NEO4J_URI=neo4j+s://xxxx.databases.neo4j.io
+  export NEO4J_USER=neo4j
+  export NEO4J_PASSWORD=secret
+  node cli.js export-neo4j process.bpmn
+
+  # DEXPI XML input, explicit flags
+  node cli.js export-neo4j tep.xml --uri bolt://localhost:7687 \\
+       --user neo4j --password test --database neo4j
+
+  # Force input type when the extension is misleading
+  node cli.js export-neo4j weirdname.txt --from dexpi-xml --uri ... --user ... --password ...
+`);
+    process.exit(0);
+  }
+
+  let from = null;
+  let uri = process.env.NEO4J_URI || null;
+  let user = process.env.NEO4J_USER || null;
+  let password = process.env.NEO4J_PASSWORD || null;
+  let database = process.env.NEO4J_DATABASE || null;
+  let clearDatabase = true;
+  const positionalArgs = [];
+
+  for (let i = 0; i < subArgs.length; i++) {
+    const a = subArgs[i];
+    const requireValue = (flag) => {
+      if (i + 1 >= subArgs.length || subArgs[i + 1].startsWith('--')) {
+        console.error(`✗ Error: ${flag} requires a value`);
+        process.exit(1);
+      }
+      return subArgs[++i];
+    };
+    if (a === '--from') { from = requireValue('--from'); continue; }
+    if (a === '--uri') { uri = requireValue('--uri'); continue; }
+    if (a === '--user') { user = requireValue('--user'); continue; }
+    if (a === '--password') { password = requireValue('--password'); continue; }
+    if (a === '--database') { database = requireValue('--database'); continue; }
+    if (a === '--no-clear') { clearDatabase = false; continue; }
+    if (a.startsWith('--')) {
+      console.error(`✗ Error: unknown flag ${a}`);
+      process.exit(1);
+    }
+    positionalArgs.push(a);
+  }
+
+  const inputFile = positionalArgs[0];
+  if (!inputFile) {
+    console.error('✗ Error: input file required (see --help)');
+    process.exit(1);
+  }
+
+  // Resolve --from: explicit flag wins, otherwise dispatch by extension.
+  // Unknown extensions are a hard error so we never silently mis-route.
+  let inputKind = from;
+  if (!inputKind) {
+    if (inputFile.toLowerCase().endsWith('.bpmn')) inputKind = 'bpmn';
+    else if (inputFile.toLowerCase().endsWith('.xml')) inputKind = 'dexpi-xml';
+    else {
+      console.error(
+        `✗ Error: cannot infer input type from "${inputFile}". ` +
+        `Use --from bpmn or --from dexpi-xml.`,
+      );
+      process.exit(1);
+    }
+  }
+  if (inputKind !== 'bpmn' && inputKind !== 'dexpi-xml') {
+    console.error(`✗ Error: --from must be "bpmn" or "dexpi-xml" (got "${inputKind}")`);
+    process.exit(1);
+  }
+
+  const missing = [];
+  if (!uri) missing.push('--uri / NEO4J_URI');
+  if (!user) missing.push('--user / NEO4J_USER');
+  if (!password) missing.push('--password / NEO4J_PASSWORD');
+  if (missing.length > 0) {
+    console.error(`✗ Error: missing Neo4j credentials: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+  if (!database) database = 'neo4j';
+
+  const { exportToNeo4j, setNeo4jProcessXml } = await import('./src/utils/neo4jExporter.ts');
+
+  // The exporter's DEXPI process-class registry is environment-agnostic —
+  // the UI passes Process.xml in via Vite's ?raw import at app boot,
+  // and we do the equivalent here off disk so the same module works
+  // from Node without any Vite plumbing.
+  const processXml = readFileSync('dexpi-schema-files/Process.xml', 'utf-8');
+  setNeo4jProcessXml(processXml);
+
+  // Produce DEXPI XML — either by transforming a BPMN input or by
+  // reading a DEXPI XML file straight off disk. The exporter only sees
+  // DEXPI XML downstream, so the two paths converge here.
+  let dexpiXml;
+  if (inputKind === 'bpmn') {
+    const bpmn = readFileSync(inputFile, 'utf-8');
+    dexpiXml = await transformer.transform(bpmn);
+    console.error(`✓ Transformed BPMN → DEXPI XML (${inputFile})`);
+  } else {
+    dexpiXml = readFileSync(inputFile, 'utf-8');
+    console.error(`✓ Loaded DEXPI XML (${inputFile})`);
+  }
+
+  console.error(`→ Exporting to Neo4j at ${uri} (database: ${database}, clear: ${clearDatabase})`);
+
+  const result = await exportToNeo4j(
+    dexpiXml,
+    { uri, user, password, database },
+    (current, total) => {
+      // Progress is line-buffered to stderr so it doesn't interleave with the
+      // success/failure summary on stdout, and so callers can capture stdout
+      // alone if they want to parse a result.
+      process.stderr.write(`\r  ${current}/${total} batches sent`);
+      if (current === total) process.stderr.write('\n');
+    },
+  );
+
+  if (result.success) {
+    console.log(result.message || '✓ Neo4j export complete');
+    process.exit(0);
+  } else {
+    console.error(`✗ Neo4j export failed: ${result.message}`);
+    process.exit(1);
+  }
+}
