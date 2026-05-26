@@ -2244,10 +2244,12 @@ export class BpmnToDexpiTransformer {
           portObjects.push(portObject);
         });
 
-        // Second pass: add port hierarchy references after all ports are created
-        portObjects.forEach((portObject: Record<string, unknown>) => {
-          const portId = (portObject.$ as Record<string, string>).id;
-          const portData = this.ports.get(portId);
+        // Second pass: add port hierarchy references after all ports are created.
+        // Iterate via step.ports so we keep the raw portId — this.ports is keyed
+        // by the raw id, not the sanitized $.id stored on portObject.
+        step.ports.forEach((port: DexpiPort, idx: number) => {
+          const portObject = portObjects[idx];
+          const portData = this.ports.get(port.portId);
           
           // Add SuperReference if this port has a parent port
           // Per DEXPI XSD: References element uses 'objects' attr (space-sep IDREFs), no child elements
