@@ -683,7 +683,7 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(pairs[1].targetY).toBeLessThan(pairs[2].targetY);
     });
 
-    it('places instrumentation below the process and data objects between instrumentation and target', async () => {
+    it('places instrumentation above the process and data objects between instrumentation and target', async () => {
       const sourcePort = port('SE_out', 'MaterialPort', 'Out', 'MO1');
       const reactorPorts =
         port('Reactor_in', 'MaterialPort', 'In', 'MI1') +
@@ -712,11 +712,15 @@ ${step('MX1', 'Mixing', 'Mixer')}
       const dataObject = shapeBounds(out, 'dobj_bpmn_Sensor_bpmn_Temperature');
       const associationToReactor = edgeWaypoints(out, 'assocIn_bpmn_IF_temp');
 
-      expect(sensor.y).toBeGreaterThan(reactor.y + reactor.h);
-      expect(dataObject.y).toBeGreaterThan(reactor.y);
-      expect(dataObject.y).toBeLessThan(sensor.y + sensor.h);
-      expect(associationToReactor[0].y).toBe(dataObject.y);
-      expect(associationToReactor.at(-1)?.y).toBe(reactor.y + reactor.h);
+      // Instrumentation is aligned on a single horizontal band ABOVE the
+      // highest process step, with the data object between the two.
+      expect(sensor.y + sensor.h).toBeLessThan(reactor.y);
+      expect(dataObject.y).toBeGreaterThan(sensor.y + sensor.h);
+      expect(dataObject.y).toBeLessThan(reactor.y);
+      // The association leaves the data object's bottom and enters the
+      // reactor's top edge (instrumentation now sits above).
+      expect(associationToReactor[0].y).toBe(dataObject.y + dataObject.h);
+      expect(associationToReactor.at(-1)?.y).toBe(reactor.y);
       expect(out).toContain('id="assocInfo_bpmn_IF_temp"');
       expect(out).not.toContain('dobj_bpmn_IF_temp');
     });

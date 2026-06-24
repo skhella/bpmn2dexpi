@@ -998,33 +998,35 @@ export class DexpiToBpmnTransformer {
     const bottomBand: InstrumentBandItem[] = [];
 
     instruments.forEach(step => {
-      const linkedStepIds = connections
-        .filter(conn => !conn.hidden && conn.dexpiType === 'InformationFlow')
-        .map(conn => {
-          const src = portToStep.get(conn.sourcePortId);
-          const tgt = portToStep.get(conn.targetPortId);
-          if (src === step.id && tgt && !this.isInstrumentationStep(stepById.get(tgt))) return tgt;
-          if (tgt === step.id && src && !this.isInstrumentationStep(stepById.get(src))) return src;
-          return undefined;
-        })
-        .filter((id): id is string => !!id && layout.has(id));
+      // Anchor each instrument over the process step it measures/controls,
+      // read from ProcessStepReference (resolved on import). Fall back to
+      // InformationFlow-linked steps (non-import paths), then to the
+      // instrument's own center.
+      const anchorIds: string[] = [];
+      if (step.processStepRef && layout.has(step.processStepRef)) {
+        anchorIds.push(step.processStepRef);
+      } else {
+        connections
+          .filter(conn => !conn.hidden && conn.dexpiType === 'InformationFlow')
+          .forEach(conn => {
+            const src = portToStep.get(conn.sourcePortId);
+            const tgt = portToStep.get(conn.targetPortId);
+            if (src === step.id && tgt && !this.isInstrumentationStep(stepById.get(tgt))) anchorIds.push(tgt);
+            if (tgt === step.id && src && !this.isInstrumentationStep(stepById.get(src))) anchorIds.push(src);
+          });
+      }
 
-      const anchorCenters = linkedStepIds.map(id => {
-        const box = layout.get(id)!;
-        return box.x + box.w / 2;
-      });
+      const anchorCenters = anchorIds
+        .filter(id => layout.has(id))
+        .map(id => { const box = layout.get(id)!; return box.x + box.w / 2; });
       const current = layout.get(step.id)!;
       const desiredCenter = anchorCenters.length > 0
         ? anchorCenters.reduce((sum, x) => sum + x, 0) / anchorCenters.length
         : current.x + current.w / 2;
-      const item = {
-        id: step.id,
-        desiredX: desiredCenter - current.w / 2,
-        band: step.dexpiType === 'ControllingProcessVariable' ? 'top' as const : 'bottom' as const,
-      };
 
-      if (item.band === 'top') topBand.push(item);
-      else bottomBand.push(item);
+      // All instrumentation sits on a single horizontal band above the
+      // highest process step (no separate bottom band).
+      topBand.push({ id: step.id, desiredX: desiredCenter - current.w / 2, band: 'top' });
     });
 
     if (topBand.length > 0) {
