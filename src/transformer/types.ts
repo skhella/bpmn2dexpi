@@ -210,6 +210,13 @@ export interface FractionData {
 export interface CompositionData {
   basis: string;
   display: string;
+  /**
+   * The unit token authored on the fraction vector's QualifiedValue (e.g.
+   * 'Percent'). Carried through so the emitter resolves it to a real
+   * PhysicalQuantityVector unit literal rather than hardcoding one. Optional;
+   * absent when the authoring omitted a unit (then the vector fails closed).
+   */
+  unit?: string;
   fractions: FractionData[];
 }
 

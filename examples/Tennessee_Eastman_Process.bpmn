@@ -286,7 +286,7 @@
             <dexpi:components property="Temperature">
               <dexpi:object type="Core/QualifiedValue">
                 <dexpi:data property="Value">86.1</dexpi:data>
-                <dexpi:data property="Unit">degC</dexpi:data>
+                <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
               </dexpi:object>
             </dexpi:components>
           </dexpi:Stream>
@@ -1327,7 +1327,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">45.0</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
               <dexpi:data property="Provenance">Specified</dexpi:data>
               <dexpi:data property="Range">Nominal</dexpi:data>
             </dexpi:object>
@@ -1351,7 +1351,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">45.0</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
               <dexpi:data property="Provenance">Specified</dexpi:data>
               <dexpi:data property="Range">Nominal</dexpi:data>
             </dexpi:object>
@@ -1375,7 +1375,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">45.0</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
               <dexpi:data property="Provenance">Specified</dexpi:data>
               <dexpi:data property="Range">Nominal</dexpi:data>
             </dexpi:object>
@@ -1399,7 +1399,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">45.0</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
               <dexpi:data property="Provenance">Specified</dexpi:data>
               <dexpi:data property="Range">Nominal</dexpi:data>
             </dexpi:object>
@@ -1421,7 +1421,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">65.7</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Stream>
@@ -1441,7 +1441,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">102.9</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Stream>
@@ -1461,7 +1461,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">120.4</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Stream>
@@ -1488,7 +1488,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">80.1</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
               <dexpi:data property="Provenance">Set</dexpi:data>
               <dexpi:data property="Range">Nominal</dexpi:data>
             </dexpi:object>
@@ -1515,7 +1515,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">80.1</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Stream>
@@ -1545,7 +1545,7 @@
           <dexpi:components property="Temperature">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">65.7</dexpi:data>
-              <dexpi:data property="Unit">degC</dexpi:data>
+              <dexpi:data property="Unit">DegreeCelsius</dexpi:data>
               <dexpi:data property="Provenance">Estimated</dexpi:data>
               <dexpi:data property="Range">Nominal</dexpi:data>
             </dexpi:object>
@@ -2002,7 +2002,7 @@
               <dexpi:data property="Values">0.00000</dexpi:data>
               <dexpi:data property="Values">0.00000</dexpi:data>
               <dexpi:data property="Values">0.00000</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2036,7 +2036,7 @@
               <dexpi:data property="Values">0.00000</dexpi:data>
               <dexpi:data property="Values">0.00000</dexpi:data>
               <dexpi:data property="Values">0.00000</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2070,7 +2070,7 @@
               <dexpi:data property="Values">0.00010</dexpi:data>
               <dexpi:data property="Values">0.00000</dexpi:data>
               <dexpi:data property="Values">0.00000</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2104,7 +2104,7 @@
               <dexpi:data property="Values">0.02159</dexpi:data>
               <dexpi:data property="Values">0.12302</dexpi:data>
               <dexpi:data property="Values">0.08423</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2138,7 +2138,7 @@
               <dexpi:data property="Values">0.00000</dexpi:data>
               <dexpi:data property="Values">0.00000</dexpi:data>
               <dexpi:data property="Values">0.00000</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2172,7 +2172,7 @@
               <dexpi:data property="Values">0.00099</dexpi:data>
               <dexpi:data property="Values">0.53724</dexpi:data>
               <dexpi:data property="Values">0.43828</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2206,7 +2206,7 @@
               <dexpi:data property="Values">0.00885</dexpi:data>
               <dexpi:data property="Values">0.01964</dexpi:data>
               <dexpi:data property="Values">0.00808</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2240,7 +2240,7 @@
               <dexpi:data property="Values">0.01669</dexpi:data>
               <dexpi:data property="Values">0.47269</dexpi:data>
               <dexpi:data property="Values">0.37136</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2274,7 +2274,7 @@
               <dexpi:data property="Values">0.02263</dexpi:data>
               <dexpi:data property="Values">0.04844</dexpi:data>
               <dexpi:data property="Values">0.02299</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2308,7 +2308,7 @@
               <dexpi:data property="Values">0.02263</dexpi:data>
               <dexpi:data property="Values">0.04844</dexpi:data>
               <dexpi:data property="Values">0.02299</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
@@ -2342,7 +2342,7 @@
               <dexpi:data property="Values">0.01657</dexpi:data>
               <dexpi:data property="Values">0.03561</dexpi:data>
               <dexpi:data property="Values">0.01659</dexpi:data>
-              <dexpi:data property="Unit">Fraction</dexpi:data>
+              <dexpi:data property="Unit">Percent</dexpi:data>
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>

@@ -64,14 +64,23 @@ export const FRAMEWORK_ATTRS = new Set<string>([
   'anchorY',
 ]);
 
-// QualifiedValue + AggregatedDataType inlining: when a CompositionProperty's
-// target is Core/QualifiedValue, the runtime serialization may also inline
-// children from the AggregatedDataType bound to QualifiedValue.Type
-// (e.g. PhysicalQuantity contributes Value + Unit; PhysicalQuantityVector
-// contributes Values + Unit). The registry parses ConcreteClass /
-// AbstractClass only, so it doesn't surface these AggregatedDataType
-// properties; we list them here so the validator accepts the canonical
-// flattened form.
+// BPMN-extension authoring carrier shape (BPMN side ONLY).
+//
+// The EMITTED DEXPI XML now uses the canonical nested form exclusively —
+// Unit / Value(s) live inside an <AggregatedDataValue type="…PhysicalQuantity(Vector)">
+// and the emitted-output validator (validateEmittedDexpiXml) resolves them
+// against PhysicalQuantity with no allowlist, REJECTING a flat Unit on a
+// Core/QualifiedValue.
+//
+// The BPMN <bpmn:extensionElements> authoring format, by contrast, stores a
+// measurement as a flat `<dexpi:data property="Value/Unit/…">` carrier directly
+// under `<dexpi:object type="Core/QualifiedValue">`. That is the tool's
+// authoring representation — exactly the "carrier shape defined by the DEXPI
+// 2.0 XML Schema" the reference paper documents (it is XSD-envelope valid; the
+// information-model nesting is applied on export). So the BPMN-extension walker
+// (walkRichElement) still accepts a flat Unit / Values on QualifiedValue via
+// this set. The registry parses the AggregatedDataType classes now, but those
+// carry the nested form; this set covers the flat authoring carrier only.
 const QUALIFIED_VALUE_INLINED = new Set<string>(['Unit', 'Values']);
 
 export interface PropertyFailure {
@@ -236,9 +245,18 @@ export function validateEmittedDexpiXml(
     const propName = el.getAttribute('property');
     if (!propName) continue;
 
-    // Walk up to nearest <Object type="...">
+    // Walk up to the nearest carrier that names a class: an <Object type="…">
+    // or an <AggregatedDataValue type="…"> (the carrier for an
+    // AggregatedDataType value such as PhysicalQuantity / PhysicalQuantityVector).
+    // Stopping at AggregatedDataValue is what makes a nested
+    // <Data property="Unit"> resolve against PhysicalQuantity (where Unit IS a
+    // property) — and what makes a FLAT Unit directly under a Core/QualifiedValue
+    // resolve against QualifiedValue (where it is NOT a property) and therefore
+    // be rejected. No QualifiedValue allowlist is needed on the emitted-output
+    // side: the canonical nested shape validates on its own and the flat shape
+    // fails on its own.
     let p: Element | null = el.parentElement;
-    while (p && p.tagName !== 'Object') p = p.parentElement;
+    while (p && p.tagName !== 'Object' && p.tagName !== 'AggregatedDataValue') p = p.parentElement;
     if (!p) continue;
     const typeAttr = p.getAttribute('type');
     if (!typeAttr) continue;
@@ -252,12 +270,6 @@ export function validateEmittedDexpiXml(
 
     const declared = new Map<string, PropertyKind>();
     for (const p of registry.getProperties(className)) declared.set(p.name, p.kind);
-    // QualifiedValue accepts inlined AggregatedDataType properties too —
-    // these are always carried as data (the value's String/Number content),
-    // so flag them as 'data' for the kind check.
-    if (className === 'QualifiedValue') {
-      for (const inlined of QUALIFIED_VALUE_INLINED) declared.set(inlined, 'data');
-    }
     const declaredKind = declared.get(propName);
     if (declaredKind === undefined) {
       // Property not declared on the class chain at all — name fidelity gap.

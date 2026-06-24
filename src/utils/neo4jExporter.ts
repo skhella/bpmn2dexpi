@@ -614,10 +614,17 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
       const basis: 'Mole' | 'Mass' = moleCarrier ? 'Mole' : 'Mass';
       const qvObject = carrier.querySelector(':scope > Object[type="Core/QualifiedValue"]');
       if (!qvObject) continue;
-      const valueEls = Array.from(qvObject.querySelectorAll(':scope > Data[property="Values"]'));
+      // The fraction values live inside the canonical
+      // <Data property="Value"><AggregatedDataValue type="…PhysicalQuantityVector">
+      // <Data property="Values"><Double>…</Double></Data>…</AggregatedDataValue>.
+      // Use a descendant query so the nested Values are found; read the Double
+      // (with String / textContent fallbacks for robustness).
+      const valueEls = Array.from(qvObject.querySelectorAll('Data[property="Values"]'));
       const values: string[] = [];
       for (const v of valueEls) {
-        const txt = v.querySelector('String')?.textContent ?? v.textContent ?? '';
+        const txt = v.querySelector('Double')?.textContent
+          ?? v.querySelector('String')?.textContent
+          ?? v.textContent ?? '';
         values.push(txt.trim());
       }
       if (values.length > 0) compositionDataByUid.set(compId, { basis, values });
