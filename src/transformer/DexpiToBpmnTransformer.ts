@@ -23,9 +23,24 @@ interface DexpiStep {
   identifier: string;
   label: string;
   ports: DexpiPort[];
+  /** Step-level qualified attributes (Components/Data on the Object). */
+  attributes?: ParsedStreamAttribute[];
   referenceUri?: string;
   parentId?: string;
   children: DexpiStep[];
+  /**
+   * For InstrumentationActivity descendants only — populated by parseStep
+   * from the schema-correct DEXPI 2.0 emission shape (Spec p.876, p.900).
+   * processStepRef holds the DEXPI Object id of the referenced ProcessStep
+   * (read from <References property="ProcessStepReference"/>).
+   * measuredVariable holds the variable identity, resolved either from
+   * MeasuredVariableReference (canonical: walk to QualifiedValue's owning
+   * Components carrier and read its property name) or from the
+   * MeasuredVariableLabel Profile-extension Data property (fallback for
+   * variables with no canonical ProcessStep parameter slot).
+   */
+  processStepRef?: string;
+  measuredVariable?: string;
 }
 
 interface DexpiPort {
@@ -47,18 +62,79 @@ interface DexpiConnection {
   targetPortId: string;
   informationVariantLabel?: string;
   hidden?: boolean;
+  /** Parsed stream-level attributes (Components→QualifiedValue + simple Data). */
+  attributes?: ParsedStreamAttribute[];
+  /** Optional reference to a MaterialState (DEXPI MaterialStateReference). */
+  materialStateRef?: string;
+  /** Optional reference to a MaterialTemplate. */
+  materialTemplateRef?: string;
+}
+
+interface ParsedStreamAttribute {
+  name: string;
+  value: string;
+  unit?: string;
+  unitUri?: string;
+  provenance?: string;
+  range?: string;
+  nameUri?: string;
 }
 
 interface DexpiMaterialTemplate {
-  id: string;
+  uid: string;
   identifier: string;
   label: string;
+  description?: string;
+  numberOfComponents?: string;
+  numberOfPhases?: string;
+  /** UIDs (without leading #) of referenced MaterialComponents. */
+  componentRefs: string[];
+  /** Phase identifier strings. */
+  phases: string[];
+}
+
+interface DexpiMaterialComponent {
+  uid: string;
+  identifier: string;
+  label: string;
+  description?: string;
+  chebiId?: string;
+  iupacId?: string;
+  /** xsi:type from the original BPMN, or a guess based on DEXPI subclass. */
+  xsiType: string;
+}
+
+interface DexpiMaterialStateType {
+  uid: string;
+  identifier: string;
+  label: string;
+  description?: string;
+  templateRef?: string;
+  moleFlow?: { value: string; unit: string };
+  composition?: {
+    basis?: string;
+    display?: string;
+    fractions: { value: string; unit?: string; componentRef?: string }[];
+  };
+}
+
+interface DexpiMaterialState {
+  uid: string;
+  identifier: string;
+  label: string;
+  description?: string;
+  templateRef?: string;
+  /** UID of the linked MaterialStateType (Object referenced by the State property). */
+  stateTypeRef?: string;
 }
 
 interface ParsedDexpi {
   steps: DexpiStep[];
   connections: DexpiConnection[];
   materialTemplates: DexpiMaterialTemplate[];
+  materialComponents: DexpiMaterialComponent[];
+  materialStates: DexpiMaterialState[];
+  materialStateTypes: DexpiMaterialStateType[];
 }
 
 type LayoutBox = {x: number, y: number, w: number, h: number};
@@ -120,6 +196,38 @@ export class DexpiToBpmnTransformer {
         });
     }
 
+    // Build a global map of QualifiedValue Object id → owning Components
+    // carrier's property name. This lets us resolve a
+    // MeasuredVariableReference target id (e.g. "uid_Activity_X_Temperature")
+    // to the variable identity ("Temperature") without parsing the id
+    // string itself, which would be fragile because step uids can contain
+    // arbitrary underscore-separated segments. The map is built by
+    // walking every <Components property="X"><Object id="..."/></Components>
+    // anywhere in the document.
+    const qualifiedValueIdToProperty = new Map<string, string>();
+    Array.from(doc.getElementsByTagName('Components')).forEach(comp => {
+      const property = comp.getAttribute('property');
+      if (!property) return;
+      Array.from(comp.children)
+        .filter(c => c.tagName === 'Object')
+        .forEach(child => {
+          const cid = child.getAttribute('id');
+          if (cid) qualifiedValueIdToProperty.set(cid, property);
+        });
+    });
+
+    // Resolve __refid: markers placed by parseStep into the actual property
+    // names. Done after parsing so all Components carriers have been seen.
+    const resolveMeasuredVariable = (step: DexpiStep): void => {
+      if (step.measuredVariable && step.measuredVariable.startsWith('__refid:')) {
+        const refId = step.measuredVariable.slice('__refid:'.length);
+        const propName = qualifiedValueIdToProperty.get(refId);
+        step.measuredVariable = propName || undefined;
+      }
+      step.children.forEach(resolveMeasuredVariable);
+    };
+    steps.forEach(resolveMeasuredVariable);
+
     // Parse connections
     const connections: DexpiConnection[] = [];
     Array.from(processModel.querySelectorAll('Components[property="ProcessConnections"]'))
@@ -132,21 +240,168 @@ export class DexpiToBpmnTransformer {
           });
       });
 
-    // Parse MaterialTemplates
+    // Parse MaterialTemplates (full content — components, phases, etc.)
     const materialTemplates: DexpiMaterialTemplate[] = [];
     const tmplContainer = this.findComponents(processModel, 'MaterialTemplates');
     if (tmplContainer) {
       Array.from(tmplContainer.children)
         .filter(el => el.tagName === 'Object')
-        .forEach(obj => {
-          const id = obj.getAttribute('id') || this.uid();
-          const identifier = this.getDataString(obj, 'Identifier') || id;
-          const label = this.getDataString(obj, 'Label') || identifier;
-          materialTemplates.push({ id, identifier, label });
-        });
+        .forEach(obj => materialTemplates.push(this.parseMaterialTemplate(obj)));
     }
 
-    return { steps, connections, materialTemplates };
+    // Parse MaterialComponents (PureMaterialComponent / MaterialComponent / etc.)
+    const materialComponents: DexpiMaterialComponent[] = [];
+    const compContainer = this.findComponents(processModel, 'MaterialComponents');
+    if (compContainer) {
+      Array.from(compContainer.children)
+        .filter(el => el.tagName === 'Object')
+        .forEach(obj => materialComponents.push(this.parseMaterialComponent(obj)));
+    }
+
+    // Parse MaterialStates (linked to a MaterialStateType via the State reference).
+    const materialStates: DexpiMaterialState[] = [];
+    const stateContainer = this.findComponents(processModel, 'MaterialStates');
+    if (stateContainer) {
+      Array.from(stateContainer.children)
+        .filter(el => el.tagName === 'Object')
+        .forEach(obj => materialStates.push(this.parseMaterialState(obj)));
+    }
+
+    // Parse MaterialStateTypes (the actual flow data — MoleFlow, Composition, etc.)
+    const materialStateTypes: DexpiMaterialStateType[] = [];
+    const stateTypeContainer = this.findComponents(processModel, 'MaterialStateTypes');
+    if (stateTypeContainer) {
+      Array.from(stateTypeContainer.children)
+        .filter(el => el.tagName === 'Object')
+        .forEach(obj => materialStateTypes.push(this.parseMaterialStateType(obj)));
+    }
+
+    return {
+      steps,
+      connections,
+      materialTemplates,
+      materialComponents,
+      materialStates,
+      materialStateTypes,
+    };
+  }
+
+  /** Parse a Process.MaterialTemplate Object. */
+  private parseMaterialTemplate(obj: Element): DexpiMaterialTemplate {
+    const uid = obj.getAttribute('id') || this.uid();
+    const identifier = this.getDataString(obj, 'Identifier') || uid;
+    const label = this.getDataString(obj, 'Label') || identifier;
+    const description = this.getDataString(obj, 'Description') || undefined;
+    const numberOfComponents = this.getDataInteger(obj, 'NumberOfMaterialComponents');
+    const numberOfPhases = this.getDataInteger(obj, 'NumberOfPhases');
+
+    // Component refs come either as a References property="ListOfMaterialComponents"
+    // (canonical XSD form) OR as a Data property="ListOfMaterialComponents" with a
+    // space-separated string (some legacy exports). Accept both.
+    const componentRefs = this.getReferenceIds(obj, 'ListOfMaterialComponents');
+    const phasesString = this.getDataString(obj, 'ListOfPhases');
+    const phases = phasesString
+      ? phasesString.split(/[,\s]+/).map(p => p.trim()).filter(Boolean)
+      : [];
+
+    return {
+      uid, identifier, label, description,
+      numberOfComponents, numberOfPhases,
+      componentRefs, phases,
+    };
+  }
+
+  /** Parse a Process.PureMaterialComponent or Process.MaterialComponent Object. */
+  private parseMaterialComponent(obj: Element): DexpiMaterialComponent {
+    const uid = obj.getAttribute('id') || this.uid();
+    const fullType = obj.getAttribute('type') || '';
+    // 'Process/Process.PureMaterialComponent' → 'PureMaterialComponent'.
+    // Fall back to CustomMaterialComponent if the type is missing/unrecognised
+    // — that's the BPMN convention for components without a DEXPI subclass.
+    const xsiType = fullType.replace('Process/Process.', '') || 'CustomMaterialComponent';
+    const identifier = this.getDataString(obj, 'Identifier') || uid;
+    const label = this.getDataString(obj, 'Label') || identifier;
+    const description = this.getDataString(obj, 'Description') || undefined;
+    const chebiId = this.getDataString(obj, 'ChEBIIdentifier') || this.getDataString(obj, 'ChEBI_identifier') || undefined;
+    const iupacId = this.getDataString(obj, 'IUPACIdentifier') || this.getDataString(obj, 'IUPAC_identifier') || undefined;
+
+    return { uid, identifier, label, description, chebiId, iupacId, xsiType };
+  }
+
+  /** Parse a Process.MaterialState Object. */
+  private parseMaterialState(obj: Element): DexpiMaterialState {
+    const uid = obj.getAttribute('id') || this.uid();
+    const identifier = this.getDataString(obj, 'Identifier') || uid;
+    const label = this.getDataString(obj, 'Label') || identifier;
+    const description = this.getDataString(obj, 'Description') || undefined;
+    // The 'State' reference points to the MaterialStateType holding the flow data.
+    const stateRefs = this.getReferenceIds(obj, 'State');
+    const stateTypeRef = stateRefs[0];
+    // Some exporters also place a TemplateReference directly on the state.
+    const tmplRefs = this.getReferenceIds(obj, 'MaterialTemplateReference');
+    const templateRef = tmplRefs[0];
+
+    return { uid, identifier, label, description, templateRef, stateTypeRef };
+  }
+
+  /** Parse a Process.MaterialStateType Object — flow data hangs off here. */
+  private parseMaterialStateType(obj: Element): DexpiMaterialStateType {
+    const uid = obj.getAttribute('id') || this.uid();
+    const identifier = this.getDataString(obj, 'Identifier') || uid;
+    const label = this.getDataString(obj, 'Label') || identifier;
+    const description = this.getDataString(obj, 'Description') || undefined;
+    const tmplRefs = this.getReferenceIds(obj, 'MaterialTemplateReference');
+    const templateRef = tmplRefs[0];
+
+    // MoleFlow lives in <Components property="MoleFlow"><Object type="Core/QualifiedValue"/></Components>
+    const moleFlowComp = Array.from(obj.children).find(c =>
+      c.tagName === 'Components' && c.getAttribute('property') === 'MoleFlow'
+    );
+    const moleFlowObj = moleFlowComp ? Array.from(moleFlowComp.children).find(c => c.tagName === 'Object') : null;
+    const moleFlow = moleFlowObj ? {
+      value: this.getDataString(moleFlowObj as Element, 'Value'),
+      unit: this.getDataString(moleFlowObj as Element, 'Unit'),
+    } : undefined;
+
+    // Composition lives in <Components property="Composition"><Object type="Process/Process.Composition"/></Components>
+    const compComp = Array.from(obj.children).find(c =>
+      c.tagName === 'Components' && c.getAttribute('property') === 'Composition'
+    );
+    const compObj = compComp ? Array.from(compComp.children).find(c => c.tagName === 'Object') : null;
+    let composition: DexpiMaterialStateType['composition'];
+    if (compObj) {
+      const basis = this.getDataString(compObj as Element, 'Basis') || undefined;
+      const display = this.getDataString(compObj as Element, 'Display') || undefined;
+      // Fractions are <Components property="Fractions"><Object type="Core/QualifiedValue"/>...
+      // OR (legacy) repeated Data property="Fraction" entries.
+      const fractionsComp = Array.from((compObj as Element).children).find(c =>
+        c.tagName === 'Components' && c.getAttribute('property') === 'Fractions'
+      );
+      const fractions: { value: string; unit?: string; componentRef?: string }[] = [];
+      if (fractionsComp) {
+        Array.from(fractionsComp.children)
+          .filter(c => c.tagName === 'Object')
+          .forEach(f => {
+            const value = this.getDataString(f, 'Value');
+            const unit = this.getDataString(f, 'Unit') || undefined;
+            const refs = this.getReferenceIds(f, 'ComponentReference');
+            fractions.push({ value, unit, componentRef: refs[0] });
+          });
+      }
+      composition = { basis, display, fractions };
+    }
+
+    return { uid, identifier, label, description, templateRef, moleFlow, composition };
+  }
+
+  /** Like getDataString but returns the Integer node text. */
+  private getDataInteger(parent: Element, property: string): string | undefined {
+    const node = Array.from(parent.children).find(c =>
+      c.tagName === 'Data' && c.getAttribute('property') === property
+    );
+    if (!node) return undefined;
+    const intNode = Array.from(node.children).find(c => c.tagName === 'Integer');
+    return intNode?.textContent || undefined;
   }
 
   private findProcessModel(doc: Document): Element | null {
@@ -206,7 +461,93 @@ export class DexpiToBpmnTransformer {
     const children = this.findNestedProcessStepObjects(obj)
       .map(childObj => this.parseStep(childObj, id));
 
-    return { id, dexpiType, identifier, label, ports, parentId, children };
+    // Step-level attributes — same shape as stream attributes (Components +
+    // Data, structural ones excluded). Lets DEXPI step properties survive
+    // the round-trip into the BPMN extension and into the properties panel.
+    const attributes = this.parseAttributesOn(
+      obj,
+      new Set([
+        'Identifier', 'Label', 'Description', 'Ports', 'ProcessSteps',
+        'SubProcessSteps', 'NominalDirection',
+        // Schema-correct instrumentation properties (DEXPI 2.0 Spec p.900):
+        // these are structural references that get synthesized into the
+        // BPMN dataObject pattern downstream — not user-visible attributes.
+        'ProcessStepReference', 'ProcessStepDetailReference',
+        'ConnectionReference', 'MeasuredVariableReference',
+        // Profile-extension carrier for the variable identity when no
+        // canonical parameter slot exists.
+        'MeasuredVariableLabel',
+      ])
+    );
+
+    // Schema-correct instrumentation references (post-71c1ea0/a32d514 export
+    // shape). The export drops Ports composition for InstrumentationActivity
+    // descendants and emits ProcessStepReference + MeasuredVariableReference /
+    // MeasuredVariableLabel instead. We capture them here for the synthesis
+    // pass that recreates the BPMN dataObject pattern in the imported BPMN.
+    const processStepRef = this.getReferenceIds(obj, 'ProcessStepReference')[0];
+    const measuredVariableRefId = this.getReferenceIds(obj, 'MeasuredVariableReference')[0];
+    // Variable identity: prefer the canonical reference (resolves later in
+    // parseDexpi to the property name carried on the parameter's
+    // <Components property="X"> wrapper), then fall back to the
+    // Profile-extension MeasuredVariableLabel Data property.
+    const measuredVariableLabel = this.getDataString(obj, 'MeasuredVariableLabel');
+    // measuredVariable from the canonical path is resolved post-parse via
+    // the qualifiedValueId→property map; for now we record the raw ref id
+    // in a tagged form, and let parseDexpi swap it for the property name.
+    let measuredVariable: string | undefined;
+    if (measuredVariableRefId) {
+      measuredVariable = `__refid:${measuredVariableRefId}`;
+    } else if (measuredVariableLabel) {
+      measuredVariable = measuredVariableLabel;
+    }
+
+    return {
+      id, dexpiType, identifier, label, ports, parentId, children,
+      attributes: attributes.length > 0 ? attributes : undefined,
+      processStepRef: processStepRef || undefined,
+      measuredVariable,
+    };
+  }
+
+  /**
+   * Pull DEXPI attribute-style children off any Object: physical-quantity
+   * attributes via <Components property="X"><Object type="Core/QualifiedValue"/>,
+   * and simple string attrs via <Data property="X"><String>...</String></Data>.
+   * Properties listed in `skip` (structural ones) are ignored.
+   */
+  private parseAttributesOn(obj: Element, skip: Set<string>): ParsedStreamAttribute[] {
+    const out: ParsedStreamAttribute[] = [];
+
+    Array.from(obj.children)
+      .filter(c => c.tagName === 'Components')
+      .forEach(comp => {
+        const property = comp.getAttribute('property') || '';
+        if (!property || skip.has(property)) return;
+        const inner = Array.from(comp.children).find(c => c.tagName === 'Object');
+        if (!inner || inner.getAttribute('type') !== 'Core/QualifiedValue') return;
+        const value = this.getDataString(inner, 'Value');
+        const unit = this.getDataString(inner, 'Unit') || undefined;
+        const unitUri = this.getDataString(inner, 'UnitReference') || undefined;
+        const provenance = this.getDataString(inner, 'Provenance') || undefined;
+        const range = this.getDataString(inner, 'Range') || undefined;
+        const nameUri = this.getReferenceIds(inner, 'QuantityKindReference')[0];
+        out.push({ name: property, value, unit, unitUri, provenance, range, nameUri });
+      });
+
+    Array.from(obj.children)
+      .filter(c => c.tagName === 'Data')
+      .forEach(data => {
+        const property = data.getAttribute('property') || '';
+        if (!property || skip.has(property)) return;
+        const stringNode = Array.from(data.children).find(c => c.tagName === 'String');
+        if (!stringNode) return;
+        const value = stringNode.textContent?.trim() || '';
+        const nameUri = data.getAttribute('nameUri') || undefined;
+        out.push({ name: property, value, nameUri });
+      });
+
+    return out;
   }
 
   private collectStep(step: DexpiStep, steps: DexpiStep[]): void {
@@ -266,10 +607,24 @@ export class DexpiToBpmnTransformer {
       'Label'
     ) || undefined;
 
+    // Material refs (when the stream points at a particular state of a defined
+    // material — common on MaterialFlow streams).
+    const materialStateRef = this.getReferenceIds(obj, 'MaterialStateReference')[0];
+    const materialTemplateRef = this.getReferenceIds(obj, 'MaterialTemplateReference')[0];
+
+    // Stream-level attributes — same parser as step attributes; skip the
+    // structural properties that already became dedicated fields above.
+    const attributes = this.parseAttributesOn(
+      obj,
+      new Set(['Identifier', 'Label', 'InformationValue', 'Source', 'Target'])
+    );
+
     return {
       id, dexpiType, identifier, label,
       sourcePortId, targetPortId,
       informationVariantLabel: infoVariantLabel,
+      materialStateRef, materialTemplateRef,
+      attributes: attributes.length > 0 ? attributes : undefined,
     };
   }
 
@@ -382,8 +737,7 @@ export class DexpiToBpmnTransformer {
       }
     };
     const isEnergyPortLike = (port: DexpiPort) =>
-      ['ThermalEnergyPort', 'MechanicalEnergyPort', 'ElectricalEnergyPort'].includes(port.type) ||
-      /^(TEI|TEO|MEI|MEO|EEI|EEO)\d+$/i.test(port.label);
+      ['ThermalEnergyPort', 'MechanicalEnergyPort', 'ElectricalEnergyPort'].includes(port.type);
     const isEnergyConnection = (conn: DexpiConnection) =>
       ['ThermalEnergyFlow', 'MechanicalEnergyFlow', 'ElectricalEnergyFlow', 'EnergyFlow'].includes(conn.dexpiType);
 
@@ -522,8 +876,19 @@ export class DexpiToBpmnTransformer {
 
   private getDataString(parent: Element | null, property: string): string {
     if (!parent) return '';
-    const dataEl = parent.querySelector(`Data[property="${property}"] String`);
-    return dataEl?.textContent?.trim() || '';
+    // DEXPI primitive values can live inside <String>, <Double>, <Integer>,
+    // or <Boolean> wrappers depending on the property's type. Pick the first
+    // wrapper we find and stringify its content; per-property typing happens
+    // at the consumer level.
+    const dataEl = Array.from(parent.children).find(c =>
+      c.tagName === 'Data' && c.getAttribute('property') === property
+    );
+    if (!dataEl) return '';
+    const valueNode = Array.from(dataEl.children).find(c =>
+      c.tagName === 'String' || c.tagName === 'Double' ||
+      c.tagName === 'Integer' || c.tagName === 'Boolean'
+    );
+    return valueNode?.textContent?.trim() || '';
   }
 
   // ── Layout engine ───────────────────────────────────────────────────────────
@@ -541,7 +906,7 @@ export class DexpiToBpmnTransformer {
     let dtX = Math.max(MARGIN_X, maxRight - parsed.materialTemplates.length * 120 - 60);
     const dtY = Math.max(20, MARGIN_Y - 80);
     parsed.materialTemplates.forEach(tmpl => {
-      layout.set(`dt_${tmpl.id}`, { x: dtX, y: dtY, w: 36, h: 50 });
+      layout.set(`dt_${tmpl.uid}`, { x: dtX, y: dtY, w: 36, h: 50 });
       dtX += 120;
     });
 
@@ -1036,7 +1401,29 @@ export class DexpiToBpmnTransformer {
       const slotWidth = w + 24;
       const stackOffset = stack * slotWidth;
       const baseX = otherPos.x + (otherPos.w - w) / 2;
-      const x = baseX + (stack === 0 ? 0 : (stack % 2 === 1 ? stackOffset : -stackOffset));
+      let x = baseX + (stack === 0 ? 0 : (stack % 2 === 1 ? stackOffset : -stackOffset));
+
+      // Avoid collision with adjacent task boxes (e.g. a recycle step sitting
+      // in the same Y band): if the chosen X overlaps any other layout box,
+      // shift sideways until clear or accept the original X if no clear slot
+      // is found.
+      const collidesWith = (cx: number) => {
+        for (const [otherId, box] of layout.entries()) {
+          if (otherId === otherStepId || otherId === proxy.id) continue;
+          if (!box.w || !box.h) continue;
+          const overlapX = cx + w > box.x - 4 && cx < box.x + box.w + 4;
+          const overlapY = y + h > box.y - 4 && y < box.y + box.h + 4;
+          if (overlapX && overlapY) return true;
+        }
+        return false;
+      };
+      if (collidesWith(x)) {
+        for (let stepIdx = 1; stepIdx <= 6; stepIdx += 1) {
+          const dx = stepIdx * (w + 12);
+          if (!collidesWith(x + dx)) { x = x + dx; break; }
+          if (!collidesWith(x - dx)) { x = x - dx; break; }
+        }
+      }
 
       layout.set(proxy.id, { x, y, w, h });
     });
@@ -1045,7 +1432,7 @@ export class DexpiToBpmnTransformer {
   // ── BPMN builder ────────────────────────────────────────────────────────────
 
   private buildBpmn(parsed: ParsedDexpi, layout: Map<string, LayoutBox>): string {
-    const { steps, connections, materialTemplates } = parsed;
+    const { steps, connections, materialTemplates, materialComponents, materialStates, materialStateTypes } = parsed;
 
     // Build port → step map for resolving connection endpoints
     const portToStep = new Map<string, string>();
@@ -1502,9 +1889,18 @@ export class DexpiToBpmnTransformer {
         if (index === 0 || index === withoutDuplicates.length - 1) return true;
         const previous = withoutDuplicates[index - 1];
         const next = withoutDuplicates[index + 1];
-        const vertical = previous.x === point.x && point.x === next.x;
-        const horizontal = previous.y === point.y && point.y === next.y;
-        return !(vertical || horizontal);
+        // Only collapse the middle point if it's a true mid-point of a
+        // straight monotonic run. A U-turn shares the constant axis with both
+        // neighbors but reverses direction along the other axis — dropping it
+        // would silently turn the U-turn into a straight line that no longer
+        // passes the original waypoint.
+        const verticalLine = previous.x === point.x && point.x === next.x;
+        const horizontalLine = previous.y === point.y && point.y === next.y;
+        const monotonicY = (previous.y - point.y) * (point.y - next.y) > 0;
+        const monotonicX = (previous.x - point.x) * (point.x - next.x) > 0;
+        const collapsibleVertical = verticalLine && monotonicY;
+        const collapsibleHorizontal = horizontalLine && monotonicX;
+        return !(collapsibleVertical || collapsibleHorizontal);
       });
     };
 
@@ -1524,12 +1920,79 @@ export class DexpiToBpmnTransformer {
       const tgtY = tgtPoint.y;
       const laneOffset = (lane % 6) * 18;
 
+      // Helper: pick a Y that's clear of every obstacle whose X-extent overlaps
+      // the corridor strip [xMin..xMax]. The returned Y sits above the topmost
+      // overlapping box (side='top') or below the bottommost (side='bottom'),
+      // padded by `pad`, so a horizontal segment placed there cannot cut
+      // through any task body in the strip.
+      const clearLaneY = (
+        xMin: number,
+        xMax: number,
+        side: 'top' | 'bottom',
+        pad = 45
+      ) => {
+        const lo = Math.min(xMin, xMax) - 4;
+        const hi = Math.max(xMin, xMax) + 4;
+        const overlapping = obstacles.filter(box =>
+          box.x + box.w > lo && box.x < hi
+        );
+        if (overlapping.length === 0) {
+          return side === 'top'
+            ? Math.min(srcY, tgtY) - pad - laneOffset
+            : Math.max(srcY, tgtY) + pad + laneOffset;
+        }
+        return side === 'top'
+          ? Math.min(srcY, tgtY, ...overlapping.map(b => b.y)) - pad - laneOffset
+          : Math.max(srcY, tgtY, ...overlapping.map(b => b.y + b.h)) + pad + laneOffset;
+      };
+
+      // Helper: find an X column clear of every obstacle (plus src and tgt
+      // boxes) whose Y-extent overlaps [yMin..yMax]. Scans gaps between
+      // obstacle x-ranges and returns the gap-midpoint closest to `preferX`.
+      // Falls back to a position outside all obstacles if no interior gap
+      // accommodates the column.
+      const clearXColumn = (yMin: number, yMax: number, preferX: number) => {
+        const lo = Math.min(yMin, yMax) - 4;
+        const hi = Math.max(yMin, yMax) + 4;
+        const blockers = [...obstacles, srcPos, tgtPos].filter(box =>
+          box.y + box.h > lo && box.y < hi
+        );
+        if (blockers.length === 0) return preferX;
+
+        const sorted = blockers
+          .map(b => ({ x1: b.x - 30, x2: b.x + b.w + 30 }))
+          .sort((a, b) => a.x1 - b.x1);
+        const merged: { x1: number; x2: number }[] = [];
+        for (const r of sorted) {
+          const last = merged[merged.length - 1];
+          if (last && r.x1 <= last.x2) last.x2 = Math.max(last.x2, r.x2);
+          else merged.push({ ...r });
+        }
+        const gaps: number[] = [];
+        gaps.push(merged[0].x1 - 30);
+        for (let i = 1; i < merged.length; i++) {
+          gaps.push((merged[i - 1].x2 + merged[i].x1) / 2);
+        }
+        gaps.push(merged[merged.length - 1].x2 + 30);
+        return gaps.reduce((best, x) =>
+          Math.abs(x - preferX) < Math.abs(best - preferX) ? x : best
+        , gaps[0]);
+      };
+
       // Generic rule: when either endpoint anchors on a top/bottom edge, route
       // with a stub-corner-stub pattern. The stub direction is dictated by the
       // edge so the connection visibly enters/exits perpendicular to the box.
       if (srcAnchor.side === 'top' || srcAnchor.side === 'bottom' ||
           tgtAnchor.side === 'top' || tgtAnchor.side === 'bottom') {
-        const stub = 30 + laneOffset;
+        // Stub is the perpendicular exit/entry segment — keep it short and
+        // constant so verticals from different routes that happen to share
+        // an X column (e.g. one route's src.bottom and another route's
+        // tgt.top both anchored at the same x) don't extend into each
+        // other's territory. Spreading parallel flows from the SAME port is
+        // handled separately by port-share anchor nudging; spreading
+        // parallel detour Ys is still done via laneOffset on the detour
+        // band (clearLaneY / safeUDetour) below.
+        const stub = 30;
         const stubFor = (point: Waypoint, side: EdgeSide): Waypoint => {
           if (side === 'left')   return { x: point.x - stub, y: point.y };
           if (side === 'right')  return { x: point.x + stub, y: point.y };
@@ -1546,36 +2009,152 @@ export class DexpiToBpmnTransformer {
 
         let mid: Waypoint;
         if (srcVertical && tgtVertical) {
-          // both top/bottom — go vertical from src, horizontal across, vertical into tgt
           mid = { x: tgtStub.x, y: srcStub.y };
         } else if (!srcVertical && !tgtVertical) {
-          // both left/right — fall through to existing logic below
           mid = { x: tgtStub.x, y: srcStub.y };
         } else if (srcVertical) {
-          // src vertical, tgt horizontal — first horizontal from tgtStub, then vertical to srcStub
           mid = { x: srcStub.x, y: tgtStub.y };
         } else {
-          // src horizontal, tgt vertical
           mid = { x: tgtStub.x, y: srcStub.y };
         }
 
-        return [srcPoint, srcStub, mid, tgtStub, tgtPoint];
+        // Validate the direct route against external obstacles AND against
+        // src/tgt bodies for interior segments. The first segment (srcPoint
+        // → srcStub) and the last segment (tgtStub → tgtPoint) are the
+        // legitimate exit/entry to each anchor and may touch the box edges
+        // — exclude them from the self-cut check. Without this exclusion
+        // the legitimate exit would be flagged because the segment leaves
+        // the source's edge into the padded region around it.
+        const directRoute = [srcPoint, srcStub, mid, tgtStub, tgtPoint];
+        const interiorCutsSelf = directRoute.some((point, index) => {
+          if (index <= 1 || index >= directRoute.length - 1) return false;
+          const prev = directRoute[index - 1];
+          return segmentIntersectsObstacle(prev, point, [srcPos, tgtPos]);
+        });
+        if (!routeIntersectsObstacle(directRoute, obstacles) && !interiorCutsSelf) {
+          return directRoute;
+        }
+
+        // The simple route cuts through a task. For two top/bottom anchors
+        // (both vertical), the route depends on whether the two anchor sides
+        // agree on a single Y band: if both want to exit DOWN (or both UP),
+        // a 4-point detour through a clear lane works. If one exits down and
+        // the other up — or the two rows aren't separated enough — a 4-point
+        // detour would force the approach segment to traverse target's body
+        // to reach an anchor on the opposite side, so build a 6-point loop
+        // through a clear X column instead.
+        if (srcVertical && tgtVertical) {
+          const srcSide = srcAnchor.side as 'top' | 'bottom';
+          const tgtSide = tgtAnchor.side as 'top' | 'bottom';
+          const srcOuter = srcSide === 'bottom' ? srcPos.y + srcPos.h : srcPos.y;
+          const tgtOuter = tgtSide === 'bottom' ? tgtPos.y + tgtPos.h : tgtPos.y;
+
+          // Same side (both top or both bottom) → 4-point detour through a
+          // single lane that's clear of every obstacle in the corridor.
+          if (srcSide === tgtSide) {
+            const farY = clearLaneY(srcPoint.x, tgtPoint.x, srcSide, 30);
+            return [
+              srcPoint,
+              { x: srcPoint.x, y: farY },
+              { x: tgtPoint.x, y: farY },
+              tgtPoint,
+            ];
+          }
+
+          // Opposite sides with a clear gap between them (src exits down,
+          // tgt enters from above with tgt below src; or symmetric).
+          // A 4-point route through a Y in the gap works: src exits into
+          // the gap, traverses horizontally, then enters tgt on its facing
+          // side — both stubs are perpendicular to their respective edges.
+          const gapBetween =
+            (srcSide === 'bottom' && tgtSide === 'top' && tgtOuter > srcOuter + 30) ||
+            (srcSide === 'top' && tgtSide === 'bottom' && tgtOuter < srcOuter - 30);
+          if (gapBetween) {
+            const gapMin = Math.min(srcOuter, tgtOuter);
+            const gapMax = Math.max(srcOuter, tgtOuter);
+            const lo = Math.min(srcPoint.x, tgtPoint.x) - 4;
+            const hi = Math.max(srcPoint.x, tgtPoint.x) + 4;
+            const candidate = (gapMin + gapMax) / 2;
+            const blocked = obstacles.some(box =>
+              box.x + box.w > lo && box.x < hi &&
+              candidate >= box.y - 4 && candidate <= box.y + box.h + 4
+            );
+            if (!blocked) {
+              return [
+                srcPoint,
+                { x: srcPoint.x, y: candidate },
+                { x: tgtPoint.x, y: candidate },
+                tgtPoint,
+              ];
+            }
+          }
+
+          // Conflicting sides (src exits one way, tgt enters the other way).
+          // Loop: short stub past src's edge → horizontal to a clean X column
+          // outside every obstacle (plus src/tgt boxes) whose Y-extent
+          // overlaps the [tgt-stub..src-stub] range → vertical along the
+          // clean column → short stub past tgt's edge → into tgt.
+          const srcStubY = srcStub.y;
+          const tgtStubY = tgtStub.y;
+          const cleanX = clearXColumn(
+            Math.min(srcStubY, tgtStubY),
+            Math.max(srcStubY, tgtStubY),
+            (srcPoint.x + tgtPoint.x) / 2
+          );
+          return [
+            srcPoint,
+            { x: srcPoint.x, y: srcStubY },
+            { x: cleanX, y: srcStubY },
+            { x: cleanX, y: tgtStubY },
+            { x: tgtPoint.x, y: tgtStubY },
+            tgtPoint,
+          ];
+        }
+
+        // Mixed sides (one vertical anchor + one horizontal anchor). Build a
+        // 6-point route: src → vertical stub → corner past obstacles → over →
+        // corner → horizontal stub → tgt. Pick whichever side (above/below or
+        // left/right) of the obstacle group keeps the path clear.
+        const allYs = obstacles.flatMap(b => [b.y, b.y + b.h]);
+        const allXs = obstacles.flatMap(b => [b.x, b.x + b.w]);
+        const verticalAnchorIsSrc = srcVertical;
+        const verticalSide = verticalAnchorIsSrc ? srcAnchor.side : tgtAnchor.side;
+        const verticalPoint = verticalAnchorIsSrc ? srcPoint : tgtPoint;
+        const horizontalSide = verticalAnchorIsSrc ? tgtAnchor.side : srcAnchor.side;
+        const horizontalPoint = verticalAnchorIsSrc ? tgtPoint : srcPoint;
+        const farY = verticalSide === 'top'
+          ? Math.min(verticalPoint.y, ...allYs) - 30 - laneOffset
+          : Math.max(verticalPoint.y, ...allYs) + 30 + laneOffset;
+        const farX = horizontalSide === 'left'
+          ? Math.min(horizontalPoint.x, ...allXs) - 30 - laneOffset
+          : Math.max(horizontalPoint.x, ...allXs) + 30 + laneOffset;
+        // Vertical end's stub: extend perpendicular to far Y.
+        const vStub = { x: verticalPoint.x, y: farY };
+        // Horizontal end's stub: extend perpendicular to far X.
+        const hStub = { x: farX, y: horizontalPoint.y };
+        // Corner connecting them.
+        const corner = { x: farX, y: farY };
+        return verticalAnchorIsSrc
+          ? [srcPoint, vStub, corner, hStub, tgtPoint]
+          : [srcPoint, hStub, corner, vStub, tgtPoint];
       }
 
-      // Helper: build a safe U-shape detour going above OR below all obstacles
-      // (whichever side keeps the route clear of every task body).
+      // Helper: build a safe U-shape detour from src to tgt. Prefer routing
+      // through the gap BETWEEN the source and target rows when one exists
+      // (and is clear of obstacles in the strip) — that keeps the detour
+      // Y inside the canvas instead of looping above or below everything.
+      // Otherwise, fall back to a lane above all obstacles (or below, based
+      // on which side puts the route closer to its endpoints).
       const safeUDetour = (
         exitX: number,
         entryX: number,
         forceBelow?: boolean
       ): Waypoint[] => {
-        const allYs = obstacles.flatMap(b => [b.y, b.y + b.h]);
-        const topLane = Math.min(srcY, tgtY, srcPos.y, tgtPos.y, ...allYs) - 45 - laneOffset;
-        const bottomLane = Math.max(srcY, tgtY, srcPos.y + srcPos.h, tgtPos.y + tgtPos.h, ...allYs) + 45 + laneOffset;
-        const detourY = forceBelow === true ? bottomLane
-          : forceBelow === false ? topLane
-          : (tgtPos.y + tgtPos.h / 2 > srcPos.y + srcPos.h / 2 ? bottomLane : topLane);
-        return [
+        const goBelow = forceBelow !== undefined
+          ? forceBelow
+          : tgtPos.y + tgtPos.h / 2 > srcPos.y + srcPos.h / 2;
+
+        const buildRoute = (detourY: number): Waypoint[] => [
           { x: srcX, y: srcY },
           { x: exitX, y: srcY },
           { x: exitX, y: detourY },
@@ -1583,6 +2162,49 @@ export class DexpiToBpmnTransformer {
           { x: entryX, y: tgtY },
           { x: tgtX, y: tgtY },
         ];
+
+        const lo = Math.min(exitX, entryX) - 4;
+        const hi = Math.max(exitX, entryX) + 4;
+        const stripObstacles = obstacles.filter(box =>
+          box.x + box.w > lo && box.x < hi
+        );
+
+        // Try the inter-row gap first when src and tgt are on different rows
+        // — keeps the detour close to the endpoints. Validate the full route;
+        // if any segment cuts an obstacle, fall through to the side-lane
+        // candidates below.
+        const rowsOverlap = srcPos.y < tgtPos.y + tgtPos.h && tgtPos.y < srcPos.y + srcPos.h;
+        if (!rowsOverlap) {
+          const gapTop = Math.min(srcPos.y + srcPos.h, tgtPos.y + tgtPos.h);
+          const gapBottom = Math.max(srcPos.y, tgtPos.y);
+          if (gapBottom - gapTop > 30) {
+            // Spread parallel detours within the gap by `laneOffset` so two
+            // routes through the same gap don't sit on top of each other.
+            // The center is the natural pick for lane 0; later lanes
+            // alternate above/below the center, clamped to the gap interior.
+            const center = (gapTop + gapBottom) / 2;
+            const halfGap = (gapBottom - gapTop) / 2 - 6;
+            const spread = Math.max(-halfGap, Math.min(halfGap, laneOffset / 2));
+            const candidate = center + spread;
+            const blocked = stripObstacles.some(box =>
+              candidate >= box.y - 4 && candidate <= box.y + box.h + 4
+            );
+            if (!blocked) {
+              const route = buildRoute(candidate);
+              if (!routeIntersectsObstacle(route, obstacles)) return route;
+            }
+          }
+        }
+
+        // Side lanes — try the preferred side first, then the opposite.
+        for (const side of [goBelow ? 'bottom' : 'top', goBelow ? 'top' : 'bottom'] as const) {
+          const detourY = clearLaneY(exitX, entryX, side);
+          const route = buildRoute(detourY);
+          if (!routeIntersectsObstacle(route, obstacles)) return route;
+        }
+
+        // Last resort: preferred side with no validation (better than throwing).
+        return buildRoute(clearLaneY(exitX, entryX, goBelow ? 'bottom' : 'top'));
       };
 
       // Helper: pick a clear corridor X between two candidate positions, falling
@@ -1603,22 +2225,52 @@ export class DexpiToBpmnTransformer {
           return directRoute;
         }
 
-        const crossed = [
-          ...horizontalIntersections(srcX, bendX, srcY, obstacles),
-          ...horizontalIntersections(bendX, tgtX, tgtY, obstacles),
-        ];
-        const relevant = crossed.length > 0 ? crossed : obstacles;
-        const topLane = Math.min(srcY, tgtY, ...relevant.map(box => box.y)) - 45 - laneOffset;
-        const bottomLane = Math.max(srcY, tgtY, ...relevant.map(box => box.y + box.h)) + 45 + laneOffset;
-        const sourceCenterY = srcPos.y + srcPos.h / 2;
-        const targetCenterY = tgtPos.y + tgtPos.h / 2;
-        const detourY = targetCenterY > sourceCenterY ? bottomLane : topLane;
-        const exitX = srcX + 35 + laneOffset;
+        // Z-route cuts a task. Detour through a lane that is genuinely clear
+        // of every obstacle in the corridor strip — and validate that the
+        // verticals connecting srcY/tgtY to the detour Y don't traverse an
+        // obstacle that contains exitX or entryX in its X range. If the
+        // preferred side fails, try the other side; if both fail, fall back
+        // to safeUDetour (which can route through inter-row gaps).
+        let exitX = srcX + 35 + laneOffset;
         const entryMin = srcX + 35;
         const entryMax = Math.max(entryMin, tgtX - 25);
-        const entryX = clamp(tgtX - 60 - laneOffset, entryMin, entryMax);
+        let entryX = clamp(tgtX - 60 - laneOffset, entryMin, entryMax);
 
-        return [
+        // Push exitX/entryX past any obstacle whose Y range contains srcY/
+        // tgtY and whose X range overlaps the source-exit / target-entry
+        // horizontal — otherwise that approach segment would cut through it.
+        // The exit goes RIGHT from srcX (so push exitX past the obstacle's
+        // right edge); the entry goes RIGHT from entryX into tgtX (so push
+        // entryX past the obstacle's right edge). Both segments go right
+        // because src and tgt are both right→left forward (tgtX > srcX).
+        for (const box of obstacles) {
+          const overlapsRowSrc = box.y - 4 <= srcY && srcY <= box.y + box.h + 4;
+          const overlapsRowTgt = box.y - 4 <= tgtY && tgtY <= box.y + box.h + 4;
+          if (overlapsRowSrc) {
+            const segMinX = Math.min(srcX, exitX);
+            const segMaxX = Math.max(srcX, exitX);
+            if (box.x + box.w + 4 > segMinX && box.x - 4 < segMaxX) {
+              exitX = Math.max(exitX, box.x + box.w + 30);
+            }
+          }
+          if (overlapsRowTgt) {
+            const segMinX = Math.min(entryX, tgtX);
+            const segMaxX = Math.max(entryX, tgtX);
+            if (box.x + box.w + 4 > segMinX && box.x - 4 < segMaxX) {
+              // Entry goes from entryX → tgtX. If obstacle is past entryX
+              // but before tgtX, push entryX past the obstacle's right edge
+              // (still keeping entryX < tgtX).
+              const candidate = box.x + box.w + 30;
+              if (candidate < tgtX) entryX = Math.max(entryX, candidate);
+            }
+          }
+        }
+        entryX = Math.min(entryX, entryMax);
+
+        // Build a candidate detour route at a given Y and validate the whole
+        // route against the obstacle list (catches verticals at exitX/entryX
+        // that pass through obstacles whose X-range contains those columns).
+        const buildDetourAt = (detourY: number): Waypoint[] => [
           { x: srcX, y: srcY },
           { x: exitX, y: srcY },
           { x: exitX, y: detourY },
@@ -1626,35 +2278,92 @@ export class DexpiToBpmnTransformer {
           { x: entryX, y: tgtY },
           { x: tgtX, y: tgtY },
         ];
+        const tryDetourSide = (side: 'top' | 'bottom'): Waypoint[] | null => {
+          // First try a tight Y that just clears the obstacles BLOCKING the
+          // direct route (those whose Y range overlaps the [srcY..tgtY]
+          // band). Going above ALL obstacles in the strip — as clearLaneY
+          // does by default — produces visually weird peaks when the strip
+          // happens to contain unrelated tasks far above/below the row.
+          const stripLo = Math.min(exitX, entryX) - 4;
+          const stripHi = Math.max(exitX, entryX) + 4;
+          const bandLo = Math.min(srcY, tgtY) - 4;
+          const bandHi = Math.max(srcY, tgtY) + 4;
+          const blockers = obstacles.filter(box =>
+            box.x + box.w > stripLo && box.x < stripHi &&
+            box.y + box.h > bandLo && box.y < bandHi
+          );
+          if (blockers.length > 0) {
+            const tightY = side === 'top'
+              ? Math.min(...blockers.map(b => b.y)) - 30 - laneOffset
+              : Math.max(...blockers.map(b => b.y + b.h)) + 30 + laneOffset;
+            const tight = buildDetourAt(tightY);
+            if (!routeIntersectsObstacle(tight, obstacles)) return tight;
+          }
+          // Fall back to the conservative lane (above/below ALL obstacles
+          // in the strip). Needed when the verticals at exitX/entryX would
+          // cut an obstacle in their column even at the tight Y.
+          const conservativeY = clearLaneY(exitX, entryX, side);
+          const conservative = buildDetourAt(conservativeY);
+          if (routeIntersectsObstacle(conservative, obstacles)) return null;
+          return conservative;
+        };
+
+        // Try BOTH sides and pick the route whose detour Y stays closest to
+        // the source/target Y. Try 'bottom' first so it wins ties — visually
+        // an under-row detour (going beneath the obstacle row) reads more
+        // naturally than a peak above it.
+        const candidates = (['bottom', 'top'] as const)
+          .map(side => tryDetourSide(side))
+          .filter((r): r is Waypoint[] => r !== null);
+        if (candidates.length > 0) {
+          const refY = (srcY + tgtY) / 2;
+          candidates.sort((a, b) =>
+            Math.abs(a[2].y - refY) - Math.abs(b[2].y - refY)
+          );
+          return candidates[0];
+        }
+        return safeUDetour(exitX, entryX);
       }
 
+      // Backward flow shares two cases (right→left with srcX > tgtX, and
+      // left→right with srcX < tgtX). In both, a short corridor approaches
+      // the anchor edge from the wrong side and crosses target's body.
+      // When src and tgt sit on the same row (their Y ranges overlap), the
+      // crossing is at the row level and is the conventional recycle-return
+      // corridor — keep the short corridor. When tgt is on a different row,
+      // the corridor's vertical climb takes it into target's row and the
+      // last horizontal cuts target body — fall to a safe U-detour above or
+      // below every obstacle in the strip.
+      const sameRow = (a: LayoutBox, b: LayoutBox) =>
+        a.y < b.y + b.h && b.y < a.y + a.h;
+
       if (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && srcX > tgtX) {
-        // Backward flow (target is to the LEFT of source). Naive corridor on
-        // the right would cut back through tasks on the way to tgt; go via a
-        // safe U-shape that loops above or below every obstacle, exiting src
-        // on the right and entering tgt on the left.
         const exitX = exitFromAnchor(srcAnchor, srcX);
         const entryX = exitFromAnchor(tgtAnchor, tgtX);
-        const corridorRoute = [
-          { x: srcX, y: srcY },
-          { x: Math.max(srcX, tgtX) + 45 + laneOffset, y: srcY },
-          { x: Math.max(srcX, tgtX) + 45 + laneOffset, y: tgtY },
-          { x: tgtX, y: tgtY },
-        ];
-        if (!routeIntersectsObstacle(corridorRoute, obstacles)) return corridorRoute;
+        if (sameRow(srcPos, tgtPos)) {
+          const corridorRoute = [
+            { x: srcX, y: srcY },
+            { x: srcX + 45 + laneOffset, y: srcY },
+            { x: srcX + 45 + laneOffset, y: tgtY },
+            { x: tgtX, y: tgtY },
+          ];
+          if (!routeIntersectsObstacle(corridorRoute, obstacles)) return corridorRoute;
+        }
         return safeUDetour(exitX, entryX);
       }
 
       if (srcAnchor.side === 'left' && tgtAnchor.side === 'right' && srcX < tgtX) {
         const exitX = exitFromAnchor(srcAnchor, srcX);
         const entryX = exitFromAnchor(tgtAnchor, tgtX);
-        const corridorRoute = [
-          { x: srcX, y: srcY },
-          { x: Math.min(srcX, tgtX) - 45 - laneOffset, y: srcY },
-          { x: Math.min(srcX, tgtX) - 45 - laneOffset, y: tgtY },
-          { x: tgtX, y: tgtY },
-        ];
-        if (!routeIntersectsObstacle(corridorRoute, obstacles)) return corridorRoute;
+        if (sameRow(srcPos, tgtPos)) {
+          const corridorRoute = [
+            { x: srcX, y: srcY },
+            { x: srcX - 45 - laneOffset, y: srcY },
+            { x: srcX - 45 - laneOffset, y: tgtY },
+            { x: tgtX, y: tgtY },
+          ];
+          if (!routeIntersectsObstacle(corridorRoute, obstacles)) return corridorRoute;
+        }
         return safeUDetour(exitX, entryX);
       }
 
@@ -1699,6 +2408,27 @@ export class DexpiToBpmnTransformer {
       return lane;
     };
 
+    const escAttrXml = (text: string) => text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    const renderAttrTags = (
+      attrs: ParsedStreamAttribute[] | undefined,
+      indent: string,
+    ): string => {
+      if (!attrs || attrs.length === 0) return '';
+      return attrs.map(attr => {
+        const parts: string[] = [`name="${escAttrXml(attr.name)}"`, `value="${escAttrXml(attr.value)}"`];
+        if (attr.unit) parts.push(`unit="${escAttrXml(attr.unit)}"`);
+        if (attr.unitUri) parts.push(`unitUri="${escAttrXml(attr.unitUri)}"`);
+        if (attr.nameUri) parts.push(`nameUri="${escAttrXml(attr.nameUri)}"`);
+        if (attr.provenance) parts.push(`provenance="${escAttrXml(attr.provenance)}"`);
+        if (attr.range) parts.push(`range="${escAttrXml(attr.range)}"`);
+        return `${indent}<dexpi:Attribute ${parts.join(' ')}/>`;
+      }).join('\n');
+    };
+
     const extensionXml = (step: DexpiStep, indent: string): string => {
       // Extension elements — assign anchorSide based on direction and spread offset
       const portsXml = step.ports.map(p => {
@@ -1708,10 +2438,12 @@ export class DexpiToBpmnTransformer {
         const superReference = p.superPortId ? ` superReference="${p.superPortId}"` : '';
         return `${indent}    <dexpi:port portId="${p.id}" name="${p.label}" portType="${p.type}" direction="${bpmnDir}" label="${p.label}" anchorSide="${anchor.side}" anchorOffset="${anchor.offset.toFixed(2)}"${subReference}${superReference}/>`;
       }).join('\n');
+      const attrsXml = renderAttrTags(step.attributes, `${indent}    `);
+      const innerLines = [portsXml, attrsXml].filter(Boolean).join('\n');
 
       return `${indent}<bpmn:extensionElements>
 ${indent}  <dexpi:element dexpiType="${step.dexpiType}" identifier="${step.identifier}" uid="${step.id}">
-${portsXml ? portsXml + '\n' : ''}${indent}  </dexpi:element>
+${innerLines ? innerLines + '\n' : ''}${indent}  </dexpi:element>
 ${indent}</bpmn:extensionElements>`;
     };
 
@@ -1765,6 +2497,89 @@ ${indent}</bpmn:task>`;
       }
     });
 
+    // Data-object position pre-pass.
+    // Sequence flows route around data objects, so we need their bounding
+    // boxes in the obstacle list before the seq-flow routing loop runs.
+    // The actual XML generation (dataObjectReference, association edges)
+    // happens later in `infoFlows.forEach`, which finds the precomputed
+    // entries in `dobjBySourcePort` and skips repositioning.
+    const dobjBySourcePort = new Map<string, { dobjId: string; dobjX: number; dobjY: number; key: string }>();
+    const dataObjBoxesByOwner = new Map<string, LayoutBox[]>();
+    const DATA_OBJ_W = 36;
+    const DATA_OBJ_H = 50;
+    const placeDataObject = (conn: DexpiConnection) => {
+      const src = portToStep.get(conn.sourcePortId);
+      const tgt = portToStep.get(conn.targetPortId);
+      if (!src || !tgt) return;
+      if (dobjBySourcePort.has(conn.sourcePortId)) return;
+
+      const srcStep = stepById.get(src);
+      const key = ownerKey(srcStep?.parentId);
+      const varName = conn.informationVariantLabel || conn.label;
+
+      const ownerLayout = ownerLayouts.get(key) || layout;
+      const srcPos = ownerLayout.get(src);
+      const tgtPos = ownerLayout.get(tgt);
+      const srcCenter = srcPos
+        ? { x: srcPos.x + srcPos.w / 2, y: srcPos.y + srcPos.h / 2 }
+        : { x: MARGIN_X + TASK_W / 2, y: MARGIN_Y + TASK_H / 2 };
+      const tgtCenter = tgtPos
+        ? { x: tgtPos.x + tgtPos.w / 2, y: tgtPos.y + tgtPos.h / 2 }
+        : srcCenter;
+      const dobjId = `dobj_${bpmnId(src)}_${bpmnId(varName.replace(/[^a-zA-Z0-9]/g, '_'))}`;
+      const gap = 12;
+
+      let dobjY = (srcCenter.y + tgtCenter.y) / 2 - DATA_OBJ_H / 2;
+      if (srcPos && tgtPos) {
+        const above = srcPos.y < tgtPos.y ? srcPos : tgtPos;
+        const below = srcPos.y < tgtPos.y ? tgtPos : srcPos;
+        const minY = above.y + above.h + gap;
+        const maxY = below.y - gap - DATA_OBJ_H;
+        if (minY <= maxY) {
+          dobjY = Math.max(minY, Math.min(maxY, dobjY));
+        }
+      }
+      let dobjX = (srcCenter.x + tgtCenter.x) / 2 - DATA_OBJ_W / 2;
+
+      const obstacleList = [...ownerLayout.entries()]
+        .filter(([id, box]) => id !== src && id !== tgt && box.w > 0 && box.h > 0)
+        .map(([, box]) => box);
+      const PORT_STUB_HALF = 18;
+      const collidesAt = (x: number, y: number) => {
+        for (const box of obstacleList) {
+          const overlapX = x + DATA_OBJ_W > box.x - 4 && x < box.x + box.w + 4;
+          const overlapY = y + DATA_OBJ_H > box.y - 4 && y < box.y + box.h + 4;
+          if (overlapX && overlapY) return true;
+        }
+        for (const box of obstacleList) {
+          const cx = box.x + box.w / 2;
+          const inFootprintY = y + DATA_OBJ_H > box.y - 4 && y < box.y + box.h + 4;
+          const onCenterLine = cx > x - PORT_STUB_HALF && cx < x + DATA_OBJ_W + PORT_STUB_HALF;
+          if (inFootprintY && onCenterLine) return true;
+        }
+        return false;
+      };
+      if (collidesAt(dobjX, dobjY)) {
+        for (let stepIdx = 1; stepIdx <= 8; stepIdx += 1) {
+          const dx = stepIdx * 22;
+          let resolved = false;
+          for (const candidate of [dobjX + dx, dobjX - dx]) {
+            if (!collidesAt(candidate, dobjY)) {
+              dobjX = candidate;
+              resolved = true;
+              break;
+            }
+          }
+          if (resolved) break;
+        }
+      }
+
+      dobjBySourcePort.set(conn.sourcePortId, { dobjId, dobjX, dobjY, key });
+      if (!dataObjBoxesByOwner.has(key)) dataObjBoxesByOwner.set(key, []);
+      dataObjBoxesByOwner.get(key)!.push({ x: dobjX, y: dobjY, w: DATA_OBJ_W, h: DATA_OBJ_H });
+    };
+    infoFlows.forEach(conn => placeDataObject(conn));
+
     // Sequence flows
     seqFlows.forEach(conn => {
       const src = portToStep.get(conn.sourcePortId);
@@ -1778,9 +2593,47 @@ ${indent}</bpmn:task>`;
       const owner = srcStep?.parentId === tgtStep?.parentId ? srcStep?.parentId : undefined;
       const key = ownerKey(owner);
       if (!sequenceFlowsByOwner.has(key)) sequenceFlowsByOwner.set(key, []);
+
+      // Include any stream-level attributes / material refs parsed from the
+      // DEXPI XML so they show up in the Stream Properties panel and survive
+      // a second round-trip back to DEXPI.
+      const escAttr = (text: string) => text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      const tmplAttr = conn.materialTemplateRef ? ` templateReference="${escAttr(conn.materialTemplateRef)}"` : '';
+      const stateAttr = conn.materialStateRef ? ` materialStateReference="${escAttr(conn.materialStateRef)}"` : '';
+      const streamHasChildren = (conn.attributes && conn.attributes.length > 0);
+      const streamOpenTag = `<dexpi:Stream uid="${conn.id}" identifier="${conn.identifier}"${streamTypeAttr} sourcePortRef="${conn.sourcePortId}" targetPortRef="${conn.targetPortId}"${tmplAttr}${stateAttr}`;
+      let streamXml: string;
+      if (streamHasChildren) {
+        const attrLines = (conn.attributes || []).map(attr => {
+          const parts: string[] = [`name="${escAttr(attr.name)}"`, `value="${escAttr(attr.value)}"`];
+          if (attr.unit) parts.push(`unit="${escAttr(attr.unit)}"`);
+          if (attr.unitUri) parts.push(`unitUri="${escAttr(attr.unitUri)}"`);
+          if (attr.nameUri) parts.push(`nameUri="${escAttr(attr.nameUri)}"`);
+          if (attr.provenance) parts.push(`provenance="${escAttr(attr.provenance)}"`);
+          if (attr.range) parts.push(`range="${escAttr(attr.range)}"`);
+          // Both step and stream attributes share the unified <dexpi:Attribute>
+          // element. DEXPI Process.xml itself has no Attribute/StreamAttribute
+          // distinction (both are encoded as <Components property="X"><Object
+          // type="Core/QualifiedValue"/></Components>); the moddle previously
+          // had two parallel types with identical fields, now unified into
+          // one. BpmnToDexpiTransformer.extractStreamData accepts both
+          // 'attribute' and 'streamattribute' localNames for back-compat.
+          return `      <dexpi:Attribute ${parts.join(' ')}/>`;
+        }).join('\n');
+        streamXml = `${streamOpenTag}>
+${attrLines}
+    </dexpi:Stream>`;
+      } else {
+        streamXml = `${streamOpenTag}/>`;
+      }
+
       sequenceFlowsByOwner.get(key)!.push(`<bpmn:sequenceFlow id="${connId}" name="${conn.label}" sourceRef="${bpmnId(src)}" targetRef="${bpmnId(tgt)}">
   <bpmn:extensionElements>
-    <dexpi:Stream uid="${conn.id}" identifier="${conn.identifier}"${streamTypeAttr} sourcePortRef="${conn.sourcePortId}" targetPortRef="${conn.targetPortId}"/>
+    ${streamXml}
   </bpmn:extensionElements>
 </bpmn:sequenceFlow>`);
 
@@ -1817,7 +2670,8 @@ ${indent}</bpmn:task>`;
           return box.w > 0 && box.h > 0;
         })
         .map(([, box]) => box);
-      const routedWaypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcA, tgtA, obstacles);
+      const dataObjObstacles = dataObjBoxesByOwner.get(key) || [];
+      const routedWaypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcA, tgtA, [...obstacles, ...dataObjObstacles]);
       const rawWaypoints = routedWaypoints.length > 4 ? simplifyWaypoints(routedWaypoints) : routedWaypoints;
 
       const waypoints = rawWaypoints
@@ -1836,9 +2690,12 @@ ${waypoints}
     });
 
     // InformationFlows → DataObjectReference + bidirectional associations.
-    // One DataObject per (source-port, variable) pair; one output association
-    // source→DataObject, then one input association DataObject→target per target.
-    const dobjBySourcePort = new Map<string, { dobjId: string; dobjX: number; dobjY: number; key: string }>();
+    // Positions in `dobjBySourcePort` were computed by the pre-pass above
+    // (so seq-flow routing could include data objects as obstacles); this
+    // loop emits the actual XML, using `dobjEmitted` to ensure each
+    // (source-port, dataObject) pair emits its shape/output-association
+    // only once even when multiple infoFlows share the same source port.
+    const dobjEmitted = new Set<string>();
     infoFlows.forEach(conn => {
       const src = portToStep.get(conn.sourcePortId);
       const tgt = portToStep.get(conn.targetPortId);
@@ -1848,76 +2705,15 @@ ${waypoints}
       const key = ownerKey(srcStep?.parentId);
       const varName = conn.informationVariantLabel || conn.label;
 
-      let dobjInfo = dobjBySourcePort.get(conn.sourcePortId);
-      if (!dobjInfo) {
+      const dobjInfo = dobjBySourcePort.get(conn.sourcePortId);
+      if (!dobjInfo) return;
+
+      if (!dobjEmitted.has(conn.sourcePortId)) {
+        dobjEmitted.add(conn.sourcePortId);
+
         const ownerLayout = ownerLayouts.get(key) || layout;
         const srcPos = ownerLayout.get(src);
-        const tgtPos = ownerLayout.get(tgt);
-        const srcCenter = srcPos
-          ? { x: srcPos.x + srcPos.w / 2, y: srcPos.y + srcPos.h / 2 }
-          : { x: MARGIN_X + TASK_W / 2, y: MARGIN_Y + TASK_H / 2 };
-        const tgtCenter = tgtPos
-          ? { x: tgtPos.x + tgtPos.w / 2, y: tgtPos.y + tgtPos.h / 2 }
-          : srcCenter;
-        const dobjId = `dobj_${bpmnId(src)}_${bpmnId(varName.replace(/[^a-zA-Z0-9]/g, '_'))}`;
-        const dobjX = (srcCenter.x + tgtCenter.x) / 2 - 18;
-        // Generic rule: prefer the midpoint between source and target centers
-        // (natural visual centering between task and instrument bands). But if
-        // that midpoint would put the data object on top of ANY flow step in
-        // the same column (not just the partner task), shift it vertically to
-        // the nearest gap. This avoids data objects landing inside the task
-        // row when source/target are in different lanes.
-        const dataObjWidth = 36;
-        const dataObjHeight = 50;
-        const dataObjGap = 12;
-        let dobjY = (srcCenter.y + tgtCenter.y) / 2 - dataObjHeight / 2;
-
-        // Build vertical obstacle list from steps overlapping the data object's
-        // X range — only those can collide.
-        const dataLeft = dobjX;
-        const dataRight = dobjX + dataObjWidth;
-        const overlappingObstacles = [...ownerLayout.values()]
-          .filter(box => box.w > 0 && box.h > 0)
-          .filter(box => box.x < dataRight + 4 && box.x + box.w > dataLeft - 4)
-          .sort((a, b) => a.y - b.y);
-
-        const intersects = (y: number) =>
-          overlappingObstacles.find(box =>
-            y + dataObjHeight > box.y - 4 && y < box.y + box.h + 4
-          );
-
-        const collide = intersects(dobjY);
-        if (collide) {
-          // Try below the colliding obstacle, then above. Prefer the side
-          // closer to the instrument partner.
-          const srcIsInstrument = srcStep && this.isInstrumentationStep(srcStep);
-          const tgtIsInstrument = tgtStep && this.isInstrumentationStep(tgtStep);
-          const instrumentPos = srcIsInstrument ? srcPos : (tgtIsInstrument ? tgtPos : undefined);
-          const preferBelow = instrumentPos
-            ? (instrumentPos.y + instrumentPos.h / 2) > (collide.y + collide.h / 2)
-            : true;
-
-          const tryShift = (downward: boolean) => {
-            let candidate = dobjY;
-            for (let i = 0; i < overlappingObstacles.length + 2; i += 1) {
-              const c = intersects(candidate);
-              if (!c) return candidate;
-              candidate = downward
-                ? c.y + c.h + dataObjGap
-                : c.y - dataObjGap - dataObjHeight;
-            }
-            return undefined;
-          };
-
-          const first = preferBelow ? tryShift(true) : tryShift(false);
-          const second = first === undefined
-            ? (preferBelow ? tryShift(false) : tryShift(true))
-            : undefined;
-          if (first !== undefined) dobjY = first;
-          else if (second !== undefined) dobjY = second;
-        }
-        dobjInfo = { dobjId, dobjX, dobjY, key };
-        dobjBySourcePort.set(conn.sourcePortId, dobjInfo);
+        const { dobjId, dobjX, dobjY } = dobjInfo;
 
         const assocOutId = `assocOut_${dobjId}`;
         const dataObjectXml = `<bpmn:dataObjectReference id="${dobjId}" name="${varName}" dataObjectRef="DataObject_${dobjId}"/>
@@ -1994,6 +2790,114 @@ ${waypoints}
       }
     });
 
+    // Schema-correct instrumentation re-synthesis (DEXPI 2.0 Spec p.876, 900):
+    // the export branch (post-71c1ea0) drops Ports composition for
+    // InstrumentationActivity descendants and emits ProcessStepReference +
+    // MeasuredVariableReference / MeasuredVariableLabel on the activity Object
+    // itself. parseStep captures both fields on DexpiStep; here we synthesize
+    // the BPMN dataObject pattern that the user is used to seeing graphically:
+    // dataObjectReference (named after the variable identity) +
+    // bpmn:association from the InstrumentationActivity to the dataObject +
+    // bpmn:association from the dataObject to the referenced ProcessStep.
+    // The result is a round-trip that recovers the visual relationship even
+    // though no InformationFlow object was carried in the DEXPI XML.
+    const instrDobjEmitted = new Set<string>();
+    const INSTR_DATA_OBJ_W = 36;
+    const INSTR_DATA_OBJ_H = 50;
+    steps
+      .filter(s => !hiddenStepIds.has(s.id))
+      .filter(s => this.isInstrumentationStep(s))
+      .filter(s => !!s.processStepRef && !!s.measuredVariable)
+      .forEach(activity => {
+        const refStepId = activity.processStepRef!;
+        if (hiddenStepIds.has(refStepId)) return;
+        const refStep = stepById.get(refStepId);
+        if (!refStep) return;
+
+        const activityKey = ownerKey(activity.parentId);
+        const ownerLayout = ownerLayouts.get(activityKey) || layout;
+        const activityPos = ownerLayout.get(activity.id);
+        // The referenced ProcessStep may live in a different subprocess
+        // hierarchy. Use whichever layout actually contains it; fall back
+        // to the root layout.
+        let refPos = ownerLayout.get(refStepId);
+        if (!refPos) {
+          const refKey = ownerKey(refStep.parentId);
+          refPos = (ownerLayouts.get(refKey) || layout).get(refStepId);
+        }
+        if (!activityPos || !refPos) return;
+
+        // Stable dobjId that survives multiple instrumentation activities
+        // sharing the same target variable on the same step (rare). Stable
+        // enough that re-running the import yields identical IDs.
+        const safeVar = activity.measuredVariable!.replace(/[^a-zA-Z0-9_]/g, '_');
+        const dobjId = `dobj_instr_${bpmnId(activity.id).replace(/^bpmn_/, '')}_${safeVar}`;
+        if (instrDobjEmitted.has(dobjId)) return;
+        instrDobjEmitted.add(dobjId);
+
+        // Position the dataObject at the midpoint between the two tasks.
+        const aCx = activityPos.x + activityPos.w / 2;
+        const aCy = activityPos.y + activityPos.h / 2;
+        const rCx = refPos.x + refPos.w / 2;
+        const rCy = refPos.y + refPos.h / 2;
+        const dobjX = (aCx + rCx) / 2 - INSTR_DATA_OBJ_W / 2;
+        const dobjY = (aCy + rCy) / 2 - INSTR_DATA_OBJ_H / 2;
+
+        const assocOutId = `assocOut_${dobjId}`;
+        const assocInId = `assocIn_${dobjId}`;
+        const varName = activity.measuredVariable!;
+
+        const dataObjectXml = `<bpmn:dataObjectReference id="${dobjId}" name="${varName}" dataObjectRef="DataObject_${dobjId}"/>
+  <bpmn:dataObject id="DataObject_${dobjId}"/>
+  <bpmn:association id="${assocOutId}" sourceRef="${bpmnId(activity.id)}" targetRef="${dobjId}" associationDirection="One"/>
+  <bpmn:association id="${assocInId}" sourceRef="${dobjId}" targetRef="${bpmnId(refStepId)}" associationDirection="One"/>`;
+        if (activityKey === rootOwner) {
+          processElements.push(indentBlock(dataObjectXml, '  '));
+        } else {
+          pushOwned(extraProcessElementsByOwner, activityKey, dataObjectXml);
+        }
+
+        const shapeXml = `      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
+        <dc:Bounds x="${dobjX}" y="${dobjY}" width="${INSTR_DATA_OBJ_W}" height="${INSTR_DATA_OBJ_H}"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>`;
+        if (activityKey === rootOwner) {
+          shapeElements.push(shapeXml);
+        } else {
+          pushOwned(shapeElementsByOwner, activityKey, shapeXml);
+        }
+
+        // Edge from activity → dataObject. Pick the closer side (top/bottom)
+        // based on where the dataObject lands relative to the activity.
+        const dobjCenterY = dobjY + INSTR_DATA_OBJ_H / 2;
+        const dobjBelowActivity = dobjCenterY >= aCy;
+        const aEdgeY = dobjBelowActivity ? activityPos.y + activityPos.h : activityPos.y;
+        const dobjEdgeYFromActivity = dobjBelowActivity ? dobjY : dobjY + INSTR_DATA_OBJ_H;
+        const edgeOutXml = `      <bpmndi:BPMNEdge id="${assocOutId}_di" bpmnElement="${assocOutId}">
+        <di:waypoint x="${aCx}" y="${aEdgeY}"/>
+        <di:waypoint x="${dobjX + INSTR_DATA_OBJ_W / 2}" y="${dobjEdgeYFromActivity}"/>
+      </bpmndi:BPMNEdge>`;
+        if (activityKey === rootOwner) {
+          edgeElements.push(edgeOutXml);
+        } else {
+          pushOwned(edgeElementsByOwner, activityKey, edgeOutXml);
+        }
+
+        // Edge from dataObject → referenced ProcessStep.
+        const dobjBelowRef = dobjCenterY >= rCy;
+        const rEdgeY = dobjBelowRef ? refPos.y + refPos.h : refPos.y;
+        const dobjEdgeYFromRef = dobjBelowRef ? dobjY : dobjY + INSTR_DATA_OBJ_H;
+        const edgeInXml = `      <bpmndi:BPMNEdge id="${assocInId}_di" bpmnElement="${assocInId}">
+        <di:waypoint x="${dobjX + INSTR_DATA_OBJ_W / 2}" y="${dobjEdgeYFromRef}"/>
+        <di:waypoint x="${rCx}" y="${rEdgeY}"/>
+      </bpmndi:BPMNEdge>`;
+        if (activityKey === rootOwner) {
+          edgeElements.push(edgeInXml);
+        } else {
+          pushOwned(edgeElementsByOwner, activityKey, edgeInXml);
+        }
+      });
+
     const shapeForStep = (step: DexpiStep, pos: LayoutBox) => {
       const elId = bpmnId(step.id);
       const isEvent = step.dexpiType === 'Source' || step.dexpiType === 'Sink';
@@ -2028,18 +2932,147 @@ ${waypoints}
       processElements.push(indentBlock(xml, '  '));
     });
 
-    // MaterialTemplates as standalone DataObjectReferences
-    materialTemplates.forEach(tmpl => {
-      const pos = layout.get(`dt_${tmpl.id}`);
-      if (!pos) return;
-      const dobjId = `dt_dobj_${bpmnId(tmpl.id)}`;
-      processElements.push(`  <bpmn:dataObjectReference id="${dobjId}" name="${tmpl.label}" dataObjectRef="DataObject_${dobjId}"/>
+    // Material data → BPMN extension XML.
+    //
+    // Two container DataObjectReferences mirror the format the BPMN→DEXPI
+    // transformer's extractMaterialData reads back in:
+    //   * "MaterialTemplates" container — holds all <MaterialTemplate> and
+    //     <MaterialComponent> entries (with full body: NumberOfPhases,
+    //     ListOfMaterialComponents references, etc.).
+    //   * "Base Case MaterialStates" container — holds all <MaterialState>
+    //     entries with <Flow><MoleFlow/><Composition/></Flow> inlined from
+    //     the linked MaterialStateType.
+    // This is what MaterialLibraryPanel and MaterialEditorPanel walk; without
+    // these containers the imported BPMN has no recoverable material data.
+    const stateTypeByUid = new Map(materialStateTypes.map(s => [s.uid, s]));
+
+    const escapeXml = (text: string) => text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const renderMaterialTemplate = (t: DexpiMaterialTemplate): string => {
+      const lines: string[] = [`        <MaterialTemplate uid="${escapeXml(t.uid)}">`];
+      lines.push(`          <Identifier>${escapeXml(t.identifier)}</Identifier>`);
+      lines.push(`          <Label>${escapeXml(t.label)}</Label>`);
+      if (t.description) lines.push(`          <Description>${escapeXml(t.description)}</Description>`);
+      if (t.numberOfComponents) lines.push(`          <NumberOfMaterialComponents>${escapeXml(t.numberOfComponents)}</NumberOfMaterialComponents>`);
+      if (t.numberOfPhases) lines.push(`          <NumberOfPhases>${escapeXml(t.numberOfPhases)}</NumberOfPhases>`);
+      if (t.componentRefs.length > 0) {
+        lines.push(`          <ListOfMaterialComponents>`);
+        t.componentRefs.forEach(ref => {
+          lines.push(`            <MaterialComponentIdentifier uidRef="${escapeXml(ref)}"/>`);
+        });
+        lines.push(`          </ListOfMaterialComponents>`);
+      }
+      if (t.phases.length > 0) {
+        lines.push(`          <ListOfPhases>`);
+        t.phases.forEach(phase => {
+          lines.push(`            <PhaseIdentifier Identifier="${escapeXml(phase)}"/>`);
+        });
+        lines.push(`          </ListOfPhases>`);
+      }
+      lines.push(`        </MaterialTemplate>`);
+      return lines.join('\n');
+    };
+
+    const renderMaterialComponent = (c: DexpiMaterialComponent): string => {
+      const lines: string[] = [`        <MaterialComponent xsi:type="${escapeXml(c.xsiType)}" uid="${escapeXml(c.uid)}">`];
+      lines.push(`          <Identifier>${escapeXml(c.identifier)}</Identifier>`);
+      lines.push(`          <Label>${escapeXml(c.label)}</Label>`);
+      if (c.description) lines.push(`          <Description>${escapeXml(c.description)}</Description>`);
+      if (c.chebiId) lines.push(`          <ChEBI_identifier>${escapeXml(c.chebiId)}</ChEBI_identifier>`);
+      if (c.iupacId) lines.push(`          <IUPAC_identifier>${escapeXml(c.iupacId)}</IUPAC_identifier>`);
+      lines.push(`        </MaterialComponent>`);
+      return lines.join('\n');
+    };
+
+    const renderMaterialState = (s: DexpiMaterialState): string => {
+      const lines: string[] = [`        <MaterialState uid="${escapeXml(s.uid)}">`];
+      lines.push(`          <Identifier>${escapeXml(s.identifier)}</Identifier>`);
+      lines.push(`          <Label>${escapeXml(s.label)}</Label>`);
+      if (s.description) lines.push(`          <Description>${escapeXml(s.description)}</Description>`);
+      // Inline Flow data from the linked MaterialStateType.
+      const stateType = s.stateTypeRef ? stateTypeByUid.get(s.stateTypeRef) : undefined;
+      if (stateType) {
+        const hasFlow = stateType.moleFlow || stateType.composition;
+        if (hasFlow) {
+          lines.push(`          <Flow>`);
+          if (stateType.moleFlow) {
+            lines.push(`            <MoleFlow>`);
+            lines.push(`              <Value>${escapeXml(stateType.moleFlow.value)}</Value>`);
+            lines.push(`              <Unit>${escapeXml(stateType.moleFlow.unit)}</Unit>`);
+            lines.push(`            </MoleFlow>`);
+          }
+          if (stateType.composition) {
+            lines.push(`            <Composition>`);
+            if (stateType.composition.basis) lines.push(`              <Basis>${escapeXml(stateType.composition.basis)}</Basis>`);
+            if (stateType.composition.display) lines.push(`              <Display>${escapeXml(stateType.composition.display)}</Display>`);
+            stateType.composition.fractions.forEach(f => {
+              lines.push(`              <Fraction>`);
+              lines.push(`                <Value>${escapeXml(f.value)}</Value>`);
+              if (f.unit) lines.push(`                <Unit>${escapeXml(f.unit)}</Unit>`);
+              if (f.componentRef) lines.push(`                <ComponentReference>${escapeXml(f.componentRef)}</ComponentReference>`);
+              lines.push(`              </Fraction>`);
+            });
+            lines.push(`            </Composition>`);
+          }
+          lines.push(`          </Flow>`);
+        }
+      }
+      // Either the state itself OR its linked state-type may carry a TemplateReference.
+      const tmplRef = s.templateRef || stateType?.templateRef;
+      if (tmplRef) {
+        lines.push(`          <TemplateReference uidRef="${escapeXml(tmplRef)}"/>`);
+      }
+      lines.push(`        </MaterialState>`);
+      return lines.join('\n');
+    };
+
+    if (materialTemplates.length > 0 || materialComponents.length > 0) {
+      const tmplsXml = materialTemplates.map(renderMaterialTemplate).join('\n');
+      const compsXml = materialComponents.map(renderMaterialComponent).join('\n');
+      const innerXml = [tmplsXml, compsXml].filter(Boolean).join('\n');
+      // Anchor the container near the first template's layout position so the
+      // BPMN diagram still has a visible icon for it.
+      const first = materialTemplates[0];
+      const pos = first ? layout.get(`dt_${first.uid}`) : undefined;
+      const dobjId = `dt_dobj_MaterialTemplates`;
+      processElements.push(`  <bpmn:dataObjectReference id="${dobjId}" name="MaterialTemplates" dataObjectRef="DataObject_${dobjId}">
+    <bpmn:extensionElements>
+${innerXml}
+    </bpmn:extensionElements>
+  </bpmn:dataObjectReference>
   <bpmn:dataObject id="DataObject_${dobjId}"/>`);
-      shapeElements.push(`      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
+      if (pos) {
+        shapeElements.push(`      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
         <dc:Bounds x="${pos.x}" y="${pos.y}" width="36" height="50"/>
         <bpmndi:BPMNLabel/>
       </bpmndi:BPMNShape>`);
-    });
+      }
+    }
+
+    if (materialStates.length > 0) {
+      const statesXml = materialStates.map(renderMaterialState).join('\n');
+      // Anchor next to the templates container if a second template position
+      // exists, otherwise leave unpositioned.
+      const second = materialTemplates[1];
+      const pos = second ? layout.get(`dt_${second.uid}`) : undefined;
+      const dobjId = `dt_dobj_MaterialStates`;
+      processElements.push(`  <bpmn:dataObjectReference id="${dobjId}" name="Base Case MaterialStates" dataObjectRef="DataObject_${dobjId}">
+    <bpmn:extensionElements>
+${statesXml}
+    </bpmn:extensionElements>
+  </bpmn:dataObjectReference>
+  <bpmn:dataObject id="DataObject_${dobjId}"/>`);
+      if (pos) {
+        shapeElements.push(`      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
+        <dc:Bounds x="${pos.x}" y="${pos.y}" width="36" height="50"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>`);
+      }
+    }
 
     const subprocessDiagrams = steps
       .filter(step => !hiddenStepIds.has(step.id) && step.children.length > 0)
@@ -2086,25 +3119,27 @@ ${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
   // ── Utilities ───────────────────────────────────────────────────────────────
 
   private isPortProxyStep(step: DexpiStep): boolean {
+    // A Source/Sink is a port-proxy (mirrored boundary that the BPMN exporter
+    // emitted to give a parent-port a visual representation) when one of:
+    //   1. Any port carries an explicit superPortId pointing at the parent
+    //      ProcessNode port — the structural link from sub/superReference.
+    //   2. The step label equals every port's label and at least one port
+    //      exists — the BPMN→DEXPI exporter writes proxies this way (step
+    //      named after the port it mirrors). Real energy/material supply
+    //      boundaries carry a descriptive name that differs from their port.
     if (step.dexpiType !== 'Source' && step.dexpiType !== 'Sink') return false;
     if (step.ports.some(port => port.superPortId)) return true;
 
-    // Generic rule: a Source/Sink that owns a real (non-mirrored) energy port
-    // represents an energy supply/sink boundary, not a visual port proxy from
-    // the BPMN exporter. Keep it visible — positionEnergyBoundaryProxies will
-    // place it above/below the connected interior task.
+    // A Source/Sink that owns a real (non-mirrored) energy port represents an
+    // energy supply/sink boundary — keep it visible so positionEnergy­Boundary­
+    // Proxies can place it above/below the connected interior task.
     if (step.ports.some(port => this.isEnergyPort(port) && !port.superPortId)) {
       return false;
     }
 
     const label = step.label.trim();
-    if (!label) return false;
-
-    const isPortLikeLabel = /^(MI|MO|TEI|TEO|MEI|MEO|EEI|EEO)\d+$/i.test(label) ||
-      /^IP[IO]_/i.test(label);
-    if (isPortLikeLabel) return true;
-
-    return step.ports.length > 0 && step.ports.every(port => port.label === label);
+    if (!label || step.ports.length === 0) return false;
+    return step.ports.every(port => port.label === label);
   }
 
   /**

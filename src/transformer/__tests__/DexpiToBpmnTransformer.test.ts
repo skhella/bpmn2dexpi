@@ -421,6 +421,56 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(out).toContain('streamType="ThermalEnergyFlow"');
     });
 
+    it('synthesises DataObjectReference + associations from canonical MeasuredVariableReference (DEXPI 2.0 schema-correct)', async () => {
+      // Schema-correct shape (post-71c1ea0/a32d514): no InformationPort,
+      // no InformationFlow. The MeasuringProcessVariable Object carries
+      // ProcessStepReference + MeasuredVariableReference; the referenced
+      // ProcessStep materialises a QualifiedValue parameter (Components
+      // carrier with property="Temperature") that's the reference target.
+      const xml = dexpi(`
+        <Object id="MA1" type="Process/Process.MeasuringProcessVariable">
+          <Data property="Identifier"><String>MA1</String></Data>
+          <Data property="Label"><String>TI-101</String></Data>
+          <References property="ProcessStepReference" objects="#PS1"/>
+          <References property="MeasuredVariableReference" objects="#PS1_Temperature"/>
+        </Object>
+        <Object id="PS1" type="Process/Process.ReactingChemicals">
+          <Data property="Identifier"><String>PS1</String></Data>
+          <Data property="Label"><String>Reactor</String></Data>
+          <Components property="Temperature">
+            <Object id="PS1_Temperature" type="Core/QualifiedValue"/>
+          </Components>
+        </Object>`);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+      expect(out).toContain('<bpmn:dataObjectReference');
+      expect(out).toContain('name="Temperature"');
+      // Two associations per instrumentation activity: out from activity to
+      // dataObject, in from dataObject to referenced ProcessStep.
+      expect((out.match(/<bpmn:association/g) || []).length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('synthesises DataObjectReference from Profile-extension MeasuredVariableLabel (vocabulary gap fallback)', async () => {
+      // Variable identity has no canonical parameter slot on ReactingChemicals
+      // (Composition is a class, not a parameter). Export carries the
+      // identity as MeasuredVariableLabel; import recovers it via the same
+      // dataObject pattern.
+      const xml = dexpi(`
+        <Object id="MA2" type="Process/Process.MeasuringProcessVariable">
+          <Data property="Identifier"><String>MA2</String></Data>
+          <Data property="Label"><String>AI-201</String></Data>
+          <Data property="MeasuredVariableLabel"><String>Composition</String></Data>
+          <References property="ProcessStepReference" objects="#PS2"/>
+        </Object>
+        <Object id="PS2" type="Process/Process.ReactingChemicals">
+          <Data property="Identifier"><String>PS2</String></Data>
+          <Data property="Label"><String>Reactor</String></Data>
+        </Object>`);
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+      expect(out).toContain('<bpmn:dataObjectReference');
+      expect(out).toContain('name="Composition"');
+      expect((out.match(/<bpmn:association/g) || []).length).toBeGreaterThanOrEqual(2);
+    });
+
     it('maps InformationFlow → bpmn:association + DataObjectReference', async () => {
       const p1 = port('ia_out', 'InformationPort', 'Out', 'IO1');
       const p2 = port('ps_in', 'InformationPort', 'In', 'II1');
