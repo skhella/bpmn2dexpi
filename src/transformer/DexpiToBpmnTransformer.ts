@@ -448,7 +448,7 @@ export class DexpiToBpmnTransformer {
 
           ports.push({
             id: portId,
-            type: portType as any,
+            type: portType,
             direction,
             label: portLabel,
             identifier: portIdentifier,
