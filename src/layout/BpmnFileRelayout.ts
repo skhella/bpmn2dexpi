@@ -177,7 +177,7 @@ function extractDexpiPorts(stepEl: Element, stepId: string): InputPort[] {
  */
 function writeBackDiagram(
   doc: Document,
-  graph: ExtractedGraph,
+  _graph: ExtractedGraph,
   layout: LayoutResult,
 ): void {
   const definitions = doc.documentElement;
