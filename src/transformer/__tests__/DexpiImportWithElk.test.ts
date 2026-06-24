@@ -82,4 +82,48 @@ describe('importDexpiWithElk — pipeline (DEXPI → importer → ELK relayout)'
     };
     expect(firstShapeBounds(elkBpmn)).not.toEqual(firstShapeBounds(nativeBpmn));
   });
+
+  it('imports subprocesses COLLAPSED with their own drill-in plane', { timeout: 15_000 }, async () => {
+    // A DEXPI model whose middle step is a SubProcessStep (→ bpmn:subProcess).
+    const dexpiXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Model name="m" uri="http://www.example.org">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel">
+      <Object id="pm1" type="Process/ProcessModel">
+        <Components property="ProcessSteps">
+          <Object id="FEED" type="Process/Process.Source">
+            <Data property="Identifier"><String>FEED</String></Data>
+            <Data property="Label"><String>Feed</String></Data>
+          </Object>
+          <Object id="RC1" type="Process/Process.ReactingChemicals">
+            <Data property="Identifier"><String>RC1</String></Data>
+            <Data property="Label"><String>Reactor section</String></Data>
+            <Components property="SubProcessSteps">
+              <Object id="MX1" type="Process/Process.Mixing">
+                <Data property="Identifier"><String>MX1</String></Data>
+                <Data property="Label"><String>Mixer</String></Data>
+              </Object>
+              <Object id="RX1" type="Process/Process.ReactingChemicals">
+                <Data property="Identifier"><String>RX1</String></Data>
+                <Data property="Label"><String>Reactor</String></Data>
+              </Object>
+            </Components>
+          </Object>
+        </Components>
+      </Object>
+    </Components>
+  </Object>
+</Model>`;
+
+    const elkBpmn = await importDexpiWithElk(dexpiXml);
+
+    // Never force-expanded: the ELK relayout must not mark any subprocess expanded.
+    expect(elkBpmn).not.toContain('isExpanded="true"');
+    // The subprocess must be collapsed on its parent plane...
+    expect(elkBpmn).toContain('isExpanded="false"');
+    // ...and reachable via its own drill-in plane (bpmnElement = subprocess id).
+    expect(elkBpmn).toMatch(/<bpmndi:BPMNPlane[^>]*bpmnElement="bpmn_RC1"/);
+  });
 });
