@@ -18,7 +18,7 @@ export interface InternalProcessStep {
   uid: string;
   hierarchyLevel?: string;
   ports: DexpiPort[];
-  attributes: Array<{ name: string; value: string; unit?: string; scope?: string; range?: string; provenance?: string; qualifier?: string; nameUri?: string; unitUri?: string }>;
+  attributes: Array<{ name: string; value: string; unit?: string; scope?: string; range?: string; provenance?: string; qualifier?: string; nameUri?: string }>;
   parentId: string | null;
   subProcessSteps: string[]; // child step IDs
 
@@ -100,10 +100,6 @@ export interface StreamAttribute {
   nameUri?: string;
   value: string;
   unit?: string;
-  /** Optional URI linking the unit to a standard unit definition.
-   *  e.g. https://qudt.org/vocab/unit/KiloGM-PER-HR
-   *       https://qudt.org/vocab/unit/DEG_C */
-  unitUri?: string;
   scope?: string;
   range?: string;
   provenance?: string;
@@ -172,7 +168,6 @@ export interface MaterialComponentExtraProperty {
   value: string;
   /** Only meaningful when kind = 'composition'. */
   unit?: string;
-  unitReference?: string;
 }
 
 export interface InternalMaterialComponent {

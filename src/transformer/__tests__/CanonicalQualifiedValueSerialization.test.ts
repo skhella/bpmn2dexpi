@@ -228,11 +228,18 @@ describe('TEP canonical QualifiedValue emit', () => {
     expect(count(/Core\/DataTypes\.QuantityProvenance\.Observed/g)).toBe(19);
   });
 
-  it('fails closed on the unrepresentable MoleFlow unit (warn; no flat String, no guessed literal)', () => {
-    const moleFlowWarn = warnings.filter(w => w.includes('MoleFlow') && w.includes('KilomolePerHour'));
-    expect(moleFlowWarn.length).toBeGreaterThan(0);
-    expect(moleFlowWarn[0]).toContain('fail-closed');
-    // No invented MoleFlowRateUnit literal for KilomolePerHour anywhere.
+  it('resolves the unbound MoleFlow unit globally (KilomolePerSecond → Core MoleFlowRateUnit, no warning)', () => {
+    // MaterialStateType.MoleFlow is a project/profile-extension property with no
+    // unit binding in Process.xml, so the bound-enum path can't resolve it. The
+    // global fallback searches every PhysicalQuantities unit enum and finds the
+    // canonical per-second molar-flow literal. KilomolePerHour would NOT resolve
+    // (DEXPI has no per-hour molar-flow unit), which is why the fixture rescales
+    // to KilomolePerSecond.
+    expect(out).toContain('<DataReference data="Core/PhysicalQuantities.MoleFlowRateUnit.KilomolePerSecond"/>');
+    // No fail-closed warning for MoleFlow now that it resolves.
+    const moleFlowWarn = warnings.filter(w => w.includes('MoleFlow') && w.includes('fail-closed'));
+    expect(moleFlowWarn).toEqual([]);
+    // The non-existent per-hour molar-flow literal is never invented.
     expect(out).not.toContain('MoleFlowRateUnit.KilomolePerHour');
   });
 

@@ -14,15 +14,14 @@
  * Process.xml properties automatically when the schema is updated.
  *
  * `kind: 'composition'` rows hold a Core/QualifiedValue-shaped measurement
- * (Value + optional Unit + optional UnitReference). `kind: 'data'` rows
- * hold a flat string DataProperty.
+ * (Value + optional Unit, serialised in the canonical nested PhysicalQuantity
+ * carrier). `kind: 'data'` rows hold a flat string DataProperty.
  */
 export interface MaterialComponentProperty {
   kind: 'composition' | 'data';
   name: string;
   value: string;
   unit?: string;
-  unitReference?: string;
   /**
    * URI linking the property name to a standard quantity kind (QUDT,
    * ISO 15926, …). Only meaningful on composition rows whose inner Object
@@ -39,7 +38,7 @@ export interface MaterialComponentProperty {
    * inner class is `Core/PersistentIdentifier` (Context + Value fields).
    * Each record is a flat map of inner DataProperty name → value.
    *
-   * When `records` is set, `value` / `unit` / `unitReference` / `nameUri`
+   * When `records` is set, `value` / `unit` / `nameUri`
    * are unused; the composition is rendered and serialised as a list of
    * the declared inner class's records. Inner class is resolved via
    * `registry.getCompositionInnerClassName(wrappingClass, prop.name)`.

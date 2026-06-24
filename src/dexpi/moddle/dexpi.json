@@ -181,7 +181,16 @@
       "superClass": ["Element"],
       "properties": [
         { "name": "property", "isAttr": true, "type": "String" },
+        { "name": "aggregatedDataValue", "type": "AggregatedDataValue" },
         { "name": "body", "type": "String", "isBody": true }
+      ]
+    },
+    {
+      "name": "AggregatedDataValue",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "type", "isAttr": true, "type": "String" },
+        { "name": "data", "type": "Data", "isMany": true }
       ]
     },
     {

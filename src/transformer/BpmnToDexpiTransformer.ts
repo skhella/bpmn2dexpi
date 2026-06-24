@@ -995,19 +995,11 @@ export class BpmnToDexpiTransformer {
           const qv = objs.find(o => (o.localName || '').toLowerCase() === 'object' &&
                                     (o.getAttribute('type') === 'Core/QualifiedValue'));
           if (!qv || !propName) continue;
-          let value = '';
-          let unit: string | undefined;
-          let unitReference: string | undefined;
-          for (const data of Array.from(qv.children) as Element[]) {
-            if ((data.localName || '').toLowerCase() !== 'data') continue;
-            const dp = data.getAttribute('property');
-            const dv = (data.textContent ?? '').trim();
-            if (dp === 'Value') value = dv;
-            else if (dp === 'Unit') unit = dv;
-            else if (dp === 'UnitReference') unitReference = dv;
-          }
+          // Nesting-aware read (flat carrier or canonical PhysicalQuantity).
+          // The homegrown UnitReference is no longer read or emitted (D6).
+          const { value, unit } = this.readQvScalar(qv);
           if (!value) continue;
-          properties.push({ kind: 'composition', name: propName, value, unit, unitReference });
+          properties.push({ kind: 'composition', name: propName, value, unit: unit || undefined });
         }
       }
 
@@ -1104,10 +1096,11 @@ export class BpmnToDexpiTransformer {
             o.getAttribute('type') === 'Core/QualifiedValue'
           ) as Element | undefined;
           if (!qv) continue;
+          const { value, unit } = this.readQvScalar(qv);
           scalars.push({
             property,
-            value: this.getChildText(qv, 'Value'),
-            unit: this.getChildText(qv, 'Unit') || undefined,
+            value,
+            unit: unit || undefined,
           });
         }
         if (scalars.length > 0) flow.scalars = scalars;
@@ -1137,15 +1130,27 @@ export class BpmnToDexpiTransformer {
             const values: { value: string }[] = [];
             let compositionUnit: string | undefined;
             if (fractionsQv) {
-              for (const c of Array.from(fractionsQv.children) as Element[]) {
+              // Values + Unit are either direct Data children (flat carrier) or
+              // nested inside a <dexpi:aggregatedDataValue
+              // type="…PhysicalQuantityVector"> under the QV's Value (canonical).
+              const valueData = Array.from(fractionsQv.children).find(c =>
+                (c.localName || '').toLowerCase() === 'data' && c.getAttribute('property') === 'Value'
+              ) as Element | undefined;
+              const agg = valueData
+                ? Array.from(valueData.children).find(c => {
+                    const ll = (c.localName || '').toLowerCase();
+                    return ll === 'aggregateddatavalue' || ll === 'object';
+                  }) as Element | undefined
+                : undefined;
+              const container = agg ?? fractionsQv;
+              for (const c of Array.from(container.children) as Element[]) {
                 if ((c.localName || '').toLowerCase() !== 'data') continue;
                 const p = c.getAttribute('property');
                 if (p === 'Values') {
                   values.push({ value: (c.textContent ?? '').trim() });
                 } else if (p === 'Unit') {
-                  // Authored unit token for the fraction vector — carried
-                  // through so the emitter resolves it to a real
-                  // PhysicalQuantityVector unit literal (no hardcoded unit).
+                  // Authored unit token for the fraction vector — resolved to a
+                  // real PhysicalQuantityVector unit literal on emit.
                   compositionUnit = (c.textContent ?? '').trim() || undefined;
                 }
               }
@@ -1275,20 +1280,55 @@ export class BpmnToDexpiTransformer {
     }
     if (!qvObject) return undefined;
     const qv: import('./types').QualifiedValueData = {};
+    // Value + Unit via the nesting-aware reader (flat or PhysicalQuantity).
+    const { value, unit } = this.readQvScalar(qvObject);
+    if (value) qv.value = value;
+    if (unit) qv.unit = unit;
+    // The remaining QualifiedValue fields are flat Data children.
     for (const d of Array.from(qvObject.children) as Element[]) {
       if ((d.localName || '').toLowerCase() !== 'data') continue;
       const prop = d.getAttribute('property');
       if (!prop) continue;
-      const value = (d.textContent ?? '').trim();
+      const text = (d.textContent ?? '').trim();
       switch (prop) {
-        case 'Provenance': qv.provenance = value; break;
-        case 'Range':      qv.range      = value; break;
-        case 'Value':      qv.value      = value; break;
-        case 'Unit':       qv.unit       = value; break;
-        case 'DisplayText':qv.displayText= value; break;
+        case 'Provenance':  qv.provenance  = text; break;
+        case 'Range':       qv.range       = text; break;
+        case 'DisplayText': qv.displayText = text; break;
       }
     }
     return qv;
+  }
+
+  /**
+   * Read a Core/QualifiedValue's scalar value + unit token from a BPMN-side
+   * `<dexpi:object type="Core/QualifiedValue">` element, handling BOTH the flat
+   * authoring carrier (Value + Unit as sibling Data children) and the canonical
+   * nested shape (Value holds a `<dexpi:aggregatedDataValue type="…PhysicalQuantity">`
+   * — or the equivalent `<dexpi:object>` — wrapping Unit + Value). Returns empty
+   * strings when a field is absent. The unit is read as the authored token; the
+   * emit path resolves it to a DataReference literal.
+   */
+  private readQvScalar(qvObj: Element): { value: string; unit: string } {
+    const directData = (parent: Element, name: string): Element | undefined =>
+      Array.from(parent.children).find(c =>
+        (c.localName || '').toLowerCase() === 'data' && c.getAttribute('property') === name
+      ) as Element | undefined;
+    const valueData = directData(qvObj, 'Value');
+    if (!valueData) return { value: '', unit: '' };
+    const agg = Array.from(valueData.children).find(c => {
+      const ll = (c.localName || '').toLowerCase();
+      return ll === 'aggregateddatavalue' || ll === 'object';
+    }) as Element | undefined;
+    if (agg) {
+      return {
+        value: (directData(agg, 'Value')?.textContent ?? '').trim(),
+        unit: (directData(agg, 'Unit')?.textContent ?? '').trim(),
+      };
+    }
+    return {
+      value: (valueData.textContent ?? '').trim(),
+      unit: (directData(qvObj, 'Unit')?.textContent ?? '').trim(),
+    };
   }
 
   private findCarrierComponentsQualifiedValue(parent: Element, propertyName: string): Element | undefined {
@@ -1488,24 +1528,24 @@ export class BpmnToDexpiTransformer {
           }
           return undefined;
         };
-        const value = readData('Value');
+        // Read the scalar value + unit token, handling both the flat carrier
+        // and the canonical nested PhysicalQuantity shape.
+        const { value, unit } = this.readQvScalar(obj);
         if (!value) continue; // CompositionProperty with no value is uninteresting
-        // unitUri / nameUri — Profile-extension carriers on QualifiedValue
-        // (UnitReference Data child + QuantityKindReference References
-        // sibling); same shape ProcessStep + MaterialComponent emit.
-        // Flow into the existing transformer extension/warning mechanism.
-        const unitUri = readData('UnitReference') || undefined;
         const nameUri = readReference('QuantityKindReference');
+        // Qualifiers are emitted only when actually authored — no hardcoded
+        // Design/Nominal/Calculated defaults injected on read.
+        const scope = readData('Scope');
+        const range = readData('Range');
+        const provenance = readData('Provenance');
         attributes.push({
           name: propertyName,
           value,
-          unit: readData('Unit'),
-          ...(unitUri !== undefined ? { unitUri } : {}),
+          unit,
           ...(nameUri !== undefined ? { nameUri } : {}),
-          scope: readData('Scope') || 'Design',
-          range: readData('Range') || 'Nominal',
-          provenance: readData('Provenance') || 'Calculated',
-          qualifier: readData('Qualifier') || 'Average',
+          ...(scope ? { scope } : {}),
+          ...(range ? { range } : {}),
+          ...(provenance ? { provenance } : {}),
         });
         continue;
       }
@@ -1625,26 +1665,22 @@ export class BpmnToDexpiTransformer {
           }
           return undefined;
         };
-        const value = readData('Value');
+        const { value, unit } = this.readQvScalar(obj);
         if (!value) continue;
-        // unitUri — bpmn2dexpi extension to QualifiedValue; not declared on
-        // Core.xml. Round-tripped as <Data property="UnitReference">URI</Data>
-        // inside the QV (same shape MaterialComponent + Stream emit).
-        // nameUri — also a Profile-extension carrier; <References
-        // property="QuantityKindReference" objects="URI"/> sibling of Data
-        // inside the QV. Both flow through the existing strict-mode +
-        // Profile-generator extension mechanism.
-        const unitUri = readData('UnitReference') || undefined;
+        // nameUri — Profile-extension QuantityKindReference carrier; kept.
         const nameUri = readReference('QuantityKindReference');
+        // Qualifiers emitted only when authored — no hardcoded defaults.
+        const scope = readData('Scope');
+        const range = readData('Range');
+        const provenance = readData('Provenance');
         attributes.push({
           name: propertyName,
           value,
-          unit: readData('Unit'),
-          ...(unitUri !== undefined ? { unitUri } : {}),
+          unit,
           ...(nameUri !== undefined ? { nameUri } : {}),
-          scope: readData('Scope') || 'Design',
-          range: readData('Range') || 'Nominal',
-          provenance: readData('Provenance') || 'Calculated',
+          ...(scope ? { scope } : {}),
+          ...(range ? { range } : {}),
+          ...(provenance ? { provenance } : {}),
           required: child.getAttribute('required') === 'true' || undefined,
         });
         continue;
@@ -3526,18 +3562,29 @@ export class BpmnToDexpiTransformer {
   }): Record<string, unknown> {
     const isVector = Array.isArray(opts.values) && opts.values.length > 0;
 
-    // Resolve the bound unit enum + literal for this property, schema-driven.
+    // Resolve the unit token to its enumeration literal, schema-driven.
+    //  - If the property carries a PhysicalQuantity unit binding (the canonical
+    //    case, e.g. Stream.MassFlow -> MassFlowRateUnit) resolve strictly within
+    //    that enum, failing closed on a mismatch so a unit can never land in the
+    //    wrong quantity type.
+    //  - If it has NO binding (a project/profile-extension property such as
+    //    MaterialStateType.MoleFlow, which DEXPI core doesn't declare) fall back
+    //    to a global search across the PhysicalQuantities unit enums.
     let unitRef: string | null = null;
     if (opts.unit) {
-      const enumPath = this.registry.getUnitEnumRefForProperty(opts.className, opts.property);
-      const literal = enumPath ? this.registry.resolveUnitLiteral(enumPath, opts.unit) : null;
-      if (enumPath && literal) {
-        unitRef = `${enumPath}.${literal}`;
+      const boundEnum = this.registry.getUnitEnumRefForProperty(opts.className, opts.property);
+      if (boundEnum) {
+        const literal = this.registry.resolveUnitLiteral(boundEnum, opts.unit);
+        if (literal) unitRef = `${boundEnum}.${literal}`;
       } else {
+        const g = this.registry.resolveUnitGlobal(opts.unit);
+        if (g) unitRef = `${g.enumPath}.${g.literal}`;
+      }
+      if (!unitRef) {
         this.logger.warn(
           `QualifiedValue ${opts.className}.${opts.property}: unit "${opts.unit}" does not resolve to a ` +
-          `literal of ${enumPath ?? 'any bound PhysicalQuantity unit enumeration'} — emitting the value ` +
-          `without a unit (fail-closed; never a flat <String> or guessed literal).`,
+          `literal of ${this.registry.getUnitEnumRefForProperty(opts.className, opts.property) ?? 'any PhysicalQuantity unit enumeration'} ` +
+          `— emitting the value without a unit (fail-closed; never a flat <String> or guessed literal).`,
         );
       }
     }
@@ -3661,7 +3708,6 @@ export class BpmnToDexpiTransformer {
   private resolveAttrKindFn(className: string): (attr: {
     name: string;
     unit?: string;
-    unitUri?: string;
     nameUri?: string;
     scope?: string;
     range?: string;
@@ -3678,7 +3724,7 @@ export class BpmnToDexpiTransformer {
       const declared = declaredKindByName.get(attr.name);
       if (declared === 'composition') return 'composition';
       if (declared === 'data' || declared === 'reference') return 'data';
-      return (attr.unit || attr.unitUri || attr.nameUri ||
+      return (attr.unit || attr.nameUri ||
               attr.scope || attr.range || attr.provenance || attr.qualifier)
         ? 'composition' : 'data';
     };

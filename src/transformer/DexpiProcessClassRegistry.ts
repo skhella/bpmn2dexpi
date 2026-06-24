@@ -690,6 +690,28 @@ export class DexpiProcessClassRegistry {
   }
 
   /**
+   * Resolve a unit token across ALL PhysicalQuantities unit enumerations,
+   * returning the qualified enum path + literal of the first match. Used ONLY
+   * for composition properties that carry no PhysicalQuantity unit binding
+   * (project/profile extensions such as MaterialStateType.MoleFlow): there is
+   * no declared quantity type to scope the search to, so the token is matched
+   * against every unit enum the schema declares. Bound properties never use
+   * this — they resolve strictly within their bound enum and fail closed on a
+   * mismatch, so a unit can never silently land in the wrong quantity type.
+   * Still schema-driven (only real literals match); returns null on no match.
+   */
+  resolveUnitGlobal(token: string): { enumPath: string; literal: string } | null {
+    const t = token.trim();
+    if (t === '') return null;
+    for (const [path, detail] of this.enumDetails) {
+      if (detail.package !== 'PhysicalQuantities') continue;
+      const literal = this.resolveUnitLiteral(path, t);
+      if (literal) return { enumPath: path, literal };
+    }
+    return null;
+  }
+
+  /**
    * Literal names of a unit enumeration path — for the properties-panel unit
    * picker (the same literals+Custom dropdown used for any enum-typed value).
    */

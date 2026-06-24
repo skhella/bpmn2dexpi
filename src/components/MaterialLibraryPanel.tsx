@@ -14,6 +14,12 @@ import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegis
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
 import {
+  buildCanonicalScalarValue,
+  buildCanonicalVectorValue,
+  readCanonicalScalar,
+  readCanonicalVector,
+} from '../dexpi/moddle/qualifiedValue';
+import {
   findMaterialStatesContainer,
   findMaterialTemplatesContainer,
   findAllMaterialStatesContainers,
@@ -180,18 +186,10 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
    */
   const readQualifiedValueVector = (qvObj: any): { values: string[]; unit: string } => {
     if (!qvObj) return { values: [], unit: '' };
-    const dataList = qvObj.data ?? qvObj.$children ?? [];
-    const values: string[] = [];
-    let unit = '';
-    for (const d of dataList) {
-      const t = (d.$type || '').toLowerCase();
-      if (t && t !== 'dexpi:data' && t !== 'data') continue;
-      const prop = d.property ?? d.$attrs?.property;
-      const body = d.body ?? d.$body ?? d._ ?? '';
-      if (prop === 'Value' || prop === 'Values') values.push(body);
-      else if (prop === 'Unit') unit = body;
-    }
-    return { values, unit };
+    // Prefers the canonical nested PhysicalQuantityVector carrier; falls back
+    // to flat Values + Unit so pre-canonical saves still load.
+    const { values, unit } = readCanonicalVector(qvObj.data ?? qvObj.$children ?? []);
+    return { values, unit: unit ?? '' };
   };
 
   const loadMaterialData = () => {
@@ -363,16 +361,10 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             if (isQualifiedValue) {
               const qv = objList[0];
               const qvData = Array.isArray(qv.data) ? qv.data : (qv.$children ?? []);
-              let value = '';
-              let unit: string | undefined;
-              let unitReference: string | undefined;
-              for (const dc of qvData) {
-                const dp = dc.property ?? dc.$attrs?.property;
-                const dv = (dc.body ?? dc.$body ?? '').toString().trim();
-                if (dp === 'Value') value = dv;
-                else if (dp === 'Unit') unit = dv;
-                else if (dp === 'UnitReference') unitReference = dv;
-              }
+              // Value + Unit from the canonical nested PhysicalQuantity carrier
+              // (flat fallback for pre-canonical saves). UnitReference (D6) is
+              // no longer read or written.
+              const { value, unit } = readCanonicalScalar(qvData);
               // QuantityKindReference (the canonical attribute-URI carrier)
               // sits as a sibling References child on the same QV Object,
               // not as a Data child — same encoding the ProcessStep / Stream
@@ -387,7 +379,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                 }
               }
               if (!value) continue;
-              properties.push({ kind: 'composition', name: propName, value, unit, unitReference, nameUri });
+              properties.push({ kind: 'composition', name: propName, value, unit, nameUri });
             } else {
               // Non-QualifiedValue composition: collect every Object as a
               // record keyed by its inner DataProperty names. Inner-class
@@ -508,7 +500,9 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       // MaterialTemplateReference (lookup at index N matches the template's
       // ListOfComponents at index N).
       let basis = '';
-      let fractionUnit = 'Fraction';
+      // Authored fraction unit; left empty (fail-closed) when the vector
+      // carries no Unit, never defaulted to a non-literal placeholder token.
+      let fractionUnit = '';
       let rawFractionValues: number[] = [];
       let display = '';
       if (composition) {
@@ -980,16 +974,15 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       property: string,
       value: string,
       unit?: string,
-      unitReference?: string,
       nameUri?: string,
     ) => {
-      const qvData: unknown[] = [buildDataChild('Value', value)];
+      // Value + Unit in the canonical nested PhysicalQuantity carrier; no flat
+      // Unit sibling, no UnitReference (D6).
+      const qvData: unknown[] = [buildCanonicalScalarValue(moddle, value, unit)];
       // DisplayText (lower=1 on Core/QualifiedValue per Core.xml). Derive
       // deterministically from value + unit, mirroring transformer.ts:2237.
       const displayText = unit ? `${value} ${unit}` : value;
       qvData.push(buildDataChild('DisplayText', displayText));
-      if (unit) qvData.push(buildDataChild('Unit', unit));
-      if (unitReference) qvData.push(buildDataChild('UnitReference', unitReference));
       const qvObjectProps: Record<string, unknown> = {
         type: 'Core/QualifiedValue',
         data: qvData,
@@ -1081,7 +1074,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             );
           } else {
             componentsChildren.push(
-              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.unitReference, p.nameUri),
+              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.nameUri),
             );
           }
         }
@@ -1134,11 +1127,11 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         value: string,
         unit?: string,
       ): unknown => {
+        // Value + Unit in the canonical nested PhysicalQuantity carrier.
         const qvData: unknown[] = [
-          buildDataChild('Value', value),
+          buildCanonicalScalarValue(moddle, value, unit),
           buildDataChild('DisplayText', unit ? `${value} ${unit}` : value),
         ];
-        if (unit) qvData.push(buildDataChild('Unit', unit));
         return moddle.create('dexpi:Components', {
           property,
           objects: [
@@ -1167,22 +1160,20 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
           );
         }
         // Composition: nested Components carrier with a Core/QualifiedValue
-        // Object holding a multi-valued <Data property="Values">…</Data> per
-        // fraction (canonical DEXPI shape for vector quantities, mirroring
-        // the existing fixture form).
+        // Object whose Value holds a PhysicalQuantityVector — the Unit plus one
+        // <Data property="Values"> per fraction (canonical DEXPI vector shape,
+        // mirroring the fixture). The unit is the authored fraction unit; when
+        // absent it is omitted (fail-closed) rather than defaulted to a token
+        // that resolves to no PercentageUnit literal.
         if (state.flow?.composition && state.flow.composition.fractions.length > 0) {
-          const fracData: unknown[] = state.flow.composition.fractions.map(f =>
-            buildDataChild('Values', String(f.value)),
-          );
-          fracData.push(buildDataChild('Unit', state.flow.composition.fractions[0]?.unit ?? 'Fraction'));
-          // Display + Basis live as flat data props on the Composition object's
-          // canonical form; we approximate the existing fixture shape here.
+          const fractionValues = state.flow.composition.fractions.map(f => String(f.value));
+          const vectorUnit = state.flow.composition.fractions[0]?.unit || undefined;
           componentsChildren.push(moddle.create('dexpi:Components', {
             property: 'Composition',
             objects: [
               moddle.create('dexpi:Object', {
                 type: 'Core/QualifiedValue',
-                data: fracData,
+                data: [buildCanonicalVectorValue(moddle, fractionValues, vectorUnit)],
               }),
             ],
           }));

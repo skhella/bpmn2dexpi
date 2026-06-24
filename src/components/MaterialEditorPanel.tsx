@@ -4,6 +4,7 @@ import { DexpiProcessClassRegistry, type DexpiProperty } from '../transformer/De
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
 import type { MaterialComponent, MaterialComponentProperty } from '../dexpi/moddle/materials';
+import { buildCanonicalScalarValue } from '../dexpi/moddle/qualifiedValue';
 import { findMaterialStatesContainer } from '../utils/materialContainers';
 
 // Build the registry once per module so every editor render reuses the same
@@ -487,18 +488,17 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
       property: string,
       value: string,
       unit?: string,
-      unitReference?: string,
       nameUri?: string,
     ) => {
       const qvData: unknown[] = [
-        buildDataChild('Value', value),
+        // Value + Unit in the canonical nested PhysicalQuantity carrier; no
+        // flat Unit sibling, no UnitReference (D6).
+        buildCanonicalScalarValue(moddle, value, unit),
         // DisplayText is required (lower=1) on Core/QualifiedValue per Core.xml;
         // derive deterministically from value + unit so the side panel emits
         // the same shape MaterialLibraryPanel.saveMaterialData does.
         buildDataChild('DisplayText', unit ? `${value} ${unit}` : value),
       ];
-      if (unit) qvData.push(buildDataChild('Unit', unit));
-      if (unitReference) qvData.push(buildDataChild('UnitReference', unitReference));
       const qvObjectProps: Record<string, unknown> = { type: 'Core/QualifiedValue', data: qvData };
       if (nameUri) {
         // Canonical attribute-URI encoding: <References property=
@@ -531,7 +531,7 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
       if (p.kind === 'data') {
         dataChildren.push(buildDataChild(p.name, p.value));
       } else {
-        componentsChildren.push(buildQVComponents(p.name, p.value, p.unit, p.unitReference, p.nameUri));
+        componentsChildren.push(buildQVComponents(p.name, p.value, p.unit, p.nameUri));
       }
     }
 
@@ -908,8 +908,8 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
   // Data-kind: structural fields (Identifier/Label/Description) bind to the
   // typed JS fields; everything else binds to a single string in
   // properties[]. Composition-kind: always binds to properties[] with a
-  // QualifiedValue-shaped {value, unit, unitReference} payload — same shape
-  // ad-hoc composition rows use, so save/load paths handle both uniformly.
+  // QualifiedValue-shaped {value, unit} payload — same shape ad-hoc
+  // composition rows use, so save/load paths handle both uniformly.
   const readDeclaredValue = (name: string): string => {
     if (name === 'Identifier') return edited.identifier ?? '';
     if (name === 'Label') return edited.label ?? '';
@@ -947,19 +947,19 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
 
   /**
    * Patch one field on a declared composition row in properties[]. Creates
-   * the entry on first edit; drops it when value+unit+unitReference all blank
+   * the entry on first edit; drops it when value+unit+nameUri all blank
    * (mirrors writeDeclaredValue's empty-cleanup behaviour).
    */
   const writeDeclaredComposition = (
     name: string,
-    patch: Partial<Pick<MaterialComponentProperty, 'value' | 'unit' | 'unitReference' | 'nameUri'>>,
+    patch: Partial<Pick<MaterialComponentProperty, 'value' | 'unit' | 'nameUri'>>,
   ) => {
     const props = [...(edited.properties ?? [])];
     const idx = props.findIndex(p => p.name === name);
     const merged: MaterialComponentProperty = idx >= 0
       ? { ...props[idx], ...patch }
       : { kind: 'composition', name, value: '', ...patch };
-    const isEmpty = !merged.value && !merged.unit && !merged.unitReference && !merged.nameUri;
+    const isEmpty = !merged.value && !merged.unit && !merged.nameUri;
     if (isEmpty) {
       if (idx >= 0) {
         const next = props.filter((_, i) => i !== idx);
@@ -1032,7 +1032,7 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
       {/* Schema-declared rows. Identifier / Label / Description bind to the
           typed structural fields; data-kind properties bind to properties[]
           as a flat string; composition-kind properties bind to properties[]
-          as a QualifiedValue payload (value + unit + unitReference). */}
+          as a QualifiedValue payload (value + unit). */}
       {declaredProps.length === 0 && (
         <div style={{ padding: '0.5em', color: '#a44', fontSize: '0.9em' }}>
           ⚠ Class <code>{className}</code> not found in the loaded schema.
@@ -1096,13 +1096,6 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
                 placeholder="Attribute URI (e.g. https://qudt.org/vocab/quantitykind/MolarMass)"
                 value={entry?.nameUri ?? ''}
                 onChange={(e) => writeDeclaredComposition(prop.name, { nameUri: e.target.value })}
-                style={{ fontFamily: 'monospace', fontSize: '0.85em', marginTop: '0.3em' }}
-              />
-              <input
-                type="text"
-                placeholder="Unit URI (e.g. https://qudt.org/vocab/unit/GM-PER-MOL)"
-                value={entry?.unitReference ?? ''}
-                onChange={(e) => writeDeclaredComposition(prop.name, { unitReference: e.target.value })}
                 style={{ fontFamily: 'monospace', fontSize: '0.85em', marginTop: '0.3em' }}
               />
             </div>
@@ -1206,27 +1199,15 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
             </label>
 
             {p.kind === 'composition' && (
-              <>
-                <label style={{ display: 'block', marginTop: '0.3em' }}>
-                  Unit:
-                  <input
-                    type="text"
-                    value={p.unit ?? ''}
-                    onChange={(e) => updateAdHoc(i, { unit: e.target.value })}
-                    placeholder="e.g. g/mol, K, kJ/(kg·K)"
-                  />
-                </label>
-                <label style={{ display: 'block', marginTop: '0.3em' }}>
-                  Unit URI:
-                  <input
-                    type="text"
-                    value={p.unitReference ?? ''}
-                    onChange={(e) => updateAdHoc(i, { unitReference: e.target.value })}
-                    placeholder="e.g. https://qudt.org/vocab/unit/GM-PER-MOL"
-                    style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
-                  />
-                </label>
-              </>
+              <label style={{ display: 'block', marginTop: '0.3em' }}>
+                Unit:
+                <input
+                  type="text"
+                  value={p.unit ?? ''}
+                  onChange={(e) => updateAdHoc(i, { unit: e.target.value })}
+                  placeholder="e.g. KilogramPerMole, Kelvin"
+                />
+              </label>
             )}
           </div>
         ))}
