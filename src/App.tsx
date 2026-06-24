@@ -12,6 +12,7 @@ import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { BpmnToDexpiTransformer } from './transformer/BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
 import { generateProfileFromDexpiXml } from './transformer/DexpiProfileGenerator';
+import { DexpiToBpmnTransformer } from './transformer/DexpiToBpmnTransformer';
 import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../dexpi-schema-files/Core.xml?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
@@ -168,6 +169,11 @@ function App() {
   // since it's the headline workflow; the secondary exports go behind one
   // menu button so the toolbar isn't a row of single-purpose buttons.
   const [showExportsMenu, setShowExportsMenu] = useState<boolean>(false);
+  // Same pattern again for the consolidated Import menu (Import BPMN /
+  // Import DEXPI XML). DEXPI files are converted to BPMN on import via the
+  // DexpiToBpmnTransformer's own heuristic layout (obstacle-aware routing,
+  // port anchoring, collision avoidance) — no ELK relayout on this branch.
+  const [showImportMenu, setShowImportMenu] = useState<boolean>(false);
 
   // Strict-mode export-time warning modal. Populated by handleExportDexpi
   // when strict mode is on and the property-name validator finds
@@ -1081,6 +1087,39 @@ function App() {
     input.click();
   };
 
+  const handleImportDexpi = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xml,.dexpi';
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file || !modeler) return;
+
+      try {
+        const dexpiXml = await file.text();
+        // DEXPI → BPMN using the importer's own heuristic layout
+        // (obstacle-aware routing, port anchoring, collision avoidance).
+        const bpmnXml = await new DexpiToBpmnTransformer().transform(dexpiXml);
+        const preprocessedText = preprocessBpmnXml(bpmnXml);
+        await modeler.importXML(preprocessedText);
+        refreshAllElementsAfterImport(modeler);
+        // Save imported diagram immediately
+        const { xml } = await modeler.saveXML({ format: true });
+        if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
+        setValidationMessage('DEXPI imported successfully!');
+        // Reset navigation state
+        setPlaneStack([]);
+        setCurrentPlane(null);
+        const canvas = modeler.get('canvas') as any;
+        canvas.zoom('fit-viewport');
+      } catch (err) {
+        console.error('DEXPI import failed:', err);
+        setValidationMessage('DEXPI import failed: ' + (err as Error).message);
+      }
+    };
+    input.click();
+  };
+
   const handleNewDiagram = async () => {
     if (!modeler) return;
     if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
@@ -1135,7 +1174,60 @@ function App() {
             {showMaterialLibrary ? 'Materials' : 'Materials'}
           </button>
           <button onClick={handleNewDiagram} className="btn" title="Start a new empty diagram">New</button>
-          <button onClick={handleImportBpmn} className="btn">Import BPMN</button>
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              onClick={() => setShowImportMenu(v => !v)}
+              className={`btn ${showImportMenu ? 'btn-active' : ''}`}
+              title="Import a BPMN diagram or a DEXPI XML file"
+            >
+              Import ▾
+            </button>
+            {showImportMenu && (
+              <>
+                <div
+                  onClick={() => setShowImportMenu(false)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'transparent' }}
+                />
+                <div
+                  role="menu"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    left: 0,
+                    zIndex: 101,
+                    minWidth: '200px',
+                    background: '#fff',
+                    color: '#222',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                    padding: '0.4em',
+                    fontSize: '0.85em',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25em',
+                  }}
+                >
+                  <button
+                    onClick={() => { handleImportBpmn(); setShowImportMenu(false); }}
+                    className="btn"
+                    style={{ textAlign: 'left' }}
+                    title="Import a BPMN 2.0 diagram"
+                  >
+                    Import BPMN
+                  </button>
+                  <button
+                    onClick={() => { handleImportDexpi(); setShowImportMenu(false); }}
+                    className="btn"
+                    style={{ textAlign: 'left' }}
+                    title="Import a DEXPI 2.0 XML file and convert it to BPMN (heuristic layout)"
+                  >
+                    Import DEXPI XML
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <button
               onClick={() => setShowExportsMenu(v => !v)}
