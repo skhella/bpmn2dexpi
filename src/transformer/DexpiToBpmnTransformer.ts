@@ -41,6 +41,20 @@ interface DexpiStep {
    */
   processStepRef?: string;
   measuredVariable?: string;
+  /**
+   * The DEXPI Object id of the MeasuredVariableReference target. In the
+   * schema-correct export this is the original BPMN dataObjectReference id,
+   * so it round-trips: the imported BPMN re-emits a dataObjectReference with
+   * exactly this id (see the instrumentation re-synthesis pass in buildBpmn).
+   */
+  measuredVariableRefId?: string;
+  /**
+   * QualifiedValue data carried on the MeasuredVariableReference target
+   * Object (the Core/QualifiedValue whose id == measuredVariableRefId).
+   * Provenance/Range are DataReference enumerations (last dot-segment);
+   * Value/Unit are plain Data strings. Only resolved when present.
+   */
+  measuredVariableData?: { provenance?: string; range?: string; value?: string; unit?: string };
 }
 
 interface DexpiPort {
@@ -205,6 +219,11 @@ export class DexpiToBpmnTransformer {
     // walking every <Components property="X"><Object id="..."/></Components>
     // anywhere in the document.
     const qualifiedValueIdToProperty = new Map<string, string>();
+    // Also keep the QualifiedValue Object element itself so a
+    // MeasuredVariableReference target can be opened to read its qualifying
+    // Data (Provenance/Range/Value/Unit) when re-synthesizing the BPMN
+    // dataObjectReference extensionElements.
+    const qualifiedValueIdToObject = new Map<string, Element>();
     Array.from(doc.getElementsByTagName('Components')).forEach(comp => {
       const property = comp.getAttribute('property');
       if (!property) return;
@@ -212,7 +231,10 @@ export class DexpiToBpmnTransformer {
         .filter(c => c.tagName === 'Object')
         .forEach(child => {
           const cid = child.getAttribute('id');
-          if (cid) qualifiedValueIdToProperty.set(cid, property);
+          if (cid) {
+            qualifiedValueIdToProperty.set(cid, property);
+            qualifiedValueIdToObject.set(cid, child);
+          }
         });
     });
 
@@ -223,6 +245,26 @@ export class DexpiToBpmnTransformer {
         const refId = step.measuredVariable.slice('__refid:'.length);
         const propName = qualifiedValueIdToProperty.get(refId);
         step.measuredVariable = propName || undefined;
+      }
+      // Pull the qualifying Data off the referenced QualifiedValue Object so
+      // the imported BPMN's dataObjectReference can carry the same
+      // QualifiedValue extensionElements the original BPMN had.
+      if (step.measuredVariableRefId) {
+        const qvObj = qualifiedValueIdToObject.get(step.measuredVariableRefId);
+        if (qvObj) {
+          const provenance = this.getEnumLastSegment(qvObj, 'Provenance');
+          const range = this.getEnumLastSegment(qvObj, 'Range');
+          const value = this.getDataString(qvObj, 'Value');
+          const unit = this.getDataString(qvObj, 'Unit');
+          if (provenance || range || value || unit) {
+            step.measuredVariableData = {
+              provenance: provenance || undefined,
+              range: range || undefined,
+              value: value || undefined,
+              unit: unit || undefined,
+            };
+          }
+        }
       }
       step.children.forEach(resolveMeasuredVariable);
     };
@@ -507,6 +549,7 @@ export class DexpiToBpmnTransformer {
       attributes: attributes.length > 0 ? attributes : undefined,
       processStepRef: processStepRef || undefined,
       measuredVariable,
+      measuredVariableRefId: measuredVariableRefId || undefined,
     };
   }
 
@@ -889,6 +932,25 @@ export class DexpiToBpmnTransformer {
       c.tagName === 'Integer' || c.tagName === 'Boolean'
     );
     return valueNode?.textContent?.trim() || '';
+  }
+
+  /**
+   * Read a DEXPI enumeration value encoded as
+   * <Data property="P"><DataReference data="Some/Enumerations.P.Value"/></Data>
+   * and return the last dot-segment of the `data` attribute (e.g. "Value").
+   * Returns '' when the property or DataReference is absent.
+   */
+  private getEnumLastSegment(parent: Element | null, property: string): string {
+    if (!parent) return '';
+    const dataEl = Array.from(parent.children).find(c =>
+      c.tagName === 'Data' && c.getAttribute('property') === property
+    );
+    if (!dataEl) return '';
+    const ref = Array.from(dataEl.children).find(c => c.tagName === 'DataReference');
+    const data = ref?.getAttribute('data');
+    if (!data) return '';
+    const segments = data.split('.');
+    return segments[segments.length - 1].trim();
   }
 
   // ── Layout engine ───────────────────────────────────────────────────────────
@@ -1489,6 +1551,13 @@ export class DexpiToBpmnTransformer {
       if (!map.has(owner)) map.set(owner, []);
       map.get(owner)!.push(xml);
     };
+
+    // Children injected into a step's <bpmn:task>/<bpmn:subProcess> body by the
+    // instrumentation re-synthesis pass: dataInput/dataOutputAssociation and
+    // the __targetRef_placeholder property. Keyed by the *bpmn* element id of
+    // the owning step (bpmnId(step.id)). renderStep appends these after the
+    // step's common body so the imported BPMN matches the authored shape.
+    const instrumentationChildrenByStepId = new Map<string, string[]>();
     const buildChildLayout = (owner: DexpiStep) => {
       const childLayout = this.computeStepLayout(visibleChildren(owner), connections, hiddenStepIds);
       ownerLayouts.set(owner.id, childLayout);
@@ -2456,6 +2525,12 @@ ${indent}</bpmn:extensionElements>`;
       const out = outgoing.get(step.id)?.map(id => `${childIndent}<bpmn:outgoing>${bpmnId(id)}</bpmn:outgoing>`).join('\n') || '';
       const flowRefs = [inc, out].filter(Boolean).join('\n');
       const commonBody = `${extEl}${flowRefs ? '\n' + flowRefs : ''}`;
+      // Instrumentation association children (dataInput/dataOutputAssociation +
+      // __targetRef_placeholder property) injected for this step, indented to
+      // sit inside the element body.
+      const injectedChildren = (instrumentationChildrenByStepId.get(elId) || [])
+        .map(xml => indentBlock(xml, childIndent))
+        .join('\n');
 
       if (step.dexpiType === 'Source') {
         return `${indent}<bpmn:startEvent id="${elId}" name="${name}">
@@ -2477,12 +2552,12 @@ ${indent}</bpmn:endEvent>`;
         ].join('\n\n');
 
         return `${indent}<bpmn:subProcess id="${elId}" name="${name}">
-${commonBody}${nestedElements ? '\n' + nestedElements : ''}
+${commonBody}${nestedElements ? '\n' + nestedElements : ''}${injectedChildren ? '\n' + injectedChildren : ''}
 ${indent}</bpmn:subProcess>`;
       }
 
       return `${indent}<bpmn:task id="${elId}" name="${name}">
-${commonBody}
+${commonBody}${injectedChildren ? '\n' + injectedChildren : ''}
 ${indent}</bpmn:task>`;
     };
 
@@ -2794,13 +2869,16 @@ ${waypoints}
     // the export branch (post-71c1ea0) drops Ports composition for
     // InstrumentationActivity descendants and emits ProcessStepReference +
     // MeasuredVariableReference / MeasuredVariableLabel on the activity Object
-    // itself. parseStep captures both fields on DexpiStep; here we synthesize
-    // the BPMN dataObject pattern that the user is used to seeing graphically:
-    // dataObjectReference (named after the variable identity) +
-    // bpmn:association from the InstrumentationActivity to the dataObject +
-    // bpmn:association from the dataObject to the referenced ProcessStep.
-    // The result is a round-trip that recovers the visual relationship even
-    // though no InformationFlow object was carried in the DEXPI XML.
+    // itself. parseStep captures these on DexpiStep; here we re-synthesize the
+    // exact BPMN dataObject wiring the authored model used (see
+    // examples/Tennessee_Eastman_Process.bpmn): a dataObjectReference (named
+    // after the variable, carrying the QualifiedValue extensionElements) +
+    // backing dataObject at the owning process level, a dataOutputAssociation
+    // nested in the instrumentation task, and a __targetRef_placeholder
+    // property + dataInputAssociation nested in the measured/controlled task.
+    // The MeasuredVariableReference target id is reused verbatim as the
+    // dataObjectReference id so the relationship round-trips. Direction is
+    // identical for Measuring* and Controlling* process variables.
     const instrDobjEmitted = new Set<string>();
     const INSTR_DATA_OBJ_W = 36;
     const INSTR_DATA_OBJ_H = 50;
@@ -2827,13 +2905,15 @@ ${waypoints}
         }
         if (!activityPos || !refPos) return;
 
-        // Stable dobjId that survives multiple instrumentation activities
-        // sharing the same target variable on the same step (rare). Stable
-        // enough that re-running the import yields identical IDs.
+        // The dataObjectReference id is the MeasuredVariableReference target id
+        // (the original BPMN dataObjectReference id, so it round-trips). Fall
+        // back to a synthetic, deterministic id when no canonical reference is
+        // present (MeasuredVariableLabel-only variables).
         const safeVar = activity.measuredVariable!.replace(/[^a-zA-Z0-9_]/g, '_');
-        const dobjId = `dobj_instr_${bpmnId(activity.id).replace(/^bpmn_/, '')}_${safeVar}`;
-        if (instrDobjEmitted.has(dobjId)) return;
-        instrDobjEmitted.add(dobjId);
+        const dobjRefId = activity.measuredVariableRefId
+          || `dobj_instr_${bpmnId(activity.id).replace(/^bpmn_/, '')}_${safeVar}`;
+        if (instrDobjEmitted.has(dobjRefId)) return;
+        instrDobjEmitted.add(dobjRefId);
 
         // Position the dataObject at the midpoint between the two tasks.
         const aCx = activityPos.x + activityPos.w / 2;
@@ -2843,21 +2923,71 @@ ${waypoints}
         const dobjX = (aCx + rCx) / 2 - INSTR_DATA_OBJ_W / 2;
         const dobjY = (aCy + rCy) / 2 - INSTR_DATA_OBJ_H / 2;
 
-        const assocOutId = `assocOut_${dobjId}`;
-        const assocInId = `assocIn_${dobjId}`;
+        const outAssocId = `DataOutputAssociation_${dobjRefId}`;
+        const inAssocId = `DataInputAssociation_${dobjRefId}`;
+        const propertyId = `Property_${dobjRefId}`;
+        const backingObjId = `DataObject_${dobjRefId}`;
         const varName = activity.measuredVariable!;
 
-        const dataObjectXml = `<bpmn:dataObjectReference id="${dobjId}" name="${varName}" dataObjectRef="DataObject_${dobjId}"/>
-  <bpmn:dataObject id="DataObject_${dobjId}"/>
-  <bpmn:association id="${assocOutId}" sourceRef="${bpmnId(activity.id)}" targetRef="${dobjId}" associationDirection="One"/>
-  <bpmn:association id="${assocInId}" sourceRef="${dobjId}" targetRef="${bpmnId(refStepId)}" associationDirection="One"/>`;
+        // dataObjectReference carrying the QualifiedValue extensionElements,
+        // mirroring the authored shape. Provenance/Range/Value/Unit lines are
+        // only emitted when present.
+        const qv = activity.measuredVariableData;
+        const qualLines = qv
+          ? ([
+              ['Provenance', qv.provenance],
+              ['Range', qv.range],
+              ['Value', qv.value],
+              ['Unit', qv.unit],
+            ] as const)
+              .filter(([, v]) => !!v)
+              .map(([p, v]) => `          <dexpi:data property="${p}">${v}</dexpi:data>`)
+              .join('\n')
+          : '';
+        const extElXml = qv
+          ? `
+  <bpmn:extensionElements>
+    <dexpi:components property="${varName}">
+      <dexpi:object type="Core/QualifiedValue">
+${qualLines}
+      </dexpi:object>
+    </dexpi:components>
+  </bpmn:extensionElements>
+`
+          : '';
+        const dataObjectXml = qv
+          ? `<bpmn:dataObjectReference id="${dobjRefId}" name="${varName}" dataObjectRef="${backingObjId}">${extElXml}</bpmn:dataObjectReference>
+  <bpmn:dataObject id="${backingObjId}"/>`
+          : `<bpmn:dataObjectReference id="${dobjRefId}" name="${varName}" dataObjectRef="${backingObjId}"/>
+  <bpmn:dataObject id="${backingObjId}"/>`;
         if (activityKey === rootOwner) {
           processElements.push(indentBlock(dataObjectXml, '  '));
         } else {
           pushOwned(extraProcessElementsByOwner, activityKey, dataObjectXml);
         }
 
-        const shapeXml = `      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
+        // The instrumentation task gets the dataOutputAssociation → dataObject.
+        pushOwned(
+          instrumentationChildrenByStepId,
+          bpmnId(activity.id),
+          `<bpmn:dataOutputAssociation id="${outAssocId}">
+  <bpmn:targetRef>${dobjRefId}</bpmn:targetRef>
+</bpmn:dataOutputAssociation>`
+        );
+
+        // The measured/controlled task gets the __targetRef_placeholder
+        // property + dataInputAssociation ← dataObject.
+        pushOwned(
+          instrumentationChildrenByStepId,
+          bpmnId(refStepId),
+          `<bpmn:property id="${propertyId}" name="__targetRef_placeholder" />
+<bpmn:dataInputAssociation id="${inAssocId}">
+  <bpmn:sourceRef>${dobjRefId}</bpmn:sourceRef>
+  <bpmn:targetRef>${propertyId}</bpmn:targetRef>
+</bpmn:dataInputAssociation>`
+        );
+
+        const shapeXml = `      <bpmndi:BPMNShape id="${dobjRefId}_di" bpmnElement="${dobjRefId}">
         <dc:Bounds x="${dobjX}" y="${dobjY}" width="${INSTR_DATA_OBJ_W}" height="${INSTR_DATA_OBJ_H}"/>
         <bpmndi:BPMNLabel/>
       </bpmndi:BPMNShape>`;
@@ -2867,13 +2997,14 @@ ${waypoints}
           pushOwned(shapeElementsByOwner, activityKey, shapeXml);
         }
 
-        // Edge from activity → dataObject. Pick the closer side (top/bottom)
-        // based on where the dataObject lands relative to the activity.
+        // Edge from activity → dataObject (DataOutputAssociation). Pick the
+        // closer side (top/bottom) based on where the dataObject lands
+        // relative to the activity.
         const dobjCenterY = dobjY + INSTR_DATA_OBJ_H / 2;
         const dobjBelowActivity = dobjCenterY >= aCy;
         const aEdgeY = dobjBelowActivity ? activityPos.y + activityPos.h : activityPos.y;
         const dobjEdgeYFromActivity = dobjBelowActivity ? dobjY : dobjY + INSTR_DATA_OBJ_H;
-        const edgeOutXml = `      <bpmndi:BPMNEdge id="${assocOutId}_di" bpmnElement="${assocOutId}">
+        const edgeOutXml = `      <bpmndi:BPMNEdge id="${outAssocId}_di" bpmnElement="${outAssocId}">
         <di:waypoint x="${aCx}" y="${aEdgeY}"/>
         <di:waypoint x="${dobjX + INSTR_DATA_OBJ_W / 2}" y="${dobjEdgeYFromActivity}"/>
       </bpmndi:BPMNEdge>`;
@@ -2883,11 +3014,11 @@ ${waypoints}
           pushOwned(edgeElementsByOwner, activityKey, edgeOutXml);
         }
 
-        // Edge from dataObject → referenced ProcessStep.
+        // Edge from dataObject → referenced ProcessStep (DataInputAssociation).
         const dobjBelowRef = dobjCenterY >= rCy;
         const rEdgeY = dobjBelowRef ? refPos.y + refPos.h : refPos.y;
         const dobjEdgeYFromRef = dobjBelowRef ? dobjY : dobjY + INSTR_DATA_OBJ_H;
-        const edgeInXml = `      <bpmndi:BPMNEdge id="${assocInId}_di" bpmnElement="${assocInId}">
+        const edgeInXml = `      <bpmndi:BPMNEdge id="${inAssocId}_di" bpmnElement="${inAssocId}">
         <di:waypoint x="${dobjX + INSTR_DATA_OBJ_W / 2}" y="${dobjEdgeYFromRef}"/>
         <di:waypoint x="${rCx}" y="${rEdgeY}"/>
       </bpmndi:BPMNEdge>`;

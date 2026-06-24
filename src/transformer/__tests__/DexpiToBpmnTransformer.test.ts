@@ -442,11 +442,20 @@ ${step('MX1', 'Mixing', 'Mixer')}
           </Components>
         </Object>`);
       const out = await new DexpiToBpmnTransformer().transform(xml);
-      expect(out).toContain('<bpmn:dataObjectReference');
+      // The dataObjectReference reuses the MeasuredVariableReference target id
+      // (round-trips the original BPMN dataObjectReference id).
+      expect(out).toContain('<bpmn:dataObjectReference id="PS1_Temperature"');
       expect(out).toContain('name="Temperature"');
-      // Two associations per instrumentation activity: out from activity to
-      // dataObject, in from dataObject to referenced ProcessStep.
-      expect((out.match(/<bpmn:association/g) || []).length).toBeGreaterThanOrEqual(2);
+      expect(out).toContain('dataObjectRef="DataObject_PS1_Temperature"');
+      // Instrumentation task → dataObject via dataOutputAssociation.
+      expect(out).toContain('<bpmn:dataOutputAssociation id="DataOutputAssociation_PS1_Temperature">');
+      expect(out).toContain('<bpmn:targetRef>PS1_Temperature</bpmn:targetRef>');
+      // Measured task ← dataObject via __targetRef_placeholder + dataInputAssociation.
+      expect(out).toContain('name="__targetRef_placeholder"');
+      expect(out).toContain('<bpmn:dataInputAssociation id="DataInputAssociation_PS1_Temperature">');
+      expect(out).toContain('<bpmn:sourceRef>PS1_Temperature</bpmn:sourceRef>');
+      // No generic top-level instrumentation associations remain.
+      expect(out).not.toContain('<bpmn:association ');
     });
 
     it('synthesises DataObjectReference from Profile-extension MeasuredVariableLabel (vocabulary gap fallback)', async () => {
@@ -466,9 +475,16 @@ ${step('MX1', 'Mixing', 'Mixer')}
           <Data property="Label"><String>Reactor</String></Data>
         </Object>`);
       const out = await new DexpiToBpmnTransformer().transform(xml);
+      // No canonical MeasuredVariableReference here, so the dataObjectReference
+      // falls back to a synthetic deterministic id, but still uses the same
+      // nested dataInput/dataOutputAssociation wiring.
       expect(out).toContain('<bpmn:dataObjectReference');
       expect(out).toContain('name="Composition"');
-      expect((out.match(/<bpmn:association/g) || []).length).toBeGreaterThanOrEqual(2);
+      expect(out).toContain('<bpmn:dataOutputAssociation');
+      expect(out).toContain('<bpmn:dataInputAssociation');
+      expect(out).toContain('name="__targetRef_placeholder"');
+      // No generic top-level instrumentation associations remain.
+      expect(out).not.toContain('<bpmn:association ');
     });
 
     it('maps InformationFlow → bpmn:association + DataObjectReference', async () => {
