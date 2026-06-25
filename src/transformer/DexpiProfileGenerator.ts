@@ -107,6 +107,15 @@ interface GeneratedProperty {
    * Core/ConceptualObject (universal supertype) when inference fails.
    */
   inferredTargetClass?: string;
+  /**
+   * For a unit-bearing composition property whose quantity the USER chose
+   * explicitly (a custom property DEXPI doesn't bind): the bare unit-enum name
+   * (e.g. 'MoleFlowRateUnit'). The renderer emits the full
+   * PhysicalQuantity.UnitType DataTypeBinding to
+   * Core/PhysicalQuantities.<boundUnitEnum> so the property round-trips as a
+   * properly-bound measurement. Never inferred from the property's name.
+   */
+  boundUnitEnum?: string;
 }
 
 interface GeneratedClass {
@@ -180,6 +189,10 @@ export function generateProfileFromDexpiXml(
   // (their property declares no unit binding) — surfaced to the caller like the
   // required-flag notices, mirroring a custom class with no chosen supertype.
   const unitWarnings = new Set<string>();
+  // Explicit user-chosen quantity per custom unit-bearing property
+  // (`className.propName` -> bare unit-enum name). Drives the DataTypeBinding the
+  // generator emits so the property round-trips as a properly-bound measurement.
+  const unitBindings = new Map<string, string>();
 
   // One-time pass: pick up Custom-typed BPMN elements (dexpiType ∉ registry)
   // and seed the accumulator with class-only entries. Subsequent iterations
@@ -195,7 +208,7 @@ export function generateProfileFromDexpiXml(
   // the very first validator pass descends into their instances and surfaces
   // any property gaps.
   if (accumulated.size > 0) {
-    const seedXml = renderFromAccumulated(accumulated, workingRegistry, undefined, accumulatedUnits);
+    const seedXml = renderFromAccumulated(accumulated, workingRegistry, undefined, accumulatedUnits, unitBindings);
     workingRegistry = workingRegistry.cloneAndMergeXml('__intermediate__', seedXml);
   }
   let converged = false;
@@ -249,13 +262,10 @@ export function generateProfileFromDexpiXml(
         if (!set.has(u.literal)) {
           set.add(u.literal);
           added++;
-          if (!u.placed) {
-            unitWarnings.add(
-              `Unit "${u.literal}" (on ${u.className ?? '?'}.${u.propName ?? '?'}) has no declared ` +
-              `quantity type — declared under a generic "${GENERIC_UNIT_ENUM}" extension. Bind the ` +
-              `property to a specific unit enumeration to place it on the right quantity.`,
-            );
-          }
+        }
+        // Record the explicit quantity choice so the property is emitted bound.
+        if (u.needsBinding && u.className && u.propName) {
+          unitBindings.set(`${u.className}.${u.propName}`, u.enumName);
         }
       }
     }
@@ -265,7 +275,7 @@ export function generateProfileFromDexpiXml(
     }
     // Build the next iteration's working registry by merging the current
     // accumulated profile XML (class/property declarations + unit extensions).
-    const intermediate = renderFromAccumulated(accumulated, workingRegistry, undefined, accumulatedUnits);
+    const intermediate = renderFromAccumulated(accumulated, workingRegistry, undefined, accumulatedUnits, unitBindings);
     workingRegistry = workingRegistry.cloneAndMergeXml('__intermediate__', intermediate);
   }
   if (!converged) {
@@ -310,7 +320,7 @@ export function generateProfileFromDexpiXml(
     types: inferredTypes,
     cardinalities: inferredCardinalities,
     targets: inferredTargets,
-  }, accumulatedUnits);
+  }, accumulatedUnits, unitBindings);
   let propertyDeclarations = 0;
   for (const cls of accumulated.values()) propertyDeclarations += cls.properties.size;
   return {
@@ -977,6 +987,7 @@ function renderFromAccumulated(
   registry: DexpiProcessClassRegistry,
   hints?: InferenceHints,
   units?: Map<string, Set<string>>,
+  bindings?: Map<string, string>,
 ): string {
   const classes: GeneratedClass[] = [];
   for (const cls of accumulated.values()) {
@@ -990,6 +1001,7 @@ function renderFromAccumulated(
         inferredLower: card?.lower,
         inferredUpper: card?.upper,
         inferredTargetClass: hints?.targets?.get(key),
+        boundUnitEnum: bindings?.get(key),
       };
     });
     properties.sort(comparePropertyDecl);
@@ -1024,9 +1036,9 @@ function bareEnumName(ref: string): string {
 function collectUnresolvedUnits(
   bpmnXml: string,
   registry: DexpiProcessClassRegistry,
-): { enumName: string; literal: string; placed: boolean; className?: string; propName?: string }[] {
+): { enumName: string; literal: string; placed: boolean; needsBinding: boolean; className?: string; propName?: string }[] {
   const doc = new DOMParser().parseFromString(bpmnXml, 'text/xml');
-  const out: { enumName: string; literal: string; placed: boolean; className?: string; propName?: string }[] = [];
+  const out: { enumName: string; literal: string; placed: boolean; needsBinding: boolean; className?: string; propName?: string }[] = [];
   const seen = new Set<string>();
   for (const el of Array.from(doc.getElementsByTagName('*'))) {
     if ((el.localName || '').toLowerCase() !== 'data') continue;
@@ -1045,12 +1057,20 @@ function collectUnresolvedUnits(
           ? carrier.getAttribute('dexpiType') ?? undefined
           : carrier.localName ?? undefined)
       : undefined;
+    // Quantity, in priority order, both NON-heuristic:
+    //   1. an explicit `unitEnum` choice authored on the measurement (custom
+    //      property — the user picked the quantity), else
+    //   2. the unit enum the schema BINDS to the property (getUnitEnumRefForProperty).
+    // Neither -> unplaceable (warn + skip in the caller). The property name is
+    // never matched against enum names.
+    const explicitEnum = p?.getAttribute('unitEnum') ?? undefined;
     const boundRef = className && propName ? registry.getUnitEnumRefForProperty(className, propName) : null;
-    const enumName = boundRef ? bareEnumName(boundRef) : GENERIC_UNIT_ENUM;
-    const dedup = `${enumName} ${token}`;
+    const enumName = explicitEnum ?? (boundRef ? bareEnumName(boundRef) : GENERIC_UNIT_ENUM);
+    const placed = explicitEnum != null || boundRef != null;
+    const dedup = `${enumName} ${token}`;
     if (seen.has(dedup)) continue;
     seen.add(dedup);
-    out.push({ enumName, literal: token, placed: boundRef != null, className, propName });
+    out.push({ enumName, literal: token, placed, needsBinding: explicitEnum != null, className, propName });
   }
   return out;
 }
@@ -1221,6 +1241,32 @@ function renderPropertyXml(p: GeneratedProperty): string {
       ].join('\n');
     }
     case 'composition': {
+      // Unit-bound measurement: the user chose a quantity for this custom
+      // property, so emit the same QualifiedValue -> PhysicalQuantity -> UnitType
+      // DataTypeBinding chain Core uses (e.g. for Stream.MassFlow). The bound
+      // enum is referenced on the always-imported Core prefix, so the property
+      // and the unit literal it carries both validate.
+      if (p.boundUnitEnum) {
+        const enumRef = `Core/PhysicalQuantities.${p.boundUnitEnum}`;
+        return [
+          `    <CompositionProperty name="${escAttr(p.name)}" lower="${lower}" upper="${upperAttr}">`,
+          `      <BoundClass>`,
+          `        <ClassReference type="Core/QualifiedValue"/>`,
+          `        <DataTypeBinding parameter="Core/QualifiedValue.Type">`,
+          `          <UnionDataType>`,
+          `            <DataTypeReference type="Builtin/Undefined"/>`,
+          `            <BoundDataType>`,
+          `              <DataTypeReference type="Core/PhysicalQuantities.PhysicalQuantity"/>`,
+          `              <DataTypeBinding parameter="Core/PhysicalQuantities.PhysicalQuantity.UnitType">`,
+          `                <DataTypeReference type="${escAttr(enumRef)}"/>`,
+          `              </DataTypeBinding>`,
+          `            </BoundDataType>`,
+          `          </UnionDataType>`,
+          `        </DataTypeBinding>`,
+          `      </BoundClass>`,
+          `    </CompositionProperty>`,
+        ].join('\n');
+      }
       const target = p.inferredTargetClass ?? 'Core/ConceptualObject';
       // CompositionProperty's upper attribute is also informative; emit
       // it for symmetry with reference/data even though Process.xml's own

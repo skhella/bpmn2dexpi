@@ -1,26 +1,31 @@
 /**
  * Unit-vocabulary gaps close through the SAME validate → generate → reload loop
- * as missing-property gaps — and placement is SCHEMA-DRIVEN, not a name heuristic.
+ * as missing-property gaps — and placement is SCHEMA/CHOICE-driven, never a name
+ * heuristic.
  *
- * The generator finds an authored unit the registry can't resolve and places it
- * on the unit enum the DEXPI schema BINDS to the carrying property (the
- * property's <DataTypeBinding ... PhysicalQuantity.UnitType> chain, read by
- * getUnitEnumRefForProperty). A bound literal folds into that Core enum, so its
- * DataReference uses the imported Core prefix and validates.
+ * A custom unit-bearing property carries an explicit `unitEnum` quantity choice
+ * (authored by the user — the analog of choosing a custom class's supertype).
+ * The generator then emits a COHERENT extension:
+ *   - the property declared BOUND to that quantity (the full QualifiedValue ->
+ *     PhysicalQuantity -> UnitType DataTypeBinding, exactly as Core declares
+ *     MassFlow), and
+ *   - the missing literal added to that (Core) unit enum.
+ * Both reference the always-imported Core prefix, so the output validates, and on
+ * reload the unit resolves to Core/PhysicalQuantities.<Enum>.<Literal> — value
+ * unchanged.
  *
- * A property with NO declared unit binding — like the custom
- * MaterialStateType.MoleFlow here — cannot be placed on an importable Core
- * quantity, and a profile-namespaced enum would emit an unimported (invalid)
- * DataReference. So the generator does NOT guess: it WARNS to bind the property
- * to a quantity (the explicit user choice) and emits no unit extension. MoleFlow
- * stays fail-closed; the output remains valid.
+ * With NO quantity choice and no schema binding, the unit can't be placed on an
+ * importable Core quantity, so the generator warns (bind it) and emits nothing —
+ * no guessing, no invalid (unimported) reference.
  */
 import { describe, it, expect } from 'vitest';
 import { BpmnToDexpiTransformer } from '../BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from '../DexpiProcessClassRegistry';
 import { generateProfileFromDexpiXml } from '../DexpiProfileGenerator';
 
-const MOLEFLOW_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
+function moleFlowBpmn(opts: { quantity?: string } = {}): string {
+  const unitEnumAttr = opts.quantity ? ` unitEnum="${opts.quantity}"` : '';
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
@@ -34,7 +39,7 @@ const MOLEFLOW_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
         </dexpi:MaterialState>
         <dexpi:MaterialStateType uid="uuid_MST">
           <dexpi:data property="Identifier">1-State</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow"${unitEnumAttr}>
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value">
                 <dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity">
@@ -50,29 +55,58 @@ const MOLEFLOW_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
     <dataObject id="DO1"/>
   </process>
 </definitions>`;
+}
 
-describe('Unit-vocabulary gap — schema-driven placement, no heuristics', () => {
-  it('unbound property: generator warns to bind a quantity and emits no (invalid) unit extension', async () => {
-    const emitted = await new BpmnToDexpiTransformer().transform(MOLEFLOW_BPMN);
+describe('Unit-vocabulary gap — schema/choice-driven placement, no heuristics', () => {
+  it('explicit quantity: generator emits a bound MoleFlow + extends Core MoleFlowRateUnit; reload resolves', async () => {
+    const bpmn = moleFlowBpmn({ quantity: 'MoleFlowRateUnit' });
+    const emitted = await new BpmnToDexpiTransformer().transform(bpmn);
     const baseReg = await DexpiProcessClassRegistry.loadDefault();
-    const profile = generateProfileFromDexpiXml(emitted, baseReg, { bpmnXml: MOLEFLOW_BPMN });
+    const profile = generateProfileFromDexpiXml(emitted, baseReg, { bpmnXml: bpmn });
 
-    // MoleFlow declares no unit binding → cannot be placed on an importable Core
-    // quantity, so the generator warns (bind it) and does NOT emit a unit enum.
+    // (a) MoleFlow is declared BOUND to MoleFlowRateUnit — the full UnitType chain,
+    //     referenced on the always-imported Core prefix. Not guessed: from the
+    //     authored `unitEnum` choice.
+    expect(profile.xml, 'MoleFlow bound via DataTypeBinding').toMatch(
+      /<DataTypeBinding parameter="Core\/PhysicalQuantities\.PhysicalQuantity\.UnitType">/,
+    );
+    expect(profile.xml, 'bound to MoleFlowRateUnit on the Core prefix').toMatch(
+      /<DataTypeReference type="Core\/PhysicalQuantities\.MoleFlowRateUnit"\/>/,
+    );
+    // (b) The literal is added to MoleFlowRateUnit (folds into Core's enum).
+    expect(profile.xml, 'MoleFlowRateUnit extended').toMatch(/<Enumeration name="MoleFlowRateUnit"/);
+    expect(profile.xml, 'with KilomolePerHour').toMatch(/<EnumerationLiteral name="KilomolePerHour"\/>/);
+    // Placed cleanly — no "bind the property" warning.
+    expect(profile.warnings.filter(w => /bind/i.test(w)), profile.warnings.join(' | ')).toHaveLength(0);
+
+    // Reload: MoleFlow resolves on the canonical Core path; value unchanged.
+    const closed = await new BpmnToDexpiTransformer().transform(bpmn, {
+      profileXmls: [{ name: 'GeneratedProfile.xml', xml: profile.xml }],
+    });
+    expect(closed, 'resolves on DEXPI MoleFlowRateUnit').toMatch(
+      /Core\/PhysicalQuantities\.MoleFlowRateUnit\.KilomolePerHour/,
+    );
+    expect(closed, 'value never rescaled').toMatch(/<Double>11\.2<\/Double>/);
+  });
+
+  it('no quantity choice: generator warns to bind, emits no (invalid) unit extension', async () => {
+    const bpmn = moleFlowBpmn(); // no unitEnum attribute
+    const emitted = await new BpmnToDexpiTransformer().transform(bpmn);
+    const baseReg = await DexpiProcessClassRegistry.loadDefault();
+    const profile = generateProfileFromDexpiXml(emitted, baseReg, { bpmnXml: bpmn });
+
     expect(
       profile.warnings.some(w => /quantity/i.test(w) && /bind/i.test(w)),
       `expected a "bind the property" warning; got: ${profile.warnings.join(' | ')}`,
     ).toBe(true);
-    expect(profile.xml, 'no unit extension emitted for an unbindable unit').not.toMatch(
+    expect(profile.xml, 'no unit extension for an unbindable unit').not.toMatch(
       /<Package name="PhysicalQuantities">/,
     );
 
-    // Reload stays valid: MoleFlow remains fail-closed (bare Double), with no
-    // unresolved/unimported unit DataReference.
-    const closed = await new BpmnToDexpiTransformer().transform(MOLEFLOW_BPMN, {
+    const closed = await new BpmnToDexpiTransformer().transform(bpmn, {
       profileXmls: [{ name: 'GeneratedProfile.xml', xml: profile.xml }],
     });
-    expect(closed, 'value preserved').toMatch(/<Double>11\.2<\/Double>/);
+    expect(closed, 'value preserved (fail-closed)').toMatch(/<Double>11\.2<\/Double>/);
     expect(closed, 'no invalid unit DataReference').not.toMatch(/\.KilomolePerHour"/);
   });
 });
