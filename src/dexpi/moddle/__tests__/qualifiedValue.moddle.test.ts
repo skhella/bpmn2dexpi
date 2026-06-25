@@ -43,23 +43,6 @@ const SCHEMA_DIR = join(__dirname, '../../../../dexpi-schema-files');
 const PROCESS_XML = readFileSync(join(SCHEMA_DIR, 'Process.xml'), 'utf-8');
 const CORE_XML = readFileSync(join(SCHEMA_DIR, 'Core.xml'), 'utf-8');
 
-// A minimal BPMN doc with one SequenceFlow carrying a dexpi:Stream, into which
-// we splice authored components carriers built by the helper under test.
-const wrap = (streamChildrenXml: string) => `<?xml version="1.0" encoding="UTF-8"?>
-<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
-             xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
-             xmlns:dexpi="http://dexpi.org/schema/bpmn-extension"
-             targetNamespace="http://example.com/bpmn">
-  <process id="P1">
-    <task id="A"/><task id="B"/>
-    <sequenceFlow id="F1" sourceRef="A" targetRef="B">
-      <extensionElements>
-        <dexpi:Stream>${streamChildrenXml}</dexpi:Stream>
-      </extensionElements>
-    </sequenceFlow>
-  </process>
-</definitions>`;
-
 describe('canonical nested QualifiedValue — bpmn-moddle round-trip', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let moddle: any;
@@ -178,6 +161,43 @@ describe('canonical nested QualifiedValue — bpmn-moddle round-trip', () => {
     // The authored unit resolves to the canonical MassFlowRateUnit literal and
     // is emitted as a nested DataReference — exactly the canonical export shape.
     expect(out).toContain('<DataReference data="Core/PhysicalQuantities.MassFlowRateUnit.KilogramPerHour"/>');
+  });
+
+  it('serialises and round-trips the unitEnum quantity choice on the components carrier', async () => {
+    // A custom measurement (MoleFlow) with a custom unit (KilomolePerHour) whose
+    // quantity the user picked in the panel (MoleFlowRateUnit). The choice rides
+    // on the carrier as the `unitEnum` attribute — the Profile generator reads it
+    // to place the missing literal. Prove moddle neither strips it on write nor
+    // loses it on read (the link the panel save + reader depend on).
+    const carrier = moddle.create('dexpi:Components', {
+      property: 'MoleFlow',
+      unitEnum: 'MoleFlowRateUnit',
+      objects: [moddle.create('dexpi:Object', {
+        type: 'Core/QualifiedValue',
+        data: [buildCanonicalScalarValue(moddle as ModdleFactory, '11.2', 'KilomolePerHour')],
+      })],
+    });
+    const xml = await serialise([carrier]);
+    expect(xml).toMatch(/<dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">/);
+
+    // Round-trip: the attribute parses back onto the moddle element so the panel
+    // readers (carrier.unitEnum) recover the choice on re-open.
+    const { rootElement } = await moddle.fromXML(xml);
+    const flowBack = rootElement.rootElements[0].flowElements.find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (e: any) => e.$type === 'bpmn:SequenceFlow');
+    expect(flowBack.extensionElements.values[0].components[0].unitEnum).toBe('MoleFlowRateUnit');
+
+    // A resolved unit needs no quantity, so a carrier built without unitEnum
+    // stays attribute-free (the panel emits it only when the user picks one).
+    const plain = moddle.create('dexpi:Components', {
+      property: 'MassFlow',
+      objects: [moddle.create('dexpi:Object', {
+        type: 'Core/QualifiedValue',
+        data: [buildCanonicalScalarValue(moddle as ModdleFactory, '48015.4', 'KilogramPerHour')],
+      })],
+    });
+    expect(await serialise([plain])).not.toContain('unitEnum=');
   });
 
   it('readCanonicalScalar still reads a legacy flat Value + sibling Unit', () => {

@@ -891,9 +891,9 @@ function mergeEnumDetailsAdditive(
   incoming: Map<string, EnumDetail>,
 ): void {
   const byPkgName = new Map<string, string>();
-  for (const [path, d] of target) byPkgName.set(`${d.package} ${d.name}`, path);
+  for (const [path, d] of target) byPkgName.set(`${d.package} ${d.name}`, path);
   for (const [path, detail] of incoming) {
-    const key = `${detail.package} ${detail.name}`;
+    const key = `${detail.package} ${detail.name}`;
     const canonical = byPkgName.get(key);
     if (canonical) {
       const existing = target.get(canonical)!;

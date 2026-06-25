@@ -6,6 +6,7 @@ import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
 import type { MaterialComponent, MaterialComponentProperty } from '../dexpi/moddle/materials';
 import { buildCanonicalScalarValue } from '../dexpi/moddle/qualifiedValue';
 import { findMaterialStatesContainer } from '../utils/materialContainers';
+import { QuantityPicker } from './QuantityPicker';
 
 // Build the registry once per module so every editor render reuses the same
 // parsed Process.xml + Core.xml. Profile-extension classes (loaded into the
@@ -489,6 +490,7 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
       value: string,
       unit?: string,
       nameUri?: string,
+      unitEnum?: string,
     ) => {
       const qvData: unknown[] = [
         // Value + Unit in the canonical nested PhysicalQuantity carrier; no
@@ -512,10 +514,14 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
           }),
         ];
       }
-      return moddle.create('dexpi:Components', {
+      // `unitEnum` carries the authored quantity choice for a custom unit; the
+      // Profile generator reads it off the carrier. Emitted only when set.
+      const componentsProps: Record<string, unknown> = {
         property,
         objects: [moddle.create('dexpi:Object', qvObjectProps)],
-      });
+      };
+      if (unitEnum) componentsProps.unitEnum = unitEnum;
+      return moddle.create('dexpi:Components', componentsProps);
     };
 
     const dataChildren: unknown[] = [];
@@ -531,7 +537,7 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
       if (p.kind === 'data') {
         dataChildren.push(buildDataChild(p.name, p.value));
       } else {
-        componentsChildren.push(buildQVComponents(p.name, p.value, p.unit, p.nameUri));
+        componentsChildren.push(buildQVComponents(p.name, p.value, p.unit, p.nameUri, p.unitEnum));
       }
     }
 
@@ -952,14 +958,14 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
    */
   const writeDeclaredComposition = (
     name: string,
-    patch: Partial<Pick<MaterialComponentProperty, 'value' | 'unit' | 'nameUri'>>,
+    patch: Partial<Pick<MaterialComponentProperty, 'value' | 'unit' | 'nameUri' | 'unitEnum'>>,
   ) => {
     const props = [...(edited.properties ?? [])];
     const idx = props.findIndex(p => p.name === name);
     const merged: MaterialComponentProperty = idx >= 0
       ? { ...props[idx], ...patch }
       : { kind: 'composition', name, value: '', ...patch };
-    const isEmpty = !merged.value && !merged.unit && !merged.nameUri;
+    const isEmpty = !merged.value && !merged.unit && !merged.nameUri && !merged.unitEnum;
     if (isEmpty) {
       if (idx >= 0) {
         const next = props.filter((_, i) => i !== idx);
@@ -1098,6 +1104,16 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
                 onChange={(e) => writeDeclaredComposition(prop.name, { nameUri: e.target.value })}
                 style={{ fontFamily: 'monospace', fontSize: '0.85em', marginTop: '0.3em' }}
               />
+              {/* Custom unit on a declared measurement: the schema names the
+                  quantity, so the picker shows an info chip (no choice needed). */}
+              <QuantityPicker
+                className={className}
+                propName={prop.name}
+                unit={entry?.unit}
+                unitEnum={entry?.unitEnum}
+                registry={baseRegistry}
+                onChange={(unitEnum) => writeDeclaredComposition(prop.name, { unitEnum })}
+              />
             </div>
           );
         }
@@ -1208,6 +1224,20 @@ const ComponentSchemaDrivenForm: React.FC<ComponentSchemaDrivenFormProps> = ({ e
                   placeholder="e.g. KilogramPerMole, Kelvin"
                 />
               </label>
+            )}
+
+            {/* Custom (project-extension) property: no schema unit-binding, so
+                a custom unit needs an explicit quantity choice. The picker only
+                shows when the unit doesn't already resolve. */}
+            {p.kind === 'composition' && (
+              <QuantityPicker
+                className={className}
+                propName={p.name}
+                unit={p.unit}
+                unitEnum={p.unitEnum}
+                registry={baseRegistry}
+                onChange={(unitEnum) => updateAdHoc(i, { unitEnum })}
+              />
             )}
           </div>
         ))}

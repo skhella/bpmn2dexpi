@@ -24,6 +24,7 @@ import {
   findMaterialTemplatesContainer,
   findAllMaterialStatesContainers,
 } from '../utils/materialContainers';
+import { QuantityPicker } from './QuantityPicker';
 
 // Registry built once per module — used by ComponentEditor to enumerate
 // concrete subclasses of MaterialComponent for the Type dropdown so new
@@ -379,7 +380,11 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
                 }
               }
               if (!value) continue;
-              properties.push({ kind: 'composition', name: propName, value, unit, nameUri });
+              // `unitEnum` is the authored quantity choice for a custom unit
+              // (the Profile generator reads it to place the missing literal);
+              // round-trip it so re-opening the editor preserves the choice.
+              const unitEnum = carrier.unitEnum ?? carrier.$attrs?.unitEnum ?? undefined;
+              properties.push({ kind: 'composition', name: propName, value, unit, nameUri, unitEnum });
             } else {
               // Non-QualifiedValue composition: collect every Object as a
               // record keyed by its inner DataProperty names. Inner-class
@@ -478,18 +483,21 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       // Canonical names declared in Process.xml (MassFlow, VolumeFlow, ...)
       // and project-extension names (MoleFlow, etc.) are treated identically;
       // the Profile generator captures non-canonical names at export time.
-      const scalars: { property: string; value: string; unit?: string }[] = [];
+      const scalars: { property: string; value: string; unit?: string; unitEnum?: string }[] = [];
       if (stateType) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const child of (stateType.$children ?? []) as any[]) {
           if (child?.$type !== 'Components') continue;
           const property = child.property;
           if (!property) continue;
+          // Authored quantity choice for a custom unit — round-trip so the
+          // picker shows it again on re-open (see MaterialComponentProperty.unitEnum).
+          const unitEnum = child.unitEnum ?? child.$attrs?.unitEnum ?? undefined;
           const qv = readComponentsObject(stateType, property);
           if (!qv) continue;
           const { values, unit } = readQualifiedValueVector(qv);
           if (values.length === 0) continue;
-          scalars.push({ property, value: values[0], unit: unit || undefined });
+          scalars.push({ property, value: values[0], unit: unit || undefined, unitEnum });
         }
       }
 
@@ -975,6 +983,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       value: string,
       unit?: string,
       nameUri?: string,
+      unitEnum?: string,
     ) => {
       // Value + Unit in the canonical nested PhysicalQuantity carrier; no flat
       // Unit sibling, no UnitReference (D6).
@@ -999,10 +1008,12 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         ];
       }
       const qvObject = moddle.create('dexpi:Object', qvObjectProps);
-      return moddle.create('dexpi:Components', {
-        property,
-        objects: [qvObject],
-      });
+      // `unitEnum` carries the authored quantity choice for a custom unit; the
+      // Profile generator reads it off the carrier. Emitted only when set so
+      // resolved-unit measurements stay attribute-free.
+      const componentsProps: Record<string, unknown> = { property, objects: [qvObject] };
+      if (unitEnum) componentsProps.unitEnum = unitEnum;
+      return moddle.create('dexpi:Components', componentsProps);
     };
 
     updatedComponents.forEach(component => {
@@ -1074,7 +1085,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
             );
           } else {
             componentsChildren.push(
-              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.nameUri),
+              buildQualifiedValueComponentsChild(p.name, p.value, p.unit, p.nameUri, p.unitEnum),
             );
           }
         }
@@ -1126,13 +1137,16 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         property: string,
         value: string,
         unit?: string,
+        unitEnum?: string,
       ): unknown => {
         // Value + Unit in the canonical nested PhysicalQuantity carrier.
         const qvData: unknown[] = [
           buildCanonicalScalarValue(moddle, value, unit),
           buildDataChild('DisplayText', unit ? `${value} ${unit}` : value),
         ];
-        return moddle.create('dexpi:Components', {
+        // `unitEnum` carries the authored quantity choice for a custom unit;
+        // emitted only when set (resolved units need no quantity attribute).
+        const componentsProps: Record<string, unknown> = {
           property,
           objects: [
             moddle.create('dexpi:Object', {
@@ -1140,7 +1154,9 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
               data: qvData,
             }),
           ],
-        });
+        };
+        if (unitEnum) componentsProps.unitEnum = unitEnum;
+        return moddle.create('dexpi:Components', componentsProps);
       };
 
       const materialStates = (statesInCase as MaterialState[]).map(state => {
@@ -1156,7 +1172,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         for (const s of state.flow?.scalars ?? []) {
           if (s.value === undefined || s.value === null || s.value === '') continue;
           componentsChildren.push(
-            buildQVComponents(s.property, String(s.value), s.unit ?? ''),
+            buildQVComponents(s.property, String(s.value), s.unit ?? '', s.unitEnum),
           );
         }
         // Composition: nested Components carrier with a Core/QualifiedValue
@@ -1554,59 +1570,75 @@ const StateEditor: React.FC<{
               No property name is special-cased — the user can author any
               scalar property; the Profile generator declares non-canonical
               names at export time. */}
-          {(edited.flow?.scalars ?? []).map((s: { property: string; value: string; unit?: string }, i: number) => (
+          {(edited.flow?.scalars ?? []).map((s: { property: string; value: string; unit?: string; unitEnum?: string }, i: number) => (
             <div
               key={i}
               style={{
-                display: 'flex', gap: '6px', alignItems: 'flex-start',
                 border: '1px solid #ddd', padding: '0.4em', borderRadius: '4px',
                 marginTop: i === 0 ? 0 : '0.3em',
               }}
             >
-              <input
-                type="text"
-                placeholder="Property (e.g. MoleFlow)"
-                value={s.property}
-                onChange={(e) => {
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                <input
+                  type="text"
+                  placeholder="Property (e.g. MoleFlow)"
+                  value={s.property}
+                  onChange={(e) => {
+                    const next = [...(edited.flow?.scalars ?? [])];
+                    next[i] = { ...next[i], property: e.target.value };
+                    setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
+                  }}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="text"
+                  placeholder="Value"
+                  value={s.value}
+                  onChange={(e) => {
+                    const next = [...(edited.flow?.scalars ?? [])];
+                    next[i] = { ...next[i], value: e.target.value };
+                    setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
+                  }}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="text"
+                  placeholder="Unit"
+                  value={s.unit ?? ''}
+                  onChange={(e) => {
+                    const next = [...(edited.flow?.scalars ?? [])];
+                    next[i] = { ...next[i], unit: e.target.value };
+                    setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
+                  }}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = (edited.flow?.scalars ?? []).filter((_: unknown, idx: number) => idx !== i);
+                    setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
+                  }}
+                  style={{ flex: '0 0 auto' }}
+                  title="Remove row"
+                >
+                  ✕
+                </button>
+              </div>
+              {/* Quantity picker — appears only when the authored unit doesn't
+                  resolve against the standard vocabulary. The scalar carrier
+                  class is always MaterialStateType. */}
+              <QuantityPicker
+                className="MaterialStateType"
+                propName={s.property}
+                unit={s.unit}
+                unitEnum={s.unitEnum}
+                registry={MATERIAL_REGISTRY}
+                onChange={(unitEnum) => {
                   const next = [...(edited.flow?.scalars ?? [])];
-                  next[i] = { ...next[i], property: e.target.value };
+                  next[i] = { ...next[i], unitEnum };
                   setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
                 }}
-                style={{ flex: 1 }}
               />
-              <input
-                type="text"
-                placeholder="Value"
-                value={s.value}
-                onChange={(e) => {
-                  const next = [...(edited.flow?.scalars ?? [])];
-                  next[i] = { ...next[i], value: e.target.value };
-                  setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
-                }}
-                style={{ flex: 1 }}
-              />
-              <input
-                type="text"
-                placeholder="Unit"
-                value={s.unit ?? ''}
-                onChange={(e) => {
-                  const next = [...(edited.flow?.scalars ?? [])];
-                  next[i] = { ...next[i], unit: e.target.value };
-                  setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
-                }}
-                style={{ flex: 1 }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const next = (edited.flow?.scalars ?? []).filter((_: unknown, idx: number) => idx !== i);
-                  setEdited({ ...edited, flow: { ...edited.flow, scalars: next } });
-                }}
-                style={{ flex: '0 0 auto' }}
-                title="Remove row"
-              >
-                ✕
-              </button>
             </div>
           ))}
           <button
