@@ -997,11 +997,16 @@ export class DexpiToBpmnTransformer {
     const topBand: InstrumentBandItem[] = [];
     const bottomBand: InstrumentBandItem[] = [];
 
+    // Horizontal slot width between adjacent instruments on a band. Shared by
+    // the centering math below and by placeBand's overlap sweep.
+    const minGap = TASK_W + 45;
+
+    // First pass: compute each instrument's desired CENTER — the X of the step
+    // it measures/controls (ProcessStepReference, then InformationFlow-linked
+    // step, then the instrument's own center). Instruments that measure the
+    // same step share a center and form a group.
+    const desired: { id: string; center: number; w: number }[] = [];
     instruments.forEach(step => {
-      // Anchor each instrument over the process step it measures/controls,
-      // read from ProcessStepReference (resolved on import). Fall back to
-      // InformationFlow-linked steps (non-import paths), then to the
-      // instrument's own center.
       const anchorIds: string[] = [];
       if (step.processStepRef && layout.has(step.processStepRef)) {
         anchorIds.push(step.processStepRef);
@@ -1020,13 +1025,32 @@ export class DexpiToBpmnTransformer {
         .filter(id => layout.has(id))
         .map(id => { const box = layout.get(id)!; return box.x + box.w / 2; });
       const current = layout.get(step.id)!;
-      const desiredCenter = anchorCenters.length > 0
+      const center = anchorCenters.length > 0
         ? anchorCenters.reduce((sum, x) => sum + x, 0) / anchorCenters.length
         : current.x + current.w / 2;
+      desired.push({ id: step.id, center, w: current.w });
+    });
 
-      // All instrumentation sits on a single horizontal band above the
-      // highest process step (no separate bottom band).
-      topBand.push({ id: step.id, desiredX: desiredCenter - current.w / 2, band: 'top' });
+    // Generic rule: CENTER each cluster of instruments over the step it
+    // measures, so the middle instrument sits directly above that step and the
+    // association fan spreads symmetrically left/right — instead of the whole
+    // cluster extending to one side (which forces every association to cross
+    // back over the steps on that side). Members are spread in minGap slots
+    // centered on the shared anchor; placeBand's sweep then resolves any
+    // overlap between neighbouring clusters.
+    const groups = new Map<number, typeof desired>();
+    desired.forEach(d => {
+      const key = Math.round(d.center);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(d);
+    });
+    groups.forEach(members => {
+      members.sort((a, b) => a.id.localeCompare(b.id));
+      const n = members.length;
+      members.forEach((m, i) => {
+        const offset = (i - (n - 1) / 2) * minGap;
+        topBand.push({ id: m.id, desiredX: m.center - m.w / 2 + offset, band: 'top' });
+      });
     });
 
     if (topBand.length > 0) {
@@ -1048,7 +1072,6 @@ export class DexpiToBpmnTransformer {
     const bottomY = maxY + 120;
 
     const placeBand = (items: InstrumentBandItem[], y: number) => {
-      const minGap = TASK_W + 45;
       let nextX = MARGIN_X;
       items
         .sort((a, b) => a.desiredX - b.desiredX || a.id.localeCompare(b.id))
@@ -2887,6 +2910,19 @@ ${waypoints}
     // Vertical gap between the instrument's bottom edge and the top of its
     // data object, used to seat the data-object row just beneath the band.
     const INSTR_DATA_OBJ_GAP = 30;
+
+    // Highest process-box top per owner scope. This is the ceiling for the
+    // clear horizontal "channel" that association lines traverse so they run
+    // above every task/subprocess instead of cutting across one.
+    const mainTopByOwner = new Map<string, number>();
+    for (const s of steps) {
+      if (hiddenStepIds.has(s.id) || this.isInstrumentationStep(s)) continue;
+      const k = ownerKey(s.parentId);
+      const pos = (ownerLayouts.get(k) || layout).get(s.id);
+      if (!pos) continue;
+      mainTopByOwner.set(k, Math.min(mainTopByOwner.get(k) ?? Infinity, pos.y));
+    }
+
     steps
       .filter(s => !hiddenStepIds.has(s.id))
       .filter(s => this.isInstrumentationStep(s))
@@ -3028,12 +3064,23 @@ ${qualLines}
         }
 
         // Edge from dataObject → referenced ProcessStep (DataInputAssociation).
-        const dobjBelowRef = dobjCenterY >= rCy;
-        const rEdgeY = dobjBelowRef ? refPos.y + refPos.h : refPos.y;
-        const dobjEdgeYFromRef = dobjBelowRef ? dobjY : dobjY + INSTR_DATA_OBJ_H;
+        // Routed orthogonally to avoid crossing any task/subprocess: drop from
+        // the data object into a clear horizontal channel that runs above every
+        // process box, traverse to directly above the measured step, then drop
+        // vertically into its top edge. The horizontal leg sits above all boxes
+        // and the vertical leg occupies the (normally clear) column above the
+        // measured step, so the line never cuts through a box.
+        const dobjBottomY = dobjY + INSTR_DATA_OBJ_H;
+        const dobjCx = dobjX + INSTR_DATA_OBJ_W / 2;
+        const minBoxTop = mainTopByOwner.get(activityKey) ?? refPos.y;
+        let channelY = minBoxTop - 25;
+        if (channelY < dobjBottomY + 5) channelY = dobjBottomY + 5;
+        if (channelY > refPos.y - 5) channelY = refPos.y - 5;
         const edgeInXml = `      <bpmndi:BPMNEdge id="${inAssocId}_di" bpmnElement="${inAssocId}">
-        <di:waypoint x="${dobjX + INSTR_DATA_OBJ_W / 2}" y="${dobjEdgeYFromRef}"/>
-        <di:waypoint x="${rCx}" y="${rEdgeY}"/>
+        <di:waypoint x="${dobjCx}" y="${dobjBottomY}"/>
+        <di:waypoint x="${dobjCx}" y="${channelY}"/>
+        <di:waypoint x="${rCx}" y="${channelY}"/>
+        <di:waypoint x="${rCx}" y="${refPos.y}"/>
       </bpmndi:BPMNEdge>`;
         if (activityKey === rootOwner) {
           edgeElements.push(edgeInXml);
