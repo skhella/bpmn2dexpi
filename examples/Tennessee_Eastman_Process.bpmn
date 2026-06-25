@@ -1959,7 +1959,7 @@
           <dexpi:data property="Identifier">1-State</dexpi:data>
           <dexpi:data property="Label">A Feed State</dexpi:data>
           <dexpi:data property="Description">State-type for A Feed</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">11.2</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -1984,7 +1984,7 @@
           <dexpi:data property="Identifier">2-State</dexpi:data>
           <dexpi:data property="Label">D Feed State</dexpi:data>
           <dexpi:data property="Description">State-type for D Feed</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">114.5</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -2009,7 +2009,7 @@
           <dexpi:data property="Identifier">3-State</dexpi:data>
           <dexpi:data property="Label">E Feed State</dexpi:data>
           <dexpi:data property="Description">State-type for E Feed</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">98.0</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -2034,7 +2034,7 @@
           <dexpi:data property="Identifier">7-State</dexpi:data>
           <dexpi:data property="Label">Reactor Product State</dexpi:data>
           <dexpi:data property="Description">State-type for Reactor Product</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">1476.0</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -2059,7 +2059,7 @@
           <dexpi:data property="Identifier">4-State</dexpi:data>
           <dexpi:data property="Label">C Feed State</dexpi:data>
           <dexpi:data property="Description">State-type for C Feed</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">417.5</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -2084,7 +2084,7 @@
           <dexpi:data property="Identifier">11-State</dexpi:data>
           <dexpi:data property="Label">Product State</dexpi:data>
           <dexpi:data property="Description">State-type for Product</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">211.3</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -2109,7 +2109,7 @@
           <dexpi:data property="Identifier">5-State</dexpi:data>
           <dexpi:data property="Label">Strp Ovhd State</dexpi:data>
           <dexpi:data property="Description">State-type for Strp Ovhd</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">465.7</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -2134,7 +2134,7 @@
           <dexpi:data property="Identifier">10-State</dexpi:data>
           <dexpi:data property="Label">Separation liquid State</dexpi:data>
           <dexpi:data property="Description">State-type for Separation liquid</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">259.5</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -2159,7 +2159,7 @@
           <dexpi:data property="Identifier">9-State</dexpi:data>
           <dexpi:data property="Label">Purge State</dexpi:data>
           <dexpi:data property="Description">State-type for Purge</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">15.1</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -2184,7 +2184,7 @@
           <dexpi:data property="Identifier">8-State</dexpi:data>
           <dexpi:data property="Label">Recycle State</dexpi:data>
           <dexpi:data property="Description">State-type for Recycle</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">1201.5</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
@@ -2209,7 +2209,7 @@
           <dexpi:data property="Identifier">6-State</dexpi:data>
           <dexpi:data property="Label">Reactor Feed State</dexpi:data>
           <dexpi:data property="Description">State-type for Reactor Feed</dexpi:data>
-          <dexpi:components property="MoleFlow">
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">1890.8</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>

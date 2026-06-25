@@ -207,6 +207,7 @@
       "superClass": ["Element"],
       "properties": [
         { "name": "property", "isAttr": true, "type": "String" },
+        { "name": "unitEnum", "isAttr": true, "type": "String" },
         { "name": "objects", "type": "Object", "isMany": true }
       ]
     },

@@ -102,7 +102,7 @@ describe('Strict mode close-the-loop — gen Profile → reload → re-validate 
     // residual findings count unchanged at 149. If a future refactor
     // renames this option, this assertion will catch it.
     const t2 = new BpmnToDexpiTransformer();
-    await t2.transform(bpmn, {
+    const closed = await t2.transform(bpmn, {
       processXml: PROCESS_XML,
       coreXml: CORE_XML,
       strict: true,
@@ -122,6 +122,13 @@ describe('Strict mode close-the-loop — gen Profile → reload → re-validate 
     expect(t2.lastReferenceValidation?.valid).toBe(true);
     expect(t2.lastCardinalityValidation?.valid).toBe(true);
     expect(t2.lastClassExistenceValidation?.valid).toBe(true);
+
+    // The MoleFlow vocabulary gap closes via the extension: its custom per-hour
+    // unit now resolves on DEXPI's own MoleFlowRateUnit (the quantity authored on
+    // the measurement), value preserved — the paper's "extension closes the gap".
+    expect(closed, 'MoleFlow resolves onto DEXPI MoleFlowRateUnit after the Profile').toMatch(
+      /Core\/PhysicalQuantities\.MoleFlowRateUnit\.KilomolePerHour/,
+    );
   });
 
   it('Profile generator output is deterministic — same input produces identical XML', { timeout: 30_000 }, async () => {
