@@ -1099,7 +1099,16 @@ function App() {
         const dexpiXml = await file.text();
         // DEXPI → BPMN using the importer's own heuristic layout
         // (obstacle-aware routing, port anchoring, collision avoidance).
-        const bpmnXml = await new DexpiToBpmnTransformer().transform(dexpiXml);
+        // Pass the bundled DEXPI schema so the class registry loads in the
+        // browser. Without it registry.size === 0 (the disk loader relies on
+        // __dirname, which doesn't exist in the browser), so instrumentation
+        // subclasses like MeasuringProcessVariable are not recognized as
+        // InstrumentationActivity and the data-object/association
+        // reconstruction is silently skipped.
+        const bpmnXml = await new DexpiToBpmnTransformer().transform(dexpiXml, {
+          processXml: processXmlRaw,
+          coreXml: coreXmlRaw,
+        });
         const preprocessedText = preprocessBpmnXml(bpmnXml);
         await modeler.importXML(preprocessedText);
         refreshAllElementsAfterImport(modeler);
