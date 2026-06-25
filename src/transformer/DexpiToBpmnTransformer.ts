@@ -3081,26 +3081,17 @@ ${qualLines}
         if (channelY > refPos.y - 5) channelY = refPos.y - 5;
 
         // Trunk entry on the measured step's TOP edge. Default: step centre.
-        // Generic rule: if any non-instrument flow already meets the step's top
-        // edge — i.e. its other endpoint is stacked directly above the step
-        // (bottom at/above the step's top, horizontally overlapping, so the
-        // edge comes in perpendicular from above) — then the centre is taken.
-        // This covers an energy boundary proxy (e.g. an electrical-energy
-        // Source) but also ANY element placed above. In that case shift the
-        // trunk in toward the step's side so the two connections don't overlap.
-        const refTopUsed = connections.some(conn => {
-          if (conn.hidden || conn.dexpiType === 'InformationFlow') return false;
-          const a = portToStep.get(conn.sourcePortId);
-          const b = portToStep.get(conn.targetPortId);
-          const otherId = a === refStepId ? b : b === refStepId ? a : undefined;
-          if (!otherId || this.isInstrumentationStep(stepById.get(otherId))) return false;
-          const op = ownerLayout.get(otherId)
-            || (ownerLayouts.get(ownerKey(stepById.get(otherId)?.parentId)) || layout).get(otherId);
-          if (!op) return false;
-          const stackedAbove = op.y + op.h <= refPos.y + 4;
-          const overlapX = op.x < refPos.x + refPos.w && op.x + op.w > refPos.x;
-          return stackedAbove && overlapX;
-        });
+        // Generic rule: a non-instrument flow enters a step from the top
+        // exactly when the step has an energy INLET — in this layout energy
+        // ports anchor on the top (inlet) / bottom (outlet) edge, while
+        // material/information ports anchor left/right and so never share the
+        // top edge. So any mechanical/thermal/electrical energy inlet (e.g.
+        // ReactingChemicals' MEI1 from the drive, or DrivingByMotor's EEI1)
+        // means a flow comes straight into the top-centre. That contests the
+        // centre with the instrumentation trunk, so shift the trunk aside.
+        const refTopUsed = refStep.ports.some(
+          p => this.isEnergyPort(p) && p.direction !== 'Outlet'
+        );
         let trunkX = rCx;
         if (refTopUsed) {
           // Enter one data-object width in from the step side nearest the data
