@@ -2884,6 +2884,9 @@ ${waypoints}
     const instrDobjEmitted = new Set<string>();
     const INSTR_DATA_OBJ_W = 36;
     const INSTR_DATA_OBJ_H = 50;
+    // Vertical gap between the instrument's bottom edge and the top of its
+    // data object, used to seat the data-object row just beneath the band.
+    const INSTR_DATA_OBJ_GAP = 30;
     steps
       .filter(s => !hiddenStepIds.has(s.id))
       .filter(s => this.isInstrumentationStep(s))
@@ -2917,13 +2920,21 @@ ${waypoints}
         if (instrDobjEmitted.has(dobjRefId)) return;
         instrDobjEmitted.add(dobjRefId);
 
-        // Position the dataObject at the midpoint between the two tasks.
+        // Generic rule: seat each instrumentation data object directly below
+        // the instrument that produces it, in a row just beneath the
+        // instrument band — rather than at the midpoint to the measured step.
+        // positionInstrumentationActivities already orders instruments
+        // left-to-right by the X of the step they measure, so this makes every
+        // instrument→dataObject edge vertical and every dataObject→step edge a
+        // monotonic downward fan. Order-preserving connections from a common
+        // row cannot cross one another, which keeps the association lines from
+        // crossing.
         const aCx = activityPos.x + activityPos.w / 2;
         const aCy = activityPos.y + activityPos.h / 2;
         const rCx = refPos.x + refPos.w / 2;
         const rCy = refPos.y + refPos.h / 2;
-        const dobjX = (aCx + rCx) / 2 - INSTR_DATA_OBJ_W / 2;
-        const dobjY = (aCy + rCy) / 2 - INSTR_DATA_OBJ_H / 2;
+        const dobjX = aCx - INSTR_DATA_OBJ_W / 2;
+        const dobjY = activityPos.y + activityPos.h + INSTR_DATA_OBJ_GAP;
 
         const outAssocId = `DataOutputAssociation_${dobjRefId}`;
         const inAssocId = `DataInputAssociation_${dobjRefId}`;
