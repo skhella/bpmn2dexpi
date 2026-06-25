@@ -214,20 +214,24 @@ export class DexpiProcessClassRegistry {
 
     for (const source of sources) {
       const { classes: parsed, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml(source);
-      // Merge enumerations: later sources override earlier ones for the
-      // same name. The TEP fixture currently has no enum collisions across
-      // Process+Core; if a Profile redefines an enum, the Profile's
-      // literals win.
+      // Merge enumerations ADDITIVELY, mirroring the class merge below: a later
+      // source (e.g. a generated Profile) declaring an enumeration of the same
+      // name EXTENDS it — new literals union in — rather than shadowing it. This
+      // is what lets a Profile add a missing unit literal (e.g. KilomolePerHour)
+      // to DEXPI's own MoleFlowRateUnit rather than creating a parallel enum.
       for (const [enumName, literals] of parsedEnums) {
-        enumerations.set(enumName, literals);
+        const existing = enumerations.get(enumName);
+        if (existing) {
+          const have = new Set(existing);
+          for (const l of literals) if (!have.has(l)) existing.push(l);
+        } else {
+          enumerations.set(enumName, [...literals]);
+        }
       }
-      // Merge the fully-qualified enum index the same way — keyed by
-      // Model/Package.Enum so two enums of the same bare name in different
-      // packages never collide; a later source (Profile) redeclaring the
-      // same qualified path wins.
-      for (const [qualifiedPath, detail] of parsedEnumDetails) {
-        enumDetails.set(qualifiedPath, detail);
-      }
+      // Same additive union for the fully-qualified enum index, keyed by
+      // package+name so the same enum from two model namespaces (Core vs a
+      // Profile) merges in place and keeps Core's qualified path canonical.
+      mergeEnumDetailsAdditive(enumDetails, parsedEnumDetails);
       for (const cls of parsed) {
         // Bare-name dedup assumes class names are globally unique across all
         // loaded DEXPI sources. This holds for DEXPI 2.0 — Process.xml +
@@ -502,14 +506,23 @@ export class DexpiProcessClassRegistry {
       cloned.set(k, { ...v, properties: [...v.properties], superTypes: [...v.superTypes] });
     }
     const { classes: parsed, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml({ name, xml });
-    // Clone enums + merge new ones (later wins for same name).
+    // Clone enums + merge new ones ADDITIVELY (same package+name extends in
+    // place rather than shadowing — consistent with fromXmlSources and the
+    // class merge, so a Profile unit literal lands on the real enum).
     const clonedEnums = new Map<string, string[]>();
     for (const [k, v] of this.enumerations) clonedEnums.set(k, [...v]);
-    for (const [k, v] of parsedEnums) clonedEnums.set(k, v);
-    // Clone + merge the qualified enum index the same way.
+    for (const [enumName, literals] of parsedEnums) {
+      const existing = clonedEnums.get(enumName);
+      if (existing) {
+        const have = new Set(existing);
+        for (const l of literals) if (!have.has(l)) existing.push(l);
+      } else {
+        clonedEnums.set(enumName, [...literals]);
+      }
+    }
     const clonedEnumDetails = new Map<string, EnumDetail>();
     for (const [k, v] of this.enumDetails) clonedEnumDetails.set(k, v);
-    for (const [k, v] of parsedEnumDetails) clonedEnumDetails.set(k, v);
+    mergeEnumDetailsAdditive(clonedEnumDetails, parsedEnumDetails);
     const mergeWarnings: string[] = [...this.mergeWarnings];
     const conflicts: string[] = [];
     // Same selective-throw semantics as fromXmlSources — divergent
@@ -712,6 +725,21 @@ export class DexpiProcessClassRegistry {
   }
 
   /**
+   * Bare names of every PhysicalQuantities unit enumeration the registry knows
+   * (Core + any loaded Profiles). The Profile generator uses this to place a
+   * missing unit literal under the unit enum its carrying property best matches
+   * (e.g. a `MoleFlow` property → `MoleFlowRateUnit`) rather than guessing a
+   * name. Sorted for deterministic generator output.
+   */
+  unitEnumNames(): string[] {
+    const names = new Set<string>();
+    for (const detail of this.enumDetails.values()) {
+      if (detail.package === 'PhysicalQuantities') names.add(detail.name);
+    }
+    return [...names].sort();
+  }
+
+  /**
    * Literal names of a unit enumeration path — for the properties-panel unit
    * picker (the same literals+Custom dropdown used for any enum-typed value).
    */
@@ -848,6 +876,38 @@ function parseSchemaXml(source: SchemaSource): ParsedSchema {
   }
 
   return { classes: out, enumerations, enumDetails };
+}
+
+/**
+ * Additively merge a parsed enumeration index into an accumulating one, keyed by
+ * package+name rather than model-qualified path. A later source declaring an
+ * enumeration of the same package+name EXTENDS the existing one (new literals
+ * union in); the first source's qualified path stays canonical, so a Profile
+ * that adds a unit literal extends e.g. Core's MoleFlowRateUnit in place and
+ * references resolve to the Core path. Mirrors the additive class merge.
+ */
+function mergeEnumDetailsAdditive(
+  target: Map<string, EnumDetail>,
+  incoming: Map<string, EnumDetail>,
+): void {
+  const byPkgName = new Map<string, string>();
+  for (const [path, d] of target) byPkgName.set(`${d.package} ${d.name}`, path);
+  for (const [path, detail] of incoming) {
+    const key = `${detail.package} ${detail.name}`;
+    const canonical = byPkgName.get(key);
+    if (canonical) {
+      const existing = target.get(canonical)!;
+      const have = new Set(existing.literals.map(l => l.name));
+      const merged = [...existing.literals];
+      for (const lit of detail.literals) {
+        if (!have.has(lit.name)) { merged.push(lit); have.add(lit.name); }
+      }
+      target.set(canonical, { ...existing, literals: merged });
+    } else {
+      byPkgName.set(key, path);
+      target.set(path, detail);
+    }
+  }
 }
 
 /**
