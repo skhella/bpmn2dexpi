@@ -228,19 +228,27 @@ describe('TEP canonical QualifiedValue emit', () => {
     expect(count(/Core\/DataTypes\.QuantityProvenance\.Observed/g)).toBe(19);
   });
 
-  it('resolves the unbound MoleFlow unit globally (KilomolePerSecond → Core MoleFlowRateUnit, no warning)', () => {
+  it('fails closed on the unbound MoleFlow unit (paper KilomolePerHour has no DEXPI literal → bare Double + warning)', () => {
     // MaterialStateType.MoleFlow is a project/profile-extension property with no
     // unit binding in Process.xml, so the bound-enum path can't resolve it. The
-    // global fallback searches every PhysicalQuantities unit enum and finds the
-    // canonical per-second molar-flow literal. KilomolePerHour would NOT resolve
-    // (DEXPI has no per-hour molar-flow unit), which is why the fixture rescales
-    // to KilomolePerSecond.
-    expect(out).toContain('<DataReference data="Core/PhysicalQuantities.MoleFlowRateUnit.KilomolePerSecond"/>');
-    // No fail-closed warning for MoleFlow now that it resolves.
-    const moleFlowWarn = warnings.filter(w => w.includes('MoleFlow') && w.includes('fail-closed'));
-    expect(moleFlowWarn).toEqual([]);
-    // The non-existent per-hour molar-flow literal is never invented.
+    // global fallback then searches every PhysicalQuantities unit enum — but
+    // DEXPI's MoleFlowRateUnit is per-second only (KilomolePerSecond,
+    // PoundMolePerSecond); there is NO per-hour molar-flow unit anywhere. The
+    // fixture stays faithful to the paper's 11.2 KilomolePerHour, so the unit
+    // resolves to nothing. Rather than invent a literal or rescale the data, the
+    // emitter fails closed: the value survives as a bare <Double> and a warning
+    // is logged.
+    expect(out).not.toContain('Core/PhysicalQuantities.MoleFlowRateUnit.');
+    // Never invents the non-existent per-hour molar-flow literal, and never
+    // silently rescales to the per-second one.
     expect(out).not.toContain('MoleFlowRateUnit.KilomolePerHour');
+    expect(out).not.toContain('MoleFlowRateUnit.KilomolePerSecond');
+    // The fail-closed warning is surfaced for MoleFlow.
+    const moleFlowWarn = warnings.filter(w => w.includes('MoleFlow') && w.includes('fail-closed'));
+    expect(moleFlowWarn.length).toBeGreaterThan(0);
+    // The numeric value is kept as a bare Double (the Double arm of
+    // QualifiedValue.Type), not dropped to <Undefined/> nor a flat <String>.
+    expect(out).toContain('<Double>11.2</Double>');
   });
 
   it('validates against the DEXPI 2.0 envelope (no Unit/qualifier regressions)', () => {

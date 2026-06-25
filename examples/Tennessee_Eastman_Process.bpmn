@@ -1961,7 +1961,7 @@
           <dexpi:data property="Description">State-type for A Feed</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.00311111</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">11.2</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S1_Composition" />
@@ -1986,7 +1986,7 @@
           <dexpi:data property="Description">State-type for D Feed</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.0318056</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">114.5</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S2_Composition" />
@@ -2011,7 +2011,7 @@
           <dexpi:data property="Description">State-type for E Feed</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.0272222</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">98.0</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S3_Composition" />
@@ -2036,7 +2036,7 @@
           <dexpi:data property="Description">State-type for Reactor Product</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.41</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">1476.0</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S7_Composition" />
@@ -2061,7 +2061,7 @@
           <dexpi:data property="Description">State-type for C Feed</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.115972</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">417.5</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S4_Composition" />
@@ -2086,7 +2086,7 @@
           <dexpi:data property="Description">State-type for Product</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.0586944</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">211.3</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S11_Composition" />
@@ -2111,7 +2111,7 @@
           <dexpi:data property="Description">State-type for Strp Ovhd</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.129361</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">465.7</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S5_Composition" />
@@ -2136,7 +2136,7 @@
           <dexpi:data property="Description">State-type for Separation liquid</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.0720833</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">259.5</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S10_Composition" />
@@ -2161,7 +2161,7 @@
           <dexpi:data property="Description">State-type for Purge</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.00419444</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">15.1</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f_Composition" />
@@ -2186,7 +2186,7 @@
           <dexpi:data property="Description">State-type for Recycle</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.33375</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">1201.5</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S8_Composition" />
@@ -2211,7 +2211,7 @@
           <dexpi:data property="Description">State-type for Reactor Feed</dexpi:data>
           <dexpi:components property="MoleFlow">
             <dexpi:object type="Core/QualifiedValue">
-              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.525222</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerHour</dexpi:data><dexpi:data property="Value">1890.8</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
             </dexpi:object>
           </dexpi:components>
           <dexpi:references property="Composition" uidRef="uuid_MS_S6_Composition" />

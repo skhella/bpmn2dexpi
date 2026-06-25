@@ -16,8 +16,9 @@ the homegrown `UnitReference` Data child is gone (D6).
 > flat-`extensionElements` alternative — this branch makes the *authoring*
 > shape canonical too, so the listings that print `extensionElements` now show
 > the nested carrier. Concretely: (1) restructure Listings 1 and 2 to the nested
-> form, (2) two unit-token edits inside them, (3) the `MoleFlow` rescale, and
-> (4) one methodology sentence. Details below.
+> form, (2) two unit-token edits inside them, and (3) one methodology sentence.
+> (`MoleFlow` needs **no** edit — it stays `11.2 KilomolePerHour` as printed and
+> fails closed, since DEXPI has no per-hour molar-flow unit.) Details below.
 
 ---
 
@@ -112,32 +113,31 @@ Apply **three** changes:
      `Fraction`. The 8 fraction **values stay exactly as printed** (0.99990,
      0.00010, …); only the unit token moves and the carrier nests.
 
-3. **`MoleFlow` — rescale to per-second.** DEXPI's `MoleFlowRateUnit` has **only
-   per-second literals** (`KilomolePerSecond`, `PoundMolePerSecond`); there is
-   **no** per-hour molar-flow unit anywhere in DEXPI, so `KilomolePerHour`
-   cannot resolve. `MaterialStateType.MoleFlow` has no unit binding (it is a
-   project/profile extension — Process.xml declares no molar-flow property), so
-   the implementation resolves the unit by a **global** search across the
-   `PhysicalQuantities` unit enumerations and binds it to the canonical core
-   literal `MoleFlowRateUnit.KilomolePerSecond`. The fixture therefore carries
-   `MoleFlow` in **`KilomolePerSecond`**, with the value **rescaled `÷ 3600`**:
+3. **`MoleFlow` — keep `KilomolePerHour`; it fails closed.** The fixture stays
+   **faithful to the paper**: `MoleFlow` is carried in **`KilomolePerHour`** with
+   the value **`11.2`** unchanged (nested in a `PhysicalQuantity`). DEXPI's
+   `MoleFlowRateUnit`, however, has **only per-second literals**
+   (`KilomolePerSecond`, `PoundMolePerSecond`) — there is **no** per-hour
+   molar-flow unit anywhere in DEXPI. `MaterialStateType.MoleFlow` also has no
+   unit binding (it is a project/profile extension — Process.xml declares no
+   molar-flow property), so the implementation tries a **global** search across
+   the `PhysicalQuantities` unit enumerations; `KilomolePerHour` matches nothing.
 
-   | Listing 2 value (kmol/h) | Becomes (kmol/s) |
-   | --- | --- |
-   | 11.2 | 0.0031111 |
+   Rather than invent a literal or silently rescale the data, the emitter **fails
+   closed**: the value `11.2` survives as a bare `<Double>` (the `Double` arm of
+   `QualifiedValue.Type`) with **no `<DataReference>` unit**, and a warning is
+   logged. So Listing 2 needs **no MoleFlow edit at all** — `11.2 KilomolePerHour`
+   is reproduced verbatim; only the carrier nests like the other measurements.
 
-   So in Listing 2: change the `MoleFlow` unit `KilomolePerHour` → **`KilomolePerSecond`**
-   and the value `11.2` → **`0.0031111`** (nested in a `PhysicalQuantity`).
-
-   > Why per-second (and not a profile unit): `MaterialStateType`'s other flow
-   > properties (e.g. `MassFlow`) bind to a **core** unit enum
-   > (`MassFlowRateUnit`). Carrying `MoleFlow` in the core per-second molar-flow
-   > unit keeps it in the same standard vocabulary rather than minting a profile
-   > unit, and it resolves with **no fail-closed warning**. This is fully
-   > consistent with Section 5's statement that `MaterialStateType` has "no
-   > molar-flow counterpart" as a *declared property* — the value is still a
-   > vocabulary-gap extension at the **property** level; only its **unit** is now
-   > a resolved core literal.
+   > Why fail-closed (and not rescale to per-second, nor mint a profile unit):
+   > rescaling `÷ 3600` to `KilomolePerSecond` would alter the paper's printed
+   > datum, and minting a profile per-hour unit would leave the standard
+   > vocabulary. Failing closed keeps the **data** exactly as published and is
+   > honest about DEXPI's genuine vocabulary gap — fully consistent with
+   > Section 5's statement that `MaterialStateType` has "no molar-flow
+   > counterpart": the gap is real not only at the **property** level but at the
+   > **unit** level too, and the output says so (bare value + warning) instead of
+   > papering over it.
 
 ---
 
@@ -211,7 +211,7 @@ class existence)" stays exactly correct.
 
 - [ ] Listing 1: restructure measurements to nested `PhysicalQuantity`; `degC` → `DegreeCelsius`.
 - [ ] Listing 2: restructure fraction vector to nested `PhysicalQuantityVector`; `Fraction` → `Percent` (leave `Display`=`Fraction`, 8 values unchanged).
-- [ ] Listing 2: `MoleFlow` `KilomolePerHour` → `KilomolePerSecond`, value `11.2` → `0.0031111` (nested `PhysicalQuantity`).
+- [ ] Listing 2: `MoleFlow` — **no value/unit edit**; keep `11.2 KilomolePerHour` (nested `PhysicalQuantity`). It fails closed to a bare `Double` + warning (DEXPI has no per-hour molar-flow unit).
 - [ ] Section 3: one sentence noting the `PhysicalQuantity(Vector)` nesting + unit `DataReference`.
 - [ ] (optional) one sentence strengthening the data-type/enumeration-reference validation claim.
 - [ ] No edits to Section 5 prose, the five-dimension framing, Table 3, or the figures.
