@@ -1420,18 +1420,21 @@ export class DexpiToBpmnTransformer {
       layout.set(step.id, { x: MARGIN_X, y: MARGIN_Y, w: TASK_W, h: TASK_H });
     });
 
-    this.positionInstrumentationActivities(visibleSteps, connections, layout, hiddenStepIds);
-
     // Generic rule: place energy-port boundary proxy events (TEI/TEO/MEI/MEO/
     // EEI/EEO sources/sinks at a subprocess boundary) above or below the
     // interior task they connect to, instead of mixing them into the left/right
-    // material flow.
+    // material flow. This runs BEFORE the instrumentation band so the band
+    // (computed from the highest non-instrument element) sits clear of these
+    // events — the band must clear the highest element of ANY type, not just
+    // the highest task.
     this.positionEnergyBoundaryProxies(
       visibleSteps.filter(step => energyBoundaryProxies.has(step.id)),
       connections,
       layout,
       portToStep
     );
+
+    this.positionInstrumentationActivities(visibleSteps, connections, layout, hiddenStepIds);
 
     return layout;
   }
@@ -3076,11 +3079,40 @@ ${qualLines}
         let channelY = minBoxTop - 25;
         if (channelY < dobjBottomY + 5) channelY = dobjBottomY + 5;
         if (channelY > refPos.y - 5) channelY = refPos.y - 5;
+
+        // Trunk entry on the measured step's TOP edge. Default: step centre.
+        // Generic rule: if any non-instrument flow already meets the step's top
+        // edge — i.e. its other endpoint is stacked directly above the step
+        // (bottom at/above the step's top, horizontally overlapping, so the
+        // edge comes in perpendicular from above) — then the centre is taken.
+        // This covers an energy boundary proxy (e.g. an electrical-energy
+        // Source) but also ANY element placed above. In that case shift the
+        // trunk in toward the step's side so the two connections don't overlap.
+        const refTopUsed = connections.some(conn => {
+          if (conn.hidden || conn.dexpiType === 'InformationFlow') return false;
+          const a = portToStep.get(conn.sourcePortId);
+          const b = portToStep.get(conn.targetPortId);
+          const otherId = a === refStepId ? b : b === refStepId ? a : undefined;
+          if (!otherId || this.isInstrumentationStep(stepById.get(otherId))) return false;
+          const op = ownerLayout.get(otherId)
+            || (ownerLayouts.get(ownerKey(stepById.get(otherId)?.parentId)) || layout).get(otherId);
+          if (!op) return false;
+          const stackedAbove = op.y + op.h <= refPos.y + 4;
+          const overlapX = op.x < refPos.x + refPos.w && op.x + op.w > refPos.x;
+          return stackedAbove && overlapX;
+        });
+        let trunkX = rCx;
+        if (refTopUsed) {
+          // Enter one data-object width in from the step side nearest the data
+          // object, leaving the contested centre for the perpendicular flow.
+          const inset = INSTR_DATA_OBJ_W;
+          trunkX = dobjCx <= rCx ? refPos.x + inset : refPos.x + refPos.w - inset;
+        }
         const edgeInXml = `      <bpmndi:BPMNEdge id="${inAssocId}_di" bpmnElement="${inAssocId}">
         <di:waypoint x="${dobjCx}" y="${dobjBottomY}"/>
         <di:waypoint x="${dobjCx}" y="${channelY}"/>
-        <di:waypoint x="${rCx}" y="${channelY}"/>
-        <di:waypoint x="${rCx}" y="${refPos.y}"/>
+        <di:waypoint x="${trunkX}" y="${channelY}"/>
+        <di:waypoint x="${trunkX}" y="${refPos.y}"/>
       </bpmndi:BPMNEdge>`;
         if (activityKey === rootOwner) {
           edgeElements.push(edgeInXml);
