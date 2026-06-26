@@ -228,6 +228,15 @@ export interface ScalarFlowProperty {
   property: string;
   value: string;
   unit?: string;
+  /**
+   * Authored quantity choice (bare unit-enum name, e.g. 'MoleFlowRateUnit') from
+   * the `unitEnum` attribute on the `<dexpi:components>` carrier. Only meaningful
+   * for a custom measurement whose unit is not in the standard vocabulary and
+   * whose property carries no schema unit-binding; the emitter uses it to write a
+   * fully-qualified unit `DataReference` so the data-type tier (D9) can flag the
+   * missing literal, which the Profile extension then closes.
+   */
+  unitEnum?: string;
 }
 
 export interface FlowData {

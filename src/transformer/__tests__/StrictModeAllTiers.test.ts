@@ -99,16 +99,16 @@ describe('Strict mode — all five post-XSD tiers wired', () => {
       w.includes('Strict-mode fidelity findings'),
     );
     expect(summaryWarning).toBeDefined();
-    // Property-name + kind is the remaining tier with findings on TEP
-    // (Profile-extension territory — non-canonical CompositionProperty names
-    // like Level, MassFlow, Composition, Duty etc. emitted on ProcessStep
-    // classes that don't declare them in Process.xml; non-canonical
-    // ProcessStepReference/MeasuredVariableReference on
-    // ControllingProcessVariable; the Profile generator declares them all).
-    // Cardinality, reference target-class and data-type are all clean.
+    // Two tiers have findings on TEP. (1) property-name + kind — Profile-extension
+    // territory (non-canonical CompositionProperty names like Level, MassFlow,
+    // Composition, Duty etc. emitted on ProcessStep classes that don't declare
+    // them; non-canonical ProcessStepReference/MeasuredVariableReference on
+    // ControllingProcessVariable). (2) data-type — the authored MoleFlow unit
+    // (KilomolePerHour, not yet a MoleFlowRateUnit literal). The Profile generator
+    // closes both. Cardinality and reference target-class stay clean.
     expect(summaryWarning).toContain('property-name + kind');
+    expect(summaryWarning).toContain('data-type');
     expect(summaryWarning).not.toContain('cardinality');
     expect(summaryWarning).not.toContain('reference target-class');
-    expect(summaryWarning).not.toContain('data-type');
   });
 });

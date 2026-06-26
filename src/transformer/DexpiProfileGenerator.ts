@@ -1015,11 +1015,6 @@ function countClasses(accumulated: Map<string, AccumulatedClass>): number {
   return accumulated.size;
 }
 
-/** Enumeration a generic, quantity-less custom unit is parked under. It extends
- *  PhysicalQuantityUnit (the abstract root of every DEXPI unit enumeration) —
- *  the unit-world analog of Core/ConceptualObject. */
-const GENERIC_UNIT_ENUM = 'ProjectUnit';
-
 /** Bare enum name from a qualified unit-enum ref (Core/PhysicalQuantities.X -> X). */
 function bareEnumName(ref: string): string {
   return ref.split(/[./]/).pop() ?? ref;
@@ -1065,12 +1060,16 @@ function collectUnresolvedUnits(
     // never matched against enum names.
     const explicitEnum = p?.getAttribute('unitEnum') ?? undefined;
     const boundRef = className && propName ? registry.getUnitEnumRefForProperty(className, propName) : null;
-    const enumName = explicitEnum ?? (boundRef ? bareEnumName(boundRef) : GENERIC_UNIT_ENUM);
-    const placed = explicitEnum != null || boundRef != null;
-    const dedup = `${enumName} ${token}`;
+    // Target quantity, or null when the unit is unplaceable (no authored choice
+    // and no schema binding). An unplaceable unit is reported for a warning only
+    // and never emitted into the Profile, so it carries no target enum — there is
+    // no invented fallback name.
+    const targetEnum = explicitEnum ?? (boundRef ? bareEnumName(boundRef) : null);
+    const placed = targetEnum !== null;
+    const dedup = placed ? `${targetEnum} ${token}` : `unplaceable ${className}.${propName} ${token}`;
     if (seen.has(dedup)) continue;
     seen.add(dedup);
-    out.push({ enumName, literal: token, placed, needsBinding: explicitEnum != null, className, propName });
+    out.push({ enumName: targetEnum ?? '', literal: token, placed, needsBinding: explicitEnum != null, className, propName });
   }
   return out;
 }

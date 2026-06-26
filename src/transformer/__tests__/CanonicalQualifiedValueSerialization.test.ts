@@ -228,36 +228,41 @@ describe('TEP canonical QualifiedValue emit', () => {
     expect(count(/Core\/DataTypes\.QuantityProvenance\.Observed/g)).toBe(19);
   });
 
-  it('fails closed on the unbound MoleFlow unit (paper KilomolePerHour has no DEXPI literal → bare Double + warning)', () => {
+  it('emits the authored MoleFlow quantity as a unit DataReference — D9 flags the missing literal, value never rescaled', () => {
     // MaterialStateType.MoleFlow is a project/profile-extension property with no
-    // unit binding in Process.xml, so the bound-enum path can't resolve it. The
-    // global fallback then searches every PhysicalQuantities unit enum — but
-    // DEXPI's MoleFlowRateUnit is per-second only (KilomolePerSecond,
-    // PoundMolePerSecond); there is NO per-hour molar-flow unit anywhere. The
-    // fixture stays faithful to the paper's 11.2 KilomolePerHour, so the unit
-    // resolves to nothing. Rather than invent a literal or rescale the data, the
-    // emitter fails closed: the value survives as a bare <Double> and a warning
-    // is logged.
-    expect(out).not.toContain('Core/PhysicalQuantities.MoleFlowRateUnit.');
-    // Never invents the non-existent per-hour molar-flow literal, and never
-    // silently rescales to the per-second one.
-    expect(out).not.toContain('MoleFlowRateUnit.KilomolePerHour');
+    // unit binding in Process.xml, but the fixture authors the quantity
+    // (unitEnum="MoleFlowRateUnit"). DEXPI's MoleFlowRateUnit is per-second only
+    // (KilomolePerSecond, PoundMolePerSecond) — there is NO per-hour molar-flow
+    // literal anywhere. Rather than invent one, rescale the paper's 11.2
+    // KilomolePerHour, or drop the unit, the emitter writes the fully-qualified
+    // reference onto the authored quantity. The data-type tier (D9) then flags
+    // the missing literal as an ordinary finding, which the Profile extension
+    // closes — units close through the SAME validate -> generate -> reload loop
+    // as missing properties.
+    expect(out).toContain('Core/PhysicalQuantities.MoleFlowRateUnit.KilomolePerHour');
+    // Never silently rescaled to the per-second literal.
     expect(out).not.toContain('MoleFlowRateUnit.KilomolePerSecond');
-    // The fail-closed warning is surfaced for MoleFlow.
-    const moleFlowWarn = warnings.filter(w => w.includes('MoleFlow') && w.includes('fail-closed'));
-    expect(moleFlowWarn.length).toBeGreaterThan(0);
-    // The numeric value is kept as a bare Double (the Double arm of
-    // QualifiedValue.Type), not dropped to <Undefined/> nor a flat <String>.
+    // The numeric value is kept verbatim (the per-hour magnitude the engineer wrote).
     expect(out).toContain('<Double>11.2</Double>');
+    // Placed on its authored quantity, not dropped — so no fail-closed warning.
+    expect(warnings.filter(w => w.includes('MoleFlow') && w.includes('without a unit'))).toEqual([]);
+    // The gap is surfaced by the data-type validator (D9), not silently swallowed.
+    const dtFailures = validateEmittedDexpiDataTypes(out, 'tep', REGISTRY);
+    expect(dtFailures.some(f => JSON.stringify(f).includes('KilomolePerHour'))).toBe(true);
   });
 
   it('validates against the DEXPI 2.0 envelope (no Unit/qualifier regressions)', () => {
-    // Property-name + data-type tiers clean against Process+Core (no Profile):
-    // the canonical QualifiedValue shape itself introduces no findings.
+    // The canonical QualifiedValue/PhysicalQuantity SHAPE itself introduces no
+    // findings. The one expected data-type finding is the authored MoleFlow
+    // vocabulary gap (KilomolePerHour not yet a MoleFlowRateUnit literal — a real
+    // missing-literal gap the Profile extension closes, surfaced the same way a
+    // missing property is). Every other unit/qualifier resolves cleanly.
     const nameFailures = validateEmittedDexpiXml(out, 'tep', REGISTRY)
       .filter(f => f.className === 'QualifiedValue' || f.className === 'PhysicalQuantity' || f.className === 'PhysicalQuantityVector');
     expect(nameFailures).toEqual([]);
-    expect(validateEmittedDexpiDataTypes(out, 'tep', REGISTRY)).toEqual([]);
+    const dtFailures = validateEmittedDexpiDataTypes(out, 'tep', REGISTRY);
+    const structural = dtFailures.filter(f => !JSON.stringify(f).includes('KilomolePerHour'));
+    expect(structural).toEqual([]);
   });
 
   it('round-trips values, units and qualifiers (re-reads the canonical output)', () => {

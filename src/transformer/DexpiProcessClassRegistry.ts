@@ -740,6 +740,20 @@ export class DexpiProcessClassRegistry {
   }
 
   /**
+   * Qualified path (`Model/Package.Enum`) for a bare PhysicalQuantities unit-enum
+   * name (e.g. 'MoleFlowRateUnit' -> 'Core/PhysicalQuantities.MoleFlowRateUnit'),
+   * or null when no such unit enumeration is registered. Lets the emitter turn an
+   * authored quantity choice into a fully-qualified unit `DataReference` so the
+   * data-type tier (D9) can resolve — or flag — its literal target.
+   */
+  unitEnumPath(bareName: string): string | null {
+    for (const [path, detail] of this.enumDetails) {
+      if (detail.package === 'PhysicalQuantities' && detail.name === bareName) return path;
+    }
+    return null;
+  }
+
+  /**
    * Literal names of a unit enumeration path — for the properties-panel unit
    * picker (the same literals+Custom dropdown used for any enum-typed value).
    */

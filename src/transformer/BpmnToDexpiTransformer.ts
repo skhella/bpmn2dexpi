@@ -1097,10 +1097,15 @@ export class BpmnToDexpiTransformer {
           ) as Element | undefined;
           if (!qv) continue;
           const { value, unit } = this.readQvScalar(qv);
+          // Authored quantity choice for a custom unit (the `unitEnum` carrier
+          // attribute). Drives a qualified unit DataReference at emit time so an
+          // unresolved unit surfaces in the data-type tier rather than vanishing.
+          const unitEnum = child.getAttribute('unitEnum') ?? undefined;
           scalars.push({
             property,
             value,
             unit: unit || undefined,
+            unitEnum,
           });
         }
         if (scalars.length > 0) flow.scalars = scalars;
@@ -3168,6 +3173,7 @@ export class BpmnToDexpiTransformer {
                 property: s.property,
                 value: s.value,
                 unit: s.unit,
+                unitEnum: s.unitEnum,
               }),
             }],
           });
@@ -3504,6 +3510,7 @@ export class BpmnToDexpiTransformer {
     property: string;
     value?: string;
     unit?: string;
+    unitEnum?: string;
     values?: string[];
     scope?: string;
     range?: string;
@@ -3558,33 +3565,50 @@ export class BpmnToDexpiTransformer {
     property: string;
     value?: string;
     unit?: string;
+    unitEnum?: string;
     values?: string[];
   }): Record<string, unknown> {
     const isVector = Array.isArray(opts.values) && opts.values.length > 0;
 
-    // Resolve the unit token to its enumeration literal, schema-driven.
-    //  - If the property carries a PhysicalQuantity unit binding (the canonical
-    //    case, e.g. Stream.MassFlow -> MassFlowRateUnit) resolve strictly within
-    //    that enum, failing closed on a mismatch so a unit can never land in the
-    //    wrong quantity type.
-    //  - If it has NO binding (a project/profile-extension property such as
-    //    MaterialStateType.MoleFlow, which DEXPI core doesn't declare) fall back
-    //    to a global search across the PhysicalQuantities unit enums.
+    // Build the unit DataReference. The quantity (which unit enum the literal
+    // belongs to) comes ONLY from the schema binding or the authored `unitEnum`
+    // choice — never the property name. When the quantity is known but the token
+    // is not yet a declared literal (a vocabulary gap), we STILL emit the
+    // fully-qualified reference: the data-type tier (D9) then flags it as an
+    // ordinary finding, and the Profile extension closes it by adding the literal
+    // to that enumeration — so units close through the same validate -> generate
+    // -> reload loop as missing properties. Nothing is guessed: the literal is the
+    // verbatim authored token and the enum is the binding or the author's choice.
     let unitRef: string | null = null;
     if (opts.unit) {
       const boundEnum = this.registry.getUnitEnumRefForProperty(opts.className, opts.property);
       if (boundEnum) {
+        // Bound property (e.g. Stream.MassFlow -> MassFlowRateUnit): the literal
+        // is resolved within the bound enum, or — if absent — emitted as-authored
+        // so D9 surfaces the gap on exactly that quantity.
         const literal = this.registry.resolveUnitLiteral(boundEnum, opts.unit);
-        if (literal) unitRef = `${boundEnum}.${literal}`;
+        unitRef = `${boundEnum}.${literal ?? opts.unit}`;
       } else {
         const g = this.registry.resolveUnitGlobal(opts.unit);
-        if (g) unitRef = `${g.enumPath}.${g.literal}`;
+        if (g) {
+          unitRef = `${g.enumPath}.${g.literal}`;
+        } else if (opts.unitEnum) {
+          // No schema binding, but the author stated the quantity. Emit onto that
+          // (Core) enum so D9 flags the missing literal and the extension adds it.
+          const enumPath = this.registry.unitEnumPath(opts.unitEnum)
+            ?? `Core/PhysicalQuantities.${opts.unitEnum}`;
+          unitRef = `${enumPath}.${opts.unit}`;
+        }
+        // else: no binding AND no authored quantity -> the unit cannot be placed
+        // on any enumeration (there is nothing to reference). The value is still
+        // emitted; the unit is omitted. Bind the property or choose a quantity to
+        // close it — the unit analog of a custom class with no chosen supertype.
       }
       if (!unitRef) {
         this.logger.warn(
-          `QualifiedValue ${opts.className}.${opts.property}: unit "${opts.unit}" does not resolve to a ` +
-          `literal of ${this.registry.getUnitEnumRefForProperty(opts.className, opts.property) ?? 'any PhysicalQuantity unit enumeration'} ` +
-          `— emitting the value without a unit (fail-closed; never a flat <String> or guessed literal).`,
+          `QualifiedValue ${opts.className}.${opts.property}: unit "${opts.unit}" has no quantity ` +
+          `(no schema binding and no authored quantity) — emitting the value without a unit. ` +
+          `Bind the property to a unit enumeration so the unit can be placed.`,
         );
       }
     }
