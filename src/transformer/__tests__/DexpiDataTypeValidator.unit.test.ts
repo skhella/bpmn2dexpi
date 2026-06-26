@@ -142,6 +142,38 @@ describe('Data-type validator — Enumeration types', () => {
   });
 });
 
+describe('Data-type validator — closeable attribute (vocabulary gap vs authoring error)', () => {
+  const wrap = (objType: string, dataRef: string) =>
+    `<?xml version="1.0"?><Model name="x" uri="urn:t">` +
+    `<Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>` +
+    `<Object id="o1" type="${objType}"><Data property="P">` +
+    `<DataReference data="${dataRef}"/></Data></Object></Model>`;
+
+  it('flags a unit DataReference gap as closeable (the extension adds the literal)', () => {
+    // KilomolePerHour is not a member of MoleFlowRateUnit — a vocabulary gap the
+    // Profile generator closes; closeable is the attribute that says so.
+    const failures = validateEmittedDexpiDataTypes(
+      wrap('Core/PhysicalQuantities.PhysicalQuantity', 'Core/PhysicalQuantities.MoleFlowRateUnit.KilomolePerHour'),
+      'unit', REGISTRY,
+    );
+    expect(failures).toHaveLength(1);
+    expect(failures[0].closeable).toBe(true);
+    expect(failures[0].context).toContain('auto-closeable');
+  });
+
+  it('flags a closed-enum DataReference gap as NOT closeable (an authoring error to fix)', () => {
+    // QuantityProvenance is a closed vocabulary; a non-member is a typo, not a
+    // gap the generator extends — so closeable is falsy.
+    const failures = validateEmittedDexpiDataTypes(
+      wrap('Core/QualifiedValue', 'Core/DataTypes.QuantityProvenance.Nope'),
+      'unit', REGISTRY,
+    );
+    expect(failures).toHaveLength(1);
+    expect(failures[0].closeable).toBeFalsy();
+    expect(failures[0].context).not.toContain('auto-closeable');
+  });
+});
+
 describe('Data-type validator — TEP fixture (regression)', () => {
   it('TEP emission has no data-type violations beyond the authored MoleFlow unit gap', { timeout: 15_000 }, async () => {
     const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
@@ -160,6 +192,9 @@ describe('Data-type validator — TEP fixture (regression)', () => {
     expect(structural).toEqual([]);
     // And the MoleFlow gap IS surfaced (not silently dropped).
     expect(failures.some(f => JSON.stringify(f).includes('KilomolePerHour'))).toBe(true);
+    // Every data-type finding on TEP is the closeable unit-vocabulary gap — the
+    // attribute that marks what the Profile extension auto-closes (vs hand-fix).
+    expect(failures.every(f => f.closeable === true), 'all TEP data-type findings are the closeable unit gap').toBe(true);
   });
 });
 

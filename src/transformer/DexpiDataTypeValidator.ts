@@ -46,6 +46,18 @@ export interface DataTypeFailure {
   actualValue: string;
   /** Short context for diagnostic display. */
   context: string;
+  /**
+   * True when this finding is an extension-closeable VOCABULARY gap rather than a
+   * value-conformance error: a unit `<DataReference>` whose literal is missing
+   * from its `PhysicalQuantities` enumeration, which the Profile generator closes
+   * by adding the literal. This is a cross-cutting ATTRIBUTE, not a separate
+   * validation level — it lets a consumer distinguish, within the data-type
+   * findings, the gaps the generator auto-closes (units) from the authoring
+   * errors it cannot (a typoed Double or a non-member of a closed enum like
+   * QuantityProvenance). Property-name and class-existence findings are wholly
+   * closeable in the same sense.
+   */
+  closeable?: boolean;
 }
 
 /** Internal: render a list of failures as a multi-line summary. */
@@ -239,13 +251,23 @@ export function validateEmittedDexpiDataTypes(
     const refPropName = enclosingData?.getAttribute('property') ?? '(reference)';
     const carrier = nearestEnclosingTypedCarrier(ref);
     const refClassName = carrier ? bareClassName(carrier.getAttribute('type') ?? '') : '(unknown)';
+    // A unit reference (target enumeration in the PhysicalQuantities package) is
+    // an extension-closeable vocabulary gap — the Profile generator adds the
+    // missing literal — as opposed to a typoed closed-enum literal, which is an
+    // authoring error. Tag it so a consumer can tell the two apart within the
+    // data-type tier (read from the ref path's package segment, so it classifies
+    // even when the enum/prefix doesn't resolve).
+    const afterModel = data.includes('/') ? data.slice(data.indexOf('/') + 1) : data;
+    const closeable = afterModel.split('.')[0] === 'PhysicalQuantities';
     const fail = (reason: string) => failures.push({
       source,
       className: refClassName,
       propertyName: refPropName,
       declaredType: 'DataReference (enumeration literal)',
       actualValue: data,
-      context: `<DataReference data="${data}"/> on ${refClassName}.${refPropName} — ${reason}`,
+      context: `<DataReference data="${data}"/> on ${refClassName}.${refPropName} — ${reason}`
+        + (closeable ? ' (auto-closeable by Profile extension)' : ''),
+      closeable,
     });
 
     // Expect Model/Package.Enum.Literal. Relative refs ('/Package.Enum.Literal')
