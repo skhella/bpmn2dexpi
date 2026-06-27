@@ -4,9 +4,9 @@
  * Verifies the end-to-end strict-mode + Profile-generator + reload cycle:
  *
  *   1. Run TEP through the transformer with strict=true. Capture the
- *      property-name + kind findings AND the data-type finding (the authored
- *      MoleFlow unit KilomolePerHour, emitted as a real DataReference so D9
- *      flags it); the other three tiers are clean — see StrictModeAllTiers.
+ *      property-name + kind findings (the only non-clean tier on TEP; the four
+ *      others — incl. data-type, as every unit resolves — are already clean,
+ *      see StrictModeAllTiers).
  *   2. Feed the same TEP through the Profile generator, producing a Profile
  *      XML that declares every (class, property) pair the validator flagged.
  *   3. Re-run the transformer against the same TEP, this time loading the
@@ -78,16 +78,11 @@ describe('Strict mode close-the-loop — gen Profile → reload → re-validate 
     const baselineFindings = t1.lastPropertyNameValidation!.errors.length;
     expect(baselineFindings, 'TEP baseline should surface project-extension findings the Profile is meant to close').toBeGreaterThan(0);
 
-    // The data-type tier ALSO carries findings on the baseline: the authored
-    // MoleFlow unit (KilomolePerHour, not yet a MoleFlowRateUnit literal) is
-    // emitted as a real DataReference, so D9 flags it — units surface and close
-    // the SAME way as missing properties. The reference / cardinality /
-    // class-existence tiers stay clean (the generator's scope is vocabulary gaps).
-    expect(t1.lastDataTypeValidation!.valid, 'TEP data-type tier should flag the MoleFlow unit gap before close-the-loop').toBe(false);
-    expect(
-      t1.lastDataTypeValidation!.errors.some(e => e.includes('KilomolePerHour')),
-      `data-type baseline should flag MoleFlow's KilomolePerHour; got ${t1.lastDataTypeValidation!.errors.slice(0, 2).join(' | ')}`,
-    ).toBe(true);
+    // The other four tiers are clean on the baseline. The molar-flow unit
+    // KilomolePerSecond is a standard MoleFlowRateUnit literal, so it resolves —
+    // the only gaps the Profile closes here are missing PROPERTIES (incl.
+    // MoleFlow as a property on MaterialStateType), surfaced in property-name.
+    expect(t1.lastDataTypeValidation!.valid, 'TEP data-type tier should be clean before close-the-loop').toBe(true);
     expect(t1.lastReferenceValidation!.valid, 'TEP reference target-class tier should be clean before close-the-loop').toBe(true);
     expect(t1.lastCardinalityValidation!.valid, 'TEP cardinality tier should be clean before close-the-loop').toBe(true);
     expect(t1.lastClassExistenceValidation!.valid, 'TEP class-existence tier should be clean before close-the-loop').toBe(true);
@@ -129,11 +124,11 @@ describe('Strict mode close-the-loop — gen Profile → reload → re-validate 
     expect(t2.lastCardinalityValidation?.valid).toBe(true);
     expect(t2.lastClassExistenceValidation?.valid).toBe(true);
 
-    // The MoleFlow vocabulary gap closes via the extension: its custom per-hour
-    // unit now resolves on DEXPI's own MoleFlowRateUnit (the quantity authored on
-    // the measurement), value preserved — the paper's "extension closes the gap".
-    expect(closed, 'MoleFlow resolves onto DEXPI MoleFlowRateUnit after the Profile').toMatch(
-      /Core\/PhysicalQuantities\.MoleFlowRateUnit\.KilomolePerHour/,
+    // MoleFlow's unit resolves onto DEXPI's own MoleFlowRateUnit: KilomolePerSecond
+    // is a standard literal, so the molar flow round-trips as the canonical unit
+    // reference (the Profile here supplies the missing MoleFlow *property*).
+    expect(closed, 'MoleFlow resolves onto DEXPI MoleFlowRateUnit.KilomolePerSecond').toMatch(
+      /Core\/PhysicalQuantities\.MoleFlowRateUnit\.KilomolePerSecond/,
     );
   });
 

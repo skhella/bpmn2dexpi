@@ -175,26 +175,16 @@ describe('Data-type validator — closeable attribute (vocabulary gap vs authori
 });
 
 describe('Data-type validator — TEP fixture (regression)', () => {
-  it('TEP emission has no data-type violations beyond the authored MoleFlow unit gap', { timeout: 15_000 }, async () => {
+  it('TEP emission has no data-type violations (every unit resolves, incl. MoleFlow/KilomolePerSecond)', { timeout: 15_000 }, async () => {
     const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(bpmn);
     const failures = validateEmittedDexpiDataTypes(out, 'TEP→DEXPI', REGISTRY);
-    // The ONLY expected data-type findings are the authored MoleFlow unit
-    // (KilomolePerHour, not yet a MoleFlowRateUnit literal) — a genuine
-    // vocabulary gap the emitter surfaces (Design B) and the Profile extension
-    // closes, exactly like a missing property. Everything else must be clean.
-    const structural = failures.filter(f => !JSON.stringify(f).includes('KilomolePerHour'));
-    if (structural.length > 0) {
+    if (failures.length > 0) {
       // Surface the first few for diagnosis
-      console.error('Unexpected data-type failures:', JSON.stringify(structural.slice(0, 5), null, 2));
+      console.error('Data-type failures:', JSON.stringify(failures.slice(0, 5), null, 2));
     }
-    expect(structural).toEqual([]);
-    // And the MoleFlow gap IS surfaced (not silently dropped).
-    expect(failures.some(f => JSON.stringify(f).includes('KilomolePerHour'))).toBe(true);
-    // Every data-type finding on TEP is the closeable unit-vocabulary gap — the
-    // attribute that marks what the Profile extension auto-closes (vs hand-fix).
-    expect(failures.every(f => f.closeable === true), 'all TEP data-type findings are the closeable unit gap').toBe(true);
+    expect(failures).toEqual([]);
   });
 });
 

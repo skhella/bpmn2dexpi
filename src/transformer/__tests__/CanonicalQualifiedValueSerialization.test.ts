@@ -228,41 +228,30 @@ describe('TEP canonical QualifiedValue emit', () => {
     expect(count(/Core\/DataTypes\.QuantityProvenance\.Observed/g)).toBe(19);
   });
 
-  it('emits the authored MoleFlow quantity as a unit DataReference — D9 flags the missing literal, value never rescaled', () => {
-    // MaterialStateType.MoleFlow is a project/profile-extension property with no
-    // unit binding in Process.xml, but the fixture authors the quantity
-    // (unitEnum="MoleFlowRateUnit"). DEXPI's MoleFlowRateUnit is per-second only
-    // (KilomolePerSecond, PoundMolePerSecond) — there is NO per-hour molar-flow
-    // literal anywhere. Rather than invent one, rescale the paper's 11.2
-    // KilomolePerHour, or drop the unit, the emitter writes the fully-qualified
-    // reference onto the authored quantity. The data-type tier (D9) then flags
-    // the missing literal as an ordinary finding, which the Profile extension
-    // closes — units close through the SAME validate -> generate -> reload loop
-    // as missing properties.
-    expect(out).toContain('Core/PhysicalQuantities.MoleFlowRateUnit.KilomolePerHour');
-    // Never silently rescaled to the per-second literal.
-    expect(out).not.toContain('MoleFlowRateUnit.KilomolePerSecond');
-    // The numeric value is kept verbatim (the per-hour magnitude the engineer wrote).
-    expect(out).toContain('<Double>11.2</Double>');
-    // Placed on its authored quantity, not dropped — so no fail-closed warning.
+  it('resolves the MoleFlow unit to the standard MoleFlowRateUnit.KilomolePerSecond literal (no data-type finding)', () => {
+    // MaterialStateType.MoleFlow is a project/profile-extension property, but its
+    // unit `KilomolePerSecond` IS a standard DEXPI MoleFlowRateUnit literal, so
+    // the unit resolves like any other — emitted as the canonical qualified
+    // reference, with no vocabulary gap. The molar flows are in kmol/s (rescaled
+    // from the source kmol/h, dividing by 3600), so the magnitude stays physically
+    // faithful to the unit.
+    expect(out).toContain('Core/PhysicalQuantities.MoleFlowRateUnit.KilomolePerSecond');
+    expect(out).not.toContain('KilomolePerHour');
+    // A rescaled per-second magnitude (1476.0 kmol/h / 3600 = 0.41 kmol/s) round-trips.
+    expect(out).toContain('<Double>0.41</Double>');
+    // Resolves cleanly: no fail-closed warning and no data-type finding.
     expect(warnings.filter(w => w.includes('MoleFlow') && w.includes('without a unit'))).toEqual([]);
-    // The gap is surfaced by the data-type validator (D9), not silently swallowed.
-    const dtFailures = validateEmittedDexpiDataTypes(out, 'tep', REGISTRY);
-    expect(dtFailures.some(f => JSON.stringify(f).includes('KilomolePerHour'))).toBe(true);
+    expect(validateEmittedDexpiDataTypes(out, 'tep', REGISTRY)).toEqual([]);
   });
 
   it('validates against the DEXPI 2.0 envelope (no Unit/qualifier regressions)', () => {
-    // The canonical QualifiedValue/PhysicalQuantity SHAPE itself introduces no
-    // findings. The one expected data-type finding is the authored MoleFlow
-    // vocabulary gap (KilomolePerHour not yet a MoleFlowRateUnit literal — a real
-    // missing-literal gap the Profile extension closes, surfaced the same way a
-    // missing property is). Every other unit/qualifier resolves cleanly.
+    // The canonical QualifiedValue/PhysicalQuantity shape introduces no findings:
+    // property-name and data-type tiers are both clean, every unit (including
+    // MoleFlow's KilomolePerSecond) resolving to a declared enumeration literal.
     const nameFailures = validateEmittedDexpiXml(out, 'tep', REGISTRY)
       .filter(f => f.className === 'QualifiedValue' || f.className === 'PhysicalQuantity' || f.className === 'PhysicalQuantityVector');
     expect(nameFailures).toEqual([]);
-    const dtFailures = validateEmittedDexpiDataTypes(out, 'tep', REGISTRY);
-    const structural = dtFailures.filter(f => !JSON.stringify(f).includes('KilomolePerHour'));
-    expect(structural).toEqual([]);
+    expect(validateEmittedDexpiDataTypes(out, 'tep', REGISTRY)).toEqual([]);
   });
 
   it('round-trips values, units and qualifiers (re-reads the canonical output)', () => {
