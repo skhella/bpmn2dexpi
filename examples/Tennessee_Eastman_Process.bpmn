@@ -1967,7 +1967,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S1_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S1_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">99.99</dexpi:data><dexpi:data property="Values">0.01</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -1992,7 +1992,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S2_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S2_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0.01</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">99.99</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -2017,7 +2017,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S3_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S3_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">99.99</dexpi:data><dexpi:data property="Values">0.01</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -2042,7 +2042,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S7_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S7_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">27.164</dexpi:data><dexpi:data property="Values">11.393</dexpi:data><dexpi:data property="Values">19.763</dexpi:data><dexpi:data property="Values">1.075</dexpi:data><dexpi:data property="Values">17.722</dexpi:data><dexpi:data property="Values">2.159</dexpi:data><dexpi:data property="Values">12.302</dexpi:data><dexpi:data property="Values">8.423</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -2067,7 +2067,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S4_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S4_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">48.5</dexpi:data><dexpi:data property="Values">0.5</dexpi:data><dexpi:data property="Values">51</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -2092,7 +2092,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S11_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S11_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">0.479</dexpi:data><dexpi:data property="Values">0.009</dexpi:data><dexpi:data property="Values">1.008</dexpi:data><dexpi:data property="Values">0.018</dexpi:data><dexpi:data property="Values">0.836</dexpi:data><dexpi:data property="Values">0.099</dexpi:data><dexpi:data property="Values">53.724</dexpi:data><dexpi:data property="Values">43.828</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -2117,7 +2117,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S5_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S5_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">43.263</dexpi:data><dexpi:data property="Values">0.444</dexpi:data><dexpi:data property="Values">45.264</dexpi:data><dexpi:data property="Values">0.116</dexpi:data><dexpi:data property="Values">7.256</dexpi:data><dexpi:data property="Values">0.885</dexpi:data><dexpi:data property="Values">1.964</dexpi:data><dexpi:data property="Values">0.808</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -2142,7 +2142,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S10_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S10_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0</dexpi:data><dexpi:data property="Values">0.222</dexpi:data><dexpi:data property="Values">13.704</dexpi:data><dexpi:data property="Values">1.669</dexpi:data><dexpi:data property="Values">47.269</dexpi:data><dexpi:data property="Values">37.136</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -2167,7 +2167,7 @@
           <dexpi:references property="Composition" uidRef="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_8d8e6e59-acfb-47e7-a813-99f6b6f62a0f_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">32.958</dexpi:data><dexpi:data property="Values">13.823</dexpi:data><dexpi:data property="Values">23.978</dexpi:data><dexpi:data property="Values">1.257</dexpi:data><dexpi:data property="Values">18.579</dexpi:data><dexpi:data property="Values">2.263</dexpi:data><dexpi:data property="Values">4.844</dexpi:data><dexpi:data property="Values">2.299</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -2192,7 +2192,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S8_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S8_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">32.958</dexpi:data><dexpi:data property="Values">13.823</dexpi:data><dexpi:data property="Values">23.978</dexpi:data><dexpi:data property="Values">1.257</dexpi:data><dexpi:data property="Values">18.579</dexpi:data><dexpi:data property="Values">2.263</dexpi:data><dexpi:data property="Values">4.844</dexpi:data><dexpi:data property="Values">2.299</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
@@ -2217,7 +2217,7 @@
           <dexpi:references property="Composition" uidRef="uuid_MS_S6_Composition" />
         </dexpi:MaterialStateType>
         <dexpi:Composition uid="uuid_MS_S6_Composition">
-          <dexpi:data property="Display">Fraction</dexpi:data>
+          <dexpi:data property="Display">Percent</dexpi:data>
           <dexpi:components property="MoleFractiona">
             <dexpi:object type="Core/QualifiedValue">
               <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">32.188</dexpi:data><dexpi:data property="Values">8.893</dexpi:data><dexpi:data property="Values">26.383</dexpi:data><dexpi:data property="Values">6.882</dexpi:data><dexpi:data property="Values">18.776</dexpi:data><dexpi:data property="Values">1.657</dexpi:data><dexpi:data property="Values">3.561</dexpi:data><dexpi:data property="Values">1.659</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
