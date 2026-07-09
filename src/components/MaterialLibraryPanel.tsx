@@ -502,7 +502,8 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       }
 
       // Composition's per-component fractions live on Composition.MoleFractiona
-      // (sic — Process.xml typo) or MassFractions, encoded as a multi-valued
+      // (sic — Process.xml typo; the accepted DEXPI correction renames it
+      // MoleFractions, so both spellings are read) or MassFractions, encoded as a multi-valued
       // PhysicalQuantityVector inside QualifiedValue. Each fraction is paired
       // with its MaterialComponent uid via the host Stream's
       // MaterialTemplateReference (lookup at index N matches the template's
@@ -517,6 +518,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
         display = readData(composition, 'Display');
         for (const [propName, basisLabel] of [
           ['MoleFractiona', 'Mole'],
+          ['MoleFractions', 'Mole'],
           ['MassFractions', 'Mass'],
         ] as const) {
           const qv = readComponentsObject(composition, propName);
@@ -1707,7 +1709,6 @@ const StateEditor: React.FC<{
                     type="number"
                     step="0.001"
                     min="0"
-                    max="1"
                     // @ts-expect-error — fractions type-shape mismatch (see TODO at top of file)
                     value={fraction}
                     onChange={(e) => {
@@ -1729,8 +1730,16 @@ const StateEditor: React.FC<{
                     }}
                     style={{ flex: 1, padding: '4px 8px' }}
                   />
-                  {/* @ts-expect-error — fractions type-shape mismatch (see TODO at top of file) */}
-                  <span style={{ minWidth: '80px' }}>{(fraction * 100).toFixed(3)}%</span>
+                  <span style={{ minWidth: '80px' }}>{(() => {
+                    // Scale-aware annotation: values follow the Display
+                    // convention (Fraction: 0–1, Percent: 0–100), so only
+                    // fraction-scale values are converted for the % chip.
+                    const disp = edited.flow?.composition?.display || 'Fraction';
+                    const v = Number(fraction);
+                    return disp === 'Percent' ? `${v.toFixed(3)}%`
+                      : disp === 'Fraction' ? `${(v * 100).toFixed(3)}%`
+                        : '';
+                  })()}</span>
                   <button
                     onClick={() => {
                       const newFractions = (edited.flow?.composition?.fractions || []).filter((_, i) => i !== idx);
@@ -1758,8 +1767,16 @@ const StateEditor: React.FC<{
             </div>
             {(edited.flow?.composition?.fractions || []).length > 0 && (
               <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#666', fontWeight: 'bold' }}>
-                {/* @ts-expect-error — fractions type-shape mismatch (see TODO at top of file) */}
-                Total: {((edited.flow?.composition?.fractions || []).reduce((sum, f) => sum + f, 0) * 100).toFixed(3)}%
+                Total: {(() => {
+                  // Scale-aware total, mirroring the per-row annotation: a
+                  // Percent-scale composition sums to ~100 and is shown as-is.
+                  const disp = edited.flow?.composition?.display || 'Fraction';
+                  const total = (edited.flow?.composition?.fractions || [])
+                    .reduce((sum, f) => sum + Number(f), 0);
+                  return disp === 'Percent' ? `${total.toFixed(3)}%`
+                    : disp === 'Fraction' ? `${(total * 100).toFixed(3)}%`
+                      : total.toFixed(3);
+                })()}
               </div>
             )}
           </div>

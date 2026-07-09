@@ -683,6 +683,22 @@ export class DexpiProcessClassRegistry {
   }
 
   /**
+   * The declared fraction-carrier CompositionProperty on Composition for a
+   * basis, resolved from the loaded schema so the emitted property name always
+   * matches what Process.xml declares: today `MoleFractiona` (sic — schema
+   * typo) / `MassFractions`; when a future DEXPI release corrects the Mole
+   * spelling to `MoleFractions`, the emit side follows the schema
+   * automatically. Falls back to the current published names when no schema
+   * is loaded.
+   */
+  compositionFractionProperty(basis: 'Mole' | 'Mass'): string {
+    const declared = this.getProperties('Composition').find(
+      p => p.kind === 'composition' && p.name.startsWith(`${basis}Fraction`),
+    );
+    return declared?.name ?? (basis === 'Mass' ? 'MassFractions' : 'MoleFractiona');
+  }
+
+  /**
    * Resolve a unit token to its enumeration literal NAME within a unit
    * enumeration, matching ONLY the schema's own declared fields — literal name
    * first, then un_symbol / un_code / rdl_label (all exact). Returns null when

@@ -1119,16 +1119,19 @@ export class BpmnToDexpiTransformer {
           if (comp) {
             const display = this.getChildText(comp, 'Display');
             // Composition's fraction properties per Process.xml are
-            // MoleFractiona (sic — typo preserved from the published
-            // schema) and MassFractions. Each is a CompositionProperty
+            // MoleFractiona (sic — schema typo; the accepted DEXPI correction
+            // renames it MoleFractions, so both spellings are read) and
+            // MassFractions. Each is a CompositionProperty
             // wrapping a QualifiedValue<PhysicalQuantityVector> whose
             // Values DataProperty is multi-valued (one <dexpi:data
             // property="Values">v</dexpi:data> per component).
             const fractionsQv =
               this.findCarrierComponentsQualifiedValue(comp, 'MoleFractiona') ??
+              this.findCarrierComponentsQualifiedValue(comp, 'MoleFractions') ??
               this.findCarrierComponentsQualifiedValue(comp, 'MassFractions');
             const basis = fractionsQv
-              ? (this.findCarrierComponentsPropertyName(comp, 'MoleFractiona')
+              ? ((this.findCarrierComponentsPropertyName(comp, 'MoleFractiona') ||
+                  this.findCarrierComponentsPropertyName(comp, 'MoleFractions'))
                   ? 'Mole'
                   : 'Mass')
               : '';
@@ -3250,13 +3253,16 @@ export class BpmnToDexpiTransformer {
         compositionObj.Data = compositionData;
       }
 
-      // Per-component fraction vector. Schema only declares MoleFractiona
-      // and MassFractions on Composition; the basis selects which carrier
-      // property name to use.
+      // Per-component fraction vector. The carrier property name is resolved
+      // from the loaded schema (Composition declares MoleFractiona — sic —
+      // and MassFractions today; when the accepted DEXPI correction renames
+      // the Mole spelling, the emit follows Process.xml automatically).
       const fractions = stateType.flow.composition.fractions ?? [];
       if (fractions.length > 0) {
         const basisLabel = (stateType.flow.composition.basis || 'Mole').toLowerCase();
-        const carrierProperty = basisLabel === 'mass' ? 'MassFractions' : 'MoleFractiona';
+        const carrierProperty = this.registry.compositionFractionProperty(
+          basisLabel === 'mass' ? 'Mass' : 'Mole',
+        );
         // Canonical PhysicalQuantityVector via the shared emitter: the vector's
         // Values + Unit nest in an <AggregatedDataValue
         // type="…PhysicalQuantityVector">, with the unit resolved from the
