@@ -1,6 +1,6 @@
 {
   "name": "bpmn2dexpi",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A web-based tool for creating DEXPI-compliant block flow and process flow diagrams using BPMN notation",
   "author": "Shady Khella",
   "license": "MIT",

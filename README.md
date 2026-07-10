@@ -130,4 +130,4 @@ DEXPI Specification is licensed under CC BY 4.0.
 
 ---
 
-v0.2.1
+v0.3.0
