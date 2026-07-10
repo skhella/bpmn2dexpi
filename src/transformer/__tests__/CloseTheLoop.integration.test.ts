@@ -4,8 +4,9 @@
  * Verifies the end-to-end strict-mode + Profile-generator + reload cycle:
  *
  *   1. Run TEP through the transformer with strict=true. Capture the
- *      property-name + kind findings (the only non-clean tier on TEP today;
- *      the four others are already clean — see StrictModeAllTiers).
+ *      property-name + kind findings (the only non-clean tier on TEP; the four
+ *      others — incl. data-type, as every unit resolves — are already clean,
+ *      see StrictModeAllTiers).
  *   2. Feed the same TEP through the Profile generator, producing a Profile
  *      XML that declares every (class, property) pair the validator flagged.
  *   3. Re-run the transformer against the same TEP, this time loading the
@@ -77,10 +78,10 @@ describe('Strict mode close-the-loop — gen Profile → reload → re-validate 
     const baselineFindings = t1.lastPropertyNameValidation!.errors.length;
     expect(baselineFindings, 'TEP baseline should surface project-extension findings the Profile is meant to close').toBeGreaterThan(0);
 
-    // The other four tiers must already be clean on TEP. If any of them
-    // becomes non-clean, the Profile generator's current scope (vocabulary
-    // gaps only) would be insufficient — surface it loudly here rather
-    // than masking behind a sometimes-passing close-the-loop.
+    // The other four tiers are clean on the baseline. The molar-flow unit
+    // KilomolePerSecond is a standard MoleFlowRateUnit literal, so it resolves —
+    // the only gaps the Profile closes here are missing PROPERTIES (incl.
+    // MoleFlow as a property on MaterialStateType), surfaced in property-name.
     expect(t1.lastDataTypeValidation!.valid, 'TEP data-type tier should be clean before close-the-loop').toBe(true);
     expect(t1.lastReferenceValidation!.valid, 'TEP reference target-class tier should be clean before close-the-loop').toBe(true);
     expect(t1.lastCardinalityValidation!.valid, 'TEP cardinality tier should be clean before close-the-loop').toBe(true);
@@ -102,7 +103,7 @@ describe('Strict mode close-the-loop — gen Profile → reload → re-validate 
     // residual findings count unchanged at 149. If a future refactor
     // renames this option, this assertion will catch it.
     const t2 = new BpmnToDexpiTransformer();
-    await t2.transform(bpmn, {
+    const closed = await t2.transform(bpmn, {
       processXml: PROCESS_XML,
       coreXml: CORE_XML,
       strict: true,
@@ -122,6 +123,13 @@ describe('Strict mode close-the-loop — gen Profile → reload → re-validate 
     expect(t2.lastReferenceValidation?.valid).toBe(true);
     expect(t2.lastCardinalityValidation?.valid).toBe(true);
     expect(t2.lastClassExistenceValidation?.valid).toBe(true);
+
+    // MoleFlow's unit resolves onto DEXPI's own MoleFlowRateUnit: KilomolePerSecond
+    // is a standard literal, so the molar flow round-trips as the canonical unit
+    // reference (the Profile here supplies the missing MoleFlow *property*).
+    expect(closed, 'MoleFlow resolves onto DEXPI MoleFlowRateUnit.KilomolePerSecond').toMatch(
+      /Core\/PhysicalQuantities\.MoleFlowRateUnit\.KilomolePerSecond/,
+    );
   });
 
   it('Profile generator output is deterministic — same input produces identical XML', { timeout: 30_000 }, async () => {

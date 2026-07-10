@@ -14,15 +14,14 @@
  * Process.xml properties automatically when the schema is updated.
  *
  * `kind: 'composition'` rows hold a Core/QualifiedValue-shaped measurement
- * (Value + optional Unit + optional UnitReference). `kind: 'data'` rows
- * hold a flat string DataProperty.
+ * (Value + optional Unit, serialised in the canonical nested PhysicalQuantity
+ * carrier). `kind: 'data'` rows hold a flat string DataProperty.
  */
 export interface MaterialComponentProperty {
   kind: 'composition' | 'data';
   name: string;
   value: string;
   unit?: string;
-  unitReference?: string;
   /**
    * URI linking the property name to a standard quantity kind (QUDT,
    * ISO 15926, …). Only meaningful on composition rows whose inner Object
@@ -34,12 +33,24 @@ export interface MaterialComponentProperty {
    */
   nameUri?: string;
   /**
+   * Quantity (unit-enumeration) the measurement's unit belongs to, persisted as
+   * the `unitEnum` attribute on the `<dexpi:components>` carrier. Only meaningful
+   * on composition rows whose authored unit is NOT in the standard vocabulary AND
+   * whose property has no schema unit-binding (a custom measurement, e.g. a
+   * user-invented `MoleFlow`). The Profile generator reads it to declare the
+   * property BOUND to that quantity and fold the missing literal into the (Core)
+   * unit enum — the unit-world analog of a custom class's chosen supertype. For a
+   * declared measurement the schema already supplies the quantity, so this is
+   * left unset.
+   */
+  unitEnum?: string;
+  /**
    * Multi-record payload for composition properties whose inner Object type
    * is **not** `Core/QualifiedValue` — e.g. `PersistentIdentifiers` whose
    * inner class is `Core/PersistentIdentifier` (Context + Value fields).
    * Each record is a flat map of inner DataProperty name → value.
    *
-   * When `records` is set, `value` / `unit` / `unitReference` / `nameUri`
+   * When `records` is set, `value` / `unit` / `nameUri`
    * are unused; the composition is rendered and serialised as a list of
    * the declared inner class's records. Inner class is resolved via
    * `registry.getCompositionInnerClassName(wrappingClass, prop.name)`.
@@ -102,8 +113,13 @@ export interface MaterialState {
      * in Process.xml (MassFlow, VolumeFlow, ...) coexist here alongside
      * project-extension names (MoleFlow, etc.); the Profile generator declares
      * any non-canonical names at export time. No property is special-cased.
+     *
+     * `unitEnum` is the quantity (unit-enumeration) a custom unit binds to —
+     * authored via the quantity picker, persisted as the `unitEnum` attribute on
+     * the `<dexpi:components>` carrier so the Profile generator can place the
+     * missing literal (see MaterialComponentProperty.unitEnum for the rationale).
      */
-    scalars?: { property: string; value: string; unit?: string }[];
+    scalars?: { property: string; value: string; unit?: string; unitEnum?: string }[];
     composition?: {
       basis: string;
       display: string;

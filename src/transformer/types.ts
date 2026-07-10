@@ -18,7 +18,7 @@ export interface InternalProcessStep {
   uid: string;
   hierarchyLevel?: string;
   ports: DexpiPort[];
-  attributes: Array<{ name: string; value: string; unit?: string; scope?: string; range?: string; provenance?: string; qualifier?: string; nameUri?: string; unitUri?: string }>;
+  attributes: Array<{ name: string; value: string; unit?: string; scope?: string; range?: string; provenance?: string; qualifier?: string; nameUri?: string }>;
   parentId: string | null;
   subProcessSteps: string[]; // child step IDs
 
@@ -100,10 +100,6 @@ export interface StreamAttribute {
   nameUri?: string;
   value: string;
   unit?: string;
-  /** Optional URI linking the unit to a standard unit definition.
-   *  e.g. https://qudt.org/vocab/unit/KiloGM-PER-HR
-   *       https://qudt.org/vocab/unit/DEG_C */
-  unitUri?: string;
   scope?: string;
   range?: string;
   provenance?: string;
@@ -172,7 +168,6 @@ export interface MaterialComponentExtraProperty {
   value: string;
   /** Only meaningful when kind = 'composition'. */
   unit?: string;
-  unitReference?: string;
 }
 
 export interface InternalMaterialComponent {
@@ -210,6 +205,13 @@ export interface FractionData {
 export interface CompositionData {
   basis: string;
   display: string;
+  /**
+   * The unit token authored on the fraction vector's QualifiedValue (e.g.
+   * 'Percent'). Carried through so the emitter resolves it to a real
+   * PhysicalQuantityVector unit literal rather than hardcoding one. Optional;
+   * absent when the authoring omitted a unit (then the vector fails closed).
+   */
+  unit?: string;
   fractions: FractionData[];
 }
 
@@ -226,6 +228,15 @@ export interface ScalarFlowProperty {
   property: string;
   value: string;
   unit?: string;
+  /**
+   * Authored quantity choice (bare unit-enum name, e.g. 'MoleFlowRateUnit') from
+   * the `unitEnum` attribute on the `<dexpi:components>` carrier. Only meaningful
+   * for a custom measurement whose unit is not in the standard vocabulary and
+   * whose property carries no schema unit-binding; the emitter uses it to write a
+   * fully-qualified unit `DataReference` so the data-type tier (D9) can flag the
+   * missing literal, which the Profile extension then closes.
+   */
+  unitEnum?: string;
 }
 
 export interface FlowData {

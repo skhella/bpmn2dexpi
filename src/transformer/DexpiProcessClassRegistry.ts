@@ -51,8 +51,50 @@ export interface DexpiProperty {
    *                         carry Value/Unit/Provenance/Range/Scope/...).
    */
   targetType?: string;
+  /**
+   * For CompositionProperty slots bound to Core/QualifiedValue whose
+   * QualifiedValue.Type is further bound to a PhysicalQuantity /
+   * PhysicalQuantityVector with a concrete UnitType, this is the raw type
+   * ref of that unit enumeration (e.g. 'Core/PhysicalQuantities.MassFlowRateUnit').
+   * Parsed straight from the schema's DataTypeBinding chain — it is what lets
+   * the emitter resolve a unit token to the right enumeration literal without
+   * any hand-maintained property→unit table. Undefined when the slot has no
+   * physical-quantity unit binding (plain QualifiedValue, non-composition, …).
+   */
+  unitEnumType?: string;
   /** Class that declared this property (for diagnostics / supertype walking). */
   declaredOn: string;
+}
+
+/**
+ * One enumeration literal with the schema-declared identity fields the unit
+ * resolver matches against. All optional except `name` — DEXPI's qualifier
+ * enumerations (Scope, QuantityRange, …) carry only a name, while the
+ * PhysicalQuantities unit enumerations additionally carry un_symbol / un_code /
+ * rdl_label / rdl_uri. No field is ever invented; absent metadata stays
+ * undefined so a token can only resolve against values the schema actually
+ * declares.
+ */
+export interface EnumLiteralDetail {
+  name: string;
+  unSymbol?: string;
+  unCode?: string;
+  rdlLabel?: string;
+  rdlUri?: string;
+}
+
+/**
+ * One enumeration, fully qualified by the model + package it was declared in,
+ * so a reference like `Core/DataTypes.QuantityProvenance` resolves
+ * unambiguously without relying on bare-name global uniqueness. `model` is the
+ * source-file basename (Core.xml → 'Core', Process.xml → 'Process'); `package`
+ * is the enclosing <Package name="…">.
+ */
+export interface EnumDetail {
+  model: string;
+  package: string;
+  name: string;
+  literals: EnumLiteralDetail[];
 }
 
 export interface DexpiClassInfo {
@@ -91,6 +133,18 @@ export class DexpiProcessClassRegistry {
    */
   private readonly enumerations: Map<string, string[]>;
   /**
+   * Fully-qualified enumeration index keyed by `Model/Package.Enum`
+   * (e.g. 'Core/DataTypes.QuantityProvenance', 'Process/Enumerations.PortDirection',
+   * 'Core/PhysicalQuantities.MassFlowRateUnit'). Carries per-literal identity
+   * metadata (un_symbol / un_code / rdl_label) so the unit resolver can match a
+   * token against the schema's own fields, and so the data-type validator can
+   * resolve a `<DataReference data="Model/Package.Enum.Literal"/>` target against
+   * the real enumeration rather than a bare name. Built straight from the
+   * `<Package><Enumeration><EnumerationLiteral>` structure — no model names are
+   * hardcoded; `model` is the source-file basename.
+   */
+  private readonly enumDetails: Map<string, EnumDetail>;
+  /**
    * Same-name merge warnings collected during construction. Empty unless
    * a loaded source (typically a Profile) redeclared a class already
    * present from an earlier source. Each entry names the class plus the
@@ -102,10 +156,12 @@ export class DexpiProcessClassRegistry {
   private constructor(
     classes: Map<string, DexpiClassInfo>,
     enumerations: Map<string, string[]> = new Map(),
+    enumDetails: Map<string, EnumDetail> = new Map(),
     mergeWarnings: ReadonlyArray<string> = [],
   ) {
     this.classes = classes;
     this.enumerations = enumerations;
+    this.enumDetails = enumDetails;
     this.mergeWarnings = mergeWarnings;
   }
 
@@ -151,19 +207,31 @@ export class DexpiProcessClassRegistry {
     const strict = options.strictSupertypes ?? true;
     const classes = new Map<string, DexpiClassInfo>();
     const enumerations = new Map<string, string[]>();
+    const enumDetails = new Map<string, EnumDetail>();
     const mergeWarnings: string[] = [];
 
     const conflicts: string[] = [];
 
     for (const source of sources) {
-      const { classes: parsed, enumerations: parsedEnums } = parseSchemaXml(source);
-      // Merge enumerations: later sources override earlier ones for the
-      // same name. The TEP fixture currently has no enum collisions across
-      // Process+Core; if a Profile redefines an enum, the Profile's
-      // literals win.
+      const { classes: parsed, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml(source);
+      // Merge enumerations ADDITIVELY, mirroring the class merge below: a later
+      // source (e.g. a generated Profile) declaring an enumeration of the same
+      // name EXTENDS it — new literals union in — rather than shadowing it. This
+      // is what lets a Profile add a missing unit literal (e.g. KilomolePerHour)
+      // to DEXPI's own MoleFlowRateUnit rather than creating a parallel enum.
       for (const [enumName, literals] of parsedEnums) {
-        enumerations.set(enumName, literals);
+        const existing = enumerations.get(enumName);
+        if (existing) {
+          const have = new Set(existing);
+          for (const l of literals) if (!have.has(l)) existing.push(l);
+        } else {
+          enumerations.set(enumName, [...literals]);
+        }
       }
+      // Same additive union for the fully-qualified enum index, keyed by
+      // package+name so the same enum from two model namespaces (Core vs a
+      // Profile) merges in place and keeps Core's qualified path canonical.
+      mergeEnumDetailsAdditive(enumDetails, parsedEnumDetails);
       for (const cls of parsed) {
         // Bare-name dedup assumes class names are globally unique across all
         // loaded DEXPI sources. This holds for DEXPI 2.0 — Process.xml +
@@ -256,7 +324,7 @@ export class DexpiProcessClassRegistry {
       }
     }
 
-    return new DexpiProcessClassRegistry(classes, enumerations, mergeWarnings);
+    return new DexpiProcessClassRegistry(classes, enumerations, enumDetails, mergeWarnings);
   }
 
   /**
@@ -437,11 +505,24 @@ export class DexpiProcessClassRegistry {
     for (const [k, v] of this.classes) {
       cloned.set(k, { ...v, properties: [...v.properties], superTypes: [...v.superTypes] });
     }
-    const { classes: parsed, enumerations: parsedEnums } = parseSchemaXml({ name, xml });
-    // Clone enums + merge new ones (later wins for same name).
+    const { classes: parsed, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml({ name, xml });
+    // Clone enums + merge new ones ADDITIVELY (same package+name extends in
+    // place rather than shadowing — consistent with fromXmlSources and the
+    // class merge, so a Profile unit literal lands on the real enum).
     const clonedEnums = new Map<string, string[]>();
     for (const [k, v] of this.enumerations) clonedEnums.set(k, [...v]);
-    for (const [k, v] of parsedEnums) clonedEnums.set(k, v);
+    for (const [enumName, literals] of parsedEnums) {
+      const existing = clonedEnums.get(enumName);
+      if (existing) {
+        const have = new Set(existing);
+        for (const l of literals) if (!have.has(l)) existing.push(l);
+      } else {
+        clonedEnums.set(enumName, [...literals]);
+      }
+    }
+    const clonedEnumDetails = new Map<string, EnumDetail>();
+    for (const [k, v] of this.enumDetails) clonedEnumDetails.set(k, v);
+    mergeEnumDetailsAdditive(clonedEnumDetails, parsedEnumDetails);
     const mergeWarnings: string[] = [...this.mergeWarnings];
     const conflicts: string[] = [];
     // Same selective-throw semantics as fromXmlSources — divergent
@@ -491,7 +572,7 @@ export class DexpiProcessClassRegistry {
         `DEXPI schema merge conflict — divergent declarations:\n  ${conflicts.join('\n  ')}`
       );
     }
-    return new DexpiProcessClassRegistry(cloned, clonedEnums, mergeWarnings);
+    return new DexpiProcessClassRegistry(cloned, clonedEnums, clonedEnumDetails, mergeWarnings);
   }
 
   /**
@@ -551,6 +632,183 @@ export class DexpiProcessClassRegistry {
     const literals = this.enumerations.get(enumName);
     return literals ? [...literals] : null;
   }
+
+  // ── Schema-driven unit + qualified-enum resolution ──────────────────────────
+
+  /**
+   * Literal names for a fully-qualified enumeration path
+   * (`Model/Package.Enum`, e.g. 'Core/DataTypes.QuantityProvenance'), or null
+   * when no such enumeration is registered. Backs the data-type validator's
+   * DataReference target check (D9): a `data="Model/Package.Enum.Literal"`
+   * resolves iff this returns a non-null list containing `Literal`.
+   */
+  getQualifiedEnumLiterals(qualifiedPath: string): string[] | null {
+    const detail = this.enumDetails.get(qualifiedPath);
+    return detail ? detail.literals.map(l => l.name) : null;
+  }
+
+  /**
+   * Build the canonical enumeration reference path (`Model/Package.Enum`) for
+   * an enum-typed property, resolving the property's declared targetType
+   * against the model that declared it. Returns null when the property is
+   * unknown or its target type is not a registered enumeration.
+   *
+   *   getEnumReferencePathForProperty('QualifiedValue', 'Provenance')
+   *     → 'Core/DataTypes.QuantityProvenance'
+   *   getEnumReferencePathForProperty('MaterialPort', 'NominalDirection')
+   *     → 'Process/Enumerations.PortDirection'
+   *
+   * The emitter uses this to build `<DataReference data="<path>.<Literal>"/>`
+   * with no hardcoded package or model name — both come from the schema.
+   */
+  getEnumReferencePathForProperty(className: string, propName: string): string | null {
+    if (!this.classes.has(className)) return null;
+    const prop = this.getProperties(className).find(p => p.name === propName);
+    if (!prop || !prop.targetType) return null;
+    const path = this.qualifyEnumRef(prop.targetType, prop.declaredOn);
+    return path && this.enumDetails.has(path) ? path : null;
+  }
+
+  /**
+   * The unit enumeration reference (`Model/Package.Enum`) bound to a
+   * composition property's PhysicalQuantity, parsed from the schema's
+   * DataTypeBinding chain (e.g. Stream.MassFlow →
+   * 'Core/PhysicalQuantities.MassFlowRateUnit'). Null when the property has no
+   * physical-quantity unit binding.
+   */
+  getUnitEnumRefForProperty(className: string, propName: string): string | null {
+    if (!this.classes.has(className)) return null;
+    const prop = this.getProperties(className).find(p => p.name === propName);
+    return prop?.unitEnumType ?? null;
+  }
+
+  /**
+   * The declared fraction-carrier CompositionProperty on Composition for a
+   * basis, resolved from the loaded schema so the emitted property name always
+   * matches what Process.xml declares: today `MoleFractiona` (sic — schema
+   * typo) / `MassFractions`; when a future DEXPI release corrects the Mole
+   * spelling to `MoleFractions`, the emit side follows the schema
+   * automatically. Falls back to the current published names when no schema
+   * is loaded.
+   */
+  compositionFractionProperty(basis: 'Mole' | 'Mass'): string {
+    const declared = this.getProperties('Composition').find(
+      p => p.kind === 'composition' && p.name.startsWith(`${basis}Fraction`),
+    );
+    return declared?.name ?? (basis === 'Mass' ? 'MassFractions' : 'MoleFractiona');
+  }
+
+  /**
+   * Resolve a unit token to its enumeration literal NAME within a unit
+   * enumeration, matching ONLY the schema's own declared fields — literal name
+   * first, then un_symbol / un_code / rdl_label (all exact). Returns null when
+   * the token matches none (the caller must then fail closed or offer the
+   * picker — never guess). No alias table; resolution is schema-field equality.
+   */
+  resolveUnitLiteral(unitEnumPath: string, token: string): string | null {
+    const detail = this.enumDetails.get(unitEnumPath);
+    if (!detail) return null;
+    const t = token.trim();
+    if (t === '') return null;
+    const byName = detail.literals.find(l => l.name === t);
+    if (byName) return byName.name;
+    const byMeta = detail.literals.find(
+      l => l.unSymbol === t || l.unCode === t || l.rdlLabel === t,
+    );
+    return byMeta ? byMeta.name : null;
+  }
+
+  /**
+   * Resolve a unit token across ALL PhysicalQuantities unit enumerations,
+   * returning the qualified enum path + literal of the first match. Used ONLY
+   * for composition properties that carry no PhysicalQuantity unit binding
+   * (project/profile extensions such as MaterialStateType.MoleFlow): there is
+   * no declared quantity type to scope the search to, so the token is matched
+   * against every unit enum the schema declares. Bound properties never use
+   * this — they resolve strictly within their bound enum and fail closed on a
+   * mismatch, so a unit can never silently land in the wrong quantity type.
+   * Still schema-driven (only real literals match); returns null on no match.
+   */
+  resolveUnitGlobal(token: string): { enumPath: string; literal: string } | null {
+    const t = token.trim();
+    if (t === '') return null;
+    for (const [path, detail] of this.enumDetails) {
+      if (detail.package !== 'PhysicalQuantities') continue;
+      const literal = this.resolveUnitLiteral(path, t);
+      if (literal) return { enumPath: path, literal };
+    }
+    return null;
+  }
+
+  /**
+   * Bare names of every PhysicalQuantities unit enumeration the registry knows
+   * (Core + any loaded Profiles). The Profile generator uses this to place a
+   * missing unit literal under the unit enum its carrying property best matches
+   * (e.g. a `MoleFlow` property → `MoleFlowRateUnit`) rather than guessing a
+   * name. Sorted for deterministic generator output.
+   */
+  unitEnumNames(): string[] {
+    const names = new Set<string>();
+    for (const detail of this.enumDetails.values()) {
+      if (detail.package === 'PhysicalQuantities') names.add(detail.name);
+    }
+    return [...names].sort();
+  }
+
+  /**
+   * Qualified path (`Model/Package.Enum`) for a bare PhysicalQuantities unit-enum
+   * name (e.g. 'MoleFlowRateUnit' -> 'Core/PhysicalQuantities.MoleFlowRateUnit'),
+   * or null when no such unit enumeration is registered. Lets the emitter turn an
+   * authored quantity choice into a fully-qualified unit `DataReference` so the
+   * data-type tier (D9) can resolve — or flag — its literal target.
+   */
+  unitEnumPath(bareName: string): string | null {
+    for (const [path, detail] of this.enumDetails) {
+      if (detail.package === 'PhysicalQuantities' && detail.name === bareName) return path;
+    }
+    return null;
+  }
+
+  /**
+   * Literal names of a unit enumeration path — for the properties-panel unit
+   * picker (the same literals+Custom dropdown used for any enum-typed value).
+   */
+  getUnitEnumLiterals(unitEnumPath: string): string[] | null {
+    const detail = this.enumDetails.get(unitEnumPath);
+    return detail ? detail.literals.map(l => l.name) : null;
+  }
+
+  /**
+   * Convenience for the UI: the unit enumeration's literals for a measurement
+   * property, or null when the property has no physical-quantity unit binding.
+   */
+  getUnitEnumLiteralsForProperty(className: string, propName: string): string[] | null {
+    const ref = this.getUnitEnumRefForProperty(className, propName);
+    return ref ? this.getUnitEnumLiterals(ref) : null;
+  }
+
+  /**
+   * Qualify a raw schema type ref to a `Model/Package.Enum` path. Absolute
+   * refs ('/Package.Enum') resolve against the model that declared the
+   * referencing property (its source-file basename); already-prefixed refs
+   * ('Core/Package.Enum') are kept as-is. Returns null for refs that can't be
+   * qualified (Builtin/*, MetaData/*, …).
+   */
+  private qualifyEnumRef(rawTypeRef: string, declaringClass: string): string | null {
+    if (rawTypeRef.startsWith('Builtin/') || rawTypeRef.startsWith('MetaData/')) return null;
+    if (rawTypeRef.startsWith('/')) {
+      const model = this.modelOfClass(declaringClass);
+      return model ? `${model}${rawTypeRef}` : null;
+    }
+    return rawTypeRef.includes('/') ? rawTypeRef : null;
+  }
+
+  /** Source-file basename (no .xml extension) of a class's declaring model. */
+  private modelOfClass(className: string): string | null {
+    const info = this.classes.get(className);
+    if (!info) return null;
+    return info.sourceFile.replace(/\.xml$/i, '');
+  }
 }
 
 // ── Schema-XML parsing internals ──────────────────────────────────────────
@@ -559,6 +817,8 @@ interface ParsedSchema {
   classes: DexpiClassInfo[];
   /** Map of enumeration name → literal names (in declaration order). */
   enumerations: Map<string, string[]>;
+  /** Fully-qualified enum index keyed by `Model/Package.Enum`, with metadata. */
+  enumDetails: Map<string, EnumDetail>;
 }
 
 /**
@@ -590,23 +850,94 @@ function parseSchemaXml(source: SchemaSource): ParsedSchema {
 
   extract('ConcreteClass', 'concrete');
   extract('AbstractClass', 'abstract');
+  // AggregatedDataType (PhysicalQuantity, PhysicalQuantityVector,
+  // MultiLanguageString, …) declares DataProperty children just like a class
+  // (PhysicalQuantity → Unit + Value; PhysicalQuantityVector → Unit + Values).
+  // Parsing them as classes is what lets the property-name validator resolve a
+  // nested `<Data property="Unit">` against PhysicalQuantity instead of
+  // mis-attributing it to the enclosing QualifiedValue — i.e. it is what makes
+  // the canonical nested form validatable and the flat form rejectable, with no
+  // allowlist. They are Core-sourced, so concreteClasses() still excludes them
+  // from the user-pickable ProcessStep list.
+  extract('AggregatedDataType', 'concrete');
 
-  // Parse <Enumeration name="X"><EnumerationLiteral name="..."/></Enumeration>.
-  // Used by the data-type validator to verify enum-typed Data values are one
-  // of the declared literals (e.g. Provenance ∈ {Calculated, Estimated, ...}).
-  const enumerations = new Map<string, string[]>();
+  // Parse every <Package><Enumeration><EnumerationLiteral> into the
+  // fully-qualified enum index (Model/Package.Enum → literals + identity
+  // metadata). `model` is the source-file basename; `package` is the enclosing
+  // <Package>. Each literal carries the schema's own un_symbol / un_code /
+  // rdl_label / rdl_uri so the unit resolver matches tokens against real
+  // schema fields. The bare-name `enumerations` map (kept for back-compat with
+  // getEnumerationLiterals) is derived from this.
+  const model = source.name.replace(/\.xml$/i, '');
+  const enumDetails = new Map<string, EnumDetail>();
   for (const el of Array.from(doc.querySelectorAll('Enumeration'))) {
     const name = el.getAttribute('name');
     if (!name) continue;
-    const literals: string[] = [];
+    let pkgEl: Element | null = el.parentElement;
+    while (pkgEl && pkgEl.tagName !== 'Package') pkgEl = pkgEl.parentElement;
+    const pkg = pkgEl?.getAttribute('name') ?? '';
+    const literals: EnumLiteralDetail[] = [];
     for (const lit of Array.from(el.querySelectorAll(':scope > EnumerationLiteral'))) {
       const litName = lit.getAttribute('name');
-      if (litName) literals.push(litName);
+      if (!litName) continue;
+      const meta = (key: string): string | undefined => {
+        const d = Array.from(lit.querySelectorAll(':scope > Data')).find(
+          x => x.getAttribute('property') === `MetaData/${key}`,
+        );
+        const s = d?.querySelector(':scope > String')?.textContent?.trim();
+        return s && s.length > 0 ? s : undefined;
+      };
+      literals.push({
+        name: litName,
+        unSymbol: meta('un_symbol'),
+        unCode: meta('un_code'),
+        rdlLabel: meta('rdl_label'),
+        rdlUri: meta('rdl_uri'),
+      });
     }
-    enumerations.set(name, literals);
+    const qualifiedPath = pkg ? `${model}/${pkg}.${name}` : `${model}/${name}`;
+    enumDetails.set(qualifiedPath, { model, package: pkg, name, literals });
+  }
+  // Derive the bare-name map (last declaration of a given name wins, matching
+  // prior behaviour).
+  const enumerations = new Map<string, string[]>();
+  for (const detail of enumDetails.values()) {
+    enumerations.set(detail.name, detail.literals.map(l => l.name));
   }
 
-  return { classes: out, enumerations };
+  return { classes: out, enumerations, enumDetails };
+}
+
+/**
+ * Additively merge a parsed enumeration index into an accumulating one, keyed by
+ * package+name rather than model-qualified path. A later source declaring an
+ * enumeration of the same package+name EXTENDS the existing one (new literals
+ * union in); the first source's qualified path stays canonical, so a Profile
+ * that adds a unit literal extends e.g. Core's MoleFlowRateUnit in place and
+ * references resolve to the Core path. Mirrors the additive class merge.
+ */
+function mergeEnumDetailsAdditive(
+  target: Map<string, EnumDetail>,
+  incoming: Map<string, EnumDetail>,
+): void {
+  const byPkgName = new Map<string, string>();
+  for (const [path, d] of target) byPkgName.set(`${d.package} ${d.name}`, path);
+  for (const [path, detail] of incoming) {
+    const key = `${detail.package} ${detail.name}`;
+    const canonical = byPkgName.get(key);
+    if (canonical) {
+      const existing = target.get(canonical)!;
+      const have = new Set(existing.literals.map(l => l.name));
+      const merged = [...existing.literals];
+      for (const lit of detail.literals) {
+        if (!have.has(lit.name)) { merged.push(lit); have.add(lit.name); }
+      }
+      target.set(canonical, { ...existing, literals: merged });
+    } else {
+      byPkgName.set(key, path);
+      target.set(path, detail);
+    }
+  }
 }
 
 /**
@@ -673,10 +1004,41 @@ function parseDirectProperties(classEl: Element, declaredOn: string): DexpiPrope
       lower: parseInt(el.getAttribute('lower') ?? '0', 10) || 0,
       upper: parseUpper(el.getAttribute('upper')),
       targetType: parsePropertyTargetType(el, kind),
+      unitEnumType: kind === 'composition' ? parseUnitEnumBinding(el) : undefined,
       declaredOn,
     });
   }
   return out;
+}
+
+/**
+ * Extract the unit enumeration a CompositionProperty's PhysicalQuantity is
+ * bound to, straight from the schema's DataTypeBinding chain:
+ *
+ *   <CompositionProperty name="MassFlow">
+ *     <BoundClass>
+ *       <DataTypeBinding parameter="Core/QualifiedValue.Type">
+ *         <UnionDataType>
+ *           <BoundDataType>
+ *             <DataTypeReference type="Core/PhysicalQuantities.PhysicalQuantity"/>
+ *             <DataTypeBinding parameter="Core/PhysicalQuantities.PhysicalQuantity.UnitType">
+ *               <DataTypeReference type="Core/PhysicalQuantities.MassFlowRateUnit"/>  ← this
+ *
+ * Handles both PhysicalQuantity and PhysicalQuantityVector (their UnitType
+ * parameter both end in `.UnitType`). Returns the raw, already-model-prefixed
+ * type ref (e.g. 'Core/PhysicalQuantities.MassFlowRateUnit') or undefined when
+ * the property has no such binding. No property→unit table — the binding is
+ * read entirely from the schema.
+ */
+function parseUnitEnumBinding(compEl: Element): string | undefined {
+  for (const b of Array.from(compEl.querySelectorAll('DataTypeBinding'))) {
+    const param = b.getAttribute('parameter') ?? '';
+    if (/\.UnitType$/.test(param) && param.includes('PhysicalQuantit')) {
+      const type = b.querySelector(':scope > DataTypeReference')?.getAttribute('type');
+      if (type) return type;
+    }
+  }
+  return undefined;
 }
 
 function parseUpper(raw: string | null): number | null {

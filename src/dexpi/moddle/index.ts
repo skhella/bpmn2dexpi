@@ -90,7 +90,6 @@ export interface DexpiPort {
     name: string;
     value: string;
     unit?: string;
-    unitUri?: string;
     nameUri?: string;
     scope?: string;
     range?: string;
@@ -147,7 +146,6 @@ export interface DexpiAttribute {
   name: string;
   value: string;
   unit?: string;
-  unitUri?: string;
   nameUri?: string;
   scope?: string;
   range?: string;

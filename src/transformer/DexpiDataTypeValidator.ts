@@ -46,6 +46,18 @@ export interface DataTypeFailure {
   actualValue: string;
   /** Short context for diagnostic display. */
   context: string;
+  /**
+   * True when this finding is an extension-closeable VOCABULARY gap rather than a
+   * value-conformance error: a unit `<DataReference>` whose literal is missing
+   * from its `PhysicalQuantities` enumeration, which the Profile generator closes
+   * by adding the literal. This is a cross-cutting ATTRIBUTE, not a separate
+   * validation level — it lets a consumer distinguish, within the data-type
+   * findings, the gaps the generator auto-closes (units) from the authoring
+   * errors it cannot (a typoed Double or a non-member of a closed enum like
+   * QuantityProvenance). Property-name and class-existence findings are wholly
+   * closeable in the same sense.
+   */
+  closeable?: boolean;
 }
 
 /** Internal: render a list of failures as a multi-line summary. */
@@ -107,7 +119,7 @@ function checkBuiltin(typeRef: string, value: string): boolean | null {
 /**
  * Strip a typeRef path down to its bare type name.
  *   '/Enumerations.PortDirection'      → 'PortDirection'
- *   'Core/Enumerations.QuantityRange'  → 'QuantityRange'
+ *   'Core/DataTypes.QuantityRange'     → 'QuantityRange'
  *   '/DataTypes.MultiLanguageString'   → 'MultiLanguageString'
  *   'Builtin/Double'                   → 'Double' (caller usually handles Builtin/ separately)
  */
@@ -147,30 +159,30 @@ function validateValueAgainstType(
 // ── Main validator ──────────────────────────────────────────────────────────
 
 /**
- * Walk the emitted DEXPI XML. For every `<Data property="X">value</Data>`
- * whose declared type on the wrapping class is a checkable kind (Builtin
- * or Enumeration), validate `value` against the type. Failures are
- * returned as DataTypeFailure[]; an empty array means the model is
- * data-type-clean.
+ * Walk the emitted DEXPI XML. This tier validates two things, both of which
+ * the reference paper folds into the single "data type" dimension ("data
+ * values are validated against their declared types — built-in primitives or
+ * enumeration literals"):
  *
- * Aggregated DataType inlining (PhysicalQuantity Value/Unit, Vector
- * Values/Unit) is honored: `Value`/`Values`/`Unit` inside a
- * `<Object type="Core/QualifiedValue">` are mapped to Double/String
- * respectively. The full set of inlined names lives in
- * QUALIFIED_VALUE_INLINED_DATATYPES below.
+ *   1. Inline `<Data property="X">value</Data>` text whose declared type on the
+ *      wrapping class is a Builtin primitive or an Enumeration. The wrapping
+ *      class is the nearest enclosing <Object type="…"> OR <AggregatedDataValue
+ *      type="…"> — so a nested PhysicalQuantity's Value validates as a Double
+ *      against PhysicalQuantity (not against the outer QualifiedValue). No
+ *      QualifiedValue inlining table is needed any more: the AggregatedDataType
+ *      classes are real classes in the registry now, so their Unit / Value /
+ *      Values resolve directly.
+ *   2. Enumeration `<DataReference data="Model/Package.Enum.Literal"/>` targets
+ *      (D9). The XSD checks only the reference STRING shape, never whether the
+ *      target exists; nothing else in the pipeline did either — which is why
+ *      every stale `Core/Enumerations.*` / `PortDirectionClassification.*`
+ *      target slipped through. Here each reference is split, its model prefix
+ *      checked against the file's <Import>s, and its enum + literal resolved
+ *      against the real imported enumerations. Unresolvable targets fail.
+ *
+ * Failures are returned as DataTypeFailure[]; an empty array means the model is
+ * data-type-clean.
  */
-const QUALIFIED_VALUE_INLINED_DATATYPES: Map<string, string> = new Map([
-  // QualifiedValue's own DataProperties (Process.xml-declared) include
-  // Provenance / Range / Scope / Case / CaseUID — those are reachable via
-  // the registry's property lookup so we don't list them here. The
-  // entries below are the AggregatedDataType-inlined ones the registry
-  // can't see (PhysicalQuantity contributes Value+Unit; Vector
-  // contributes Values+Unit) — sourced from DEXPI's Core schema.
-  ['Value',  'Builtin/Double'],
-  ['Values', 'Builtin/Double'],
-  ['Unit',   'Builtin/String'],
-]);
-
 export function validateEmittedDexpiDataTypes(
   xml: string,
   source: string,
@@ -180,42 +192,31 @@ export function validateEmittedDexpiDataTypes(
   const parser = new DOMParser();
   const doc = parser.parseFromString(xml, 'text/xml');
 
-  // Walk every <Data property="X"> in the document.
+  // ── 1. Inline Data-value type conformance ───────────────────────────────
   const dataElements = Array.from(doc.getElementsByTagName('Data')) as Element[];
   for (const el of dataElements) {
     const propName = el.getAttribute('property');
     if (!propName) continue;
 
-    // Find nearest enclosing <Object type="...">.
-    let parent: Element | null = el.parentElement;
-    while (parent && parent.tagName !== 'Object') parent = parent.parentElement;
-    if (!parent) continue;
-    const typeAttr = parent.getAttribute('type');
+    // Nearest enclosing carrier that names a class — <Object> or
+    // <AggregatedDataValue> (so nested PhysicalQuantity(Vector) properties
+    // resolve against PhysicalQuantity, not the outer QualifiedValue).
+    const carrier = nearestEnclosingTypedCarrier(el);
+    if (!carrier) continue;
+    const typeAttr = carrier.getAttribute('type');
     if (!typeAttr) continue;
 
-    // Bare class name (e.g. 'Process/Process.Stream' → 'Stream').
     const className = bareClassName(typeAttr);
     if (!registry.isValidClass(className)) continue; // unknown class — skip
 
-    // Resolve the property's declared targetType. For QualifiedValue's
-    // Value/Values/Unit, prefer the AggregatedDataType-inlined types over
-    // whatever the registry may surface — Core.xml declares these with
-    // UnionDataType (Undefined|String) which is too loose to be useful;
-    // the actual semantics come from PhysicalQuantity/Vector binding.
-    let declaredType: string | undefined;
-    if (className === 'QualifiedValue' && QUALIFIED_VALUE_INLINED_DATATYPES.has(propName)) {
-      declaredType = QUALIFIED_VALUE_INLINED_DATATYPES.get(propName);
-    } else {
-      const props = registry.getProperties(className);
-      const prop = props.find(p => p.name === propName);
-      declaredType = prop?.targetType;
-    }
-
+    const prop = registry.getProperties(className).find(p => p.name === propName);
+    const declaredType = prop?.targetType;
     if (!declaredType) continue; // unknown property or unannotated kind — skip
 
-    // Extract value text — use textContent, trim whitespace.
+    // Value text — DataReference-valued Data carries no text and is handled
+    // by the reference pass below.
     const value = (el.textContent ?? '').trim();
-    if (value === '') continue; // empty value (placeholder; permitted)
+    if (value === '') continue; // empty / placeholder — permitted
 
     const verdict = validateValueAgainstType(value, declaredType, registry);
     if (verdict === false) {
@@ -225,12 +226,91 @@ export function validateEmittedDexpiDataTypes(
         propertyName: propName,
         declaredType,
         actualValue: value,
-        context: `<Data property="${propName}">${value}</Data> inside <Object type="${typeAttr}"> — declared ${declaredType}`,
+        context: `<Data property="${propName}">${value}</Data> inside <${carrier.tagName} type="${typeAttr}"> — declared ${declaredType}`,
       });
     }
   }
 
+  // ── 2. Enumeration DataReference target resolution (D9) ──────────────────
+  // Map each <Import prefix="P" source="…/X.xml"/> to its model basename so a
+  // reference's prefix resolves to the right imported model — keyed off the
+  // file's own imports, never a hardcoded model name.
+  const prefixToModel = new Map<string, string>();
+  for (const imp of Array.from(doc.getElementsByTagName('Import'))) {
+    const prefix = imp.getAttribute('prefix');
+    if (!prefix) continue;
+    const base = (imp.getAttribute('source') ?? '').split(/[\\/]/).pop() ?? '';
+    prefixToModel.set(prefix, base.replace(/\.xml$/i, '') || prefix);
+  }
+
+  for (const ref of Array.from(doc.getElementsByTagName('DataReference'))) {
+    const data = ref.getAttribute('data');
+    if (!data) continue;
+
+    const enclosingData = nearestEnclosing(ref, 'Data');
+    const refPropName = enclosingData?.getAttribute('property') ?? '(reference)';
+    const carrier = nearestEnclosingTypedCarrier(ref);
+    const refClassName = carrier ? bareClassName(carrier.getAttribute('type') ?? '') : '(unknown)';
+    // A unit reference (target enumeration in the PhysicalQuantities package) is
+    // an extension-closeable vocabulary gap — the Profile generator adds the
+    // missing literal — as opposed to a typoed closed-enum literal, which is an
+    // authoring error. Tag it so a consumer can tell the two apart within the
+    // data-type tier (read from the ref path's package segment, so it classifies
+    // even when the enum/prefix doesn't resolve).
+    const afterModel = data.includes('/') ? data.slice(data.indexOf('/') + 1) : data;
+    const closeable = afterModel.split('.')[0] === 'PhysicalQuantities';
+    const fail = (reason: string) => failures.push({
+      source,
+      className: refClassName,
+      propertyName: refPropName,
+      declaredType: 'DataReference (enumeration literal)',
+      actualValue: data,
+      context: `<DataReference data="${data}"/> on ${refClassName}.${refPropName} — ${reason}`
+        + (closeable ? ' (auto-closeable by Profile extension)' : ''),
+      closeable,
+    });
+
+    // Expect Model/Package.Enum.Literal. Relative refs ('/Package.Enum.Literal')
+    // resolve against the current model and are not emitted by this exporter;
+    // skip rather than false-flag.
+    const slash = data.indexOf('/');
+    if (slash <= 0) continue;
+    const prefix = data.slice(0, slash);
+    const rest = data.slice(slash + 1); // Package.Enum.Literal
+    const lastDot = rest.lastIndexOf('.');
+    if (lastDot <= 0) { fail('not of the form Model/Package.Enum.Literal'); continue; }
+    const literal = rest.slice(lastDot + 1);
+    const packageEnum = rest.slice(0, lastDot);
+
+    const model = prefixToModel.get(prefix);
+    if (!model) { fail(`model prefix "${prefix}" is not a declared <Import>`); continue; }
+
+    const enumPath = `${model}/${packageEnum}`;
+    const literals = registry.getQualifiedEnumLiterals(enumPath);
+    if (!literals) { fail(`enumeration "${enumPath}" does not exist in the imported models`); continue; }
+    if (!literals.includes(literal)) {
+      fail(`literal "${literal}" is not a member of "${enumPath}" (members: ${literals.join(', ')})`);
+    }
+  }
+
   return failures;
+}
+
+/** Nearest enclosing element with the given tagName, or null. */
+function nearestEnclosing(el: Element, tagName: string): Element | null {
+  let p: Element | null = el.parentElement;
+  while (p && p.tagName !== tagName) p = p.parentElement;
+  return p;
+}
+
+/**
+ * Nearest enclosing carrier that names a class via its `type` attribute — an
+ * <Object> or an <AggregatedDataValue>. Returns null if neither is found.
+ */
+function nearestEnclosingTypedCarrier(el: Element): Element | null {
+  let p: Element | null = el.parentElement;
+  while (p && p.tagName !== 'Object' && p.tagName !== 'AggregatedDataValue') p = p.parentElement;
+  return p;
 }
 
 /** Bare class name extraction (mirrors DexpiPropertyNameValidator's helper). */

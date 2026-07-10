@@ -63,16 +63,13 @@ export const FRAMEWORK_ATTRS = new Set<string>([
   'anchorX',
   'anchorY',
 ]);
-
-// QualifiedValue + AggregatedDataType inlining: when a CompositionProperty's
-// target is Core/QualifiedValue, the runtime serialization may also inline
-// children from the AggregatedDataType bound to QualifiedValue.Type
-// (e.g. PhysicalQuantity contributes Value + Unit; PhysicalQuantityVector
-// contributes Values + Unit). The registry parses ConcreteClass /
-// AbstractClass only, so it doesn't surface these AggregatedDataType
-// properties; we list them here so the validator accepts the canonical
-// flattened form.
-const QUALIFIED_VALUE_INLINED = new Set<string>(['Unit', 'Values']);
+// NOTE: the former QUALIFIED_VALUE_INLINED allowlist (['Unit', 'Values']) is
+// GONE. Both validation paths are now strict with no per-property exception:
+// Unit / Value(s) live exclusively inside an <AggregatedDataValue
+// type="…PhysicalQuantity(Vector)"> (emitted output) or its dexpi:-namespaced
+// authoring equivalent (BPMN extensionElements), and the walkers descend into
+// that carrier to resolve them against PhysicalQuantity. A flat Unit directly
+// on a Core/QualifiedValue is rejected in both paths.
 
 export interface PropertyFailure {
   /** Free-text label identifying the source XML (e.g. filename). */
@@ -236,9 +233,18 @@ export function validateEmittedDexpiXml(
     const propName = el.getAttribute('property');
     if (!propName) continue;
 
-    // Walk up to nearest <Object type="...">
+    // Walk up to the nearest carrier that names a class: an <Object type="…">
+    // or an <AggregatedDataValue type="…"> (the carrier for an
+    // AggregatedDataType value such as PhysicalQuantity / PhysicalQuantityVector).
+    // Stopping at AggregatedDataValue is what makes a nested
+    // <Data property="Unit"> resolve against PhysicalQuantity (where Unit IS a
+    // property) — and what makes a FLAT Unit directly under a Core/QualifiedValue
+    // resolve against QualifiedValue (where it is NOT a property) and therefore
+    // be rejected. No QualifiedValue allowlist is needed on the emitted-output
+    // side: the canonical nested shape validates on its own and the flat shape
+    // fails on its own.
     let p: Element | null = el.parentElement;
-    while (p && p.tagName !== 'Object') p = p.parentElement;
+    while (p && p.tagName !== 'Object' && p.tagName !== 'AggregatedDataValue') p = p.parentElement;
     if (!p) continue;
     const typeAttr = p.getAttribute('type');
     if (!typeAttr) continue;
@@ -252,12 +258,6 @@ export function validateEmittedDexpiXml(
 
     const declared = new Map<string, PropertyKind>();
     for (const p of registry.getProperties(className)) declared.set(p.name, p.kind);
-    // QualifiedValue accepts inlined AggregatedDataType properties too —
-    // these are always carried as data (the value's String/Number content),
-    // so flag them as 'data' for the kind check.
-    if (className === 'QualifiedValue') {
-      for (const inlined of QUALIFIED_VALUE_INLINED) declared.set(inlined, 'data');
-    }
     const declaredKind = declared.get(propName);
     if (declaredKind === undefined) {
       // Property not declared on the class chain at all — name fidelity gap.
@@ -298,9 +298,11 @@ export function validateEmittedDexpiXml(
  *
  * Descent: when we see a property element <Y> on a wrapping class X, we look
  * up X's "Y" property and use its targetType (resolved to a bare class name
- * via the registry) as the new wrapping class for <Y>'s own children. If
- * targetType is QualifiedValue, descent uses the QualifiedValue allowlist
- * augmented with QUALIFIED_VALUE_INLINED.
+ * via the registry) as the new wrapping class for <Y>'s own children. When
+ * targetType is QualifiedValue, descent continues into the canonical nested
+ * carrier (AggregatedDataValue → PhysicalQuantity(Vector)); there is no flat
+ * Unit/UnitReference allowlist — a unit on a QualifiedValue must be a nested
+ * DataReference, validated by the same property walk.
  */
 export function validateBpmnExtensionElements(
   bpmnXml: string,
@@ -386,15 +388,6 @@ function walkRichElement(
   const validNames = new Set(propByName.keys());
   const declaredKindByName = new Map<string, PropertyKind>();
   for (const p of props) declaredKindByName.set(p.name, p.kind);
-  // Special-case QualifiedValue inlining (PhysicalQuantity Value/Unit, etc.)
-  // Inlined names are always carried as 'data' (string content of the
-  // QualifiedValue's Value/Unit child).
-  if (wrappingClass === 'QualifiedValue') {
-    for (const inlined of QUALIFIED_VALUE_INLINED) {
-      validNames.add(inlined);
-      declaredKindByName.set(inlined, 'data');
-    }
-  }
 
   for (const child of Array.from(el.children) as Element[]) {
     const inDexpiNs = child.namespaceURI?.includes('dexpi.org') ?? false;
@@ -441,15 +434,22 @@ function walkRichElement(
         // mismatched-kind failure is recorded once at this level.
       }
 
-      // For Components carriers, descend into the inner <dexpi:object>
-      // using its type attribute (e.g. "Core/QualifiedValue") as the new
-      // wrapping class. The `property` field's targetType from the
-      // registry is a sanity-check fallback when the inner Object lacks
-      // an explicit type attr.
-      if (kind === 'composition') {
-        const inner = Array.from(child.children).find((o: Element) =>
-          (o.localName || '').toLowerCase() === 'object'
-        );
+      // Descend into nested structure:
+      //  - a Components carrier wraps an inner <dexpi:object type="..."> (the
+      //    CompositionProperty's class, e.g. Core/QualifiedValue);
+      //  - a Data carrier whose value is itself an AggregatedDataType wraps a
+      //    <dexpi:aggregatedDataValue type="..."> (or <dexpi:object>) — this is
+      //    the canonical nesting of a unit-bearing Value in a
+      //    PhysicalQuantity(Vector), so the nested Unit/Value(s) validate
+      //    against PhysicalQuantity instead of being inlined onto QualifiedValue.
+      // This is what makes the BPMN-extension validator strict on the nested
+      // form without any allowlist: a flat Unit directly on a QualifiedValue is
+      // flagged; the same Unit inside a PhysicalQuantity carrier is accepted.
+      if (kind === 'composition' || kind === 'data') {
+        const inner = Array.from(child.children).find((o: Element) => {
+          const il = (o.localName || '').toLowerCase();
+          return il === 'object' || il === 'aggregateddatavalue';
+        });
         if (inner) {
           const typeAttr = inner.getAttribute('type');
           let nextWrap: string | undefined;
@@ -457,7 +457,7 @@ function walkRichElement(
             const t = bareClassName(typeAttr);
             if (registry.isValidClass(t)) nextWrap = t;
           }
-          if (!nextWrap) {
+          if (!nextWrap && kind === 'composition') {
             const prop = propByName.get(propName);
             if (prop?.targetType) {
               const t = bareClassName(prop.targetType);
@@ -467,8 +467,6 @@ function walkRichElement(
           if (nextWrap) walkRichElement(inner, nextWrap, source, registry, failures);
         }
       }
-      // Data and References carriers don't have child elements to descend
-      // into; their content is the body text or the uidRef attribute.
       continue;
     }
 

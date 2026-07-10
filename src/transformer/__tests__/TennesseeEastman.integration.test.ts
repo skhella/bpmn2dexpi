@@ -197,8 +197,14 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     // literal for instrument-derived values (Core.xml line 64).
     const qvSlotCount = countMatches(/<Object id="DataObjectReference_[^"]+" type="Core\/QualifiedValue"/g);
     expect(qvSlotCount).toBe(19);
-    const observedCount = countMatches(/Core\/Enumerations\.Provenance\.Observed/g);
+    // Canonical enum DataReference target: Core/DataTypes.QuantityProvenance
+    // (the real enum path), not the stale Core/Enumerations.Provenance the
+    // exporter emitted before this fix.
+    const observedCount = countMatches(/Core\/DataTypes\.QuantityProvenance\.Observed/g);
     expect(observedCount).toBe(19);
+    // The stale namespace must be gone entirely.
+    expect(countMatches(/Core\/Enumerations\./g)).toBe(0);
+    expect(countMatches(/PortDirectionClassification/g)).toBe(0);
   });
 
   // Core/QualifiedValue declares Value and DisplayText as lower=1.

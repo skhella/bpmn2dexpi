@@ -117,33 +117,35 @@ export class BpmnToDexpiTransformer {
     this.lastCardinalityValidation = undefined;
     this.lastClassExistenceValidation = undefined;
 
-    // Load DEXPI class registry. We always include any user-supplied
-    // DEXPI Profile extensions so Profile classes (e.g. BiologicalReactor)
-    // are recognized as valid dexpiType targets in both strict and
-    // non-strict modes — without this, non-strict transforms would log a
-    // "not a recognised DEXPI 2.0 Process class" warning for every Profile
-    // class. In strict mode we additionally include Core.xml so the
-    // property-name validator can walk the full supertype chain
-    // (Process → Core).
-    const wantProfiles = (options.profileXmls?.length ?? 0) > 0;
-    if (options.strict || wantProfiles) {
-      const sources: { name: string; xml: string }[] = [];
-      if (options.processXml) {
-        sources.push({ name: 'Process.xml', xml: options.processXml });
-      }
-      if (options.coreXml) {
-        sources.push({ name: 'Core.xml', xml: options.coreXml });
-      }
-      if (sources.length > 0) {
-        sources.push(...(options.profileXmls ?? []));
-        this.registry = DexpiProcessClassRegistry.fromXmlSources(sources);
-      } else {
-        this.registry = await DexpiProcessClassRegistry.loadDefault({
-          extensions: options.profileXmls,
-        });
-      }
+    // Load the DEXPI class registry. The registry is now needed in EVERY mode,
+    // not just strict mode: the canonical QualifiedValue emitter resolves units
+    // and enum references (Provenance / Range / Scope / NominalDirection plus
+    // the PhysicalQuantity unit enumerations) entirely from Core.xml +
+    // Process.xml at emit time. So we always build the fullest registry
+    // available — Process + Core (+ any user Profiles) — and let strict mode
+    // decide only whether to RUN the validators afterwards. Including Core in
+    // every mode is also what lets non-strict callers (CLI, UI export, Neo4j
+    // export) emit conformant unit/qualifier references. User Profile classes
+    // are always merged so they're recognised as valid dexpiType targets.
+    const sources: { name: string; xml: string }[] = [];
+    if (options.processXml) {
+      sources.push({ name: 'Process.xml', xml: options.processXml });
+    }
+    if (options.coreXml) {
+      sources.push({ name: 'Core.xml', xml: options.coreXml });
+    }
+    if (sources.length > 0) {
+      sources.push(...(options.profileXmls ?? []));
+      // Strict supertype resolution only when Core.xml is present (Process
+      // classes cross-reference Core); a Process-only load stays lenient so it
+      // does not throw on unresolved Core supertypes.
+      this.registry = DexpiProcessClassRegistry.fromXmlSources(sources, {
+        strictSupertypes: sources.some(s => s.name === 'Core.xml'),
+      });
     } else {
-      this.registry = await DexpiProcessClassRegistry.load(options.processXml);
+      this.registry = await DexpiProcessClassRegistry.loadDefault({
+        extensions: options.profileXmls,
+      });
     }
     // Surface every same-name additive merge the registry recorded as a
     // logger warning so all transformer consumers (CLI, App.tsx export
@@ -993,19 +995,11 @@ export class BpmnToDexpiTransformer {
           const qv = objs.find(o => (o.localName || '').toLowerCase() === 'object' &&
                                     (o.getAttribute('type') === 'Core/QualifiedValue'));
           if (!qv || !propName) continue;
-          let value = '';
-          let unit: string | undefined;
-          let unitReference: string | undefined;
-          for (const data of Array.from(qv.children) as Element[]) {
-            if ((data.localName || '').toLowerCase() !== 'data') continue;
-            const dp = data.getAttribute('property');
-            const dv = (data.textContent ?? '').trim();
-            if (dp === 'Value') value = dv;
-            else if (dp === 'Unit') unit = dv;
-            else if (dp === 'UnitReference') unitReference = dv;
-          }
+          // Nesting-aware read (flat carrier or canonical PhysicalQuantity).
+          // The homegrown UnitReference is no longer read or emitted (D6).
+          const { value, unit } = this.readQvScalar(qv);
           if (!value) continue;
-          properties.push({ kind: 'composition', name: propName, value, unit, unitReference });
+          properties.push({ kind: 'composition', name: propName, value, unit: unit || undefined });
         }
       }
 
@@ -1102,10 +1096,16 @@ export class BpmnToDexpiTransformer {
             o.getAttribute('type') === 'Core/QualifiedValue'
           ) as Element | undefined;
           if (!qv) continue;
+          const { value, unit } = this.readQvScalar(qv);
+          // Authored quantity choice for a custom unit (the `unitEnum` carrier
+          // attribute). Drives a qualified unit DataReference at emit time so an
+          // unresolved unit surfaces in the data-type tier rather than vanishing.
+          const unitEnum = child.getAttribute('unitEnum') ?? undefined;
           scalars.push({
             property,
-            value: this.getChildText(qv, 'Value'),
-            unit: this.getChildText(qv, 'Unit') || undefined,
+            value,
+            unit: unit || undefined,
+            unitEnum,
           });
         }
         if (scalars.length > 0) flow.scalars = scalars;
@@ -1119,31 +1119,54 @@ export class BpmnToDexpiTransformer {
           if (comp) {
             const display = this.getChildText(comp, 'Display');
             // Composition's fraction properties per Process.xml are
-            // MoleFractiona (sic — typo preserved from the published
-            // schema) and MassFractions. Each is a CompositionProperty
+            // MoleFractiona (sic — schema typo; the accepted DEXPI correction
+            // renames it MoleFractions, so both spellings are read) and
+            // MassFractions. Each is a CompositionProperty
             // wrapping a QualifiedValue<PhysicalQuantityVector> whose
             // Values DataProperty is multi-valued (one <dexpi:data
             // property="Values">v</dexpi:data> per component).
             const fractionsQv =
               this.findCarrierComponentsQualifiedValue(comp, 'MoleFractiona') ??
+              this.findCarrierComponentsQualifiedValue(comp, 'MoleFractions') ??
               this.findCarrierComponentsQualifiedValue(comp, 'MassFractions');
             const basis = fractionsQv
-              ? (this.findCarrierComponentsPropertyName(comp, 'MoleFractiona')
+              ? ((this.findCarrierComponentsPropertyName(comp, 'MoleFractiona') ||
+                  this.findCarrierComponentsPropertyName(comp, 'MoleFractions'))
                   ? 'Mole'
                   : 'Mass')
               : '';
             const values: { value: string }[] = [];
+            let compositionUnit: string | undefined;
             if (fractionsQv) {
-              for (const c of Array.from(fractionsQv.children) as Element[]) {
-                if ((c.localName || '').toLowerCase() === 'data' &&
-                    c.getAttribute('property') === 'Values') {
+              // Values + Unit are either direct Data children (flat carrier) or
+              // nested inside a <dexpi:aggregatedDataValue
+              // type="…PhysicalQuantityVector"> under the QV's Value (canonical).
+              const valueData = Array.from(fractionsQv.children).find(c =>
+                (c.localName || '').toLowerCase() === 'data' && c.getAttribute('property') === 'Value'
+              ) as Element | undefined;
+              const agg = valueData
+                ? Array.from(valueData.children).find(c => {
+                    const ll = (c.localName || '').toLowerCase();
+                    return ll === 'aggregateddatavalue' || ll === 'object';
+                  }) as Element | undefined
+                : undefined;
+              const container = agg ?? fractionsQv;
+              for (const c of Array.from(container.children) as Element[]) {
+                if ((c.localName || '').toLowerCase() !== 'data') continue;
+                const p = c.getAttribute('property');
+                if (p === 'Values') {
                   values.push({ value: (c.textContent ?? '').trim() });
+                } else if (p === 'Unit') {
+                  // Authored unit token for the fraction vector — resolved to a
+                  // real PhysicalQuantityVector unit literal on emit.
+                  compositionUnit = (c.textContent ?? '').trim() || undefined;
                 }
               }
             }
             flow.composition = {
               basis,
               display,
+              unit: compositionUnit,
               fractions: values.map(v => ({ value: v.value, componentRef: '' })),
             };
           }
@@ -1265,20 +1288,55 @@ export class BpmnToDexpiTransformer {
     }
     if (!qvObject) return undefined;
     const qv: import('./types').QualifiedValueData = {};
+    // Value + Unit via the nesting-aware reader (flat or PhysicalQuantity).
+    const { value, unit } = this.readQvScalar(qvObject);
+    if (value) qv.value = value;
+    if (unit) qv.unit = unit;
+    // The remaining QualifiedValue fields are flat Data children.
     for (const d of Array.from(qvObject.children) as Element[]) {
       if ((d.localName || '').toLowerCase() !== 'data') continue;
       const prop = d.getAttribute('property');
       if (!prop) continue;
-      const value = (d.textContent ?? '').trim();
+      const text = (d.textContent ?? '').trim();
       switch (prop) {
-        case 'Provenance': qv.provenance = value; break;
-        case 'Range':      qv.range      = value; break;
-        case 'Value':      qv.value      = value; break;
-        case 'Unit':       qv.unit       = value; break;
-        case 'DisplayText':qv.displayText= value; break;
+        case 'Provenance':  qv.provenance  = text; break;
+        case 'Range':       qv.range       = text; break;
+        case 'DisplayText': qv.displayText = text; break;
       }
     }
     return qv;
+  }
+
+  /**
+   * Read a Core/QualifiedValue's scalar value + unit token from a BPMN-side
+   * `<dexpi:object type="Core/QualifiedValue">` element, handling BOTH the flat
+   * authoring carrier (Value + Unit as sibling Data children) and the canonical
+   * nested shape (Value holds a `<dexpi:aggregatedDataValue type="…PhysicalQuantity">`
+   * — or the equivalent `<dexpi:object>` — wrapping Unit + Value). Returns empty
+   * strings when a field is absent. The unit is read as the authored token; the
+   * emit path resolves it to a DataReference literal.
+   */
+  private readQvScalar(qvObj: Element): { value: string; unit: string } {
+    const directData = (parent: Element, name: string): Element | undefined =>
+      Array.from(parent.children).find(c =>
+        (c.localName || '').toLowerCase() === 'data' && c.getAttribute('property') === name
+      ) as Element | undefined;
+    const valueData = directData(qvObj, 'Value');
+    if (!valueData) return { value: '', unit: '' };
+    const agg = Array.from(valueData.children).find(c => {
+      const ll = (c.localName || '').toLowerCase();
+      return ll === 'aggregateddatavalue' || ll === 'object';
+    }) as Element | undefined;
+    if (agg) {
+      return {
+        value: (directData(agg, 'Value')?.textContent ?? '').trim(),
+        unit: (directData(agg, 'Unit')?.textContent ?? '').trim(),
+      };
+    }
+    return {
+      value: (valueData.textContent ?? '').trim(),
+      unit: (directData(qvObj, 'Unit')?.textContent ?? '').trim(),
+    };
   }
 
   private findCarrierComponentsQualifiedValue(parent: Element, propertyName: string): Element | undefined {
@@ -1478,24 +1536,24 @@ export class BpmnToDexpiTransformer {
           }
           return undefined;
         };
-        const value = readData('Value');
+        // Read the scalar value + unit token, handling both the flat carrier
+        // and the canonical nested PhysicalQuantity shape.
+        const { value, unit } = this.readQvScalar(obj);
         if (!value) continue; // CompositionProperty with no value is uninteresting
-        // unitUri / nameUri — Profile-extension carriers on QualifiedValue
-        // (UnitReference Data child + QuantityKindReference References
-        // sibling); same shape ProcessStep + MaterialComponent emit.
-        // Flow into the existing transformer extension/warning mechanism.
-        const unitUri = readData('UnitReference') || undefined;
         const nameUri = readReference('QuantityKindReference');
+        // Qualifiers are emitted only when actually authored — no hardcoded
+        // Design/Nominal/Calculated defaults injected on read.
+        const scope = readData('Scope');
+        const range = readData('Range');
+        const provenance = readData('Provenance');
         attributes.push({
           name: propertyName,
           value,
-          unit: readData('Unit'),
-          ...(unitUri !== undefined ? { unitUri } : {}),
+          unit,
           ...(nameUri !== undefined ? { nameUri } : {}),
-          scope: readData('Scope') || 'Design',
-          range: readData('Range') || 'Nominal',
-          provenance: readData('Provenance') || 'Calculated',
-          qualifier: readData('Qualifier') || 'Average',
+          ...(scope ? { scope } : {}),
+          ...(range ? { range } : {}),
+          ...(provenance ? { provenance } : {}),
         });
         continue;
       }
@@ -1615,26 +1673,22 @@ export class BpmnToDexpiTransformer {
           }
           return undefined;
         };
-        const value = readData('Value');
+        const { value, unit } = this.readQvScalar(obj);
         if (!value) continue;
-        // unitUri — bpmn2dexpi extension to QualifiedValue; not declared on
-        // Core.xml. Round-tripped as <Data property="UnitReference">URI</Data>
-        // inside the QV (same shape MaterialComponent + Stream emit).
-        // nameUri — also a Profile-extension carrier; <References
-        // property="QuantityKindReference" objects="URI"/> sibling of Data
-        // inside the QV. Both flow through the existing strict-mode +
-        // Profile-generator extension mechanism.
-        const unitUri = readData('UnitReference') || undefined;
+        // nameUri — Profile-extension QuantityKindReference carrier; kept.
         const nameUri = readReference('QuantityKindReference');
+        // Qualifiers emitted only when authored — no hardcoded defaults.
+        const scope = readData('Scope');
+        const range = readData('Range');
+        const provenance = readData('Provenance');
         attributes.push({
           name: propertyName,
           value,
-          unit: readData('Unit'),
-          ...(unitUri !== undefined ? { unitUri } : {}),
+          unit,
           ...(nameUri !== undefined ? { nameUri } : {}),
-          scope: readData('Scope') || 'Design',
-          range: readData('Range') || 'Nominal',
-          provenance: readData('Provenance') || 'Calculated',
+          ...(scope ? { scope } : {}),
+          ...(range ? { range } : {}),
+          ...(provenance ? { provenance } : {}),
           required: child.getAttribute('required') === 'true' || undefined,
         });
         continue;
@@ -2162,29 +2216,34 @@ export class BpmnToDexpiTransformer {
         step.ports.forEach((port: DexpiPort) => {
           // Sanitize portId for DEXPI XSD compliance (no spaces, hyphens, must start with letter)
           const safePortId = this.sanitizeId(port.portId);
+          // NominalDirection (lower=1) → DataReference to the real
+          // Process/Enumerations.PortDirection enumeration, resolved entirely
+          // from the schema (path from the property's declared type, literal
+          // verified against the enum's members). port.direction is already
+          // the canonical literal ('Inlet' / 'Outlet'); the previous code
+          // mapped it to the non-existent PortDirectionClassification.{In,Out}.
+          const portData: Record<string, unknown>[] = [
+            { '$': { 'property': 'Identifier' }, 'String': safePortId },
+          ];
+          const ndPath = this.registry.getEnumReferencePathForProperty(port.portType, 'NominalDirection');
+          const ndLiterals = ndPath ? this.registry.getQualifiedEnumLiterals(ndPath) : null;
+          if (ndPath && ndLiterals && ndLiterals.includes(port.direction)) {
+            portData.push({
+              '$': { 'property': 'NominalDirection' },
+              'DataReference': { '$': { 'data': `${ndPath}.${port.direction}` } },
+            });
+          } else {
+            this.logger.warn(
+              `Port ${safePortId}: NominalDirection "${port.direction}" did not resolve to a ` +
+              `Process/Enumerations.PortDirection literal — omitted (fail-closed; never a guessed target).`,
+            );
+          }
           const portObject: Record<string, unknown> = {
             '$': {
               'id': safePortId,
               'type': `Process/Process.${port.portType}`
             },
-            'Data': [
-              {
-                '$': {
-                  'property': 'Identifier'
-                },
-                'String': safePortId
-              },
-              {
-                '$': {
-                  'property': 'NominalDirection'
-                },
-                'DataReference': {
-                  '$': {
-                    'data': `Process/Enumerations.PortDirectionClassification.${port.direction === 'Inlet' ? 'In' : 'Out'}`
-                  }
-                }
-              }
-            ]
+            'Data': portData,
           };
 
           // Port has no Label DataProperty per Process.xml — its named
@@ -2219,7 +2278,7 @@ export class BpmnToDexpiTransformer {
               }
               if (!portObject.Components) portObject.Components = [];
               (portObject.Components as Record<string, unknown>[]).push(
-                this.buildQualifiedValueComponentsCarrier(attr),
+                this.buildQualifiedValueComponentsCarrier(attr, port.portType),
               );
             }
           }
@@ -2348,7 +2407,7 @@ export class BpmnToDexpiTransformer {
           if (resolveAttrKind(attr) === 'composition') {
             if (!dexpiStep.Components) dexpiStep.Components = [];
             (dexpiStep.Components as Record<string, unknown>[]).push(
-              this.buildQualifiedValueComponentsCarrier(attr),
+              this.buildQualifiedValueComponentsCarrier(attr, step.type),
             );
           } else {
             (dexpiStep.Data as Record<string, unknown>[]).push({
@@ -2414,54 +2473,21 @@ export class BpmnToDexpiTransformer {
         }
         for (const entry of step.measuredParameters) {
           const slotId = this.sanitizeId(entry.dataObjectId);
-          const dataChildren: Record<string, unknown>[] = [];
-          if (entry.qv?.provenance) {
-            dataChildren.push({
-              '$': { 'property': 'Provenance' },
-              'DataReference': {
-                '$': { 'data': `Core/Enumerations.Provenance.${entry.qv.provenance}` },
-              },
-            });
-          }
-          if (entry.qv?.range) {
-            dataChildren.push({
-              '$': { 'property': 'Range' },
-              'DataReference': {
-                '$': { 'data': `Core/Enumerations.Range.${entry.qv.range}` },
-              },
-            });
-          }
-          // QualifiedValue declares Value (lower=1) and DisplayText (lower=1)
-          // — both UnionDataType (Builtin/Undefined | …). Always emit them;
-          // populated from the extracted authoring or <Undefined/>.
-          if (entry.qv?.value) {
-            dataChildren.push({
-              '$': { 'property': 'Value' },
-              'String': entry.qv.value,
-            });
-          } else {
-            dataChildren.push({
-              '$': { 'property': 'Value' },
-              'Undefined': {},
-            });
-          }
-          if (entry.qv?.displayText) {
-            dataChildren.push({
-              '$': { 'property': 'DisplayText' },
-              'String': entry.qv.displayText,
-            });
-          } else {
-            dataChildren.push({
-              '$': { 'property': 'DisplayText' },
-              'Undefined': {},
-            });
-          }
-          if (entry.qv?.unit) {
-            dataChildren.push({
-              '$': { 'property': 'Unit' },
-              'String': entry.qv.unit,
-            });
-          }
+          // Same canonical emitter the stream/step attribute path uses, so the
+          // instrumentation path converges on the identical shape (D7):
+          // Provenance/Range become Core/DataTypes DataReferences (not the old
+          // bogus Core/Enumerations.* targets), and any value+unit nest in a
+          // PhysicalQuantity. The variable is composed under this step, so the
+          // unit binding resolves against step.type / entry.varName.
+          const dataChildren = this.buildQualifiedValueData({
+            className: step.type,
+            property: entry.varName,
+            value: entry.qv?.value,
+            unit: entry.qv?.unit,
+            range: entry.qv?.range,
+            provenance: entry.qv?.provenance,
+            displayText: entry.qv?.displayText,
+          });
           (dexpiStep.Components as Record<string, unknown>[]).push({
             '$': { 'property': entry.varName },
             'Object': {
@@ -2643,7 +2669,8 @@ export class BpmnToDexpiTransformer {
       // Per XSD: Object has no 'property' attr — use Components property="attrName"
       // containing the Object. Kind dispatch + carrier emit shared with
       // ProcessStep / Port through helpers on this class.
-      const resolveStreamAttrKind = this.resolveAttrKindFn(this.streamTypeToDexpiClass(stream.streamType));
+      const streamClass = this.streamTypeToDexpiClass(stream.streamType);
+      const resolveStreamAttrKind = this.resolveAttrKindFn(streamClass);
 
       if (stream.attributes && stream.attributes.length > 0) {
         stream.attributes.forEach((attr) => {
@@ -2652,7 +2679,7 @@ export class BpmnToDexpiTransformer {
           if (resolveStreamAttrKind(attr) === 'composition') {
             if (!dexpiStream.Components) dexpiStream.Components = [];
             (dexpiStream.Components as Record<string, unknown>[]).push(
-              this.buildQualifiedValueComponentsCarrier(attr),
+              this.buildQualifiedValueComponentsCarrier(attr, streamClass),
             );
           } else {
             (dexpiStream.Data as Record<string, unknown>[]).push({
@@ -2993,23 +3020,19 @@ export class BpmnToDexpiTransformer {
               'String': prop.value,
             });
           } else {
-            // 'composition' — emit canonical Components/Object/QualifiedValue carrier.
-            // DisplayText is required (lower=1) on Core/QualifiedValue per
-            // Core.xml; derive it deterministically as "<value> <unit>" so
-            // the cardinality validator stays clean. Same convention as the
-            // step/stream attribute emit path uses.
-            const displayText = prop.unit ? `${prop.value} ${prop.unit}` : prop.value;
-            const qvData: Record<string, unknown>[] = [
-              { '$': { 'property': 'Value' }, 'String': prop.value },
-              { '$': { 'property': 'DisplayText' }, 'String': displayText },
-            ];
-            if (prop.unit) qvData.push({ '$': { 'property': 'Unit' }, 'String': prop.unit });
-            if (prop.unitReference) qvData.push({ '$': { 'property': 'UnitReference' }, 'String': prop.unitReference });
+            // 'composition' — canonical QualifiedValue carrier via the shared
+            // emitter (nested PhysicalQuantity when a unit resolves, bare Double
+            // otherwise). The homegrown UnitReference is no longer emitted (D6).
             compositionEntries.push({
               '$': { 'property': prop.name },
               'Object': {
                 '$': { 'type': 'Core/QualifiedValue' },
-                'Data': qvData,
+                'Data': this.buildQualifiedValueData({
+                  className: 'MaterialComponent',
+                  property: prop.name,
+                  value: prop.value,
+                  unit: prop.unit,
+                }),
               },
             });
           }
@@ -3144,25 +3167,17 @@ export class BpmnToDexpiTransformer {
           dexpiStateType.Components = [];
         }
         for (const s of stateType.flow.scalars) {
-          const parsed = parseFloat(s.value);
-          const numericValue: Record<string, unknown> = Number.isFinite(parsed)
-            ? { 'Double': parsed }
-            : { 'Undefined': {} };
-          const dataChildren: Record<string, unknown>[] = [
-            { '$': { 'property': 'Value' }, ...numericValue },
-          ];
-          if (s.unit) {
-            dataChildren.push({ '$': { 'property': 'Unit' }, 'String': s.unit });
-          }
-          dataChildren.push({
-            '$': { 'property': 'DisplayText' },
-            'String': s.unit ? `${s.value} ${s.unit}`.trim() : s.value,
-          });
           (dexpiStateType.Components as Record<string, unknown>[]).push({
             '$': { 'property': s.property },
             'Object': [{
               '$': { 'type': 'Core/QualifiedValue' },
-              'Data': dataChildren,
+              'Data': this.buildQualifiedValueData({
+                className: 'MaterialStateType',
+                property: s.property,
+                value: s.value,
+                unit: s.unit,
+                unitEnum: s.unitEnum,
+              }),
             }],
           });
         }
@@ -3238,40 +3253,32 @@ export class BpmnToDexpiTransformer {
         compositionObj.Data = compositionData;
       }
 
-      // Per-component fraction vector. Schema only declares MoleFractiona
-      // and MassFractions on Composition; the basis selects which carrier
-      // property name to use.
+      // Per-component fraction vector. The carrier property name is resolved
+      // from the loaded schema (Composition declares MoleFractiona — sic —
+      // and MassFractions today; when the accepted DEXPI correction renames
+      // the Mole spelling, the emit follows Process.xml automatically).
       const fractions = stateType.flow.composition.fractions ?? [];
       if (fractions.length > 0) {
         const basisLabel = (stateType.flow.composition.basis || 'Mole').toLowerCase();
-        const carrierProperty = basisLabel === 'mass' ? 'MassFractions' : 'MoleFractiona';
-        // QualifiedValue's PhysicalQuantityVector binding inlines `Values`
-        // (multi-valued) + `Unit`. Core/QualifiedValue still declares scalar
-        // `Value` (lower=1) and `DisplayText` (lower=1) which the cardinality
-        // validator enforces against every QualifiedValue Object regardless
-        // of binding. Emit them as `<Undefined/>` placeholders so the
-        // required-bound is satisfied without inventing a misleading scalar
-        // for what is semantically a vector quantity (same convention the
-        // canonical-on-ProcessStep parameter slots use).
-        const qvData: Record<string, unknown>[] = [
-          { '$': { 'property': 'Value' }, 'Undefined': {} },
-          { '$': { 'property': 'DisplayText' }, 'Undefined': {} },
-        ];
-        for (const f of fractions) {
-          qvData.push({
-            '$': { 'property': 'Values' },
-            'String': f.value,
-          });
-        }
-        qvData.push({
-          '$': { 'property': 'Unit' },
-          'String': 'Fraction',
-        });
+        const carrierProperty = this.registry.compositionFractionProperty(
+          basisLabel === 'mass' ? 'Mass' : 'Mole',
+        );
+        // Canonical PhysicalQuantityVector via the shared emitter: the vector's
+        // Values + Unit nest in an <AggregatedDataValue
+        // type="…PhysicalQuantityVector">, with the unit resolved from the
+        // schema (Composition.<carrier> binds to PercentageUnit) against the
+        // authored token — no hardcoded 'Fraction'. The QualifiedValue's scalar
+        // Value holds the vector; DisplayText is <Undefined/>.
         const fractionsComponents = {
           '$': { 'property': carrierProperty },
           'Object': [{
             '$': { 'type': 'Core/QualifiedValue' },
-            'Data': qvData,
+            'Data': this.buildQualifiedValueData({
+              className: 'Composition',
+              property: carrierProperty,
+              values: fractions.map(f => f.value),
+              unit: stateType.flow.composition.unit,
+            }),
           }],
         };
         compositionObj.Components = [fractionsComponents];
@@ -3478,64 +3485,226 @@ export class BpmnToDexpiTransformer {
   }
 
   /**
-   * Build a `<Components property="X"><Object type="Core/QualifiedValue">…
-   * </Object></Components>` carrier for a single canonical-extension
-   * measurement attribute (Value + optional Unit / UnitReference / Scope /
-   * Range / Provenance / QuantityKindReference).
+   * Build the canonical `Data` children of a `Core/QualifiedValue` Object —
+   * the single shape EVERY emit path now shares (ProcessStep / Stream / Port
+   * attributes, MaterialComponent + MaterialStateType scalars, instrumentation
+   * parameter slots, and Composition fraction vectors). Resolution is entirely
+   * schema-driven through the registry: no hardcoded enum paths, no unit alias
+   * table, no placeholder/guessed values.
    *
-   * Single source of truth for ProcessStep / Stream / Port composition emit.
-   * Before consolidation each site had its own near-duplicate inline block;
-   * the QuantityKindReference encoding alone appeared verbatim in three
-   * places. Going forward all three call this helper.
+   *   • DisplayText (lower=1): an explicit `displayText` when given, else
+   *     "<value> <unit>" / "<value>", else `<Undefined/>` for vectors and
+   *     value-less slots. Never invented beyond the value+unit rendering.
+   *   • Provenance / Range / Scope: these are `Core/QualifiedValue`'s OWN
+   *     enum-typed properties, so their reference path is resolved against
+   *     `QualifiedValue` (NOT the wrapping class). Emitted as
+   *     `<DataReference data="Core/DataTypes.<Enum>.<Literal>"/>` when the token
+   *     is a real literal of that enum; otherwise the (optional, lower=0)
+   *     qualifier is OMITTED with a warning — never a flat `<String>` or a
+   *     guessed literal.
+   *   • Value (lower=1): delegated to buildQualifiedValueValue — an
+   *     `<AggregatedDataValue type="…PhysicalQuantity(Vector)">` with a unit
+   *     `<DataReference>` when a unit resolves, a bare `<Double>` when there is
+   *     no unit (or the unit fails to resolve → fail-closed warning), or
+   *     `<Undefined/>` when there is no numeric value.
    *
-   * Shape rules (no heuristics, no hardcoded class knowledge):
-   *   - Value goes in as-is. Numeric values get a `Double` slot, non-
-   *     numeric values fall back to `String` — this is the xml2js record
-   *     convention the rest of the emit path uses.
-   *   - DisplayText (lower=1 on Core/QualifiedValue) is derived
-   *     deterministically from `value + unit` when unit is present, else
-   *     just `value`. No format inference.
-   *   - Unit / UnitReference / Scope / Range / Provenance Data children
-   *     are emitted only when the corresponding attribute field is set.
-   *     Schema-driven dispatch upstream may route a unit-less measurement
-   *     attribute into this carrier (e.g. a CompositionProperty whose
-   *     unit hasn't been authored yet); the unit-related children stay
-   *     conditional rather than forcing empty placeholders.
-   *   - QuantityKindReference is the canonical-extension URI carrier on
-   *     the QV Object's References slot; emitted only when nameUri is
-   *     set. UnitReference is the parallel Data-child URI carrier for
-   *     the unit ontology link.
+   * `className` is the class the QualifiedValue is composed under; it is how
+   * the PhysicalQuantity unit binding for `property` is found in the schema.
    */
-  private buildQualifiedValueComponentsCarrier(attr: {
-    name: string;
-    value: string;
+  private buildQualifiedValueData(opts: {
+    className: string;
+    property: string;
+    value?: string;
     unit?: string;
-    unitUri?: string;
-    nameUri?: string;
+    unitEnum?: string;
+    values?: string[];
     scope?: string;
     range?: string;
     provenance?: string;
-  }): Record<string, unknown> {
-    const qvData: Record<string, unknown>[] = [
-      {
-        '$': { 'property': 'Value' },
-        'Double': !isNaN(parseFloat(attr.value)) ? parseFloat(attr.value) : undefined,
-        'String': isNaN(parseFloat(attr.value)) ? attr.value : undefined,
-      },
-      {
-        '$': { 'property': 'DisplayText' },
-        'String': attr.unit ? `${attr.value} ${attr.unit}`.trim() : attr.value,
-      },
-    ];
-    if (attr.unit) qvData.push({ '$': { 'property': 'Unit' }, 'String': attr.unit });
-    if (attr.unitUri) qvData.push({ '$': { 'property': 'UnitReference' }, 'String': attr.unitUri });
-    if (attr.scope) qvData.push({ '$': { 'property': 'Scope' }, 'String': attr.scope });
-    if (attr.range) qvData.push({ '$': { 'property': 'Range' }, 'String': attr.range });
-    if (attr.provenance) qvData.push({ '$': { 'property': 'Provenance' }, 'String': attr.provenance });
+    displayText?: string;
+  }): Record<string, unknown>[] {
+    const data: Record<string, unknown>[] = [];
+    const isVector = Array.isArray(opts.values) && opts.values.length > 0;
 
+    // DisplayText (lower=1).
+    if (opts.displayText) {
+      data.push({ '$': { 'property': 'DisplayText' }, 'String': opts.displayText });
+    } else if (isVector || opts.value === undefined || opts.value === '') {
+      data.push({ '$': { 'property': 'DisplayText' }, 'Undefined': {} });
+    } else {
+      const display = opts.unit ? `${opts.value} ${opts.unit}`.trim() : opts.value;
+      data.push({ '$': { 'property': 'DisplayText' }, 'String': display });
+    }
+
+    // Qualifier references — resolved against QualifiedValue's own schema,
+    // failing closed (omit + warn) rather than free-texting an unknown token.
+    const pushQualifier = (qProp: 'Provenance' | 'Range' | 'Scope', token?: string) => {
+      if (!token) return;
+      const path = this.registry.getEnumReferencePathForProperty('QualifiedValue', qProp);
+      const literals = path ? this.registry.getQualifiedEnumLiterals(path) : null;
+      if (path && literals && literals.includes(token)) {
+        data.push({ '$': { 'property': qProp }, 'DataReference': { '$': { 'data': `${path}.${token}` } } });
+        return;
+      }
+      this.logger.warn(
+        `QualifiedValue ${opts.className}.${opts.property}: ${qProp} "${token}" is not a literal of ` +
+        `${path ?? 'a known enumeration'} — omitted (fail-closed; never free-texted).`,
+      );
+    };
+    pushQualifier('Provenance', opts.provenance);
+    pushQualifier('Range', opts.range);
+    pushQualifier('Scope', opts.scope);
+
+    // Value (lower=1).
+    data.push({ '$': { 'property': 'Value' }, ...this.buildQualifiedValueValue(opts) });
+    return data;
+  }
+
+  /**
+   * Build the inner content of a QualifiedValue's `Value` Data element,
+   * resolving the unit token to its enumeration literal entirely from the
+   * schema. Returns the xml2js record fragment to spread into the Value Data
+   * element (an `AggregatedDataValue`, a `Double`, or `Undefined`).
+   */
+  private buildQualifiedValueValue(opts: {
+    className: string;
+    property: string;
+    value?: string;
+    unit?: string;
+    unitEnum?: string;
+    values?: string[];
+  }): Record<string, unknown> {
+    const isVector = Array.isArray(opts.values) && opts.values.length > 0;
+
+    // Build the unit DataReference. The quantity (which unit enum the literal
+    // belongs to) comes ONLY from the schema binding or the authored `unitEnum`
+    // choice — never the property name. When the quantity is known but the token
+    // is not yet a declared literal (a vocabulary gap), we STILL emit the
+    // fully-qualified reference: the data-type tier (D9) then flags it as an
+    // ordinary finding, and the Profile extension closes it by adding the literal
+    // to that enumeration — so units close through the same validate -> generate
+    // -> reload loop as missing properties. Nothing is guessed: the literal is the
+    // verbatim authored token and the enum is the binding or the author's choice.
+    let unitRef: string | null = null;
+    if (opts.unit) {
+      const boundEnum = this.registry.getUnitEnumRefForProperty(opts.className, opts.property);
+      if (boundEnum) {
+        // Bound property (e.g. Stream.MassFlow -> MassFlowRateUnit): the literal
+        // is resolved within the bound enum, or — if absent — emitted as-authored
+        // so D9 surfaces the gap on exactly that quantity.
+        const literal = this.registry.resolveUnitLiteral(boundEnum, opts.unit);
+        unitRef = `${boundEnum}.${literal ?? opts.unit}`;
+      } else {
+        const g = this.registry.resolveUnitGlobal(opts.unit);
+        if (g) {
+          unitRef = `${g.enumPath}.${g.literal}`;
+        } else if (opts.unitEnum) {
+          // No schema binding, but the author stated the quantity. Emit onto that
+          // (Core) enum so D9 flags the missing literal and the extension adds it.
+          const enumPath = this.registry.unitEnumPath(opts.unitEnum)
+            ?? `Core/PhysicalQuantities.${opts.unitEnum}`;
+          unitRef = `${enumPath}.${opts.unit}`;
+        }
+        // else: no binding AND no authored quantity -> the unit cannot be placed
+        // on any enumeration (there is nothing to reference). The value is still
+        // emitted; the unit is omitted. Bind the property or choose a quantity to
+        // close it — the unit analog of a custom class with no chosen supertype.
+      }
+      if (!unitRef) {
+        this.logger.warn(
+          `QualifiedValue ${opts.className}.${opts.property}: unit "${opts.unit}" has no quantity ` +
+          `(no schema binding and no authored quantity) — emitting the value without a unit. ` +
+          `Bind the property to a unit enumeration so the unit can be placed.`,
+        );
+      }
+    }
+
+    if (isVector) {
+      // PhysicalQuantityVector requires a Unit (lower=1) — there is no
+      // unit-less vector arm — so an unresolved unit fails closed to
+      // <Undefined/> rather than emitting an invalid/partial vector.
+      if (!unitRef) {
+        if (!opts.unit) {
+          this.logger.warn(
+            `QualifiedValue ${opts.className}.${opts.property}: vector value carries no unit — emitting ` +
+            `<Undefined/> (a PhysicalQuantityVector requires a unit).`,
+          );
+        }
+        return { 'Undefined': {} };
+      }
+      const vecData: Record<string, unknown>[] = [
+        { '$': { 'property': 'Unit' }, 'DataReference': { '$': { 'data': unitRef } } },
+      ];
+      for (const v of opts.values!) {
+        const n = parseFloat(v);
+        vecData.push({
+          '$': { 'property': 'Values' },
+          ...(isNaN(n) ? { 'Undefined': {} } : { 'Double': n }),
+        });
+      }
+      return {
+        'AggregatedDataValue': {
+          '$': { 'type': 'Core/PhysicalQuantities.PhysicalQuantityVector' },
+          'Data': vecData,
+        },
+      };
+    }
+
+    // Scalar.
+    if (opts.value === undefined || opts.value === '') return { 'Undefined': {} };
+    const num = parseFloat(opts.value);
+    if (isNaN(num)) return { 'String': opts.value }; // non-numeric (rare; out of the unit path)
+    if (unitRef) {
+      return {
+        'AggregatedDataValue': {
+          '$': { 'type': 'Core/PhysicalQuantities.PhysicalQuantity' },
+          'Data': [
+            { '$': { 'property': 'Unit' }, 'DataReference': { '$': { 'data': unitRef } } },
+            { '$': { 'property': 'Value' }, 'Double': num },
+          ],
+        },
+      };
+    }
+    return { 'Double': num }; // the Double arm of QualifiedValue.Type
+  }
+
+  /**
+   * Build a `<Components property="X"><Object type="Core/QualifiedValue">…
+   * </Object></Components>` carrier for a single measurement attribute, using
+   * the shared canonical emitter. `className` is the wrapping class (Stream /
+   * ProcessStep class / portType) the attribute is composed under, so the unit
+   * binding resolves correctly. Single source of truth for ProcessStep /
+   * Stream / Port composition emit.
+   *
+   * QuantityKindReference (the optional quantity-kind URI carrier) is preserved
+   * on the QV Object's References slot when `nameUri` is set. The homegrown
+   * `UnitReference` Data child is no longer emitted (D6): a unit's external
+   * identity is the RDL URI of its enumeration literal, not a free-text URI on
+   * QualifiedValue.
+   */
+  private buildQualifiedValueComponentsCarrier(
+    attr: {
+      name: string;
+      value: string;
+      unit?: string;
+      nameUri?: string;
+      scope?: string;
+      range?: string;
+      provenance?: string;
+    },
+    className: string,
+  ): Record<string, unknown> {
     const qvObject: Record<string, unknown> = {
       '$': { 'type': 'Core/QualifiedValue' },
-      'Data': qvData,
+      'Data': this.buildQualifiedValueData({
+        className,
+        property: attr.name,
+        value: attr.value,
+        unit: attr.unit,
+        scope: attr.scope,
+        range: attr.range,
+        provenance: attr.provenance,
+      }),
     };
     if (attr.nameUri) {
       qvObject.References = [{
@@ -3569,7 +3738,6 @@ export class BpmnToDexpiTransformer {
   private resolveAttrKindFn(className: string): (attr: {
     name: string;
     unit?: string;
-    unitUri?: string;
     nameUri?: string;
     scope?: string;
     range?: string;
@@ -3586,7 +3754,7 @@ export class BpmnToDexpiTransformer {
       const declared = declaredKindByName.get(attr.name);
       if (declared === 'composition') return 'composition';
       if (declared === 'data' || declared === 'reference') return 'data';
-      return (attr.unit || attr.unitUri || attr.nameUri ||
+      return (attr.unit || attr.nameUri ||
               attr.scope || attr.range || attr.provenance || attr.qualifier)
         ? 'composition' : 'data';
     };

@@ -890,8 +890,10 @@ function App() {
       // export / generate doesn't race on the singleton's logger and
       // last*Validation fields).
       const t = new BpmnToDexpiTransformer();
-      const dexpiXml = await t.transform(bpmnXml, { processXml: processXmlRaw });
-      
+      // coreXml is required so the canonical QualifiedValue emitter can resolve
+      // units + enum references from Core.xml; without it units fail closed.
+      const dexpiXml = await t.transform(bpmnXml, { processXml: processXmlRaw, coreXml: coreXmlRaw });
+
       // Export to Neo4j
       const exportResult = await exportToNeo4j(dexpiXml, config, (current: number, total: number) => {
         setNeo4jProgress({ current, total, stage: 'Executing queries...' });

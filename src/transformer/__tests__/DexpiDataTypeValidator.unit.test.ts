@@ -64,16 +64,21 @@ describe('Data-type validator — Builtin types', () => {
     </Model>`;
   }
 
-  it('accepts a valid Double value (Value on QualifiedValue)', () => {
+  // Value is typed Builtin/Double on the PhysicalQuantity AggregatedDataType
+  // (the canonical carrier of a unit-bearing value). On a bare QualifiedValue,
+  // Value is the loose /QualifiedValue.Type union and is intentionally not
+  // type-checked here. So the Double conformance checks run against
+  // PhysicalQuantity, matching the canonical nested output shape.
+  it('accepts a valid Double value (Value on PhysicalQuantity)', () => {
     const failures = validateEmittedDexpiDataTypes(
-      makeXml('Value', '42.5'), 'unit', REGISTRY,
+      makeXml('Value', '42.5', 'Core/PhysicalQuantities.PhysicalQuantity'), 'unit', REGISTRY,
     );
     expect(failures).toEqual([]);
   });
 
-  it('rejects a non-numeric Value', () => {
+  it('rejects a non-numeric Value (Value on PhysicalQuantity)', () => {
     const failures = validateEmittedDexpiDataTypes(
-      makeXml('Value', 'notanumber'), 'unit', REGISTRY,
+      makeXml('Value', 'notanumber', 'Core/PhysicalQuantities.PhysicalQuantity'), 'unit', REGISTRY,
     );
     expect(failures).toHaveLength(1);
     expect(failures[0].declaredType).toBe('Builtin/Double');
@@ -137,8 +142,40 @@ describe('Data-type validator — Enumeration types', () => {
   });
 });
 
+describe('Data-type validator — closeable attribute (vocabulary gap vs authoring error)', () => {
+  const wrap = (objType: string, dataRef: string) =>
+    `<?xml version="1.0"?><Model name="x" uri="urn:t">` +
+    `<Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>` +
+    `<Object id="o1" type="${objType}"><Data property="P">` +
+    `<DataReference data="${dataRef}"/></Data></Object></Model>`;
+
+  it('flags a unit DataReference gap as closeable (the extension adds the literal)', () => {
+    // KilomolePerHour is not a member of MoleFlowRateUnit — a vocabulary gap the
+    // Profile generator closes; closeable is the attribute that says so.
+    const failures = validateEmittedDexpiDataTypes(
+      wrap('Core/PhysicalQuantities.PhysicalQuantity', 'Core/PhysicalQuantities.MoleFlowRateUnit.KilomolePerHour'),
+      'unit', REGISTRY,
+    );
+    expect(failures).toHaveLength(1);
+    expect(failures[0].closeable).toBe(true);
+    expect(failures[0].context).toContain('auto-closeable');
+  });
+
+  it('flags a closed-enum DataReference gap as NOT closeable (an authoring error to fix)', () => {
+    // QuantityProvenance is a closed vocabulary; a non-member is a typo, not a
+    // gap the generator extends — so closeable is falsy.
+    const failures = validateEmittedDexpiDataTypes(
+      wrap('Core/QualifiedValue', 'Core/DataTypes.QuantityProvenance.Nope'),
+      'unit', REGISTRY,
+    );
+    expect(failures).toHaveLength(1);
+    expect(failures[0].closeable).toBeFalsy();
+    expect(failures[0].context).not.toContain('auto-closeable');
+  });
+});
+
 describe('Data-type validator — TEP fixture (regression)', () => {
-  it('TEP emission has no data-type violations', { timeout: 15_000 }, async () => {
+  it('TEP emission has no data-type violations (every unit resolves, incl. MoleFlow/KilomolePerSecond)', { timeout: 15_000 }, async () => {
     const bpmn = readFileSync(TEP_BPMN_PATH, 'utf-8');
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(bpmn);

@@ -87,6 +87,8 @@ Every export is checked against the official DEXPI 2.0 XML Schema, so the file y
 
 Turn on **Strict mode** (export dialog checkbox, `--strict` CLI flag, or `{ strict: true }` on `transformer.transform()`) for deeper fidelity checks: property names, data types, reference targets, required-property cardinality, and class existence. Strict mode never blocks the export — it produces a summary dialog (or CLI output) listing what doesn't match the schema, so you can fix it in the panel or capture it in a generated Profile.
 
+The data-type check is tight: every enumeration reference — including each measurement's unit, carried in the canonical `PhysicalQuantity` shape — is resolved against the imported model, so a reference to an undeclared enumeration or literal is flagged rather than passed through (and is auto-closeable via a generated Profile).
+
 ## Extension mechanisms
 
 A Profile is an XML file that adds project-specific classes or properties on top of the DEXPI 2.0 standard vocabulary — useful when your project needs concepts the standard doesn't cover. Profiles live per-session; re-import after page reload.
@@ -112,7 +114,7 @@ Unit tests (transformer, registry, validation) plus an end-to-end integration be
 
 This tool implements the representation methodology described in:
 
-> Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke. *Representing DEXPI Process in BPMN 2.0 for Graphical Modeling and Exchange of Block Flow and Process Flow Diagrams* (under review, Digital Chemical Engineering, 2026).
+> Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke. *Representing DEXPI Process in BPMN 2.0 for graphical modeling and exchange of block flow and process flow diagrams*. Digital Chemical Engineering (2026), in press. DOI: [10.1016/j.dche.2026.100326](https://doi.org/10.1016/j.dche.2026.100326).
 
 ## Technology
 

@@ -2,6 +2,7 @@ import React from 'react';
 import type { DexpiElement, DexpiPort, DexpiStream } from '../dexpi/moddle';
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
 import { findAllMaterialStatesContainers } from '../utils/materialContainers';
+import { buildCanonicalScalarValue, readCanonicalScalar } from '../dexpi/moddle/qualifiedValue';
 // Vite ?raw import — bundles Process.xml as a string at build time (no runtime fetch needed)
 import processXmlRaw from '../../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../../dexpi-schema-files/Core.xml?raw';
@@ -347,6 +348,86 @@ export const AttributeNameValueRow: React.FC<{
 };
 
 /**
+ * Unit editor for a measurement attribute.
+ *
+ * When the attribute's property name is bound to a PhysicalQuantities unit
+ * enumeration in the schema/Profile (resolved via
+ * `registry.getUnitEnumLiteralsForProperty`), the unit is chosen from a
+ * `<select>` of that enum's literals plus a "— Custom..." fallback — the same
+ * picker the qualifier dropdowns use, satisfying the reference-target-class
+ * dimension by construction. A custom token (or any token authored for a
+ * property with no unit binding, e.g. a project extension) stays as a free-text
+ * input and is resolved — or fail-closed flagged — schema-side on export.
+ *
+ * There is no Unit-URI field: the non-conformant `UnitReference` Data child was
+ * removed (D6). A unit is a `DataReference` to a real enum literal or nothing.
+ */
+const UnitField: React.FC<{
+  attr: { name?: string; unit?: string };
+  registry: DexpiProcessClassRegistry | null;
+  className: string;
+  onChange: (unit: string) => void;
+}> = ({ attr, registry, className, onChange }) => {
+  const literals = React.useMemo(() => {
+    if (!attr.name || !registry || !registry.isValidClass(className)) return null;
+    const ls = registry.getUnitEnumLiteralsForProperty(className, attr.name);
+    return ls && ls.length > 0 ? ls : null;
+  }, [attr.name, registry, className]);
+
+  const [custom, setCustom] = React.useState<boolean>(
+    !!attr.unit && literals !== null && !literals.includes(attr.unit));
+
+  React.useEffect(() => {
+    setCustom(!!attr.unit && literals !== null && !literals.includes(attr.unit));
+  }, [attr.unit, literals]);
+
+  // No bound enum (project-extension property, or registry doesn't know the
+  // class): plain free-text token, resolved globally / fail-closed on export.
+  if (literals === null) {
+    return (
+      <label>
+        Unit:
+        <input
+          type="text"
+          value={attr.unit || ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="e.g. KilogramPerHour, DegreeCelsius"
+        />
+      </label>
+    );
+  }
+
+  const selectValue = custom ? '__custom__' : (attr.unit || '');
+  return (
+    <label>
+      Unit:
+      <select
+        value={selectValue}
+        onChange={(e) => {
+          if (e.target.value === '__custom__') { setCustom(true); return; }
+          setCustom(false);
+          onChange(e.target.value);
+        }}
+      >
+        <option value="">-- Select Unit --</option>
+        {literals.map(u => <option key={u} value={u}>{u}</option>)}
+        <option value="__custom__">— Custom...</option>
+      </select>
+      {custom && (
+        <input
+          type="text"
+          value={attr.unit || ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="custom unit token (flagged on export if it resolves to no literal)"
+          autoFocus
+          style={{ marginTop: '4px' }}
+        />
+      )}
+    </label>
+  );
+};
+
+/**
  * Read ProcessStep attributes from a moddle `dexpi:Element`, supporting
  * BOTH the legacy flat `<dexpi:attribute>` shape AND the canonical-carrier
  * shape (`<dexpi:data property="X">v</dexpi:data>` for plain attrs and
@@ -387,19 +468,18 @@ function readAttributesFromDexpiElement(dexpiElement: any): any[] {
     );
     if (!qv) continue;
     const qvData = Array.isArray(qv.data) ? qv.data : (qv.$children ?? []);
-    let value = '';
-    let unit: string | undefined;
-    let unitUri: string | undefined;
+    // Value + Unit come from the canonical nested PhysicalQuantity carrier
+    // (with a legacy flat Value/Unit fallback). The non-conformant
+    // UnitReference Data child is no longer read or written (D6).
+    const { value: scalarValue, unit } = readCanonicalScalar(qvData);
+    const value = scalarValue;
     let scope: string | undefined;
     let range: string | undefined;
     let provenance: string | undefined;
     for (const dc of qvData) {
       const dp = dc.property ?? dc.$attrs?.property;
       const dv = (dc.body ?? dc.$body ?? '').toString().trim();
-      if (dp === 'Value') value = dv;
-      else if (dp === 'Unit') unit = dv;
-      else if (dp === 'UnitReference') unitUri = dv;
-      else if (dp === 'Scope') scope = dv;
+      if (dp === 'Scope') scope = dv;
       else if (dp === 'Range') range = dv;
       else if (dp === 'Provenance') provenance = dv;
     }
@@ -417,7 +497,6 @@ function readAttributesFromDexpiElement(dexpiElement: any): any[] {
       name: propName,
       value,
       ...(unit !== undefined ? { unit } : {}),
-      ...(unitUri !== undefined ? { unitUri } : {}),
       ...(nameUri !== undefined ? { nameUri } : {}),
       ...(scope !== undefined ? { scope } : {}),
       ...(range !== undefined ? { range } : {}),
@@ -484,7 +563,7 @@ function attrsToCanonicalCarriers(
     // heuristic — any measurement-oriented metadata implies the author
     // intended a QualifiedValue carrier. Pure flat name+value emits as
     // a Data carrier.
-    return (attr.unit || attr.unitUri || attr.nameUri ||
+    return (attr.unit || attr.nameUri ||
             attr.scope || attr.range || attr.provenance) ? 'composition' : 'data';
   };
 
@@ -495,18 +574,18 @@ function attrsToCanonicalCarriers(
       continue;
     }
     // Composition carrier with QV inner — same canonical-extension shape
-    // streams + MaterialComponent already emit.
+    // streams + MaterialComponent already emit. The unit-bearing Value is
+    // wrapped in the nested PhysicalQuantity carrier (canonical everywhere);
+    // the non-conformant UnitReference Data child is no longer emitted (D6).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const qvData: any[] = [
-      buildData('Value', attr.value),
+      buildCanonicalScalarValue(moddle, attr.value, attr.unit),
       // DisplayText (lower=1 on Core/QualifiedValue per Core.xml). Derive
       // deterministically from value + unit so the cardinality validator
       // stays clean on emit. Same convention transformer.ts and the
       // MaterialComponent path already use.
       buildData('DisplayText', attr.unit ? `${attr.value} ${attr.unit}` : attr.value),
     ];
-    if (attr.unit) qvData.push(buildData('Unit', attr.unit));
-    if (attr.unitUri) qvData.push(buildData('UnitReference', attr.unitUri));
     if (attr.scope) qvData.push(buildData('Scope', attr.scope));
     if (attr.range) qvData.push(buildData('Range', attr.range));
     if (attr.provenance) qvData.push(buildData('Provenance', attr.provenance));
@@ -1882,13 +1961,13 @@ const ProcessStepAttributesSection: React.FC<{
           name: updates.name !== undefined ? updates.name : attr.name,
           value: updates.value !== undefined ? updates.value : attr.value,
           unit: updates.unit !== undefined ? updates.unit : attr.unit,
-          // nameUri / unitUri: project-extension authoring metadata. The
-          // transformer routes these to canonical DEXPI 2.0 destinations
-          // (nameUri → QuantityKindReference; unitUri → UnitReference on
-          // the wrapping QualifiedValue). Always preserved through edits
-          // so the step panel matches the stream panel's URI surface.
+          // nameUri: project-extension authoring metadata. The transformer
+          // routes it to the canonical QuantityKindReference carrier on the
+          // wrapping QualifiedValue. Preserved through edits so the step panel
+          // matches the stream panel's URI surface. (The unit's external
+          // reference — the old UnitReference — was removed (D6); a unit is a
+          // DataReference to a real enum literal, authored via UnitField.)
           nameUri: updates.nameUri !== undefined ? updates.nameUri : attr.nameUri,
-          unitUri: updates.unitUri !== undefined ? updates.unitUri : attr.unitUri,
           scope: updates.scope !== undefined ? updates.scope : attr.scope,
           range: updates.range !== undefined ? updates.range : attr.range,
           provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
@@ -1969,26 +2048,12 @@ const ProcessStepAttributesSection: React.FC<{
             }
           />
 
-          <label>
-            Unit:
-            <input
-              type="text"
-              value={attr.unit || ''}
-              onChange={(e) => updateAttribute(index, { unit: e.target.value })}
-              placeholder="e.g., kg/h, °C, bar"
-            />
-          </label>
-
-          <label>
-            Unit URI:
-            <input
-              type="text"
-              value={attr.unitUri || ''}
-              onChange={(e) => updateAttribute(index, { unitUri: e.target.value })}
-              placeholder="e.g. https://qudt.org/vocab/unit/KiloGM-PER-HR"
-              style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
-            />
-          </label>
+          <UnitField
+            attr={attr}
+            registry={registry}
+            className={className}
+            onChange={(unit) => updateAttribute(index, { unit })}
+          />
 
           <label>
             Scope:
@@ -2140,7 +2205,6 @@ const PortAttributesSection: React.FC<{
         value: updates.value !== undefined ? updates.value : attr.value,
         unit: updates.unit !== undefined ? updates.unit : attr.unit,
         nameUri: updates.nameUri !== undefined ? updates.nameUri : attr.nameUri,
-        unitUri: updates.unitUri !== undefined ? updates.unitUri : attr.unitUri,
         scope: updates.scope !== undefined ? updates.scope : attr.scope,
         range: updates.range !== undefined ? updates.range : attr.range,
         provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
@@ -2530,14 +2594,17 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               const obj = (carrier.objects || carrier.$children || []).find((o: any) =>
                 (o.$type || '').toLowerCase().includes('object')
               );
+              const qvDataChildren = obj?.data || obj?.$children || [];
               const readData = (name: string): string => {
-                const dataChildren = obj?.data || obj?.$children || [];
-                for (const d of dataChildren) {
+                for (const d of qvDataChildren) {
                   const prop = d.property ?? d.$attrs?.property;
                   if (prop === name) return d.body ?? d.$body ?? d._ ?? '';
                 }
                 return '';
               };
+              // Value + Unit from the canonical nested PhysicalQuantity carrier
+              // (flat fallback for pre-canonical saves).
+              const { value: scalarValue, unit: scalarUnit } = readCanonicalScalar(qvDataChildren);
               // nameUri — QuantityKindReference URI carrier sibling of Data
               // inside the QualifiedValue. Project-extension on Core/Qualified
               // Value, used identically by ProcessStep + MaterialComponent.
@@ -2553,13 +2620,11 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                   break;
                 }
               }
-              const unitUri = readData('UnitReference') || undefined;
               const required = carrier.required === true || carrier.$attrs?.required === 'true';
               return {
                 name: propertyName,
-                value: readData('Value'),
-                unit: readData('Unit'),
-                ...(unitUri !== undefined ? { unitUri } : {}),
+                value: scalarValue,
+                ...(scalarUnit !== undefined ? { unit: scalarUnit } : {}),
                 ...(nameUri !== undefined ? { nameUri } : {}),
                 scope: readData('Scope') || 'Design',
                 range: readData('Range') || 'Nominal',
@@ -2949,7 +3014,6 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           nameUri: updates.nameUri !== undefined ? updates.nameUri : attr.nameUri,
           value: updates.value !== undefined ? updates.value : attr.value,
           unit: updates.unit !== undefined ? updates.unit : attr.unit,
-          unitUri: updates.unitUri !== undefined ? updates.unitUri : attr.unitUri,
           scope: updates.scope !== undefined ? updates.scope : attr.scope,
           range: updates.range !== undefined ? updates.range : attr.range,
           provenance: updates.provenance !== undefined ? updates.provenance : attr.provenance,
@@ -3252,6 +3316,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
 
               const fractions = composition
                 ? (readQualifiedValue(composition, 'MoleFractiona') ??
+                   readQualifiedValue(composition, 'MoleFractions') ??
                    readQualifiedValue(composition, 'MassFractions'))
                 : null;
               const legacyFractions = legacyComposition?.$children?.filter((c: any) => c.$type === 'Fraction') ?? [];
@@ -3373,30 +3438,16 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               }
             />
 
-            <label>
-              Unit:
-              <input 
-                type="text" 
-                value={attr.unit || ''} 
-                onChange={(e) => updateAttribute(index, { unit: e.target.value })}
-                placeholder="e.g., kg/h, °C, bar"
-              />
-            </label>
-
-            <label>
-              Unit URI:
-              <input
-                type="text"
-                value={attr.unitUri || ''}
-                onChange={(e) => updateAttribute(index, { unitUri: e.target.value })}
-                placeholder="e.g. https://qudt.org/vocab/unit/KiloGM-PER-HR"
-                style={{ fontFamily: 'monospace', fontSize: '0.85em' }}
-              />
-            </label>
+            <UnitField
+              attr={attr}
+              registry={augmentedRegistry}
+              className={streamClassName}
+              onChange={(unit) => updateAttribute(index, { unit })}
+            />
 
             <label>
               Scope:
-              <select 
+              <select
                 value={attr.scope || ''}
                 onChange={(e) => updateAttribute(index, { scope: e.target.value })}
               >
