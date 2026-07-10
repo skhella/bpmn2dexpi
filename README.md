@@ -114,7 +114,7 @@ Unit tests (transformer, registry, validation) plus an end-to-end integration be
 
 This tool implements the representation methodology described in:
 
-> Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke. *Representing DEXPI Process in BPMN 2.0 for Graphical Modeling and Exchange of Block Flow and Process Flow Diagrams* (under review, Digital Chemical Engineering, 2026).
+> Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke. *Representing DEXPI Process in BPMN 2.0 for graphical modeling and exchange of block flow and process flow diagrams*. Digital Chemical Engineering (2026), in press. DOI: [10.1016/j.dche.2026.100326](https://doi.org/10.1016/j.dche.2026.100326).
 
 ## Technology
 
