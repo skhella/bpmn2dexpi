@@ -88,6 +88,13 @@ interface ParsedStreamAttribute {
   name: string;
   value: string;
   unit?: string;
+  /**
+   * Enumeration the unit token belongs to (e.g. "MoleFlowRateUnit"), derived
+   * from the canonical unit DataReference path. Re-emitted as the `unitEnum`
+   * carrier attribute so the forward transformer can resolve the unit for
+   * properties the schema doesn't declare (project extensions).
+   */
+  unitEnum?: string;
   unitUri?: string;
   provenance?: string;
   range?: string;
@@ -116,6 +123,13 @@ interface DexpiMaterialComponent {
   iupacId?: string;
   /** xsi:type from the original BPMN, or a guess based on DEXPI subclass. */
   xsiType: string;
+  /**
+   * Everything authored on the component beyond the canonical identity
+   * fields: plain data properties (e.g. ProjectReference) and QualifiedValue
+   * payloads (e.g. MolecularWeight). Mirrors the forward transformer's
+   * InternalMaterialComponent.properties so nothing is dropped round-trip.
+   */
+  properties?: { kind: 'data' | 'composition'; name: string; value: string; unit?: string; unitEnum?: string }[];
 }
 
 interface DexpiMaterialStateType {
@@ -124,11 +138,16 @@ interface DexpiMaterialStateType {
   label: string;
   description?: string;
   templateRef?: string;
-  moleFlow?: { value: string; unit: string };
+  /** Every QualifiedValue scalar on the state type (MoleFlow, MassFlow, …). */
+  scalars?: { property: string; value: string; unit?: string; unitEnum?: string }[];
   composition?: {
-    basis?: string;
+    /** DEXPI id of the Composition object (referenced from the state type). */
+    uid?: string;
     display?: string;
-    fractions: { value: string; unit?: string; componentRef?: string }[];
+    /** Fraction carrier name as read (MoleFractiona / MoleFractions / MassFractions). */
+    fractionProperty: string;
+    unit?: string;
+    values: string[];
   };
 }
 
@@ -140,6 +159,13 @@ interface DexpiMaterialState {
   templateRef?: string;
   /** UID of the linked MaterialStateType (Object referenced by the State property). */
   stateTypeRef?: string;
+  /**
+   * Case grouping split off the emitted label: the forward transformer emits
+   * MaterialState labels as `${caseName} - ${label}`, so the inverse split
+   * (on the first " - ") restores the authoring shape and keeps labels
+   * stable across repeated round-trips.
+   */
+  caseName?: string;
 }
 
 interface ParsedDexpi {
@@ -270,10 +296,9 @@ export class DexpiToBpmnTransformer {
       if (step.measuredVariableRefId) {
         const qvObj = qualifiedValueIdToObject.get(step.measuredVariableRefId);
         if (qvObj) {
-          const provenance = this.getEnumLastSegment(qvObj, 'Provenance');
-          const range = this.getEnumLastSegment(qvObj, 'Range');
-          const value = this.getDataString(qvObj, 'Value');
-          const unit = this.getDataString(qvObj, 'Unit');
+          // Canonical-aware read — Value/Unit may nest inside an
+          // AggregatedDataValue(PhysicalQuantity) rather than sit flat.
+          const { value, unit, provenance, range } = this.readQvCanonical(qvObj);
           if (provenance || range || value || unit) {
             step.measuredVariableData = {
               provenance: provenance || undefined,
@@ -300,13 +325,37 @@ export class DexpiToBpmnTransformer {
           });
       });
 
+    // Resolve the indirection containers first: ListsOfMaterialComponents
+    // (template → component refs) and Compositions (referenced from
+    // MaterialStateTypes), both emitted as ProcessModel-level collections.
+    const listsOfComponents = new Map<string, string[]>();
+    const listContainer = this.findComponents(processModel, 'ListsOfMaterialComponents');
+    if (listContainer) {
+      Array.from(listContainer.children)
+        .filter(el => el.tagName === 'Object')
+        .forEach(obj => {
+          const id = obj.getAttribute('id');
+          if (id) listsOfComponents.set(id, this.getReferenceIds(obj, 'Component'));
+        });
+    }
+    const compositionsById = new Map<string, Element>();
+    const compositionsContainer = this.findComponents(processModel, 'Compositions');
+    if (compositionsContainer) {
+      Array.from(compositionsContainer.children)
+        .filter(el => el.tagName === 'Object')
+        .forEach(obj => {
+          const id = obj.getAttribute('id');
+          if (id) compositionsById.set(id, obj);
+        });
+    }
+
     // Parse MaterialTemplates (full content — components, phases, etc.)
     const materialTemplates: DexpiMaterialTemplate[] = [];
     const tmplContainer = this.findComponents(processModel, 'MaterialTemplates');
     if (tmplContainer) {
       Array.from(tmplContainer.children)
         .filter(el => el.tagName === 'Object')
-        .forEach(obj => materialTemplates.push(this.parseMaterialTemplate(obj)));
+        .forEach(obj => materialTemplates.push(this.parseMaterialTemplate(obj, listsOfComponents)));
     }
 
     // Parse MaterialComponents (PureMaterialComponent / MaterialComponent / etc.)
@@ -333,7 +382,7 @@ export class DexpiToBpmnTransformer {
     if (stateTypeContainer) {
       Array.from(stateTypeContainer.children)
         .filter(el => el.tagName === 'Object')
-        .forEach(obj => materialStateTypes.push(this.parseMaterialStateType(obj)));
+        .forEach(obj => materialStateTypes.push(this.parseMaterialStateType(obj, compositionsById)));
     }
 
     return {
@@ -347,7 +396,10 @@ export class DexpiToBpmnTransformer {
   }
 
   /** Parse a Process.MaterialTemplate Object. */
-  private parseMaterialTemplate(obj: Element): DexpiMaterialTemplate {
+  private parseMaterialTemplate(
+    obj: Element,
+    listsOfComponents: Map<string, string[]>,
+  ): DexpiMaterialTemplate {
     const uid = obj.getAttribute('id') || this.uid();
     const identifier = this.getDataString(obj, 'Identifier') || uid;
     const label = this.getDataString(obj, 'Label') || identifier;
@@ -355,14 +407,27 @@ export class DexpiToBpmnTransformer {
     const numberOfComponents = this.getDataInteger(obj, 'NumberOfMaterialComponents');
     const numberOfPhases = this.getDataInteger(obj, 'NumberOfPhases');
 
-    // Component refs come either as a References property="ListOfMaterialComponents"
-    // (canonical XSD form) OR as a Data property="ListOfMaterialComponents" with a
-    // space-separated string (some legacy exports). Accept both.
-    const componentRefs = this.getReferenceIds(obj, 'ListOfMaterialComponents');
-    const phasesString = this.getDataString(obj, 'ListOfPhases');
-    const phases = phasesString
-      ? phasesString.split(/[,\s]+/).map(p => p.trim()).filter(Boolean)
-      : [];
+    // The emitted shape indirects through a ListOfMaterialComponents object:
+    //   <References property="ListOfComponents" objects="#<listId>"/>
+    // where the list object carries the actual Component references. The BPMN
+    // convention references the components directly, so resolve the list here
+    // (falling back to treating the refs as direct component ids for
+    // hand-authored documents, and to the legacy property name).
+    const rawRefs = [
+      ...this.getReferenceIds(obj, 'ListOfComponents'),
+      ...this.getReferenceIds(obj, 'ListOfMaterialComponents'),
+    ];
+    const componentRefs = rawRefs.flatMap(ref => listsOfComponents.get(ref) ?? [ref]);
+
+    // Phase labels: repeated <Data property="PhaseLabel"><String>…</String></Data>.
+    const phases: string[] = [];
+    for (const c of Array.from(obj.children) as Element[]) {
+      if (c.tagName === 'Data' && c.getAttribute('property') === 'PhaseLabel') {
+        const v = Array.from(c.children).find(x => x.tagName === 'String');
+        const text = (v?.textContent ?? '').trim();
+        if (text) phases.push(text);
+      }
+    }
 
     return {
       uid, identifier, label, description,
@@ -376,24 +441,53 @@ export class DexpiToBpmnTransformer {
     const uid = obj.getAttribute('id') || this.uid();
     const fullType = obj.getAttribute('type') || '';
     // 'Process/Process.PureMaterialComponent' → 'PureMaterialComponent'.
-    // Fall back to CustomMaterialComponent if the type is missing/unrecognised
-    // — that's the BPMN convention for components without a DEXPI subclass.
-    const xsiType = fullType.replace('Process/Process.', '') || 'CustomMaterialComponent';
+    // The base MaterialComponent class is the emitted form of the BPMN
+    // CustomMaterialComponent convention — map it back.
+    const bare = fullType.replace('Process/Process.', '');
+    const xsiType = !bare || bare === 'MaterialComponent' ? 'CustomMaterialComponent' : bare;
     const identifier = this.getDataString(obj, 'Identifier') || uid;
     const label = this.getDataString(obj, 'Label') || identifier;
     const description = this.getDataString(obj, 'Description') || undefined;
     const chebiId = this.getDataString(obj, 'ChEBIIdentifier') || this.getDataString(obj, 'ChEBI_identifier') || undefined;
     const iupacId = this.getDataString(obj, 'IUPACIdentifier') || this.getDataString(obj, 'IUPAC_identifier') || undefined;
 
-    return { uid, identifier, label, description, chebiId, iupacId, xsiType };
+    // Everything beyond the identity fields: plain data properties and
+    // QualifiedValue payloads (MolecularWeight, AntoineA, …).
+    const KNOWN = new Set(['Identifier', 'Label', 'Description', 'ChEBIIdentifier', 'ChEBI_identifier', 'IUPACIdentifier', 'IUPAC_identifier']);
+    const properties: NonNullable<DexpiMaterialComponent['properties']> = [];
+    for (const c of Array.from(obj.children) as Element[]) {
+      const prop = c.getAttribute('property') || '';
+      if (c.tagName === 'Data' && prop && !KNOWN.has(prop)) {
+        const v = Array.from(c.children).find(x =>
+          ['String', 'Double', 'Integer', 'Boolean'].includes(x.tagName));
+        const text = (v?.textContent ?? '').trim();
+        if (text) properties.push({ kind: 'data', name: prop, value: text });
+      } else if (c.tagName === 'Components' && prop) {
+        const qv = Array.from(c.children).find(x =>
+          x.tagName === 'Object' && x.getAttribute('type') === 'Core/QualifiedValue') as Element | undefined;
+        if (!qv) continue;
+        const { value, unit, unitEnum } = this.readQvCanonical(qv);
+        if (value) properties.push({ kind: 'composition', name: prop, value, unit, unitEnum });
+      }
+    }
+
+    return {
+      uid, identifier, label, description, chebiId, iupacId, xsiType,
+      properties: properties.length > 0 ? properties : undefined,
+    };
   }
 
   /** Parse a Process.MaterialState Object. */
   private parseMaterialState(obj: Element): DexpiMaterialState {
     const uid = obj.getAttribute('id') || this.uid();
     const identifier = this.getDataString(obj, 'Identifier') || uid;
-    const label = this.getDataString(obj, 'Label') || identifier;
+    const rawLabel = this.getDataString(obj, 'Label') || identifier;
     const description = this.getDataString(obj, 'Description') || undefined;
+    // Invert the forward transformer's `${caseName} - ${label}` label
+    // composition so labels stay stable across repeated round-trips.
+    const sep = rawLabel.indexOf(' - ');
+    const caseName = sep > 0 ? rawLabel.slice(0, sep) : undefined;
+    const label = sep > 0 ? rawLabel.slice(sep + 3) : rawLabel;
     // The 'State' reference points to the MaterialStateType holding the flow data.
     const stateRefs = this.getReferenceIds(obj, 'State');
     const stateTypeRef = stateRefs[0];
@@ -401,11 +495,14 @@ export class DexpiToBpmnTransformer {
     const tmplRefs = this.getReferenceIds(obj, 'MaterialTemplateReference');
     const templateRef = tmplRefs[0];
 
-    return { uid, identifier, label, description, templateRef, stateTypeRef };
+    return { uid, identifier, label, description, templateRef, stateTypeRef, caseName };
   }
 
   /** Parse a Process.MaterialStateType Object — flow data hangs off here. */
-  private parseMaterialStateType(obj: Element): DexpiMaterialStateType {
+  private parseMaterialStateType(
+    obj: Element,
+    compositionsById: Map<string, Element>,
+  ): DexpiMaterialStateType {
     const uid = obj.getAttribute('id') || this.uid();
     const identifier = this.getDataString(obj, 'Identifier') || uid;
     const label = this.getDataString(obj, 'Label') || identifier;
@@ -413,45 +510,52 @@ export class DexpiToBpmnTransformer {
     const tmplRefs = this.getReferenceIds(obj, 'MaterialTemplateReference');
     const templateRef = tmplRefs[0];
 
-    // MoleFlow lives in <Components property="MoleFlow"><Object type="Core/QualifiedValue"/></Components>
-    const moleFlowComp = Array.from(obj.children).find(c =>
-      c.tagName === 'Components' && c.getAttribute('property') === 'MoleFlow'
-    );
-    const moleFlowObj = moleFlowComp ? Array.from(moleFlowComp.children).find(c => c.tagName === 'Object') : null;
-    const moleFlow = moleFlowObj ? {
-      value: this.getDataString(moleFlowObj as Element, 'Value'),
-      unit: this.getDataString(moleFlowObj as Element, 'Unit'),
-    } : undefined;
-
-    // Composition lives in <Components property="Composition"><Object type="Process/Process.Composition"/></Components>
-    const compComp = Array.from(obj.children).find(c =>
-      c.tagName === 'Components' && c.getAttribute('property') === 'Composition'
-    );
-    const compObj = compComp ? Array.from(compComp.children).find(c => c.tagName === 'Object') : null;
-    let composition: DexpiMaterialStateType['composition'];
-    if (compObj) {
-      const basis = this.getDataString(compObj as Element, 'Basis') || undefined;
-      const display = this.getDataString(compObj as Element, 'Display') || undefined;
-      // Fractions are <Components property="Fractions"><Object type="Core/QualifiedValue"/>...
-      // OR (legacy) repeated Data property="Fraction" entries.
-      const fractionsComp = Array.from((compObj as Element).children).find(c =>
-        c.tagName === 'Components' && c.getAttribute('property') === 'Fractions'
-      );
-      const fractions: { value: string; unit?: string; componentRef?: string }[] = [];
-      if (fractionsComp) {
-        Array.from(fractionsComp.children)
-          .filter(c => c.tagName === 'Object')
-          .forEach(f => {
-            const value = this.getDataString(f, 'Value');
-            const unit = this.getDataString(f, 'Unit') || undefined;
-            const refs = this.getReferenceIds(f, 'ComponentReference');
-            fractions.push({ value, unit, componentRef: refs[0] });
-          });
-      }
-      composition = { basis, display, fractions };
+    // Every scalar QualifiedValue on the state type — MoleFlow, MassFlow,
+    // Temperature, and any project-extension property — reads through the
+    // same canonical-aware shape.
+    const scalars: NonNullable<DexpiMaterialStateType['scalars']> = [];
+    for (const c of Array.from(obj.children) as Element[]) {
+      if (c.tagName !== 'Components') continue;
+      const property = c.getAttribute('property');
+      if (!property || property === 'Composition') continue;
+      const qv = Array.from(c.children).find(x =>
+        x.tagName === 'Object' && x.getAttribute('type') === 'Core/QualifiedValue') as Element | undefined;
+      if (!qv) continue;
+      const { value, unit, unitEnum } = this.readQvCanonical(qv);
+      if (value) scalars.push({ property, value, unit, unitEnum });
     }
 
-    return { uid, identifier, label, description, templateRef, moleFlow, composition };
+    // Composition: emitted as a sibling in the ProcessModel's Compositions
+    // container, referenced from here via <References property="Composition">.
+    // (Hand-authored documents may inline it as a Components carrier.)
+    let compObj: Element | undefined =
+      compositionsById.get(this.getReferenceIds(obj, 'Composition')[0] ?? '');
+    if (!compObj) {
+      const inline = Array.from(obj.children).find(c =>
+        c.tagName === 'Components' && c.getAttribute('property') === 'Composition');
+      compObj = inline
+        ? Array.from(inline.children).find(c => c.tagName === 'Object') as Element | undefined
+        : undefined;
+    }
+    let composition: DexpiMaterialStateType['composition'];
+    if (compObj) {
+      const display = this.getDataString(compObj, 'Display') || undefined;
+      for (const fractionProperty of ['MoleFractiona', 'MoleFractions', 'MassFractions']) {
+        const carrier = Array.from(compObj.children).find(c =>
+          c.tagName === 'Components' && c.getAttribute('property') === fractionProperty);
+        if (!carrier) continue;
+        const qv = Array.from(carrier.children).find(c => c.tagName === 'Object') as Element | undefined;
+        if (!qv) continue;
+        const { values, unit } = this.readQvVector(qv);
+        composition = {
+          uid: compObj.getAttribute('id') || undefined,
+          display, fractionProperty, unit, values,
+        };
+        break;
+      }
+    }
+
+    return { uid, identifier, label, description, templateRef, scalars: scalars.length > 0 ? scalars : undefined, composition };
   }
 
   /** Like getDataString but returns the Integer node text. */
@@ -503,8 +607,17 @@ export class DexpiToBpmnTransformer {
           const dirRef = portObj.querySelector('Data[property="NominalDirection"] DataReference');
           const dirData = dirRef?.getAttribute('data') || '';
           const direction = dirData.includes('.Out') ? 'Outlet' : 'Inlet';
-          const subPortIds = this.getReferenceIds(portObj, 'SubReference');
-          const superPortIds = this.getReferenceIds(portObj, 'SuperReference');
+          // Port hierarchy: the emitter carries SubReference as a Components
+          // container of ObjectReference children; accept the References
+          // carrier too for hand-authored documents.
+          const subPortIds = [
+            ...this.getReferenceIds(portObj, 'SubReference'),
+            ...this.getObjectReferenceIds(portObj, 'SubReference'),
+          ];
+          const superPortIds = [
+            ...this.getReferenceIds(portObj, 'SuperReference'),
+            ...this.getObjectReferenceIds(portObj, 'SuperReference'),
+          ];
 
           ports.push({
             id: portId,
@@ -587,13 +700,14 @@ export class DexpiToBpmnTransformer {
         if (!property || skip.has(property)) return;
         const inner = Array.from(comp.children).find(c => c.tagName === 'Object');
         if (!inner || inner.getAttribute('type') !== 'Core/QualifiedValue') return;
-        const value = this.getDataString(inner, 'Value');
-        const unit = this.getDataString(inner, 'Unit') || undefined;
+        // Canonical-aware read: Value/Unit may nest inside an
+        // AggregatedDataValue(PhysicalQuantity), and Unit/Provenance/Range
+        // are DataReferences to enumeration literals in emitted documents.
+        const { value, unit, unitEnum, provenance, range } = this.readQvCanonical(inner);
         const unitUri = this.getDataString(inner, 'UnitReference') || undefined;
-        const provenance = this.getDataString(inner, 'Provenance') || undefined;
-        const range = this.getDataString(inner, 'Range') || undefined;
         const nameUri = this.getReferenceIds(inner, 'QuantityKindReference')[0];
-        out.push({ name: property, value, unit, unitUri, provenance, range, nameUri });
+        if (!value && !unit) return;
+        out.push({ name: property, value, unit, unitEnum, unitUri, provenance, range, nameUri });
       });
 
     Array.from(obj.children)
@@ -696,6 +810,18 @@ export class DexpiToBpmnTransformer {
       .split(/\s+/)
       .map(value => value.trim().replace(/^#/, ''))
       .filter(Boolean));
+  }
+
+  /** Read a Components property="P" carrier holding ObjectReference children. */
+  private getObjectReferenceIds(parent: Element | null, property: string): string[] {
+    if (!parent) return [];
+    const comp = Array.from(parent.children).find(c =>
+      c.tagName === 'Components' && c.getAttribute('property') === property);
+    if (!comp) return [];
+    return Array.from(comp.children)
+      .filter(c => c.tagName === 'ObjectReference')
+      .map(c => (c.getAttribute('object') || '').replace(/^#/, ''))
+      .filter(Boolean);
   }
 
   private materializeBoundaryProxyEvents(parsed: ParsedDexpi): void {
@@ -935,6 +1061,109 @@ export class DexpiToBpmnTransformer {
       });
   }
 
+  /**
+   * Read a Core/QualifiedValue Object in the CANONICAL emitted shape:
+   *   <Data property="Value">
+   *     <AggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity">
+   *       <Data property="Unit"><DataReference data="…SomeUnit.Token"/></Data>
+   *       <Data property="Value"><Double>…</Double></Data>
+   *     </AggregatedDataValue>
+   *   </Data>
+   *   <Data property="Provenance"><DataReference data="…QuantityProvenance.X"/></Data>
+   * Falls back to the flat shape (primitive Value + String Unit) for
+   * hand-authored documents. Enum references are reduced to their literal
+   * token plus the owning enumeration name — the BPMN extension convention.
+   */
+  private readQvCanonical(qv: Element): {
+    value: string; unit?: string; unitEnum?: string; provenance?: string; range?: string;
+  } {
+    const dataChild = (parent: Element, property: string): Element | undefined =>
+      Array.from(parent.children).find(c =>
+        c.tagName === 'Data' && c.getAttribute('property') === property
+      ) as Element | undefined;
+    const primitive = (d: Element | undefined): string => {
+      if (!d) return '';
+      const v = Array.from(d.children).find(c =>
+        ['String', 'Double', 'Integer', 'Boolean'].includes(c.tagName));
+      return (v?.textContent ?? '').trim();
+    };
+    const enumParts = (d: Element | undefined): { token: string; enumName?: string } | undefined => {
+      if (!d) return undefined;
+      const r = Array.from(d.children).find(c => c.tagName === 'DataReference');
+      const path = r?.getAttribute('data') ?? r?.getAttribute('type') ?? '';
+      if (!path) {
+        const text = primitive(d);
+        return text ? { token: text } : undefined;
+      }
+      const segs = path.split('.');
+      return {
+        token: segs[segs.length - 1],
+        enumName: segs.length >= 2 ? segs[segs.length - 2].split('/').pop() : undefined,
+      };
+    };
+
+    const valueData = dataChild(qv, 'Value');
+    let value = primitive(valueData);
+    let unit: { token: string; enumName?: string } | undefined = enumParts(dataChild(qv, 'Unit'));
+    if (valueData && !value) {
+      const agg = Array.from(valueData.children).find(c =>
+        c.tagName === 'AggregatedDataValue' || c.tagName === 'Object') as Element | undefined;
+      if (agg) {
+        value = primitive(dataChild(agg, 'Value'));
+        unit = enumParts(dataChild(agg, 'Unit')) ?? unit;
+      }
+    }
+    // DisplayText preserves the author's numeric formatting ("45.0" where
+    // the normalized Double text is "45"). When its leading token equals the
+    // parsed value numerically, prefer it — the re-emitted Double and
+    // DisplayText then match the original document byte-for-byte.
+    const display = primitive(dataChild(qv, 'DisplayText'));
+    if (display && value) {
+      const token = display.split(' ')[0];
+      if (token !== value && Number(token) === Number(value)) value = token;
+    }
+    const provenance = enumParts(dataChild(qv, 'Provenance'));
+    const range = enumParts(dataChild(qv, 'Range'));
+    return {
+      value,
+      unit: unit?.token || undefined,
+      unitEnum: unit?.enumName,
+      provenance: provenance?.token || undefined,
+      range: range?.token || undefined,
+    };
+  }
+
+  /**
+   * Read a QualifiedValue wrapping a PhysicalQuantityVector (the composition
+   * fraction carrier): Value → AggregatedDataValue with one Unit reference
+   * and N repeated <Data property="Values"> children.
+   */
+  private readQvVector(qv: Element): { values: string[]; unit?: string } {
+    const values: string[] = [];
+    let unit: string | undefined;
+    const valueData = Array.from(qv.children).find(c =>
+      c.tagName === 'Data' && c.getAttribute('property') === 'Value') as Element | undefined;
+    const agg = valueData
+      ? Array.from(valueData.children).find(c =>
+          c.tagName === 'AggregatedDataValue' || c.tagName === 'Object') as Element | undefined
+      : undefined;
+    const container = agg ?? qv;
+    for (const c of Array.from(container.children) as Element[]) {
+      if (c.tagName !== 'Data') continue;
+      const p = c.getAttribute('property');
+      if (p === 'Values') {
+        const v = Array.from(c.children).find(x =>
+          ['Double', 'Integer', 'String'].includes(x.tagName));
+        values.push((v?.textContent ?? '').trim());
+      } else if (p === 'Unit') {
+        const r = Array.from(c.children).find(x => x.tagName === 'DataReference');
+        const path = r?.getAttribute('data') ?? '';
+        unit = path ? path.split('.').pop() : ((c.textContent ?? '').trim() || undefined);
+      }
+    }
+    return { values, unit };
+  }
+
   private getDataString(parent: Element | null, property: string): string {
     if (!parent) return '';
     // DEXPI primitive values can live inside <String>, <Double>, <Integer>,
@@ -950,25 +1179,6 @@ export class DexpiToBpmnTransformer {
       c.tagName === 'Integer' || c.tagName === 'Boolean'
     );
     return valueNode?.textContent?.trim() || '';
-  }
-
-  /**
-   * Read a DEXPI enumeration value encoded as
-   * <Data property="P"><DataReference data="Some/Enumerations.P.Value"/></Data>
-   * and return the last dot-segment of the `data` attribute (e.g. "Value").
-   * Returns '' when the property or DataReference is absent.
-   */
-  private getEnumLastSegment(parent: Element | null, property: string): string {
-    if (!parent) return '';
-    const dataEl = Array.from(parent.children).find(c =>
-      c.tagName === 'Data' && c.getAttribute('property') === property
-    );
-    if (!dataEl) return '';
-    const ref = Array.from(dataEl.children).find(c => c.tagName === 'DataReference');
-    const data = ref?.getAttribute('data');
-    if (!data) return '';
-    const segments = data.split('.');
-    return segments[segments.length - 1].trim();
   }
 
   // ── Layout engine ───────────────────────────────────────────────────────────
@@ -1577,7 +1787,38 @@ export class DexpiToBpmnTransformer {
     });
 
     // Generate unique IDs for BPMN elements
-    const bpmnId = (base: string) => `bpmn_${base.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+    // BPMN element ids: prefer the DEXPI step Identifier — the forward
+    // transformer records the original BPMN element id there, and derived
+    // artifacts (port identifiers `${elementId}_${portName}_port`,
+    // connector ids) only reproduce byte-identically when the element id
+    // survives the round-trip. Fall back to the uid-based scheme for
+    // identifiers that are empty, collide, or don't form a valid NCName.
+    const sanitizeId = (s: string) => s.replace(/[^a-zA-Z0-9_]/g, '_');
+    const stepElementId = new Map<string, string>();
+    {
+      // `steps` is the flat parsed list (children appear both nested and
+      // flat) — dedupe by id so each step is assigned exactly once. On a
+      // genuine identifier tie, real steps claim it before port-proxy
+      // Sources/Sinks (which mirror another element's identity).
+      const unique = new Map<string, DexpiStep>();
+      steps.forEach(s => { if (!unique.has(s.id)) unique.set(s.id, s); });
+      const taken = new Set<string>();
+      const assign = (uid: string, identifier: string) => {
+        let candidate = sanitizeId(identifier || '');
+        if (!candidate || /^[0-9]/.test(candidate) || taken.has(candidate)) {
+          candidate = `bpmn_${sanitizeId(uid)}`;
+          while (taken.has(candidate)) candidate = `${candidate}_x`;
+        }
+        taken.add(candidate);
+        stepElementId.set(uid, candidate);
+      };
+      const all = [...unique.values()];
+      all.filter(s => !this.isPortProxyStep(s)).forEach(s => assign(s.id, s.identifier));
+      all.filter(s => this.isPortProxyStep(s)).forEach(s => assign(s.id, s.identifier));
+      // Sequence-flow / association ids follow the same rule for consistency.
+      connections.forEach(c => { if (!stepElementId.has(c.id)) assign(c.id, c.identifier); });
+    }
+    const bpmnId = (base: string) => stepElementId.get(base) ?? `bpmn_${sanitizeId(base)}`;
 
     // ── Process elements ────────────────────────────────────────────────────
     const processElements: string[] = [];
@@ -2528,19 +2769,39 @@ export class DexpiToBpmnTransformer {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+    // Canonical carrier grammar — what BpmnToDexpiTransformer's step and
+    // stream readers consume: plain values as <dexpi:data property=…>,
+    // measured values as <dexpi:components property=…> wrapping a
+    // Core/QualifiedValue with flat Value/Unit/Provenance/Range children.
     const renderAttrTags = (
       attrs: ParsedStreamAttribute[] | undefined,
       indent: string,
     ): string => {
       if (!attrs || attrs.length === 0) return '';
+      const escText = (text: string) => text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
       return attrs.map(attr => {
-        const parts: string[] = [`name="${escAttrXml(attr.name)}"`, `value="${escAttrXml(attr.value)}"`];
-        if (attr.unit) parts.push(`unit="${escAttrXml(attr.unit)}"`);
-        if (attr.unitUri) parts.push(`unitUri="${escAttrXml(attr.unitUri)}"`);
-        if (attr.nameUri) parts.push(`nameUri="${escAttrXml(attr.nameUri)}"`);
-        if (attr.provenance) parts.push(`provenance="${escAttrXml(attr.provenance)}"`);
-        if (attr.range) parts.push(`range="${escAttrXml(attr.range)}"`);
-        return `${indent}<dexpi:Attribute ${parts.join(' ')}/>`;
+        const qualified = attr.unit || attr.unitEnum || attr.provenance || attr.range || attr.nameUri;
+        if (!qualified) {
+          return `${indent}<dexpi:data property="${escAttrXml(attr.name)}">${escText(attr.value)}</dexpi:data>`;
+        }
+        const unitEnumAttr = attr.unitEnum ? ` unitEnum="${escAttrXml(attr.unitEnum)}"` : '';
+        const inner: string[] = [
+          `${indent}    <dexpi:data property="Value">${escText(attr.value)}</dexpi:data>`,
+        ];
+        if (attr.unit) inner.push(`${indent}    <dexpi:data property="Unit">${escText(attr.unit)}</dexpi:data>`);
+        if (attr.provenance) inner.push(`${indent}    <dexpi:data property="Provenance">${escText(attr.provenance)}</dexpi:data>`);
+        if (attr.range) inner.push(`${indent}    <dexpi:data property="Range">${escText(attr.range)}</dexpi:data>`);
+        if (attr.nameUri) inner.push(`${indent}    <dexpi:references property="QuantityKindReference" objects="${escAttrXml(attr.nameUri)}"/>`);
+        return [
+          `${indent}<dexpi:components property="${escAttrXml(attr.name)}"${unitEnumAttr}>`,
+          `${indent}  <dexpi:object type="Core/QualifiedValue">`,
+          ...inner,
+          `${indent}  </dexpi:object>`,
+          `${indent}</dexpi:components>`,
+        ].join('\n');
       }).join('\n');
     };
 
@@ -2647,7 +2908,9 @@ ${indent}</bpmn:task>`;
       const tgtCenter = tgtPos
         ? { x: tgtPos.x + tgtPos.w / 2, y: tgtPos.y + tgtPos.h / 2 }
         : srcCenter;
-      const dobjId = `dobj_${bpmnId(src)}_${bpmnId(varName.replace(/[^a-zA-Z0-9]/g, '_'))}`;
+      // varName is a property name, not an element uid — sanitize directly
+      // rather than routing it through the element-id map.
+      const dobjId = `dobj_${bpmnId(src)}_${varName.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const gap = 12;
 
       let dobjY = (srcCenter.y + tgtCenter.y) / 2 - DATA_OBJ_H / 2;
@@ -2723,30 +2986,26 @@ ${indent}</bpmn:task>`;
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
-      const tmplAttr = conn.materialTemplateRef ? ` templateReference="${escAttr(conn.materialTemplateRef)}"` : '';
-      const stateAttr = conn.materialStateRef ? ` materialStateReference="${escAttr(conn.materialStateRef)}"` : '';
-      const streamHasChildren = (conn.attributes && conn.attributes.length > 0);
-      const streamOpenTag = `<dexpi:Stream uid="${conn.id}" identifier="${conn.identifier}"${streamTypeAttr} sourcePortRef="${conn.sourcePortId}" targetPortRef="${conn.targetPortId}"${tmplAttr}${stateAttr}`;
+      const streamHasChildren = (conn.attributes && conn.attributes.length > 0)
+        || !!conn.materialStateRef || !!conn.materialTemplateRef;
+      const streamOpenTag = `<dexpi:Stream uid="${conn.id}" identifier="${conn.identifier}"${streamTypeAttr} sourcePortRef="${conn.sourcePortId}" targetPortRef="${conn.targetPortId}"`;
       let streamXml: string;
       if (streamHasChildren) {
-        const attrLines = (conn.attributes || []).map(attr => {
-          const parts: string[] = [`name="${escAttr(attr.name)}"`, `value="${escAttr(attr.value)}"`];
-          if (attr.unit) parts.push(`unit="${escAttr(attr.unit)}"`);
-          if (attr.unitUri) parts.push(`unitUri="${escAttr(attr.unitUri)}"`);
-          if (attr.nameUri) parts.push(`nameUri="${escAttr(attr.nameUri)}"`);
-          if (attr.provenance) parts.push(`provenance="${escAttr(attr.provenance)}"`);
-          if (attr.range) parts.push(`range="${escAttr(attr.range)}"`);
-          // Both step and stream attributes share the unified <dexpi:Attribute>
-          // element. DEXPI Process.xml itself has no Attribute/StreamAttribute
-          // distinction (both are encoded as <Components property="X"><Object
-          // type="Core/QualifiedValue"/></Components>); the moddle previously
-          // had two parallel types with identical fields, now unified into
-          // one. BpmnToDexpiTransformer.extractStreamData accepts both
-          // 'attribute' and 'streamattribute' localNames for back-compat.
-          return `      <dexpi:Attribute ${parts.join(' ')}/>`;
-        }).join('\n');
+        // Canonical carrier children — the shape extractStreamData reads:
+        // material references as <dexpi:references property=… uidRef=…>,
+        // measured values as <dexpi:components property=…> wrapping a
+        // Core/QualifiedValue, plain values as <dexpi:data property=…>.
+        const childLines: string[] = [];
+        if (conn.materialStateRef) {
+          childLines.push(`      <dexpi:references property="MaterialStateReference" uidRef="${escAttr(conn.materialStateRef)}"/>`);
+        }
+        if (conn.materialTemplateRef) {
+          childLines.push(`      <dexpi:references property="MaterialTemplateReference" uidRef="${escAttr(conn.materialTemplateRef)}"/>`);
+        }
+        const attrsXml = renderAttrTags(conn.attributes, '      ');
+        if (attrsXml) childLines.push(attrsXml);
         streamXml = `${streamOpenTag}>
-${attrLines}
+${childLines.join('\n')}
     </dexpi:Stream>`;
       } else {
         streamXml = `${streamOpenTag}/>`;
@@ -3183,81 +3442,113 @@ ${qualLines}
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
 
+    // Canonical carrier grammar — exactly what BpmnToDexpiTransformer's
+    // extractMaterialData / extractMaterialState read (and what the UI's
+    // material panels author): <dexpi:data property=…>, <dexpi:references
+    // property=… uidRef/objects=…>, <dexpi:components property=…> wrapping a
+    // Core/QualifiedValue with flat Value/Unit data children.
+    const dataLine = (indent: string, property: string, value: string): string =>
+      `${indent}<dexpi:data property="${escapeXml(property)}">${escapeXml(value)}</dexpi:data>`;
+    const qvComponentsLines = (
+      indent: string,
+      property: string,
+      payload: { value: string; unit?: string; unitEnum?: string; provenance?: string; range?: string },
+    ): string => {
+      const unitEnumAttr = payload.unitEnum ? ` unitEnum="${escapeXml(payload.unitEnum)}"` : '';
+      const inner: string[] = [dataLine(`${indent}    `, 'Value', payload.value)];
+      if (payload.unit) inner.push(dataLine(`${indent}    `, 'Unit', payload.unit));
+      if (payload.provenance) inner.push(dataLine(`${indent}    `, 'Provenance', payload.provenance));
+      if (payload.range) inner.push(dataLine(`${indent}    `, 'Range', payload.range));
+      return [
+        `${indent}<dexpi:components property="${escapeXml(property)}"${unitEnumAttr}>`,
+        `${indent}  <dexpi:object type="Core/QualifiedValue">`,
+        ...inner,
+        `${indent}  </dexpi:object>`,
+        `${indent}</dexpi:components>`,
+      ].join('\n');
+    };
+
     const renderMaterialTemplate = (t: DexpiMaterialTemplate): string => {
-      const lines: string[] = [`        <MaterialTemplate uid="${escapeXml(t.uid)}">`];
-      lines.push(`          <Identifier>${escapeXml(t.identifier)}</Identifier>`);
-      lines.push(`          <Label>${escapeXml(t.label)}</Label>`);
-      if (t.description) lines.push(`          <Description>${escapeXml(t.description)}</Description>`);
-      if (t.numberOfComponents) lines.push(`          <NumberOfMaterialComponents>${escapeXml(t.numberOfComponents)}</NumberOfMaterialComponents>`);
-      if (t.numberOfPhases) lines.push(`          <NumberOfPhases>${escapeXml(t.numberOfPhases)}</NumberOfPhases>`);
+      const lines: string[] = [`        <dexpi:MaterialTemplate uid="${escapeXml(t.uid)}">`];
+      lines.push(dataLine('          ', 'Identifier', t.identifier));
+      lines.push(dataLine('          ', 'Label', t.label));
+      if (t.description) lines.push(dataLine('          ', 'Description', t.description));
+      if (t.numberOfComponents) lines.push(dataLine('          ', 'NumberOfMaterialComponents', t.numberOfComponents));
+      if (t.numberOfPhases) lines.push(dataLine('          ', 'NumberOfPhases', t.numberOfPhases));
       if (t.componentRefs.length > 0) {
-        lines.push(`          <ListOfMaterialComponents>`);
-        t.componentRefs.forEach(ref => {
-          lines.push(`            <MaterialComponentIdentifier uidRef="${escapeXml(ref)}"/>`);
-        });
-        lines.push(`          </ListOfMaterialComponents>`);
+        const objects = t.componentRefs.map(r => `#${r}`).join(' ');
+        lines.push(`          <dexpi:references property="ListOfComponents" objects="${escapeXml(objects)}"/>`);
       }
-      if (t.phases.length > 0) {
-        lines.push(`          <ListOfPhases>`);
-        t.phases.forEach(phase => {
-          lines.push(`            <PhaseIdentifier Identifier="${escapeXml(phase)}"/>`);
-        });
-        lines.push(`          </ListOfPhases>`);
-      }
-      lines.push(`        </MaterialTemplate>`);
+      t.phases.forEach(phase => lines.push(dataLine('          ', 'PhaseLabel', phase)));
+      lines.push(`        </dexpi:MaterialTemplate>`);
       return lines.join('\n');
     };
 
     const renderMaterialComponent = (c: DexpiMaterialComponent): string => {
-      const lines: string[] = [`        <MaterialComponent xsi:type="${escapeXml(c.xsiType)}" uid="${escapeXml(c.uid)}">`];
-      lines.push(`          <Identifier>${escapeXml(c.identifier)}</Identifier>`);
-      lines.push(`          <Label>${escapeXml(c.label)}</Label>`);
-      if (c.description) lines.push(`          <Description>${escapeXml(c.description)}</Description>`);
-      if (c.chebiId) lines.push(`          <ChEBI_identifier>${escapeXml(c.chebiId)}</ChEBI_identifier>`);
-      if (c.iupacId) lines.push(`          <IUPAC_identifier>${escapeXml(c.iupacId)}</IUPAC_identifier>`);
-      lines.push(`        </MaterialComponent>`);
+      const lines: string[] = [`        <dexpi:MaterialComponent xsi:type="${escapeXml(c.xsiType)}" uid="${escapeXml(c.uid)}">`];
+      lines.push(dataLine('          ', 'Identifier', c.identifier));
+      lines.push(dataLine('          ', 'Label', c.label));
+      if (c.description) lines.push(dataLine('          ', 'Description', c.description));
+      if (c.chebiId) lines.push(dataLine('          ', 'ChEBI_identifier', c.chebiId));
+      if (c.iupacId) lines.push(dataLine('          ', 'IUPAC_identifier', c.iupacId));
+      (c.properties ?? []).forEach(p => {
+        if (p.kind === 'data') {
+          lines.push(dataLine('          ', p.name, p.value));
+        } else {
+          lines.push(qvComponentsLines('          ', p.name, p));
+        }
+      });
+      lines.push(`        </dexpi:MaterialComponent>`);
       return lines.join('\n');
     };
 
     const renderMaterialState = (s: DexpiMaterialState): string => {
-      const lines: string[] = [`        <MaterialState uid="${escapeXml(s.uid)}">`];
-      lines.push(`          <Identifier>${escapeXml(s.identifier)}</Identifier>`);
-      lines.push(`          <Label>${escapeXml(s.label)}</Label>`);
-      if (s.description) lines.push(`          <Description>${escapeXml(s.description)}</Description>`);
-      // Inline Flow data from the linked MaterialStateType.
-      const stateType = s.stateTypeRef ? stateTypeByUid.get(s.stateTypeRef) : undefined;
-      if (stateType) {
-        const hasFlow = stateType.moleFlow || stateType.composition;
-        if (hasFlow) {
-          lines.push(`          <Flow>`);
-          if (stateType.moleFlow) {
-            lines.push(`            <MoleFlow>`);
-            lines.push(`              <Value>${escapeXml(stateType.moleFlow.value)}</Value>`);
-            lines.push(`              <Unit>${escapeXml(stateType.moleFlow.unit)}</Unit>`);
-            lines.push(`            </MoleFlow>`);
-          }
-          if (stateType.composition) {
-            lines.push(`            <Composition>`);
-            if (stateType.composition.basis) lines.push(`              <Basis>${escapeXml(stateType.composition.basis)}</Basis>`);
-            if (stateType.composition.display) lines.push(`              <Display>${escapeXml(stateType.composition.display)}</Display>`);
-            stateType.composition.fractions.forEach(f => {
-              lines.push(`              <Fraction>`);
-              lines.push(`                <Value>${escapeXml(f.value)}</Value>`);
-              if (f.unit) lines.push(`                <Unit>${escapeXml(f.unit)}</Unit>`);
-              if (f.componentRef) lines.push(`                <ComponentReference>${escapeXml(f.componentRef)}</ComponentReference>`);
-              lines.push(`              </Fraction>`);
-            });
-            lines.push(`            </Composition>`);
-          }
-          lines.push(`          </Flow>`);
-        }
+      const lines: string[] = [`          <dexpi:MaterialState uid="${escapeXml(s.uid)}">`];
+      lines.push(dataLine('            ', 'Identifier', s.identifier));
+      lines.push(dataLine('            ', 'Label', s.label));
+      if (s.description) lines.push(dataLine('            ', 'Description', s.description));
+      if (s.stateTypeRef) {
+        lines.push(`            <dexpi:references property="State" uidRef="${escapeXml(s.stateTypeRef)}"/>`);
       }
-      // Either the state itself OR its linked state-type may carry a TemplateReference.
+      const stateType = s.stateTypeRef ? stateTypeByUid.get(s.stateTypeRef) : undefined;
       const tmplRef = s.templateRef || stateType?.templateRef;
       if (tmplRef) {
-        lines.push(`          <TemplateReference uidRef="${escapeXml(tmplRef)}"/>`);
+        lines.push(`            <dexpi:references property="TemplateReference" uidRef="${escapeXml(tmplRef)}"/>`);
       }
-      lines.push(`        </MaterialState>`);
+      lines.push(`          </dexpi:MaterialState>`);
+      return lines.join('\n');
+    };
+
+    const renderMaterialStateType = (st: DexpiMaterialStateType): string => {
+      const lines: string[] = [`          <dexpi:MaterialStateType uid="${escapeXml(st.uid)}">`];
+      lines.push(dataLine('            ', 'Identifier', st.identifier));
+      lines.push(dataLine('            ', 'Label', st.label));
+      if (st.description) lines.push(dataLine('            ', 'Description', st.description));
+      (st.scalars ?? []).forEach(sc => {
+        lines.push(qvComponentsLines('            ', sc.property, {
+          value: sc.value, unit: sc.unit, unitEnum: sc.unitEnum,
+        }));
+      });
+      if (st.composition) {
+        const compUid = st.composition.uid || `${st.uid}_Composition`;
+        lines.push(`            <dexpi:references property="Composition" uidRef="${escapeXml(compUid)}"/>`);
+      }
+      lines.push(`          </dexpi:MaterialStateType>`);
+      return lines.join('\n');
+    };
+
+    const renderComposition = (st: DexpiMaterialStateType): string => {
+      const comp = st.composition!;
+      const compUid = comp.uid || `${st.uid}_Composition`;
+      const lines: string[] = [`          <dexpi:Composition uid="${escapeXml(compUid)}">`];
+      if (comp.display) lines.push(dataLine('            ', 'Display', comp.display));
+      lines.push(`            <dexpi:components property="${escapeXml(comp.fractionProperty)}">`);
+      lines.push(`              <dexpi:object type="Core/QualifiedValue">`);
+      comp.values.forEach(v => lines.push(dataLine('                ', 'Values', v)));
+      if (comp.unit) lines.push(dataLine('                ', 'Unit', comp.unit));
+      lines.push(`              </dexpi:object>`);
+      lines.push(`            </dexpi:components>`);
+      lines.push(`          </dexpi:Composition>`);
       return lines.join('\n');
     };
 
@@ -3285,15 +3576,41 @@ ${innerXml}
     }
 
     if (materialStates.length > 0) {
-      const statesXml = materialStates.map(renderMaterialState).join('\n');
+      // Group states into <dexpi:Case> wrappers by the case name split off
+      // their labels. extractMaterialState re-joins `${caseName} - ${label}`,
+      // so this keeps labels byte-stable across repeated round-trips. The
+      // linked MaterialStateType and Composition elements sit INSIDE the same
+      // Case — the forward reader resolves them among the state's siblings.
+      const byCase = new Map<string, DexpiMaterialState[]>();
+      materialStates.forEach(s => {
+        const key = s.caseName ?? 'Base Case';
+        if (!byCase.has(key)) byCase.set(key, []);
+        byCase.get(key)!.push(s);
+      });
+      const caseBlocks = [...byCase.entries()].map(([caseName, states]) => {
+        const parts: string[] = [
+          `        <dexpi:Case>`,
+          `          <dexpi:CaseName>${escapeXml(caseName)}</dexpi:CaseName>`,
+        ];
+        states.forEach(s => {
+          parts.push(renderMaterialState(s));
+          const st = s.stateTypeRef ? stateTypeByUid.get(s.stateTypeRef) : undefined;
+          if (st) {
+            parts.push(renderMaterialStateType(st));
+            if (st.composition) parts.push(renderComposition(st));
+          }
+        });
+        parts.push(`        </dexpi:Case>`);
+        return parts.join('\n');
+      }).join('\n');
       // Anchor next to the templates container if a second template position
       // exists, otherwise leave unpositioned.
       const second = materialTemplates[1];
       const pos = second ? layout.get(`dt_${second.uid}`) : undefined;
       const dobjId = `dt_dobj_MaterialStates`;
-      processElements.push(`  <bpmn:dataObjectReference id="${dobjId}" name="Base Case MaterialStates" dataObjectRef="DataObject_${dobjId}">
+      processElements.push(`  <bpmn:dataObjectReference id="${dobjId}" name="MaterialStates" dataObjectRef="DataObject_${dobjId}">
     <bpmn:extensionElements>
-${statesXml}
+${caseBlocks}
     </bpmn:extensionElements>
   </bpmn:dataObjectReference>
   <bpmn:dataObject id="DataObject_${dobjId}"/>`);
