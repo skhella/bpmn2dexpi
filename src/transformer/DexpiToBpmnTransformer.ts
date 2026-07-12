@@ -3576,22 +3576,27 @@ ${innerXml}
     }
 
     if (materialStates.length > 0) {
-      // Group states into <dexpi:Case> wrappers by the case name split off
-      // their labels. extractMaterialState re-joins `${caseName} - ${label}`,
-      // so this keeps labels byte-stable across repeated round-trips. The
-      // linked MaterialStateType and Composition elements sit INSIDE the same
-      // Case — the forward reader resolves them among the state's siblings.
+      // One dataObjectReference container per case, NAMED after the case —
+      // the forward reader's legacy path uses the container name as the
+      // case prefix it re-joins into `${caseName} - ${label}`, so labels
+      // stay byte-stable across repeated round-trips. States and their
+      // linked MaterialStateType / Composition sit as direct children (the
+      // shape the TEP fixture uses and the bpmn-moddle dexpi schema keeps
+      // through a UI save/load cycle — a Case wrapper element would be
+      // dropped by moddle as unknown vocabulary).
       const byCase = new Map<string, DexpiMaterialState[]>();
       materialStates.forEach(s => {
         const key = s.caseName ?? 'Base Case';
         if (!byCase.has(key)) byCase.set(key, []);
         byCase.get(key)!.push(s);
       });
-      const caseBlocks = [...byCase.entries()].map(([caseName, states]) => {
-        const parts: string[] = [
-          `        <dexpi:Case>`,
-          `          <dexpi:CaseName>${escapeXml(caseName)}</dexpi:CaseName>`,
-        ];
+      // Anchor next to the templates container if a second template position
+      // exists, otherwise leave unpositioned.
+      const second = materialTemplates[1];
+      const pos = second ? layout.get(`dt_${second.uid}`) : undefined;
+      let caseIdx = 0;
+      for (const [caseName, states] of byCase) {
+        const parts: string[] = [];
         states.forEach(s => {
           parts.push(renderMaterialState(s));
           const st = s.stateTypeRef ? stateTypeByUid.get(s.stateTypeRef) : undefined;
@@ -3600,25 +3605,20 @@ ${innerXml}
             if (st.composition) parts.push(renderComposition(st));
           }
         });
-        parts.push(`        </dexpi:Case>`);
-        return parts.join('\n');
-      }).join('\n');
-      // Anchor next to the templates container if a second template position
-      // exists, otherwise leave unpositioned.
-      const second = materialTemplates[1];
-      const pos = second ? layout.get(`dt_${second.uid}`) : undefined;
-      const dobjId = `dt_dobj_MaterialStates`;
-      processElements.push(`  <bpmn:dataObjectReference id="${dobjId}" name="MaterialStates" dataObjectRef="DataObject_${dobjId}">
+        const dobjId = caseIdx === 0 ? `dt_dobj_MaterialStates` : `dt_dobj_MaterialStates_${caseIdx}`;
+        processElements.push(`  <bpmn:dataObjectReference id="${dobjId}" name="${escapeXml(caseName)}" dataObjectRef="DataObject_${dobjId}">
     <bpmn:extensionElements>
-${caseBlocks}
+${parts.join('\n')}
     </bpmn:extensionElements>
   </bpmn:dataObjectReference>
   <bpmn:dataObject id="DataObject_${dobjId}"/>`);
-      if (pos) {
-        shapeElements.push(`      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
+        if (caseIdx === 0 && pos) {
+          shapeElements.push(`      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
         <dc:Bounds x="${pos.x}" y="${pos.y}" width="36" height="50"/>
         <bpmndi:BPMNLabel/>
       </bpmndi:BPMNShape>`);
+        }
+        caseIdx++;
       }
     }
 

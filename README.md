@@ -6,6 +6,7 @@ A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DE
 
 - **Visual modeling** — drag-and-drop BPMN 2.0 editor with a DEXPI-aware palette
 - **DEXPI 2.0 export** — XSD-validated output, with a structural fallback in browser contexts
+- **DEXPI 2.0 import** — open an existing DEXPI Process file as an editable BPMN diagram with automatic layout; content round-trips completely (see below)
 - **Strict-mode fidelity check** — five-dimensional validation against the DEXPI 2.0 information model: property names and kinds, data types, reference targets, cardinality, and class existence
 - **Profile-based extensibility** — declare custom classes or property extensions in a Profile XML, or auto-generate a Profile from any model to close vocabulary gaps
 - **Material library** — materials, compositions, and thermodynamic states
@@ -59,6 +60,8 @@ See [CLI_USAGE.md](./CLI_USAGE.md) for more.
 
 Open `http://localhost:5173`, drag elements from the palette, connect with typed flows, configure ports and stream properties in the side panel, edit instrumentation variables on connected `DataObject`s, and export to DEXPI 2.0 XML or Neo4j.
 
+*Import ▾ → Import DEXPI XML* opens an existing DEXPI 2.0 Process document as an editable diagram: process steps, typed ports, streams, subprocesses, instrumentation wiring, stream quantities with their qualifiers, and the full material library (templates, components, states, compositions) are reconstructed, and an obstacle-aware layout engine places everything automatically — DEXPI Process carries no diagram geometry, so the layout is heuristic. Content survives the cycle completely: exporting the imported diagram reproduces the original document's information-model content object-for-object (an integration test pins this on the Tennessee Eastman benchmark; element order and per-run ids may differ).
+
 <img src="./examples/Web-Interface-Screenshot.png" alt="Web Interface Screenshot" width="90%" />
 
 ## Architecture
@@ -68,6 +71,7 @@ The transformer is a standalone, framework-independent TypeScript module — usa
 ```
 src/transformer/
 ├── BpmnToDexpiTransformer.ts        # Core BPMN → DEXPI 2.0 transformation
+├── DexpiToBpmnTransformer.ts        # DEXPI 2.0 → BPMN import (heuristic layout)
 ├── DexpiProcessClassRegistry.ts     # Loads the DEXPI schemas + any Profiles
 ├── DexpiOutputValidator.ts          # XSD validation + structural fallback
 ├── DexpiPropertyNameValidator.ts    # Strict-mode fidelity checks
