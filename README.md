@@ -1,5 +1,7 @@
 <img src="./src/assets/noncropped_logo.png" alt="BPMN2DEXPI Logo" width="400" />
 
+[![DOI](https://zenodo.org/badge/1142310809.svg)](https://zenodo.org/badge/latestdoi/1142310809)
+
 A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DEXPI 2.0–compliant block flow and process flow diagrams, validated against the official DEXPI XML Schema.
 
 ## Features
