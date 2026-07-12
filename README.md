@@ -11,7 +11,7 @@ A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DE
 - **Material library** — materials, compositions, and thermodynamic states
 - **Typed ports & streams** — Material / Energy / Information, with flow rates, compositions, and qualified parameters
 - **Instrumentation variables on ProcessStep** — measured / controlled variables author canonically on the connected ProcessStep (DEXPI 2.0 spec p.900); a dedicated panel on connected `DataObject`s offers a property dropdown sourced from the connected step's class
-- **CLI tool** — batch-convert BPMN to DEXPI 2.0 XML from the terminal or Python
+- **CLI tool** — batch-convert BPMN to DEXPI 2.0 XML from the terminal or Python; validate existing DEXPI 2.0 Process files with `--validate`
 - **Neo4j export** — push process graphs directly to a Neo4j graph database
 
 ## Prerequisites
@@ -33,6 +33,10 @@ npm run dev        # web app at http://localhost:5173
 
 ```bash
 npm run transform input.bpmn output.xml
+
+# validate an existing DEXPI 2.0 Process XML file (from any tool) — XSD + all
+# five fidelity dimensions; load the Profiles it was written against via --profile
+npm run transform -- --validate existing-dexpi.xml
 
 # or install globally
 npm install -g bpmn2dexpi
@@ -88,6 +92,8 @@ Every export is checked against the official DEXPI 2.0 XML Schema, so the file y
 Turn on **Strict mode** (export dialog checkbox, `--strict` CLI flag, or `{ strict: true }` on `transformer.transform()`) for deeper fidelity checks: property names, data types, reference targets, required-property cardinality, and class existence. Strict mode never blocks the export — it produces a summary dialog (or CLI output) listing what doesn't match the schema, so you can fix it in the panel or capture it in a generated Profile.
 
 The data-type check is tight: every enumeration reference — including each measurement's unit, carried in the canonical `PhysicalQuantity` shape — is resolved against the imported model, so a reference to an undeclared enumeration or literal is flagged rather than passed through (and is auto-closeable via a generated Profile).
+
+The same checks also run standalone on existing DEXPI 2.0 **Process** files from any tool: `--validate file.xml` on the CLI performs the XSD check plus all five fidelity dimensions, with CI-friendly exit codes. The XSD layer covers any DEXPI 2.0 document; the fidelity dimensions validate against the bundled Process + Core information models (plus any loaded Profiles) — documents written against other DEXPI 2.0 models, such as the plant/P&ID model, are flagged as outside the loaded vocabulary rather than misreported.
 
 ## Extension mechanisms
 

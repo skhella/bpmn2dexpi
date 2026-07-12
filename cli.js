@@ -21,6 +21,8 @@ global.Element = dom.window.Element;
 const { transformer, formatFailures } = await import('./src/transformer/BpmnToDexpiTransformer.ts');
 const { generateProfileFromDexpiXml } = await import('./src/transformer/DexpiProfileGenerator.ts');
 const { DexpiProcessClassRegistry } = await import('./src/transformer/DexpiProcessClassRegistry.ts');
+const { validateDexpiXml } = await import('./src/transformer/validateDexpiXml.ts');
+const { validateDexpiOutputXsd } = await import('./src/transformer/DexpiOutputValidator.ts');
 
 const args = process.argv.slice(2);
 
@@ -30,6 +32,7 @@ bpmn2dexpi - BPMN to DEXPI XML Transformer
 
 Usage:
   node cli.js [flags] <input.bpmn> [output.xml]
+  node cli.js --validate <dexpi.xml> [--profile FILE]...
   npm run transform <input.bpmn> [output.xml]
 
 Arguments:
@@ -56,6 +59,21 @@ Flags:
                   blocking warning so unintended collisions (e.g. typoing
                   a standard class name) surface during the run.
 
+  --validate      Validate an EXISTING DEXPI 2.0 Process XML file (no
+                  transformation; the positional argument is the DEXPI
+                  document, not BPMN). Runs official-XSD validation
+                  (xmllint; structural fallback if unavailable) plus the
+                  five information-model fidelity dimensions: property
+                  names + kinds, data types (including enumeration/unit
+                  references), reference target classes, cardinality, and
+                  class existence. The XSD covers any DEXPI 2.0 file; the
+                  fidelity dimensions cover the bundled Process + Core
+                  models plus any --profile files — documents written
+                  against other DEXPI 2.0 models (e.g. the plant/P&ID
+                  model) are flagged as out of the loaded vocabulary.
+                  Exit codes: 0 = XSD-valid and no fidelity findings;
+                  1 = XSD-invalid or error; 2 = XSD-valid with findings.
+
   --generate-profile FILE
                   After transforming, emit a DEXPI Profile XML to FILE
                   declaring every property name that did not resolve
@@ -74,6 +92,9 @@ Examples:
                               process.bpmn output.xml  # With Profile loaded
   node cli.js --generate-profile profile.xml process.bpmn output.xml
                                                  # Generate Profile + DEXPI
+  node cli.js --validate output.xml              # Validate an existing DEXPI file
+  node cli.js --validate output.xml --profile examples/profiles/tep-generated.xml
+                                                 # Validate against loaded Profile
   npm run transform process.bpmn output.xml      # Using npm script
 
 From Python:
@@ -85,6 +106,7 @@ From Python:
 }
 
 const strict = args.includes('--strict');
+const validateMode = args.includes('--validate');
 
 // Parse value-bearing flags (--profile FILE, --generate-profile FILE) and
 // positional args. Walk left-to-right so the file argument that follows
@@ -120,6 +142,67 @@ const outputPath = positional[1];
 if (!inputPath) {
   console.error('✗ Error: input file required');
   process.exit(1);
+}
+
+// ── --validate: fidelity-check an EXISTING DEXPI 2.0 XML document ─────────
+// No transformation happens; the input is the DEXPI file itself. The same
+// registry sources and the same five validators as strict mode run against
+// it, so findings read identically to --strict findings on transformer
+// output.
+async function validateMain() {
+  try {
+    const dexpiXml = readFileSync(inputPath, 'utf-8');
+    const sources = [
+      { name: 'Process.xml', xml: readFileSync('dexpi-schema-files/Process.xml', 'utf-8') },
+      { name: 'Core.xml', xml: readFileSync('dexpi-schema-files/Core.xml', 'utf-8') },
+      ...profilePaths.map(p => ({
+        name: p.split('/').pop() || p,
+        xml: readFileSync(p, 'utf-8'),
+      })),
+    ];
+    const registry = DexpiProcessClassRegistry.fromXmlSources(sources, {
+      strictSupertypes: true,
+    });
+
+    // 1) Official XSD (xmllint in Node; structural fallback otherwise).
+    const xsd = await validateDexpiOutputXsd(dexpiXml, 'dexpi-schema-files/DEXPI_XML_Schema.xsd');
+    if (xsd.valid) {
+      console.error(`✓ ${xsd.mode === 'xsd' ? 'XSD validation' : 'Structural check (xmllint unavailable)'}: ${inputPath} passes`);
+    } else {
+      console.error(`✗ ${xsd.mode === 'xsd' ? 'XSD validation' : 'Structural check'}: ${xsd.errors.length} error(s):`);
+      for (const e of xsd.errors.slice(0, 20)) console.error(`  ✗ ${e}`);
+      if (xsd.errors.length > 20) console.error(`  … and ${xsd.errors.length - 20} more`);
+    }
+
+    // 2) Five information-model fidelity dimensions.
+    const result = validateDexpiXml(dexpiXml, registry, inputPath);
+    for (const w of result.prefixWarnings) console.error(`⚠ ${w}`);
+    for (const { tier, errors } of result.tiers) {
+      if (errors.length === 0) {
+        console.error(`✓ ${tier}: no findings`);
+        continue;
+      }
+      console.error(`⚠ ${tier}: ${errors.length} finding(s):`);
+      const counts = new Map();
+      for (const e of errors) counts.set(e, (counts.get(e) ?? 0) + 1);
+      for (const [msg, n] of counts) console.error(`  ✗ ${msg}${n > 1 ? `  (×${n})` : ''}`);
+    }
+
+    if (!xsd.valid) process.exit(1);
+    if (result.totalFindings > 0) {
+      console.error(
+        `\n${result.totalFindings} fidelity finding(s). Vocabulary gaps can be ` +
+        `captured with a Profile (see --generate-profile) and closed by ` +
+        `re-validating with --profile.`,
+      );
+      process.exit(2);
+    }
+    console.error('\n✓ All five fidelity dimensions clean.');
+    process.exit(0);
+  } catch (error) {
+    console.error(`✗ Error: ${error.message}`);
+    process.exit(1);
+  }
 }
 
 async function main() {
@@ -226,4 +309,8 @@ async function main() {
   }
 }
 
-main();
+if (validateMode) {
+  validateMain();
+} else {
+  main();
+}
