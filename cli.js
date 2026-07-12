@@ -7,7 +7,15 @@
  */
 
 import { readFileSync, writeFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { JSDOM } from 'jsdom';
+
+// Bundled DEXPI model files ship next to this script (repo root and npm
+// package root alike). Resolve them relative to the module, not the
+// working directory, so a globally-installed `bpmn2dexpi` works from any
+// cwd.
+const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'dexpi-schema-files');
 
 // Set up DOM globals for Node.js environment
 const dom = new JSDOM('<!DOCTYPE html>');
@@ -157,9 +165,9 @@ async function validateMain() {
   try {
     const dexpiXml = readFileSync(inputPath, 'utf-8');
     const sources = [
-      { name: 'Process.xml', xml: readFileSync('dexpi-schema-files/Process.xml', 'utf-8') },
-      { name: 'Plant.xml', xml: readFileSync('dexpi-schema-files/Plant.xml', 'utf-8') },
-      { name: 'Core.xml', xml: readFileSync('dexpi-schema-files/Core.xml', 'utf-8') },
+      { name: 'Process.xml', xml: readFileSync(join(SCHEMA_DIR, 'Process.xml'), 'utf-8') },
+      { name: 'Plant.xml', xml: readFileSync(join(SCHEMA_DIR, 'Plant.xml'), 'utf-8') },
+      { name: 'Core.xml', xml: readFileSync(join(SCHEMA_DIR, 'Core.xml'), 'utf-8') },
       ...profilePaths.map(p => ({
         name: p.split('/').pop() || p,
         xml: readFileSync(p, 'utf-8'),
@@ -170,7 +178,7 @@ async function validateMain() {
     });
 
     // 1) Official XSD (xmllint in Node; structural fallback otherwise).
-    const xsd = await validateDexpiOutputXsd(dexpiXml, 'dexpi-schema-files/DEXPI_XML_Schema.xsd');
+    const xsd = await validateDexpiOutputXsd(dexpiXml, join(SCHEMA_DIR, 'DEXPI_XML_Schema.xsd'));
     if (xsd.valid) {
       console.error(`✓ ${xsd.mode === 'xsd' ? 'XSD validation' : 'Structural check (xmllint unavailable)'}: ${inputPath} passes`);
     } else {
@@ -248,8 +256,8 @@ async function main() {
     // contains gaps that even the loaded Profiles don't cover.
     if (generateProfilePath) {
       const sources = [
-        { name: 'Process.xml', xml: readFileSync('dexpi-schema-files/Process.xml', 'utf-8') },
-        { name: 'Core.xml', xml: readFileSync('dexpi-schema-files/Core.xml', 'utf-8') },
+        { name: 'Process.xml', xml: readFileSync(join(SCHEMA_DIR, 'Process.xml'), 'utf-8') },
+        { name: 'Core.xml', xml: readFileSync(join(SCHEMA_DIR, 'Core.xml'), 'utf-8') },
         ...profileXmls,
       ];
       const reg = DexpiProcessClassRegistry.fromXmlSources(sources);
