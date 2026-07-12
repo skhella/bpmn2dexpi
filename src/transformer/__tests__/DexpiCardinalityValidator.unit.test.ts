@@ -79,6 +79,82 @@ describe('Tier 5: cardinality validator', () => {
     expect(failures.find(f => f.propertyName === 'Identifier')).toBeUndefined();
   });
 
+  it('counts values aggregated inside one Data carrier toward the lower bound (PolyLine.Points)', () => {
+    // The DEXPI XML grammar allows one <Data> carrier to hold several value
+    // elements — the official Reference P&ID serializes PolyLine.Points
+    // (lower=2) as a single <Data> with N <AggregatedDataValue> children.
+    // Cardinality bounds constrain values, not carriers: two aggregated
+    // points satisfy lower=2.
+    const ok = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="pl1" type="Core/Diagram.PolyLine">
+        <Data property="Points">
+          <AggregatedDataValue type="Core/Diagram.Point">
+            <Data property="X"><Double>0</Double></Data>
+            <Data property="Y"><Double>0</Double></Data>
+          </AggregatedDataValue>
+          <AggregatedDataValue type="Core/Diagram.Point">
+            <Data property="X"><Double>1</Double></Data>
+            <Data property="Y"><Double>1</Double></Data>
+          </AggregatedDataValue>
+        </Data>
+      </Object>
+    </Model>`;
+    expect(
+      validateEmittedDexpiCardinality(ok, 'unit', REGISTRY)
+        .find(f => f.propertyName === 'Points'),
+    ).toBeUndefined();
+
+    // One aggregated point is genuinely below lower=2 and must still flag.
+    const short = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="pl2" type="Core/Diagram.PolyLine">
+        <Data property="Points">
+          <AggregatedDataValue type="Core/Diagram.Point">
+            <Data property="X"><Double>0</Double></Data>
+            <Data property="Y"><Double>0</Double></Data>
+          </AggregatedDataValue>
+        </Data>
+      </Object>
+    </Model>`;
+    const pointsFailure = validateEmittedDexpiCardinality(short, 'unit', REGISTRY)
+      .find(f => f.propertyName === 'Points');
+    expect(pointsFailure).toBeDefined();
+    expect(pointsFailure!.actualCount).toBe(1);
+    expect(pointsFailure!.expectedLower).toBe(2);
+  });
+
+  it('flags aggregated values that exceed upper=1 inside a single carrier (QualifiedValue.Value)', () => {
+    // Two Doubles inside ONE <Data property="Value"> carrier are two values
+    // of an upper=1 property. Carrier-counting used to see one carrier and
+    // pass this silently — a false negative.
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="qv_1" type="Core/QualifiedValue">
+        <Data property="Value"><Double>1.0</Double><Double>2.0</Double></Data>
+      </Object>
+    </Model>`;
+    const valueFailure = validateEmittedDexpiCardinality(xml, 'unit', REGISTRY)
+      .find(f => f.propertyName === 'Value');
+    expect(valueFailure).toBeDefined();
+    expect(valueFailure!.actualCount).toBe(2);
+    expect(valueFailure!.expectedUpper).toBe(1);
+  });
+
+  it('counts whitespace-separated References targets as individual values (Stream.MaterialTemplateReference)', () => {
+    // <References> carries no children — its `objects` attribute is a
+    // whitespace-separated target list per the DEXPI XML Schema. Two tokens
+    // on an upper=1 reference property are a violation.
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="s1" type="Process/Process.Stream">
+        <Data property="Identifier"><String>S1</String></Data>
+        <References property="MaterialTemplateReference" objects="#m1 #m2"/>
+      </Object>
+    </Model>`;
+    const refFailure = validateEmittedDexpiCardinality(xml, 'unit', REGISTRY)
+      .find(f => f.propertyName === 'MaterialTemplateReference');
+    expect(refFailure).toBeDefined();
+    expect(refFailure!.actualCount).toBe(2);
+    expect(refFailure!.expectedUpper).toBe(1);
+  });
+
   it('skips classes not in the registry', () => {
     const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
       <Object id="o1" type="Process/Process.NotAClass"/>
