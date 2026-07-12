@@ -1,0 +1,44 @@
+name: Deploy to GitHub Pages
+
+# Publishes the web app as a static site. Everything runs client-side
+# (transformer, fidelity check, Profile generation); the browser XSD check
+# uses the structural fallback documented in the README. The Pages subpath
+# is injected at build time via --base, so local dev stays at '/'.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx vite build --base=/bpmn2dexpi/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
