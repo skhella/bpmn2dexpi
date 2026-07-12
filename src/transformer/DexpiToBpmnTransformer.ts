@@ -167,6 +167,13 @@ const ENERGY_BAND_GAP = 80; // vertical gap between an energy boundary event and
 export interface DexpiToBpmnTransformOptions {
   /** Pre-loaded Process.xml string (for browser builds where the file isn't on disk). */
   processXml?: string;
+  /**
+   * Pre-loaded Core.xml string. Supplying it alongside processXml gives the
+   * browser the same Process + Core registry the Node disk loader builds —
+   * Core declares the shared foundation (QualifiedValue carriers, physical
+   * quantities) and the Core supertypes Process classes extend.
+   */
+  coreXml?: string;
 }
 
 export class DexpiToBpmnTransformer {
@@ -179,8 +186,19 @@ export class DexpiToBpmnTransformer {
   async transform(dexpiXml: string, options: DexpiToBpmnTransformOptions = {}): Promise<string> {
     // Load DEXPI class registry (cached after first call). Used to classify
     // instrumentation steps via the InstrumentationActivity ancestor check —
-    // no hardcoded list of subclass names.
-    this.registry = await DexpiProcessClassRegistry.load(options.processXml);
+    // no hardcoded list of subclass names. With both schema strings supplied
+    // (the browser path), build the full two-source registry; with only
+    // processXml, fall back to the single-source load; with neither, the
+    // Node disk loader reads Process.xml + Core.xml itself.
+    this.registry = options.processXml && options.coreXml
+      ? DexpiProcessClassRegistry.fromXmlSources(
+          [
+            { name: 'Process.xml', xml: options.processXml },
+            { name: 'Core.xml', xml: options.coreXml },
+          ],
+          { strictSupertypes: true },
+        )
+      : await DexpiProcessClassRegistry.load(options.processXml);
 
     const parsed = this.parseDexpi(dexpiXml);
     this.materializeBoundaryProxyEvents(parsed);
@@ -2971,7 +2989,6 @@ ${waypoints}
         const aCx = activityPos.x + activityPos.w / 2;
         const aCy = activityPos.y + activityPos.h / 2;
         const rCx = refPos.x + refPos.w / 2;
-        const rCy = refPos.y + refPos.h / 2;
         const dobjX = aCx - INSTR_DATA_OBJ_W / 2;
         const dobjY = activityPos.y + activityPos.h + INSTR_DATA_OBJ_GAP;
 
