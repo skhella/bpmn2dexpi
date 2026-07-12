@@ -3284,19 +3284,35 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                 const dataList = obj.data ?? obj.$children ?? [];
                 const values: string[] = [];
                 let unit = '';
-                for (const d of dataList) {
-                  const ll = (d.$type || '').toLowerCase();
-                  // Typed-data entries don't carry a $type prefix the same
-                  // way pass-through ones do; allow either.
-                  if (ll && ll !== 'dexpi:data' && ll !== 'data') continue;
-                  const prop = d.property ?? d.$attrs?.property;
-                  const body = d.body ?? d.$body ?? d._ ?? '';
-                  if (prop === 'Value' || prop === 'Values') {
-                    values.push(body);
-                  } else if (prop === 'Unit') {
-                    unit = body;
+                // A Value/Values entry either carries its text body directly
+                // (flat authoring) or wraps an AggregatedDataValue — the
+                // canonical PhysicalQuantity / PhysicalQuantityVector shape —
+                // whose own Data children carry the actual Value/Values and
+                // Unit entries. Structural dispatch only: descend exactly
+                // when the aggregate child is present.
+                const readEntries = (list: any[]) => {
+                  for (const d of list) {
+                    const ll = (d.$type || '').toLowerCase();
+                    // Typed-data entries don't carry a $type prefix the same
+                    // way pass-through ones do; allow either.
+                    if (ll && ll !== 'dexpi:data' && ll !== 'data') continue;
+                    const prop = d.property ?? d.$attrs?.property;
+                    const body = String(d.body ?? d.$body ?? d._ ?? '').trim();
+                    if (prop === 'Value' || prop === 'Values') {
+                      const agg = d.aggregatedDataValue ??
+                        (d.$children ?? []).find((c: any) =>
+                          (c.$type || '').toLowerCase().endsWith('aggregateddatavalue'));
+                      if (agg) {
+                        readEntries(agg.data ?? agg.$children ?? []);
+                      } else if (body) {
+                        values.push(body);
+                      }
+                    } else if (prop === 'Unit' && body) {
+                      unit = body;
+                    }
                   }
-                }
+                };
+                readEntries(dataList);
                 return { values, unit };
               };
 
@@ -3362,10 +3378,14 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                           <strong>Fractions:</strong>
                           {fractionValues.map((v: string, idx: number) => {
                             const value = parseFloat(v) || 0;
-                            return <div key={idx}>  Component {idx + 1}: {(value * 100).toFixed(2)}%</div>;
+                            // Scale by the authored Display literal — Percent
+                            // values are already 0–100; everything else keeps
+                            // the pre-existing fraction (0–1) convention.
+                            const pct = display === 'Percent' ? value : value * 100;
+                            return <div key={idx}>  Component {idx + 1}: {pct.toFixed(2)}%</div>;
                           })}
                           <div style={{ marginTop: '2px', fontWeight: 'bold' }}>
-                            Total: {(fractionValues.reduce((sum: number, v: string) => sum + (parseFloat(v) || 0), 0) * 100).toFixed(2)}%
+                            Total: {(fractionValues.reduce((sum: number, v: string) => sum + (parseFloat(v) || 0), 0) * (display === 'Percent' ? 1 : 100)).toFixed(2)}%
                           </div>
                         </div>
                       </div>
