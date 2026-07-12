@@ -14,21 +14,23 @@
  * validateDexpiOutputXsd; browser callers get the structural fallback).
  * This module is browser-safe: no fs, no child_process.
  *
- * Scope: DEXPI 2.0 unifies TWO information models under one serialization —
- * the Process model and the plant/P&ID model. The fidelity dimensions here
- * validate against whatever the registry has loaded (this tool bundles
- * Process.xml + Core.xml, extendable via Profiles); a document written
- * against a model that is NOT loaded (e.g. the plant model) would have its
- * classes reported as unknown. checkImportPrefixes() therefore also warns
- * when the document imports a model outside the loaded vocabulary, so the
- * report says "model not loaded" instead of drowning the user in spurious
- * findings.
+ * Scope: DEXPI 2.0 publishes TWO document vocabularies under one
+ * serialization grammar — the Process model (BFD/PFD) and the Plant model
+ * (P&ID) — both built on the shared Core model. The fidelity dimensions
+ * here validate against whatever the registry has loaded; the CLI's
+ * --validate loads all three bundled models (the complete published DEXPI
+ * 2.0 vocabulary — the three have zero class-name collisions), extendable
+ * via Profiles. A document importing a model that is NOT loaded (a future
+ * DEXPI model, or a project-specific one) would have its classes reported
+ * as unknown, so checkImportPrefixes() also warns when the document
+ * imports a model outside the bundled vocabulary — the report then says
+ * "model not loaded" instead of drowning the user in spurious findings.
  *
  * Import-prefix caveat: prefixes in the DEXPI serialization are
- * author-chosen. The validators resolve `Core/...` and `Process/...`
- * qualified names — the convention used by the official serialization
- * examples and by this tool's output. checkImportPrefixes() surfaces a
- * warning when a document declares other prefixes for the Core/Process
+ * author-chosen. The validators resolve `Core/...`, `Process/...` and
+ * `Plant/...` qualified names — the convention used by the official
+ * serialization examples and by this tool's output. checkImportPrefixes()
+ * surfaces a warning when a document declares other prefixes for these
  * models, because findings against such a file would be spurious rather
  * than meaningful.
  */
@@ -56,8 +58,8 @@ export interface DexpiXmlValidation {
 
 /**
  * Inspect the document's <Import> declarations and warn when the Core /
- * Process models are imported under prefixes other than `Core` / `Process`
- * (or when no Import declarations are present at all).
+ * Process / Plant models are imported under prefixes other than `Core` /
+ * `Process` / `Plant` (or when no Import declarations are present at all).
  */
 export function checkImportPrefixes(xml: string): string[] {
   const warnings: string[] = [];
@@ -84,7 +86,7 @@ export function checkImportPrefixes(xml: string): string[] {
     const prefix = imp.getAttribute('prefix') ?? '';
     const source = imp.getAttribute('source') ?? '';
     let known = false;
-    for (const model of ['Core', 'Process'] as const) {
+    for (const model of ['Core', 'Process', 'Plant'] as const) {
       if (source.includes(`${model}.xml`)) {
         known = true;
         if (prefix !== model) {
@@ -97,16 +99,16 @@ export function checkImportPrefixes(xml: string): string[] {
         }
       }
     }
-    // DEXPI 2.0 also serializes the plant/P&ID information model with the
-    // same grammar. Documents importing a model outside the loaded
-    // vocabulary (Process + Core + Profiles) would have every class from it
-    // reported as unknown — say so up front instead.
+    // Documents importing a model outside the bundled vocabulary (a future
+    // DEXPI model, or a project-specific one) would have every class from
+    // it reported as unknown — say so up front instead.
     if (!known) {
       warnings.push(
         `Document imports "${source}" (prefix "${prefix}"), which is not ` +
-        `part of the loaded vocabulary (DEXPI 2.0 Process + Core models, ` +
-        `plus any loaded Profiles). Classes from it will be reported as ` +
-        `unknown; supply the model file via --profile if available.`,
+        `part of the bundled vocabulary (the DEXPI 2.0 Process, Plant, and ` +
+        `Core models, plus any loaded Profiles). Classes from it will be ` +
+        `reported as unknown; supply the model file via --profile if ` +
+        `available.`,
       );
     }
   }

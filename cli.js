@@ -59,18 +59,19 @@ Flags:
                   blocking warning so unintended collisions (e.g. typoing
                   a standard class name) surface during the run.
 
-  --validate      Validate an EXISTING DEXPI 2.0 Process XML file (no
+  --validate      Validate an EXISTING DEXPI 2.0 XML document — Process
+                  (BFD/PFD) or Plant (P&ID) — from any tool (no
                   transformation; the positional argument is the DEXPI
                   document, not BPMN). Runs official-XSD validation
                   (xmllint; structural fallback if unavailable) plus the
                   five information-model fidelity dimensions: property
                   names + kinds, data types (including enumeration/unit
                   references), reference target classes, cardinality, and
-                  class existence. The XSD covers any DEXPI 2.0 file; the
-                  fidelity dimensions cover the bundled Process + Core
-                  models plus any --profile files — documents written
-                  against other DEXPI 2.0 models (e.g. the plant/P&ID
-                  model) are flagged as out of the loaded vocabulary.
+                  class existence. The fidelity dimensions run against the
+                  complete published DEXPI 2.0 vocabulary (the bundled
+                  Process, Plant, and Core models) plus any --profile
+                  files; documents importing models outside that
+                  vocabulary are flagged as such rather than misreported.
                   Exit codes: 0 = XSD-valid and no fidelity findings;
                   1 = XSD-invalid or error; 2 = XSD-valid with findings.
 
@@ -93,6 +94,7 @@ Examples:
   node cli.js --generate-profile profile.xml process.bpmn output.xml
                                                  # Generate Profile + DEXPI
   node cli.js --validate output.xml              # Validate an existing DEXPI file
+                                                 #   (Process or Plant/P&ID)
   node cli.js --validate output.xml --profile examples/profiles/tep-generated.xml
                                                  # Validate against loaded Profile
   npm run transform process.bpmn output.xml      # Using npm script
@@ -146,14 +148,17 @@ if (!inputPath) {
 
 // ── --validate: fidelity-check an EXISTING DEXPI 2.0 XML document ─────────
 // No transformation happens; the input is the DEXPI file itself. The same
-// registry sources and the same five validators as strict mode run against
-// it, so findings read identically to --strict findings on transformer
-// output.
+// five validators as strict mode run against it (identical finding strings),
+// but over the complete published DEXPI 2.0 vocabulary: unlike the transform
+// path (which authors Process documents and loads Process + Core only),
+// validation also loads the Plant model so P&ID documents check cleanly.
+// The three models share one grammar and have zero class-name collisions.
 async function validateMain() {
   try {
     const dexpiXml = readFileSync(inputPath, 'utf-8');
     const sources = [
       { name: 'Process.xml', xml: readFileSync('dexpi-schema-files/Process.xml', 'utf-8') },
+      { name: 'Plant.xml', xml: readFileSync('dexpi-schema-files/Plant.xml', 'utf-8') },
       { name: 'Core.xml', xml: readFileSync('dexpi-schema-files/Core.xml', 'utf-8') },
       ...profilePaths.map(p => ({
         name: p.split('/').pop() || p,

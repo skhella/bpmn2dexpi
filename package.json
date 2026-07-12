@@ -25,6 +25,7 @@
     "cli.js",
     "src/transformer/",
     "src/dexpi/moddle/",
+    "dexpi-schema-files/",
     "bpmn2dexpi.py",
     "README.md",
     "LICENSE"
