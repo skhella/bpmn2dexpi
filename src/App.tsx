@@ -136,6 +136,30 @@ function refreshAllElementsAfterImport(bpmnModelerInstance: any): void {
   }
 }
 
+/**
+ * Fit the diagram into the visible canvas, tolerating degenerate viewports.
+ * fit-viewport derives scale and translation from the canvas container's
+ * client box; when that box has no area (narrow screens where the
+ * fixed-width properties panel consumes the whole row, calls that land
+ * mid-layout) the math degenerates to non-finite values, which WebKit
+ * rejects with "The provided value is non-finite" while Chromium tolerates
+ * the same call. Fitting the view is cosmetic, so it must never fail the
+ * operation that requested it (an import reported "Import failed" on
+ * phones for exactly this): skip when there is no viewport area, and
+ * swallow engine-specific geometry errors.
+ */
+function fitViewportSafely(bpmnModelerInstance: any): void {
+  if (!bpmnModelerInstance) return;
+  try {
+    const canvas = bpmnModelerInstance.get('canvas') as any;
+    const container = typeof canvas.getContainer === 'function' ? canvas.getContainer() : null;
+    if (container && (container.clientWidth === 0 || container.clientHeight === 0)) return;
+    canvas.zoom('fit-viewport');
+  } catch (e) {
+    console.warn('fit-viewport skipped (non-fatal):', e);
+  }
+}
+
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [modeler, setModeler] = useState<BpmnModeler | null>(null);
@@ -442,7 +466,7 @@ function App() {
       const parentElement = elementRegistry.get(parentId);
       if (parentElement) {
         canvas.setRootElement(parentElement);
-        canvas.zoom('fit-viewport');
+        fitViewportSafely(modeler);
       }
     }
 
@@ -483,8 +507,7 @@ function App() {
     }
     // Zoom-to-fit even when no plane navigation happened — handles the
     // common case of "I panned/zoomed and want to reset the view".
-    const canvas = modeler.get('canvas') as any;
-    canvas.zoom('fit-viewport');
+    fitViewportSafely(modeler);
     // Close every transient overlay so the user lands on a clean canvas.
     setSelectedElement(null);
     setSelectedMaterialItem(null);
@@ -590,8 +613,8 @@ function App() {
       refreshAllElementsAfterImport(bpmnModeler);
 
       const canvas = bpmnModeler.get('canvas') as any;
-      canvas.zoom('fit-viewport');
-      
+      fitViewportSafely(bpmnModeler);
+
       // Initialize currentRootElement after import is complete
       currentRootElement = canvas.getRootElement();
       
@@ -1079,8 +1102,7 @@ function App() {
       // Reset navigation state
       setPlaneStack([]);
       setCurrentPlane(null);
-      const canvas = modeler.get('canvas') as any;
-      canvas.zoom('fit-viewport');
+      fitViewportSafely(modeler);
     } catch (err) {
       console.error('Import failed:', err);
       setValidationMessage('Import failed: ' + (err as Error).message);
@@ -1118,8 +1140,7 @@ function App() {
     setPlaneStack([]);
     setCurrentPlane(null);
     setSelectedElement(null);
-    const canvas = modeler.get('canvas') as any;
-    canvas.zoom('fit-viewport');
+    fitViewportSafely(modeler);
     setValidationMessage('New diagram created');
   };
 
