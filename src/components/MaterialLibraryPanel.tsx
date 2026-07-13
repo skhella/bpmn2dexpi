@@ -1396,6 +1396,7 @@ export const MaterialLibraryPanel: React.FC<MaterialLibraryPanelProps> = ({
       {editingState && (
         <StateEditor
           state={editingState}
+          components={components}
           onSave={saveState}
           onCancel={() => setEditingState(null)}
         />
@@ -1516,10 +1517,28 @@ const ComponentEditor: React.FC<{
 // State Editor Modal
 const StateEditor: React.FC<{
   state: MaterialState;
+  components: MaterialComponent[];
   onSave: (state: MaterialState) => void;
   onCancel: () => void;
-}> = ({ state, onSave, onCancel }) => {
+}> = ({ state, components, onSave, onCancel }) => {
   const [edited, setEdited] = React.useState(state);
+
+  // Resolve a fraction row's component name from the declared
+  // MaterialComponents (fraction entries pair positionally with the host
+  // template's ListOfComponents; componentReference carries the uid, or an
+  // identifier in legacy saves). Falls back to the positional label when
+  // the entry has no resolvable reference — including rows the editor has
+  // rewritten as bare numbers (the type-shape mismatch documented at the
+  // top of this file).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fractionRowLabel = (fraction: any, idx: number): string => {
+    const ref = fraction?.componentReference;
+    if (ref) {
+      const comp = components.find(c => c.uid === ref || c.identifier === ref);
+      if (comp) return comp.label || comp.identifier;
+    }
+    return `Component ${idx + 1}`;
+  };
 
   return createPortal(
     <div className="modal-overlay" onClick={onCancel}>
@@ -1704,7 +1723,7 @@ const StateEditor: React.FC<{
             <div style={{ maxHeight: '200px', overflow: 'auto', marginTop: '8px' }}>
               {(edited.flow?.composition?.fractions || []).map((fraction, idx) => (
                 <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ minWidth: '100px' }}>Component {idx + 1}:</span>
+                  <span style={{ minWidth: '100px' }}>{fractionRowLabel(fraction, idx)}:</span>
                   <input
                     type="number"
                     step="0.001"

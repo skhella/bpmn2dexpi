@@ -144,6 +144,12 @@ function App() {
   const [_currentPlane, setCurrentPlane] = useState<string | null>(null);
   const [planeStack, setPlaneStack] = useState<string[]>([]);
   const [showPorts, setShowPorts] = useState<boolean>(false);
+  // Empty-canvas onboarding hint. True while the diagram holds nothing but
+  // the root plane — a structural registry check, so autosave restores,
+  // imports, and element creation all flip it without extra wiring. The
+  // overlay renders pointer-events: none, so it never intercepts palette
+  // drags or canvas clicks.
+  const [canvasEmpty, setCanvasEmpty] = useState<boolean>(false);
   const [showMaterialLibrary, setShowMaterialLibrary] = useState<boolean>(false);
   // Strict-mode property-name fidelity validation toggle. Off by default
   // (DEXPI 2.0's permissive philosophy: any XSD-valid output is exchangeable,
@@ -625,6 +631,27 @@ function App() {
       bpmnModeler.destroy();
     };
   }, []);
+
+  // Track whether the canvas is empty. Only root planes register without a
+  // parent, so "no element has a parent" is exactly "nothing modeled yet" —
+  // across drilled-down subprocess planes too. commandStack.changed covers
+  // every model edit (create, delete, undo, redo); import.done covers
+  // importXML calls, which bypass the command stack.
+  useEffect(() => {
+    if (!modeler) return;
+    const eventBus = modeler.get('eventBus') as any;
+    const elementRegistry = modeler.get('elementRegistry') as any;
+    const recompute = () => {
+      setCanvasEmpty(!elementRegistry.getAll().some((el: any) => el.parent));
+    };
+    recompute();
+    eventBus.on('import.done', recompute);
+    eventBus.on('commandStack.changed', recompute);
+    return () => {
+      eventBus.off('import.done', recompute);
+      eventBus.off('commandStack.changed', recompute);
+    };
+  }, [modeler]);
 
   /**
    * Run the full strict-mode validation pipeline against the current model
@@ -1401,8 +1428,8 @@ function App() {
       </header>
       
       <div className="app-content">
-        <div 
-          className="canvas-container" 
+        <div
+          className="canvas-container"
           ref={containerRef}
           onClick={() => {
             // Close material editor panel when clicking on canvas
@@ -1410,7 +1437,35 @@ function App() {
               setSelectedMaterialItem(null);
             }
           }}
-        ></div>
+        >
+          {canvasEmpty && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.6em',
+                textAlign: 'center',
+                padding: '0 18%',
+                pointerEvents: 'none',
+                zIndex: 5,
+                color: '#98a3ab',
+              }}
+            >
+              <div style={{ fontSize: '1.05rem', fontWeight: 500 }}>
+                Drag a start event from the palette to begin modeling
+              </div>
+              <div style={{ fontSize: '0.85rem', maxWidth: '460px', lineHeight: 1.5 }}>
+                Start events become DEXPI Sources, tasks become ProcessSteps,
+                and sequence flows become Streams. Toggle Ports in the toolbar
+                to show the DEXPI ports created when you connect elements.
+              </div>
+            </div>
+          )}
+        </div>
         
         {showMaterialLibrary && (
           <>
