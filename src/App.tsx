@@ -9,11 +9,13 @@ import { DataObjectPropertiesPanel } from './components/DataObjectPropertiesPane
 import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
+import { IntroGuide } from './components/IntroGuide';
 import { BpmnToDexpiTransformer } from './transformer/BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
 import { generateProfileFromDexpiXml } from './transformer/DexpiProfileGenerator';
 import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../dexpi-schema-files/Core.xml?raw';
+import tepExampleBpmn from '../examples/Tennessee_Eastman_Process.bpmn?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
 import {
@@ -24,6 +26,9 @@ import logoImg from './assets/cropped_logo_B2P.png';
 import './App.css';
 
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
+// First-visit guide: set once the dialog has been dismissed, so it greets
+// each browser a single time (reopenable from the toolbar's Guide button).
+const INTRO_SEEN_KEY = 'bpmn2dexpi_intro_seen';
 
 // localStorage helpers — wrap every access so disabled-storage contexts
 // (Firefox strict-privacy, Safari ITP, sandboxed iframes, storage-quota
@@ -168,6 +173,13 @@ function App() {
   // since it's the headline workflow; the secondary exports go behind one
   // menu button so the toolbar isn't a row of single-purpose buttons.
   const [showExportsMenu, setShowExportsMenu] = useState<boolean>(false);
+
+  // First-visit guide dialog. Opens automatically the first time a browser
+  // loads the app (no localStorage flag yet); afterwards only via the
+  // toolbar's Guide button. Lazy initializer keeps this render-deterministic.
+  const [showIntroGuide, setShowIntroGuide] = useState<boolean>(
+    () => safeLocalGetItem(INTRO_SEEN_KEY) === null,
+  );
 
   // Strict-mode export-time warning modal. Populated by handleExportDexpi
   // when strict mode is on and the property-name validator finds
@@ -1051,6 +1063,30 @@ function App() {
     }
   };
 
+  // Shared BPMN-loading path for the file-picker import and the intro
+  // guide's bundled example — identical sequence, only the source of the
+  // XML and the success message differ.
+  const loadBpmnXml = async (text: string, message = 'BPMN imported successfully!') => {
+    if (!modeler) return;
+    try {
+      const preprocessedText = preprocessBpmnXml(text);
+      await modeler.importXML(preprocessedText);
+      refreshAllElementsAfterImport(modeler);
+      // Save imported diagram immediately
+      const { xml } = await modeler.saveXML({ format: true });
+      if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
+      setValidationMessage(message);
+      // Reset navigation state
+      setPlaneStack([]);
+      setCurrentPlane(null);
+      const canvas = modeler.get('canvas') as any;
+      canvas.zoom('fit-viewport');
+    } catch (err) {
+      console.error('Import failed:', err);
+      setValidationMessage('Import failed: ' + (err as Error).message);
+    }
+  };
+
   const handleImportBpmn = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1058,27 +1094,19 @@ function App() {
     input.onchange = async (e: any) => {
       const file = e.target.files[0];
       if (!file || !modeler) return;
-
-      try {
-        const text = await file.text();
-        const preprocessedText = preprocessBpmnXml(text);
-        await modeler.importXML(preprocessedText);
-        refreshAllElementsAfterImport(modeler);
-        // Save imported diagram immediately
-        const { xml } = await modeler.saveXML({ format: true });
-        if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
-        setValidationMessage('BPMN imported successfully!');
-        // Reset navigation state
-        setPlaneStack([]);
-        setCurrentPlane(null);
-        const canvas = modeler.get('canvas') as any;
-        canvas.zoom('fit-viewport');
-      } catch (err) {
-        console.error('Import failed:', err);
-        setValidationMessage('Import failed: ' + (err as Error).message);
-      }
+      await loadBpmnXml(await file.text());
     };
     input.click();
+  };
+
+  const closeIntroGuide = () => {
+    safeLocalSetItem(INTRO_SEEN_KEY, '1');
+    setShowIntroGuide(false);
+  };
+
+  const handleLoadExample = async () => {
+    await loadBpmnXml(tepExampleBpmn, 'Tennessee Eastman example loaded');
+    closeIntroGuide();
   };
 
   const handleNewDiagram = async () => {
@@ -1127,8 +1155,15 @@ function App() {
           >
             {showPorts ? '● Ports: ON' : '○ Ports: OFF'}
           </button>
-          <button 
-            onClick={() => setShowMaterialLibrary(!showMaterialLibrary)} 
+          <button
+            onClick={() => setShowIntroGuide(true)}
+            className="btn"
+            title="How to model a BFD/PFD with DEXPI semantics"
+          >
+            Guide
+          </button>
+          <button
+            onClick={() => setShowMaterialLibrary(!showMaterialLibrary)}
             className={`btn ${showMaterialLibrary ? 'btn-active' : ''}`}
             title="Toggle material library"
           >
@@ -1541,6 +1576,12 @@ function App() {
         onExport={handleExportNeo4j}
         isExporting={neo4jExporting}
         progress={neo4jProgress}
+      />
+
+      <IntroGuide
+        open={showIntroGuide}
+        onClose={closeIntroGuide}
+        onLoadExample={handleLoadExample}
       />
 
       {showProfileExportDialog && (
