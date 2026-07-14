@@ -2413,13 +2413,22 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
     const states: any[] = [];
     // Cross-reference map: every DataObject extension entry by uid, used
     // to follow MaterialState → MaterialStateType → Composition reference
-    // chains at render time. Built once per panel load; the data is small
-    // enough that this isn't a performance concern.
+    // chains at render time — and, across containers, the template →
+    // ListOfComponents → MaterialComponent chain that names the fraction
+    // rows. Built once per panel load; the data is small enough that this
+    // isn't a performance concern.
     const byUid = new Map<string, any>();
+    allElements.forEach((el: any) => {
+      if (el.type !== 'bpmn:DataObjectReference') return;
+      const vals = el.businessObject?.extensionElements?.values;
+      if (!Array.isArray(vals)) return;
+      vals.forEach((val: any) => {
+        if (val?.uid) byUid.set(val.uid, val);
+      });
+    });
     stateDataObjs.forEach((dataObj: any) => {
       if (dataObj?.businessObject?.extensionElements?.values) {
         dataObj.businessObject.extensionElements.values.forEach((val: any) => {
-          if (val.uid) byUid.set(val.uid, val);
           // Filter MaterialState entries (and *only* MaterialState, not
           // MaterialStateType) — only the actual states should appear in
           // the dropdown.
@@ -3083,42 +3092,6 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
         )}
       </div>
 
-      <div className="property-group">
-        <label>
-          UID:
-          <input 
-            type="text" 
-            value={element.businessObject.id || ''} 
-            readOnly
-            style={{ backgroundColor: '#f5f5f5', color: '#666' }}
-          />
-        </label>
-      </div>
-
-      <div className="property-group">
-        <label>
-          Source Port Ref:
-          <input
-            type="text"
-            value={streamData.sourcePortId || streamData.sourcePortRef || ''}
-            onChange={(e) => updateStream({ sourcePortId: e.target.value, sourcePortRef: undefined })}
-            placeholder="Source port ID..."
-          />
-        </label>
-      </div>
-
-      <div className="property-group">
-        <label>
-          Target Port Ref:
-          <input
-            type="text"
-            value={streamData.targetPortId || streamData.targetPortRef || ''}
-            onChange={(e) => updateStream({ targetPortId: e.target.value, targetPortRef: undefined })}
-            placeholder="Target port ID..."
-          />
-        </label>
-      </div>
-
       {/* Material State Information */}
       <div className="property-group" style={{ background: '#e3f2fd', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
         <h4 style={{ margin: '0 0 8px 0', color: '#1976d2' }}>Material State</h4>
@@ -3339,6 +3312,51 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
               const fractionValues = fractions?.values ??
                 legacyFractions.map((f: any) =>
                   f.$children?.find((c: any) => c.$type === 'Value')?.$body || '0');
+              // Names for the fraction rows. DEXPI encodes a composition as
+              // a bare value vector whose positions pair with the bound
+              // MaterialTemplate's ListOfComponents order (References
+              // carrier, whitespace-separated object uids), so fraction i
+              // belongs to component i. Resolve each listed uid to its
+              // MaterialComponent entry and show Label (Identifier as
+              // fallback); rows without a resolvable entry keep the
+              // positional "Component N" label.
+              const componentNames: string[] = (() => {
+                if (!materialTemplate) return [];
+                let tokens: string[] = [];
+                if (Array.isArray(materialTemplate.references)) {
+                  const r = materialTemplate.references.find((x: any) =>
+                    (x.property ?? x.$attrs?.property) === 'ListOfComponents');
+                  if (r) tokens = String(r.objects ?? r.uidRef ?? '').split(/\s+/).filter(Boolean);
+                }
+                if (tokens.length === 0 && materialTemplate.$children) {
+                  const carrier = materialTemplate.$children.find((c: any) => {
+                    const ll = (c.$type || '').toLowerCase();
+                    return (ll === 'dexpi:references' || ll === 'references') &&
+                      ((c.property ?? c.$attrs?.property) === 'ListOfComponents');
+                  });
+                  if (carrier) tokens = String(carrier.objects ?? carrier.uidRef ?? '').split(/\s+/).filter(Boolean);
+                  if (tokens.length === 0) {
+                    // Legacy bare-name wrapper with uidRef children — the
+                    // same shapes MaterialLibraryPanel accepts on load.
+                    const wrapper = materialTemplate.$children.find((c: any) =>
+                      c.$type === 'ListOfComponents' ||
+                      c.$type === 'ListOfMaterialComponents' ||
+                      (c.$type || '').includes('ListOfMaterialComponents'));
+                    for (const child of wrapper?.$children ?? []) {
+                      const uidRef = child.uidRef ?? child.$attrs?.uidRef;
+                      if (uidRef) tokens.push(uidRef);
+                    }
+                  }
+                }
+                return tokens.map((tok: string) => {
+                  const comp = extensionByUid.get(tok.replace(/^#/, ''));
+                  if (!comp) return '';
+                  const label = readDexpiData(comp, 'Label');
+                  if (label && label !== 'N/A') return label;
+                  const identifier = readDexpiData(comp, 'Identifier');
+                  return identifier && identifier !== 'N/A' ? identifier : '';
+                });
+              })();
               const readDisplay = (parent: any): string | undefined => {
                 if (!parent) return undefined;
                 if (Array.isArray(parent.data)) {
@@ -3382,7 +3400,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
                             // values are already 0–100; everything else keeps
                             // the pre-existing fraction (0–1) convention.
                             const pct = display === 'Percent' ? value : value * 100;
-                            return <div key={idx}>  Component {idx + 1}: {pct.toFixed(2)}%</div>;
+                            return <div key={idx}>  {componentNames[idx] || `Component ${idx + 1}`}: {pct.toFixed(2)}%</div>;
                           })}
                           <div style={{ marginTop: '2px', fontWeight: 'bold' }}>
                             Total: {(fractionValues.reduce((sum: number, v: string) => sum + (parseFloat(v) || 0), 0) * (display === 'Percent' ? 1 : 100)).toFixed(2)}%
@@ -3542,6 +3560,53 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           </div>
         ))}
       </div>
+
+      {/* Editor internals — the BPMN element id and the resolved port ids
+          this stream binds to. Day-to-day modeling never needs them (ports
+          are created and bound automatically), so they sit behind a
+          disclosure at the bottom instead of leading the panel. */}
+      <details className="property-group" style={{ marginTop: '12px', borderTop: '1px solid #ddd', paddingTop: '8px' }}>
+        <summary style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600, color: '#555' }}>
+          Technical details
+        </summary>
+        <div style={{ marginTop: '8px' }}>
+          <div className="property-group">
+            <label>
+              UID:
+              <input
+                type="text"
+                value={element.businessObject.id || ''}
+                readOnly
+                style={{ backgroundColor: '#f5f5f5', color: '#666' }}
+              />
+            </label>
+          </div>
+
+          <div className="property-group">
+            <label>
+              Source Port Ref:
+              <input
+                type="text"
+                value={streamData.sourcePortId || streamData.sourcePortRef || ''}
+                onChange={(e) => updateStream({ sourcePortId: e.target.value, sourcePortRef: undefined })}
+                placeholder="Source port ID..."
+              />
+            </label>
+          </div>
+
+          <div className="property-group">
+            <label>
+              Target Port Ref:
+              <input
+                type="text"
+                value={streamData.targetPortId || streamData.targetPortRef || ''}
+                onChange={(e) => updateStream({ targetPortId: e.target.value, targetPortRef: undefined })}
+                placeholder="Target port ID..."
+              />
+            </label>
+          </div>
+        </div>
+      </details>
     </div>
   );
 };
