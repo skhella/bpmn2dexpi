@@ -61,8 +61,8 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     // Pin mode='xsd' so a missing xmllint on this machine fails loudly
     // instead of silently degrading to the structural fallback (which
     // would also report valid:true / errors:[] on most reasonable
-    // output). The paper's "validated against the official DEXPI 2.0
-    // XSD schema" claim depends on this assertion holding.
+    // output). The "validated against the official DEXPI 2.0 XSD schema"
+    // guarantee depends on this assertion holding.
     expect(result.mode).toBe('xsd');
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
