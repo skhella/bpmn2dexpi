@@ -32,9 +32,6 @@ import './App.css';
 const REPO_URL = 'https://github.com/skhella/bpmn2dexpi';
 const PAPER_URL = 'https://doi.org/10.1016/j.dche.2026.100326';
 const ISSUE_URL = `${REPO_URL}/issues/new?title=${encodeURIComponent(`[v${appVersion}] `)}`;
-// PROTOTYPE SWITCH (to be removed): pick the placement variant via
-// ?links=header|footer|canvas for side-by-side screenshots.
-const LINKS_VARIANT = new URLSearchParams(window.location.search).get('links') ?? 'none';
 
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
 // First-visit guide: set once the dialog has been dismissed, so it greets
@@ -1199,17 +1196,6 @@ function App() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <h1 style={{ marginBottom: 0 }}>BPMN2DEXPI</h1>
             <span style={{ fontSize: '0.9rem', fontWeight: 'normal', marginTop: 0 }}>DEXPI Process Modeling Tool</span>
-            {LINKS_VARIANT === 'header' && (
-              <span
-                onClick={(e) => e.stopPropagation()}
-                style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', marginTop: '2px', cursor: 'default' }}
-              >
-                <span>v{appVersion}</span>
-                <a href={REPO_URL} target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.65)', textDecoration: 'none' }}>GitHub</a>
-                <a href={PAPER_URL} target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.65)', textDecoration: 'none' }}>Paper</a>
-                <a href={ISSUE_URL} target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.65)', textDecoration: 'none' }}>Report an issue</a>
-              </span>
-            )}
           </div>
         </div>
         <div className="toolbar">
@@ -1508,30 +1494,6 @@ function App() {
               </div>
             </div>
           )}
-          {LINKS_VARIANT === 'canvas' && (
-            <div
-              style={{
-                position: 'absolute',
-                left: '12px',
-                bottom: '10px',
-                zIndex: 6,
-                display: 'flex',
-                gap: '10px',
-                alignItems: 'center',
-                fontSize: '0.72rem',
-                color: '#8a949c',
-                background: 'rgba(255,255,255,0.85)',
-                padding: '2px 8px',
-                borderRadius: '4px',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span>v{appVersion}</span>
-              <a href={REPO_URL} target="_blank" rel="noreferrer" style={{ color: '#6b7a86', textDecoration: 'none' }}>GitHub</a>
-              <a href={PAPER_URL} target="_blank" rel="noreferrer" style={{ color: '#6b7a86', textDecoration: 'none' }}>Paper</a>
-              <a href={ISSUE_URL} target="_blank" rel="noreferrer" style={{ color: '#6b7a86', textDecoration: 'none' }}>Report an issue</a>
-            </div>
-          )}
         </div>
         
         {showMaterialLibrary && (
@@ -1572,28 +1534,30 @@ function App() {
         </div>
       </div>
 
-      {LINKS_VARIANT === 'footer' && (
-        <footer
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '3px 14px',
-            fontSize: '0.74rem',
-            color: '#5f6b74',
-            background: '#f2f4f5',
-            borderTop: '1px solid #ddd',
-            flexShrink: 0,
-          }}
-        >
-          <span>BPMN2DEXPI v{appVersion}</span>
-          <span style={{ display: 'flex', gap: '16px' }}>
-            <a href={REPO_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>GitHub</a>
-            <a href={PAPER_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Paper</a>
-            <a href={ISSUE_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Report an issue</a>
-          </span>
-        </footer>
-      )}
+      {/* Permanent slim footer: release version on the left; repository,
+          article, and a pre-versioned issue form on the right. The issue
+          link's title prefix means bug reports arrive tagged with the
+          release they were seen on. */}
+      <footer
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '3px 14px',
+          fontSize: '0.74rem',
+          color: '#5f6b74',
+          background: '#f2f4f5',
+          borderTop: '1px solid #ddd',
+          flexShrink: 0,
+        }}
+      >
+        <span>BPMN2DEXPI v{appVersion}</span>
+        <span style={{ display: 'flex', gap: '16px' }}>
+          <a href={REPO_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>GitHub</a>
+          <a href={PAPER_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Paper</a>
+          <a href={ISSUE_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Report an issue</a>
+        </span>
+      </footer>
 
       {validationMessage && (
         <div className="validation-message">
