@@ -23,7 +23,15 @@ import {
   isMaterialTemplatesContainer,
 } from './utils/materialContainers';
 import logoImg from './assets/cropped_logo_B2P.png';
+import { version as appVersion } from '../package.json';
 import './App.css';
+
+// Quiet project links shown in the app chrome: repository, the article the
+// tool accompanies, and a one-click issue form whose title is pre-tagged
+// with the running release so bug reports arrive versioned.
+const REPO_URL = 'https://github.com/skhella/bpmn2dexpi';
+const PAPER_URL = 'https://doi.org/10.1016/j.dche.2026.100326';
+const ISSUE_URL = `${REPO_URL}/issues/new?title=${encodeURIComponent(`[v${appVersion}] `)}`;
 
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
 // First-visit guide: set once the dialog has been dismissed, so it greets
@@ -1525,7 +1533,32 @@ function App() {
           )}
         </div>
       </div>
-      
+
+      {/* Permanent slim footer: release version on the left; repository,
+          article, and a pre-versioned issue form on the right. The issue
+          link's title prefix means bug reports arrive tagged with the
+          release they were seen on. */}
+      <footer
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '3px 14px',
+          fontSize: '0.74rem',
+          color: '#5f6b74',
+          background: '#f2f4f5',
+          borderTop: '1px solid #ddd',
+          flexShrink: 0,
+        }}
+      >
+        <span>BPMN2DEXPI v{appVersion}</span>
+        <span style={{ display: 'flex', gap: '16px' }}>
+          <a href={REPO_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>GitHub</a>
+          <a href={PAPER_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Paper</a>
+          <a href={ISSUE_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Report an issue</a>
+        </span>
+      </footer>
+
       {validationMessage && (
         <div className="validation-message">
           {validationMessage}
