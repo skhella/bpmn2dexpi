@@ -10,6 +10,7 @@ import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { IntroGuide } from './components/IntroGuide';
+import { CiteDialog } from './components/CiteDialog';
 import { BpmnToDexpiTransformer } from './transformer/BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
 import { generateProfileFromDexpiXml } from './transformer/DexpiProfileGenerator';
@@ -218,6 +219,9 @@ function App() {
   const [showIntroGuide, setShowIntroGuide] = useState<boolean>(
     () => safeLocalGetItem(INTRO_SEEN_KEY) === null,
   );
+
+  // Citation dialog, opened from the footer's "Cite" affordance.
+  const [showCiteDialog, setShowCiteDialog] = useState<boolean>(false);
 
   // Strict-mode export-time warning modal. Populated by handleExportDexpi
   // when strict mode is on and the property-name validator finds
@@ -1555,6 +1559,19 @@ function App() {
         <span style={{ display: 'flex', gap: '16px' }}>
           <a href={REPO_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>GitHub</a>
           <a href={PAPER_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Paper</a>
+          <button
+            onClick={() => setShowCiteDialog(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              font: 'inherit',
+              color: '#46586a',
+              cursor: 'pointer',
+            }}
+          >
+            Cite
+          </button>
           <a href={ISSUE_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Report an issue</a>
         </span>
       </footer>
@@ -1691,6 +1708,11 @@ function App() {
         open={showIntroGuide}
         onClose={closeIntroGuide}
         onLoadExample={handleLoadExample}
+      />
+
+      <CiteDialog
+        open={showCiteDialog}
+        onClose={() => setShowCiteDialog(false)}
       />
 
       {showProfileExportDialog && (
