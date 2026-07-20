@@ -813,7 +813,11 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       
       // Extract properties - runs for ALL elements
       let dtype = dexpiElement?.dexpiType || dexpiElement?.type || '';
-      const ident = dexpiElement?.identifier || dexpiElement?.id || businessObject.name || businessObject.id || '';
+      // Display exactly what the export uses (explicit identifier, else the
+      // BPMN element id) — falling back to the name here showed the same
+      // class-named "identifier" on every step of that class, which never
+      // matched the exported value.
+      const ident = dexpiElement?.identifier || dexpiElement?.id || businessObject.id || '';
       const u = dexpiElement?.uid || businessObject.id || '';
       
       // Auto-detect DEXPI type if not already set
@@ -916,7 +920,43 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       setCustomTypeName('');
       setCustomSuperType('');
       setDexpiType(newType);
-      updateDexpiElement({ dexpiType: newType, customUri: undefined, customSuperType: undefined });
+
+      // Auto-fill the identifier with a class-based token that is unique
+      // across the diagram (Evaporating, Evaporating2, ...) — two steps of
+      // the same class must not export the same Identifier. Only when the
+      // current identifier is still an automatic value; a user-entered one
+      // is never touched.
+      const identifierIsAuto =
+        !identifier ||
+        identifier === element.businessObject.id ||
+        identifier === dexpiType ||
+        (!!dexpiType && new RegExp(`^${dexpiType}\\d+$`).test(identifier));
+      let identifierUpdate: { identifier?: string } = {};
+      if (identifierIsAuto && newType !== 'ProcessStep') {
+        const registry = modeler.get('elementRegistry');
+        const taken = new Set<string>();
+        registry.getAll().forEach((el: any) => {
+          if (el === element || el.id === element.id) return;
+          const bo = el.businessObject;
+          const vals = bo?.extensionElements?.values;
+          const de = Array.isArray(vals)
+            ? vals.find((v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element')
+            : undefined;
+          // Same derivation the panel displays: explicit identifier first,
+          // then the name fallback, then the BPMN id.
+          const eff = de?.identifier || bo?.name || bo?.id;
+          if (eff) taken.add(String(eff));
+        });
+        let next = newType;
+        if (taken.has(next)) {
+          let n = 2;
+          while (taken.has(`${newType}${n}`)) n++;
+          next = `${newType}${n}`;
+        }
+        setIdentifier(next);
+        identifierUpdate = { identifier: next };
+      }
+      updateDexpiElement({ dexpiType: newType, ...identifierUpdate, customUri: undefined, customSuperType: undefined });
 
       // Auto-fill element name with the DEXPI type if name is empty or still generic
       const isGenericName = !elementName ||
