@@ -180,7 +180,7 @@ const STEPS: TourStep[] = [
     id: 'connect',
     title: 'Connect with streams',
     body:
-      'Hover the feed and drag the connection arrow from its context menu onto the step; ' +
+      'Click the feed, then drag the connection arrow from its context menu onto the step; ' +
       'then connect the step to the product the same way. ' +
       'Each sequence flow becomes a DEXPI Stream, and typed ports (MI1, MO1, …) ' +
       'are created on both ends automatically.',
