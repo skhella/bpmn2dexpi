@@ -259,8 +259,9 @@ const STEPS: TourStep[] = [
     id: 'wire',
     title: 'Wire it through',
     body:
-      'Draw a connection from the instrument task to the data object (it appears dashed — ' +
-      'a data association), then another from the data object to the process step. ' +
+      'Click the instrument task and drag its connection arrow onto the data object — ' +
+      'the link appears dashed (a data association). Then click the data object and drag ' +
+      'its connection arrow onto the process step being measured or controlled. ' +
       'This instrument-variable-step chain is what the exporter reads: it becomes an ' +
       'InformationFlow, and the instrument receives a ProcessStepReference and a ' +
       'MeasuredVariableReference.',
@@ -284,7 +285,10 @@ const STEPS: TourStep[] = [
 const BUBBLE_WIDTH = 320;
 const GAP = 14;
 
-export function GuidedTour({ active, modeler, onExit }: GuidedTourProps) {
+export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourProps) {
+  // Fall back to the debug handle so the tour survives states where the
+  // prop is null or stale (e.g. an HMR remount in dev).
+  const modeler = modelerProp ?? (window as any).__bpmn_modeler__ ?? null;
   const [stepIndex, setStepIndex] = useState(0);
   const bubbleRef = useRef<HTMLDivElement | null>(null);
   const ringRef = useRef<HTMLDivElement | null>(null);
@@ -424,12 +428,24 @@ export function GuidedTour({ active, modeler, onExit }: GuidedTourProps) {
         setStepIndex((i) => (i === stepIndex ? Math.min(i + 1, STEPS.length - 1) : i));
       }
     };
+    // New / load / import replaces the diagram without commandStack events
+    // and invalidates the counts captured at tour start — re-baseline, or
+    // nothing created afterwards could ever satisfy a stale threshold.
+    const rebaseline = () => {
+      const fresh = captureBaseline(registry);
+      fresh.wiredDataObjectIds = wiredDataObjectIds(registry);
+      baselineRef.current = fresh;
+    };
     // Steps the user already performed complete on entry — unless the user
     // navigated Back to reread one; then only a fresh edit advances.
     if (navRef.current !== 'back') check();
     navRef.current = 'auto';
     eventBus.on('commandStack.changed', check);
-    return () => eventBus.off('commandStack.changed', check);
+    eventBus.on('import.done', rebaseline);
+    return () => {
+      eventBus.off('commandStack.changed', check);
+      eventBus.off('import.done', rebaseline);
+    };
   }, [active, stepIndex, modeler]);
 
   // ── escape to exit ─────────────────────────────────────────────────────
@@ -454,6 +470,8 @@ export function GuidedTour({ active, modeler, onExit }: GuidedTourProps) {
           position: 'fixed',
           zIndex: 989,
           pointerEvents: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
           border: '2px solid #3498db',
           borderRadius: '8px',
           boxShadow: '0 0 0 4px rgba(52, 152, 219, 0.2)',
@@ -477,6 +495,11 @@ export function GuidedTour({ active, modeler, onExit }: GuidedTourProps) {
           padding: '0.8em 1em',
           fontSize: '0.88rem',
           lineHeight: 1.45,
+          // Selectable bubble text lets Safari anchor a page-wide text
+          // selection when a palette drag sweeps across it — keep the tour
+          // chrome unselectable.
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5em' }}>
