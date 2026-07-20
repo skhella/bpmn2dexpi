@@ -53,6 +53,12 @@ interface TourStep {
    * on entry, on model changes, and on document mutations.
    */
   isDoneDom?: () => boolean;
+  /**
+   * Dynamic anchor: consulted where the targets array contains the
+   * '@@resolve' token — lets a step ring a concrete diagram shape (via
+   * its SVG graphics) that has no static CSS selector.
+   */
+  resolveTarget?: (modeler: any) => Element | null;
 }
 
 interface Baseline {
@@ -262,14 +268,23 @@ const STEPS: TourStep[] = [
     id: 'wire',
     title: 'Wire it through',
     body:
-      'Click the instrument task and drag its connection arrow onto the data object — ' +
-      'the link appears dashed (a data association). Then click the data object and drag ' +
-      'its connection arrow onto the process step being measured or controlled. ' +
-      'This instrument-variable-step chain is what the exporter reads: the variable ' +
-      'becomes a Core/QualifiedValue parameter slot on the measured step, and the ' +
-      'instrument receives a ProcessStepReference and a MeasuredVariableReference.',
-    targets: ['.canvas-container'],
-    placement: 'top',
+      'The highlighted page-like shape is your data object. Click the instrument task ' +
+      'and drag its connection arrow onto it — the link appears dashed (a data ' +
+      'association). Then click the data object and drag its connection arrow onto the ' +
+      'process step being measured or controlled. This instrument-variable-step chain ' +
+      'is what the exporter reads: the variable becomes a Core/QualifiedValue parameter ' +
+      'slot on the measured step, and the instrument receives a ProcessStepReference ' +
+      'and a MeasuredVariableReference.',
+    targets: ['@@resolve', '.canvas-container'],
+    placement: 'right',
+    resolveTarget: (modeler: any) => {
+      const registry = modeler.get('elementRegistry');
+      const candidates = registry
+        .getAll()
+        .filter((e: any) => e.type === 'bpmn:DataObjectReference' && !e.businessObject?.name);
+      const el = candidates[candidates.length - 1];
+      return el ? (registry.getGraphics(el) as Element) : null;
+    },
     isDone: (r, b) =>
       Array.from(wiredDataObjectIds(r)).some((id) => !b.wiredDataObjectIds.has(id)),
   },
@@ -277,13 +292,21 @@ const STEPS: TourStep[] = [
     id: 'name-variable',
     title: 'Pick the variable',
     body:
-      'Click the data object — its panel now shows the Process Variable editor. ' +
-      'Pick the variable from the dropdown, for example Temperature. ' +
-      'The choices are the variable properties the DEXPI 2.0 schema declares on the ' +
-      'connected step class; a custom name exports as an extension, which strict ' +
-      'validation will flag and a Profile can declare.',
-    targets: ['#dop-property', '.properties-panel'],
+      'Click the highlighted data object (the page-like shape between instrument and ' +
+      'step) — its panel shows the Process Variable editor. Pick the variable from the ' +
+      'dropdown, for example Temperature. The choices are the variable properties the ' +
+      'DEXPI 2.0 schema declares on the connected step class; a custom name exports as ' +
+      'an extension, which strict validation will flag and a Profile can declare.',
+    targets: ['#dop-property', '@@resolve', '.properties-panel'],
     placement: 'left',
+    resolveTarget: (modeler: any) => {
+      const registry = modeler.get('elementRegistry');
+      const candidates = registry
+        .getAll()
+        .filter((e: any) => e.type === 'bpmn:DataObjectReference' && !e.businessObject?.name);
+      const el = candidates[candidates.length - 1];
+      return el ? (registry.getGraphics(el) as Element) : null;
+    },
     isDone: (r, b) =>
       r
         .getAll()
@@ -382,6 +405,8 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
   const ringRef = useRef<HTMLDivElement | null>(null);
   const baselineRef = useRef<Baseline | null>(null);
   const navRef = useRef<'auto' | 'back'>('auto');
+  // Set while the user has manually dragged the bubble (cleared per step).
+  const draggedRef = useRef<{ left: number; top: number } | null>(null);
 
   // Rewind to the first step whenever a new tour begins (setState during
   // render is React's sanctioned derived-state adjustment pattern).
@@ -393,26 +418,86 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
 
   const step = STEPS[stepIndex];
 
+  // A manual bubble position applies to the step it was dragged on; the
+  // next step re-anchors to its own target.
+  useEffect(() => {
+    draggedRef.current = null;
+  }, [stepIndex]);
+
+  // Drag the bubble by its header: record the pointer offset on mousedown,
+  // follow the pointer with direct style writes, and remember the final
+  // spot so position() stops re-anchoring for this step.
+  const startBubbleDrag = (e: React.MouseEvent) => {
+    const bubble = bubbleRef.current;
+    if (!bubble) return;
+    e.preventDefault();
+    const rect = bubble.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    const onMove = (ev: MouseEvent) => {
+      const left = ev.clientX - offsetX;
+      const top = ev.clientY - offsetY;
+      draggedRef.current = { left, top };
+      bubble.style.left = `${Math.max(8, Math.min(left, window.innerWidth - BUBBLE_WIDTH - 8))}px`;
+      bubble.style.top = `${Math.max(8, Math.min(top, window.innerHeight - bubble.offsetHeight - 8))}px`;
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
   // ── positioning (imperative: no state writes) ──────────────────────────
   useEffect(() => {
     if (!active) return;
+
+    const findTarget = (current: TourStep): Element | null => {
+      for (const sel of current.targets) {
+        const hit =
+          sel === '@@resolve'
+            ? (modeler && current.resolveTarget ? current.resolveTarget(modeler) : null)
+            : document.querySelector(sel);
+        if (hit) return hit;
+      }
+      return null;
+    };
 
     const position = () => {
       const bubble = bubbleRef.current;
       const ring = ringRef.current;
       if (!bubble) return;
       const current = STEPS[stepIndex];
-      let target: Element | null = null;
-      for (const sel of current.targets) {
-        target = document.querySelector(sel);
-        if (target) break;
-      }
+      const target: Element | null = findTarget(current);
 
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const bh = bubble.offsetHeight || 180;
       let left: number;
       let top: number;
+
+      // Once the user has dragged the bubble, keep it where they put it
+      // for the rest of this step (the ring keeps tracking the target).
+      if (draggedRef.current) {
+        const d = draggedRef.current;
+        bubble.style.left = `${Math.max(8, Math.min(d.left, vw - BUBBLE_WIDTH - 8))}px`;
+        bubble.style.top = `${Math.max(8, Math.min(d.top, vh - bh - 8))}px`;
+        if (ring) {
+          const ringTarget = findTarget(current);
+          if (ringTarget) {
+            const rect = ringTarget.getBoundingClientRect();
+            ring.style.display = 'block';
+            ring.style.left = `${rect.left - 5}px`;
+            ring.style.top = `${rect.top - 5}px`;
+            ring.style.width = `${rect.width + 10}px`;
+            ring.style.height = `${rect.height + 10}px`;
+          } else {
+            ring.style.display = 'none';
+          }
+        }
+        return;
+      }
 
       if (target) {
         const rect = target.getBoundingClientRect();
@@ -439,10 +524,11 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
           case 'top':
           default:
             // Anchored to large targets (the canvas): sit just inside the
-            // top edge rather than above it.
+            // bottom edge — modeling usually happens in the upper half, so
+            // the bubble stays out of the way (and it can be dragged).
             if (rect.height > vh / 2) {
               left = rect.left + rect.width / 2 - BUBBLE_WIDTH / 2;
-              top = rect.top + GAP;
+              top = rect.bottom - bh - GAP;
             } else {
               left = rect.left + rect.width / 2 - BUBBLE_WIDTH / 2;
               top = rect.top - bh - GAP;
@@ -605,10 +691,15 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
           WebkitUserSelect: 'none',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5em' }}>
+        <div
+          onMouseDown={startBubbleDrag}
+          title="Drag to move this bubble"
+          style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5em', cursor: 'move' }}
+        >
           <strong style={{ fontSize: '0.95rem' }}>{step.title}</strong>
           <button
             onClick={onExit}
+            onMouseDown={(e) => e.stopPropagation()}
             aria-label="Exit tour"
             title="Exit tour"
             style={{
