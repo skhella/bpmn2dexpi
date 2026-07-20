@@ -157,7 +157,10 @@ const STEPS: TourStep[] = [
       'Click the task, then open the DEXPI Type dropdown in the right-hand panel ' +
       'and pick a specific class, for example Mixing. ' +
       'New tasks start as the generic ProcessStep; the specific class determines ' +
-      'the properties and ports the step carries in the export.',
+      'the properties and ports the step carries in the export. ' +
+      'Nothing here is hard-coded: the class, unit, and enumeration dropdowns ' +
+      'throughout the app are built dynamically from the official DEXPI 2.0 ' +
+      'schema release.',
     targets: ['[data-tour="dexpi-type-select"]', '.properties-panel'],
     placement: 'left',
     isDone: (r, b) =>
@@ -370,6 +373,12 @@ export function GuidedTour({ active, modeler, onExit }: GuidedTourProps) {
     window.addEventListener('resize', position);
     const observer = new ResizeObserver(position);
     observer.observe(document.body);
+    // The properties panel re-renders after selection changes; watch its
+    // subtree so the ring lands on late-appearing targets (e.g. the DEXPI
+    // Type select) instead of staying on the panel fallback.
+    const panel = document.querySelector('.properties-panel');
+    const mutations = panel ? new MutationObserver(position) : null;
+    if (panel && mutations) mutations.observe(panel, { childList: true, subtree: true });
 
     let eventBus: any = null;
     if (modeler) {
@@ -380,6 +389,7 @@ export function GuidedTour({ active, modeler, onExit }: GuidedTourProps) {
     return () => {
       window.removeEventListener('resize', position);
       observer.disconnect();
+      mutations?.disconnect();
       if (eventBus) {
         eventBus.off('commandStack.changed', position);
         eventBus.off('selection.changed', position);
