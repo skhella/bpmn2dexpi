@@ -69,10 +69,10 @@ describe('neo4jExporter — Composition fraction parsing on TEP', () => {
     // that supplies a template (one MaterialStateType — the "S8 mixed"
     // case in the fixture — is genuinely orphan; no stream carries the
     // state that references it, so its fractions cannot be identity-
-    // resolved against any template's ListOfComponents). 10 × 8 = 80.
+    // resolved against any template's ListOfComponents). 11 × 8 = 88.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const totalFractions = data.materialStateTypes.reduce((s: number, st: any) => s + st.fractions.length, 0);
-    expect(totalFractions).toBe(80);
+    expect(totalFractions).toBe(88);
 
     // Every emitted fraction has a real componentRef, a numeric-looking
     // value string, and a basis ∈ {Mole, Mass}.
@@ -89,6 +89,6 @@ describe('neo4jExporter — Composition fraction parsing on TEP', () => {
     // Cypher emit count matches the parsed fraction count.
     const queries = generateCypherQueries(data);
     const fractionQueries = queries.filter(q => q.includes('HAS_FRACTION'));
-    expect(fractionQueries.length).toBe(80);
+    expect(fractionQueries.length).toBe(88);
   });
 });

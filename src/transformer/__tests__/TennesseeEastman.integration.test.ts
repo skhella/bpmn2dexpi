@@ -93,9 +93,9 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
   it('emits MaterialState / MaterialStateType / Composition counts matching the BPMN fixture', () => {
     const countTypeAttr = (cls: string) =>
       (output.match(new RegExp(`type="Process/Process\\.${cls}"`, 'g')) ?? []).length;
-    expect(countTypeAttr('MaterialState')).toBe(11);
-    expect(countTypeAttr('MaterialStateType')).toBe(11);
-    expect(countTypeAttr('Composition')).toBe(11);
+    expect(countTypeAttr('MaterialState')).toBe(12);
+    expect(countTypeAttr('MaterialStateType')).toBe(12);
+    expect(countTypeAttr('Composition')).toBe(12);
     expect(countTypeAttr('MaterialTemplate')).toBeGreaterThanOrEqual(1);
     expect(countTypeAttr('MaterialComponent')).toBeGreaterThanOrEqual(8);
   });
@@ -112,8 +112,8 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
   it('emits Composition per-component fraction vectors for every authored MaterialStateType', () => {
     const countMatches = (re: RegExp) => (output.match(re) ?? []).length;
     // TEP authors Mole-basis fractions; one MoleFractiona Components
-    // carrier per Composition (11 states → 11 carriers).
-    expect(countMatches(/property="MoleFractiona"/g)).toBe(11);
+    // carrier per Composition (12 states → 12 carriers).
+    expect(countMatches(/property="MoleFractiona"/g)).toBe(12);
     expect(countMatches(/property="MassFractions"/g)).toBe(0);
     // VolumeFractions is not in Process.xml — only Mole and Mass basis
     // exist on Composition. Pin a hard zero so a regression that
@@ -123,9 +123,9 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(countMatches(/property="VolumeFractions"/g)).toBe(0);
     // Each carrier wraps a Core/QualifiedValue Object with N
     // <Data property="Values">…</Data> entries (TEP: 8 components per
-    // template → 88 Values data entries total across the 11 carriers).
+    // template → 96 Values data entries total across the 12 carriers).
     const valuesData = countMatches(/<Data property="Values"/g);
-    expect(valuesData).toBe(88);
+    expect(valuesData).toBe(96);
   });
 
   // Stream-side canonical references: Process.xml declares both
