@@ -2,11 +2,13 @@
  * Interactive step-by-step tour.
  *
  * Walks a first-time user through building a minimal PFD — feed, one
- * classified process step, product — then the instrumentation pattern
- * (MeasuringProcessVariable task + named data object wired through with
- * data associations) and the validated export. Each step is a small
- * bubble anchored to the UI element it talks about (palette entry,
- * properties-panel dropdown, toolbar button, canvas).
+ * classified process step with attributes, product — then the
+ * instrumentation pattern (MeasuringProcessVariable task + named data
+ * object wired through with data associations), and finally the full
+ * fidelity round trip: strict mode on, Validate now, Generate Profile,
+ * re-import, clean re-validation. Each step is a small bubble anchored
+ * to the UI element it talks about (palette entry, properties-panel
+ * dropdown, toolbar menu, dialogs, canvas).
  *
  * Action steps advance automatically: on every commandStack.changed the
  * current step's completion check runs against the element registry,
@@ -45,6 +47,12 @@ interface TourStep {
    * purely informational steps (manual Next).
    */
   isDone?: (registry: any, baseline: Baseline) => boolean;
+  /**
+   * DOM-state completion check for steps whose outcome lives outside the
+   * model (a dialog opened, a toggle switched, a toast shown). Evaluated
+   * on entry, on model changes, and on document mutations.
+   */
+  isDoneDom?: () => boolean;
 }
 
 interface Baseline {
@@ -167,6 +175,20 @@ const STEPS: TourStep[] = [
       r.getAll().some((e: any) => isTask(e) && !b.specificIds.has(e.id) && hasSpecificClass(e)),
   },
   {
+    id: 'attributes',
+    title: 'Fill in its properties',
+    body:
+      'Below the type, the panel lists the properties of the chosen class — ' +
+      'placeholders appear for what the class (or a loaded Profile) requires; fill ' +
+      'the ones you know. You can also press Add Attribute for a project-specific ' +
+      'property, for example DesignMargin with any value. Custom names go beyond ' +
+      'the standard vocabulary — they export as extensions, and later in this ' +
+      'tour strict validation will find them and a Profile will legitimize them. ' +
+      'Press Next when you are done here.',
+    targets: ['[data-tour="add-attribute"]', '.properties-panel'],
+    placement: 'left',
+  },
+  {
     id: 'end-event',
     title: 'Add the product (Sink)',
     body:
@@ -271,12 +293,76 @@ const STEPS: TourStep[] = [
       Array.from(wiredDataObjectIds(r)).some((id) => !b.wiredDataObjectIds.has(id)),
   },
   {
-    id: 'export',
-    title: 'Export and validate',
+    id: 'strict',
+    title: 'Turn on Strict mode',
     body:
-      'Click Export DEXPI XML when you are ready. Every export is validated against the ' +
-      'official DEXPI 2.0 XML Schema; enable Strict mode in the dialog for the five ' +
-      'information-model fidelity checks. That is the whole loop — draw, classify, wire, export.',
+      'Open the DEXPI menu in the toolbar and switch on Strict property-name ' +
+      'validation. Beyond the XSD check that runs on every export, strict adds five ' +
+      'information-model checks: property names and kinds, data types, reference ' +
+      'targets, cardinality, and class existence. Findings are warnings — your ' +
+      'export is never blocked.',
+    targets: ['[data-tour="strict-toggle"]', '[data-tour="dexpi-menu"]'],
+    placement: 'left',
+    isDoneDom: () =>
+      (document.querySelector('[data-tour="strict-toggle"]') as HTMLInputElement | null)
+        ?.checked === true,
+  },
+  {
+    id: 'validate-now',
+    title: 'Validate without exporting',
+    body:
+      'Click Validate now in the same menu — the five checks run on the current ' +
+      'model without downloading anything. If you added a custom attribute earlier, ' +
+      'it shows up as a finding: strict points at exactly where your model extends ' +
+      'the standard. A fully standard model gets a green all-clear instead — ' +
+      'in that case skip ahead with Next.',
+    targets: ['[data-tour="validate-now"]', '[data-tour="dexpi-menu"]'],
+    placement: 'left',
+    isDoneDom: () => !!document.getElementById('strict-warning-title'),
+  },
+  {
+    id: 'generate-profile',
+    title: 'Generate a Profile',
+    body:
+      'Click Generate Profile in the findings dialog (it is also in the DEXPI ' +
+      'menu). A DEXPI Profile is an XML file that declares your project-specific ' +
+      'classes and properties, so that strict validation — here or in a partner ' +
+      'tool — accepts them as declared vocabulary instead of unknowns.',
+    targets: ['[data-tour="generate-profile"]', '[data-tour="generate-profile-menu"]', '[data-tour="dexpi-menu"]'],
+    placement: 'bottom',
+    isDoneDom: () => !!document.getElementById('profile-export-dialog-title'),
+  },
+  {
+    id: 'profile-download',
+    title: 'Download the Profile',
+    body:
+      'Confirm with Generate — the Profile XML downloads. This file is the ' +
+      'shareable artifact: send it to a project partner and their session will ' +
+      'validate models against your vocabulary too.',
+    targets: ['[data-tour="profile-generate-confirm"]'],
+    placement: 'left',
+    isDoneDom: () => !document.getElementById('profile-export-dialog-title'),
+  },
+  {
+    id: 'import-profile',
+    title: 'Import it back',
+    body:
+      'Open the DEXPI menu again, click Import Profile, and pick the file you ' +
+      'just downloaded. Profiles are per-session, so after a page reload you ' +
+      'would import again. The green confirmation means this session now ' +
+      'accepts your project vocabulary.',
+    targets: ['[data-tour="import-profile"]', '[data-tour="dexpi-menu"]'],
+    placement: 'left',
+    isDoneDom: () => (document.body.textContent || '').includes('loaded (per-session)'),
+  },
+  {
+    id: 'round-trip',
+    title: 'Round trip complete',
+    body:
+      'Run Validate now once more — the findings are gone: standard plus Profile ' +
+      'now fully describe your model. Export DEXPI XML ships it validated against ' +
+      'the official DEXPI 2.0 XML Schema. That is the whole loop — draw, classify, ' +
+      'wire, validate, close the gaps with a Profile, exchange.',
     targets: ['[data-tour="export-dexpi"]'],
     placement: 'bottom',
   },
@@ -377,12 +463,13 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
     window.addEventListener('resize', position);
     const observer = new ResizeObserver(position);
     observer.observe(document.body);
-    // The properties panel re-renders after selection changes; watch its
-    // subtree so the ring lands on late-appearing targets (e.g. the DEXPI
-    // Type select) instead of staying on the panel fallback.
-    const panel = document.querySelector('.properties-panel');
-    const mutations = panel ? new MutationObserver(position) : null;
-    if (panel && mutations) mutations.observe(panel, { childList: true, subtree: true });
+    // Panels, menus, and dialogs render their content after the step that
+    // points at them becomes active — watch the document so the ring lands
+    // on late-appearing targets instead of staying on a fallback. childList
+    // only: position() writes style attributes, which this config ignores,
+    // so repositioning cannot re-trigger the observer.
+    const mutations = new MutationObserver(position);
+    mutations.observe(document.body, { childList: true, subtree: true });
 
     let eventBus: any = null;
     if (modeler) {
@@ -393,7 +480,7 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
     return () => {
       window.removeEventListener('resize', position);
       observer.disconnect();
-      mutations?.disconnect();
+      mutations.disconnect();
       if (eventBus) {
         eventBus.off('commandStack.changed', position);
         eventBus.off('selection.changed', position);
@@ -418,16 +505,7 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
     }
 
     const current = STEPS[stepIndex];
-    if (!current.isDone) return;
-
     const eventBus = modeler.get('eventBus');
-    const check = () => {
-      const baseline = baselineRef.current;
-      if (!baseline) return;
-      if (current.isDone!(registry, baseline)) {
-        setStepIndex((i) => (i === stepIndex ? Math.min(i + 1, STEPS.length - 1) : i));
-      }
-    };
     // New / load / import replaces the diagram without commandStack events
     // and invalidates the counts captured at tour start — re-baseline, or
     // nothing created afterwards could ever satisfy a stale threshold.
@@ -436,15 +514,38 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
       fresh.wiredDataObjectIds = wiredDataObjectIds(registry);
       baselineRef.current = fresh;
     };
+    eventBus.on('import.done', rebaseline);
+
+    if (!current.isDone && !current.isDoneDom) {
+      return () => eventBus.off('import.done', rebaseline);
+    }
+
+    const check = () => {
+      const baseline = baselineRef.current;
+      if (!baseline) return;
+      const done =
+        (current.isDone ? current.isDone(registry, baseline) : false) ||
+        (current.isDoneDom ? current.isDoneDom() : false);
+      if (done) {
+        setStepIndex((i) => (i === stepIndex ? Math.min(i + 1, STEPS.length - 1) : i));
+      }
+    };
     // Steps the user already performed complete on entry — unless the user
     // navigated Back to reread one; then only a fresh edit advances.
     if (navRef.current !== 'back') check();
     navRef.current = 'auto';
     eventBus.on('commandStack.changed', check);
-    eventBus.on('import.done', rebaseline);
+    // DOM conditions (dialog opened, toggle switched, toast shown) don't
+    // touch the command stack — watch the document for them.
+    let domWatch: MutationObserver | null = null;
+    if (current.isDoneDom) {
+      domWatch = new MutationObserver(check);
+      domWatch.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
     return () => {
       eventBus.off('commandStack.changed', check);
       eventBus.off('import.done', rebaseline);
+      domWatch?.disconnect();
     };
   }, [active, stepIndex, modeler]);
 
@@ -468,7 +569,7 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
         ref={ringRef}
         style={{
           position: 'fixed',
-          zIndex: 989,
+          zIndex: 1199,
           pointerEvents: 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
@@ -484,7 +585,7 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
         aria-label={step.title}
         style={{
           position: 'fixed',
-          zIndex: 990,
+          zIndex: 1200,
           width: `${BUBBLE_WIDTH}px`,
           boxSizing: 'border-box',
           background: '#fff',

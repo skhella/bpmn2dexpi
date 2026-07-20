@@ -2021,7 +2021,7 @@ const ProcessStepAttributesSection: React.FC<{
   return (
     <div className="property-group">
       <h4>Attributes ({attributes.length})</h4>
-      <button onClick={addAttribute} className="btn-add-port">Add Attribute</button>
+      <button onClick={addAttribute} className="btn-add-port" data-tour="add-attribute">Add Attribute</button>
       
       {attributes.map((attr, index) => (
         <div key={index} className="port-item">
@@ -3449,7 +3449,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
 
       <div className="property-group">
         <h4>Stream Attributes ({attributes.length})</h4>
-        <button onClick={addAttribute} className="btn-add-port">Add Attribute</button>
+        <button onClick={addAttribute} className="btn-add-port" data-tour="add-attribute">Add Attribute</button>
         
         {attributes.map((attr, index) => (
           <div key={index} className="port-item">

@@ -1328,6 +1328,7 @@ function App() {
               onClick={() => setShowDexpiMenu(v => !v)}
               className={`btn ${showDexpiMenu ? 'btn-active' : ''}`}
               title="Strict-mode validation, Profile import, Profile generation"
+              data-tour="dexpi-menu"
             >
               {/* Surface a small "active" indicator when strict is on or
                   any Profile is loaded, so users know there's session-state
@@ -1382,6 +1383,7 @@ function App() {
                       checked={strictMode}
                       onChange={(e) => setStrictMode(e.target.checked)}
                       style={{ margin: '3px 0 0 0' }}
+                      data-tour="strict-toggle"
                     />
                     <span>
                       Strict property-name validation
@@ -1395,6 +1397,7 @@ function App() {
                   <button
                     onClick={() => { handleValidateNow(); setShowDexpiMenu(false); }}
                     className="btn"
+                    data-tour="validate-now"
                     title="Run the full five-tier strict validation against the current model without exporting. Findings show in the same warning dialog the export path uses."
                   >
                     Validate now
@@ -1441,6 +1444,7 @@ function App() {
                       onClick={() => { profileFileInputRef.current?.click(); setShowDexpiMenu(false); }}
                       className="btn"
                       style={{ flex: '1 1 auto' }}
+                      data-tour="import-profile"
                       title="Load a DEXPI Profile (project-specific extension schema)."
                     >
                       Import Profile
@@ -1449,6 +1453,7 @@ function App() {
                       onClick={() => { openGenerateProfileDialog(); setShowDexpiMenu(false); }}
                       className="btn"
                       style={{ flex: '1 1 auto' }}
+                      data-tour="generate-profile-menu"
                       title="Generate a DEXPI Profile from the current model that fills every metamodel-fidelity gap. Re-import the downloaded file to apply it."
                     >
                       Generate Profile
@@ -1700,6 +1705,7 @@ function App() {
               <button
                 onClick={() => { setStrictWarning(null); openGenerateProfileDialog(); }}
                 className="btn btn-primary"
+                data-tour="generate-profile"
               >
                 Generate Profile
               </button>
@@ -1791,6 +1797,7 @@ function App() {
               <button
                 onClick={() => { setShowProfileExportDialog(false); handleGenerateProfile(); }}
                 className="btn btn-primary"
+                data-tour="profile-generate-confirm"
               >
                 Generate
               </button>
