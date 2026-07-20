@@ -205,6 +205,10 @@ interface DataObjectPropertiesPanelProps {
 
 export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps> = ({ element, modeler }) => {
   const [draft, setDraft] = useState<QualifiedValueDraft>(EMPTY_DRAFT);
+  // Explicit custom-name mode. Without it the select is fully derived from
+  // draft.property, and picking "Custom ..." while a known property is set
+  // writes the same value back - the option can never activate.
+  const [customMode, setCustomMode] = useState(false);
   const connected = useMemo(() => findConnectedProcessStep(element), [element]);
   const candidateProps = useMemo(
     () => connected ? qualifiedValuePropertiesOf(connected.className) : [],
@@ -219,6 +223,7 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
     // setDraft calls in writeDraft.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(extractDraftFromBusinessObject(element.businessObject));
+    setCustomMode(false);
   }, [element]);
 
   if (!element) return null;
@@ -226,9 +231,24 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
   if (isUnconnected) {
     return (
       <div className="dexpi-properties-panel">
-        <h3>Material / Simulation Data</h3>
-        <div style={{ padding: '8px', backgroundColor: '#f3e5f5', borderRadius: '4px', fontSize: '0.85rem', color: '#6a1b9a' }}>
-          MaterialTemplate or simulation case — edit via the <strong>Materials panel</strong> in the toolbar.
+        <h3>Data Object</h3>
+        <div style={{ fontSize: '0.85rem', color: '#444', lineHeight: 1.5, marginBottom: '12px' }}>
+          A data object plays one of two roles, depending on how you use it:
+        </div>
+        <div style={{ padding: '10px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '0.85rem', color: '#2e7d32', marginBottom: '10px' }}>
+          <strong>Process variable (instrumentation).</strong> Connect it
+          between an instrumentation task (e.g. MeasuringProcessVariable)
+          and a process step with data associations — click this shape, drag
+          the connection arrow onto the task or step, and repeat for the
+          other side. Once connected, this panel becomes the Process
+          Variable editor where you pick the variable (Temperature,
+          Pressure, …) and author its value.
+        </div>
+        <div style={{ padding: '10px', backgroundColor: '#f3e5f5', borderRadius: '4px', fontSize: '0.85rem', color: '#6a1b9a' }}>
+          <strong>Material / simulation library host.</strong> Left
+          unconnected, it can carry MaterialTemplates and MaterialStates —
+          manage those via the <strong>Materials panel</strong> in the
+          toolbar.
         </div>
       </div>
     );
@@ -300,10 +320,15 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
         {propertyOptions.length > 0 ? (
           <select
             id="dop-property"
-            value={propertyOptions.includes(draft.property) ? draft.property : '__custom__'}
+            value={customMode || !propertyOptions.includes(draft.property) ? '__custom__' : draft.property}
             onChange={(e) => {
               const v = e.target.value;
-              writeDraft({ ...draft, property: v === '__custom__' ? draft.property : v });
+              if (v === '__custom__') {
+                setCustomMode(true);
+              } else {
+                setCustomMode(false);
+                writeDraft({ ...draft, property: v });
+              }
             }}
           >
             <option value="" disabled>— choose a parameter on {connected?.className} —</option>
@@ -311,7 +336,7 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
             <option value="__custom__">Custom (Profile-extension) …</option>
           </select>
         ) : null}
-        {(propertyOptions.length === 0 || !propertyOptions.includes(draft.property)) ? (
+        {(customMode || propertyOptions.length === 0 || !propertyOptions.includes(draft.property)) ? (
           <input
             type="text"
             placeholder="e.g. Temperature"

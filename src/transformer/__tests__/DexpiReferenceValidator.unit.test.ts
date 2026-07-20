@@ -29,6 +29,23 @@ const REGISTRY = DexpiProcessClassRegistry.fromXmlSources([
 ]);
 
 describe('Tier 4: reference target-class validator', () => {
+  it('flags a References target id that resolves to no object (dangling)', () => {
+    // The official XSD types `objects` as nameOrIdReferences — a
+    // pattern-checked string, not xs:IDREFS — so unresolved ids pass XSD
+    // validation. This dimension must catch them.
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="state_type" type="Process/Process.MaterialStateType">
+        <References property="Composition" objects="#does_not_exist"/>
+      </Object>
+    </Model>`;
+    const failures = validateEmittedDexpiReferences(xml, 'unit', REGISTRY);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].propertyName).toBe('Composition');
+    expect(failures[0].actualClass).toBe('(unresolved id)');
+    expect(failures[0].targetId).toBe('does_not_exist');
+    expect(failures[0].context).toContain('does not resolve to any Object');
+  });
+
   it('flags a References target whose class does not match the declared target', () => {
     // MaterialStateType.Composition declares target /Process.Composition.
     // Here we point it at a Stream — should fail.

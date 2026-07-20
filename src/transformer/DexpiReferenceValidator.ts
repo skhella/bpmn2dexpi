@@ -114,7 +114,23 @@ export function validateEmittedDexpiReferences(
     const targets = targetsAttr.split(/\s+/).filter(Boolean).map(stripHash);
     for (const targetId of targets) {
       const actualClass = idToClass.get(targetId);
-      if (!actualClass) continue; // dangling ref — XSD's job, not ours
+      if (!actualClass) {
+        // Dangling reference. The official XSD cannot catch this — the
+        // `objects` attribute is typed nameOrIdReferences, a pattern-checked
+        // xsd:string, not xs:IDREFS — so unresolved ids are this
+        // dimension's job.
+        failures.push({
+          source,
+          className: wrappingClass,
+          propertyName: propName,
+          expectedClass: expectedTarget,
+          actualClass: '(unresolved id)',
+          targetId,
+          context: `<References property="${propName}" objects="#${targetId}"/> inside <Object type="${wrappingType}"> — ` +
+            `target id "${targetId}" does not resolve to any Object in the document`,
+        });
+        continue;
+      }
       if (!isClassOrSubclass(registry, actualClass, expectedTarget)) {
         failures.push({
           source,
@@ -152,7 +168,19 @@ export function validateEmittedDexpiReferences(
     if (!expectedTarget) continue;
 
     const actualClass = idToClass.get(targetId);
-    if (!actualClass) continue;
+    if (!actualClass) {
+      failures.push({
+        source,
+        className: wrappingClass,
+        propertyName: propName,
+        expectedClass: expectedTarget,
+        actualClass: '(unresolved id)',
+        targetId,
+        context: `<Components property="${propName}"><ObjectReference object="#${targetId}"/></Components> inside <Object type="${wrappingType}"> — ` +
+          `target id "${targetId}" does not resolve to any Object in the document`,
+      });
+      continue;
+    }
     if (!isClassOrSubclass(registry, actualClass, expectedTarget)) {
       failures.push({
         source,

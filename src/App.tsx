@@ -10,6 +10,7 @@ import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { IntroGuide } from './components/IntroGuide';
+import { GuidedTour } from './components/GuidedTour';
 import { CiteDialog } from './components/CiteDialog';
 import { BpmnToDexpiTransformer } from './transformer/BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
@@ -223,6 +224,9 @@ function App() {
   // Citation dialog, opened from the footer's "Cite" affordance.
   const [showCiteDialog, setShowCiteDialog] = useState<boolean>(false);
 
+  // Interactive step-by-step tour, entered from the intro guide.
+  const [showTour, setShowTour] = useState<boolean>(false);
+
   // Strict-mode export-time warning modal. Populated by handleExportDexpi
   // when strict mode is on and the property-name validator finds
   // violations. Per the design contract the export still succeeds (file is
@@ -274,6 +278,32 @@ function App() {
   const [profileExportFilename, setProfileExportFilename] = useState<string>('generated-profile.xml');
   const isNavigatingBack = useRef(false);
   
+  // Suppress native text selection for the duration of any diagram drag.
+  // Safari anchors a page-wide selection when a drag that starts on an
+  // unselectable element (a palette entry) sweeps across selectable text
+  // (hints, panel copy, toasts) — the whole page paints as selected
+  // mid-drag. diagram-js brackets every drag with drag.init/drag.cleanup;
+  // a body class turns off user-select in between, and any selection
+  // Safari already anchored is cleared on entry.
+  useEffect(() => {
+    if (!modeler) return;
+    const eventBus = modeler.get('eventBus') as any;
+    const onDragInit = () => {
+      window.getSelection()?.removeAllRanges();
+      document.body.classList.add('dexpi-dragging');
+    };
+    const onDragCleanup = () => {
+      document.body.classList.remove('dexpi-dragging');
+    };
+    eventBus.on('drag.init', onDragInit);
+    eventBus.on('drag.cleanup', onDragCleanup);
+    return () => {
+      eventBus.off('drag.init', onDragInit);
+      eventBus.off('drag.cleanup', onDragCleanup);
+      onDragCleanup();
+    };
+  }, [modeler]);
+
   // Update global flag for port visibility
   useEffect(() => {
     (window as any).__dexpi_show_ports__ = showPorts;
@@ -554,6 +584,8 @@ function App() {
         dexpiExtension
       ]
     });
+    // Debug/automation handle, same pattern as __dexpi_show_ports__.
+    (window as any).__bpmn_modeler__ = bpmnModeler;
 
     const eventBus = bpmnModeler.get('eventBus') as any;
     
@@ -1170,6 +1202,11 @@ function App() {
     closeIntroGuide();
   };
 
+  const handleStartTour = () => {
+    closeIntroGuide();
+    setShowTour(true);
+  };
+
   const handleNewDiagram = async () => {
     if (!modeler) return;
     if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
@@ -1208,10 +1245,11 @@ function App() {
               ← Back to Parent
             </button>
           )}
-          <button 
-            onClick={() => setShowPorts(!showPorts)} 
+          <button
+            onClick={() => setShowPorts(!showPorts)}
             className={`btn ${showPorts ? 'btn-active' : ''}`}
             title="Toggle port visibility"
+            data-tour="ports-toggle"
           >
             {showPorts ? '● Ports: ON' : '○ Ports: OFF'}
           </button>
@@ -1316,6 +1354,7 @@ function App() {
               onClick={() => setShowDexpiMenu(v => !v)}
               className={`btn ${showDexpiMenu ? 'btn-active' : ''}`}
               title="Strict-mode validation, Profile import, Profile generation"
+              data-tour="dexpi-menu"
             >
               {/* Surface a small "active" indicator when strict is on or
                   any Profile is loaded, so users know there's session-state
@@ -1370,6 +1409,7 @@ function App() {
                       checked={strictMode}
                       onChange={(e) => setStrictMode(e.target.checked)}
                       style={{ margin: '3px 0 0 0' }}
+                      data-tour="strict-toggle"
                     />
                     <span>
                       Strict property-name validation
@@ -1383,6 +1423,7 @@ function App() {
                   <button
                     onClick={() => { handleValidateNow(); setShowDexpiMenu(false); }}
                     className="btn"
+                    data-tour="validate-now"
                     title="Run the full five-tier strict validation against the current model without exporting. Findings show in the same warning dialog the export path uses."
                   >
                     Validate now
@@ -1429,6 +1470,7 @@ function App() {
                       onClick={() => { profileFileInputRef.current?.click(); setShowDexpiMenu(false); }}
                       className="btn"
                       style={{ flex: '1 1 auto' }}
+                      data-tour="import-profile"
                       title="Load a DEXPI Profile (project-specific extension schema)."
                     >
                       Import Profile
@@ -1437,6 +1479,7 @@ function App() {
                       onClick={() => { openGenerateProfileDialog(); setShowDexpiMenu(false); }}
                       className="btn"
                       style={{ flex: '1 1 auto' }}
+                      data-tour="generate-profile-menu"
                       title="Generate a DEXPI Profile from the current model that fills every metamodel-fidelity gap. Re-import the downloaded file to apply it."
                     >
                       Generate Profile
@@ -1456,7 +1499,7 @@ function App() {
               </>
             )}
           </div>
-          <button onClick={openExportDexpiDialog} className="btn btn-primary">Export DEXPI XML</button>
+          <button onClick={openExportDexpiDialog} className="btn btn-primary" data-tour="export-dexpi">Export DEXPI XML</button>
         </div>
       </header>
       
@@ -1484,6 +1527,8 @@ function App() {
                 textAlign: 'center',
                 padding: '0 18%',
                 pointerEvents: 'none',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
                 zIndex: 5,
                 color: '#98a3ab',
               }}
@@ -1688,6 +1733,7 @@ function App() {
               <button
                 onClick={() => { setStrictWarning(null); openGenerateProfileDialog(); }}
                 className="btn btn-primary"
+                data-tour="generate-profile"
               >
                 Generate Profile
               </button>
@@ -1708,6 +1754,13 @@ function App() {
         open={showIntroGuide}
         onClose={closeIntroGuide}
         onLoadExample={handleLoadExample}
+        onStartTour={handleStartTour}
+      />
+
+      <GuidedTour
+        active={showTour}
+        modeler={modeler}
+        onExit={() => setShowTour(false)}
       />
 
       <CiteDialog
@@ -1772,6 +1825,7 @@ function App() {
               <button
                 onClick={() => { setShowProfileExportDialog(false); handleGenerateProfile(); }}
                 className="btn btn-primary"
+                data-tour="profile-generate-confirm"
               >
                 Generate
               </button>

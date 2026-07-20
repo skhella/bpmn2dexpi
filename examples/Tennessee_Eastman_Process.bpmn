@@ -2124,6 +2124,31 @@
             </dexpi:object>
           </dexpi:components>
         </dexpi:Composition>
+        <dexpi:MaterialState uid="uuid_MS_S9">
+          <dexpi:data property="Identifier">9</dexpi:data>
+          <dexpi:data property="Label">Purge gas</dexpi:data>
+          <dexpi:data property="Description">Purge gas</dexpi:data>
+          <dexpi:references property="State" uidRef="uuid_MS_S9_MST" />
+        </dexpi:MaterialState>
+        <dexpi:MaterialStateType uid="uuid_MS_S9_MST">
+          <dexpi:data property="Identifier">9-State</dexpi:data>
+          <dexpi:data property="Label">Purge gas State</dexpi:data>
+          <dexpi:data property="Description">State-type for Purge gas</dexpi:data>
+          <dexpi:components property="MoleFlow" unitEnum="MoleFlowRateUnit">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity"><dexpi:data property="Unit">KilomolePerSecond</dexpi:data><dexpi:data property="Value">0.00419444</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+          <dexpi:references property="Composition" uidRef="uuid_MS_S9_Composition" />
+        </dexpi:MaterialStateType>
+        <dexpi:Composition uid="uuid_MS_S9_Composition">
+          <dexpi:data property="Display">Percent</dexpi:data>
+          <dexpi:components property="MoleFractiona">
+            <dexpi:object type="Core/QualifiedValue">
+              <dexpi:data property="Value"><dexpi:aggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector"><dexpi:data property="Unit">Percent</dexpi:data><dexpi:data property="Values">32.958</dexpi:data><dexpi:data property="Values">13.823</dexpi:data><dexpi:data property="Values">23.978</dexpi:data><dexpi:data property="Values">1.257</dexpi:data><dexpi:data property="Values">18.579</dexpi:data><dexpi:data property="Values">2.263</dexpi:data><dexpi:data property="Values">4.844</dexpi:data><dexpi:data property="Values">2.299</dexpi:data></dexpi:aggregatedDataValue></dexpi:data>
+            </dexpi:object>
+          </dexpi:components>
+        </dexpi:Composition>
         <dexpi:MaterialState uid="uuid_MS_S10">
           <dexpi:data property="Identifier">10</dexpi:data>
           <dexpi:data property="Label">Separation liquid</dexpi:data>

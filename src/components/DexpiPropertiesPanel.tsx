@@ -666,6 +666,7 @@ interface DexpiPropertiesPanelProps {
   loadedProfiles?: { name: string; xml: string }[];
 }
 
+
 export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ element, modeler, loadedProfiles }) => {
   // Full registry: Process.xml + Core.xml + any loaded Profiles. Used both
   // for the dropdown class list AND for the required-flag lookup that the
@@ -812,7 +813,11 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       
       // Extract properties - runs for ALL elements
       let dtype = dexpiElement?.dexpiType || dexpiElement?.type || '';
-      const ident = dexpiElement?.identifier || dexpiElement?.id || businessObject.name || businessObject.id || '';
+      // Display exactly what the export uses (explicit identifier, else the
+      // BPMN element id) — falling back to the name here showed the same
+      // class-named "identifier" on every step of that class, which never
+      // matched the exported value.
+      const ident = dexpiElement?.identifier || dexpiElement?.id || businessObject.id || '';
       const u = dexpiElement?.uid || businessObject.id || '';
       
       // Auto-detect DEXPI type if not already set
@@ -915,7 +920,43 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       setCustomTypeName('');
       setCustomSuperType('');
       setDexpiType(newType);
-      updateDexpiElement({ dexpiType: newType, customUri: undefined, customSuperType: undefined });
+
+      // Auto-fill the identifier with a class-based token that is unique
+      // across the diagram (Evaporating, Evaporating2, ...) — two steps of
+      // the same class must not export the same Identifier. Only when the
+      // current identifier is still an automatic value; a user-entered one
+      // is never touched.
+      const identifierIsAuto =
+        !identifier ||
+        identifier === element.businessObject.id ||
+        identifier === dexpiType ||
+        (!!dexpiType && new RegExp(`^${dexpiType}\\d+$`).test(identifier));
+      let identifierUpdate: { identifier?: string } = {};
+      if (identifierIsAuto && newType !== 'ProcessStep') {
+        const registry = modeler.get('elementRegistry');
+        const taken = new Set<string>();
+        registry.getAll().forEach((el: any) => {
+          if (el === element || el.id === element.id) return;
+          const bo = el.businessObject;
+          const vals = bo?.extensionElements?.values;
+          const de = Array.isArray(vals)
+            ? vals.find((v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element')
+            : undefined;
+          // Same derivation the panel displays: explicit identifier first,
+          // then the name fallback, then the BPMN id.
+          const eff = de?.identifier || bo?.name || bo?.id;
+          if (eff) taken.add(String(eff));
+        });
+        let next = newType;
+        if (taken.has(next)) {
+          let n = 2;
+          while (taken.has(`${newType}${n}`)) n++;
+          next = `${newType}${n}`;
+        }
+        setIdentifier(next);
+        identifierUpdate = { identifier: next };
+      }
+      updateDexpiElement({ dexpiType: newType, ...identifierUpdate, customUri: undefined, customSuperType: undefined });
 
       // Auto-fill element name with the DEXPI type if name is empty or still generic
       const isGenericName = !elementName ||
@@ -1187,14 +1228,14 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       const isConnected = (element.incoming?.length ?? 0) > 0 || (element.outgoing?.length ?? 0) > 0;
 
       if (isConnected) {
+        // Unreachable in practice: App routes DataObjectReference selections
+        // to DataObjectPropertiesPanel, which owns the variable editor.
+        // Minimal fallback for any other host of this panel.
         return (
           <div className="dexpi-properties-panel">
             <h3>Process Variable</h3>
-            <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '0.85rem', color: '#2e7d32' }}>
-              Exported as <code>InformationVariant</code> in the DEXPI InformationFlow.
-            </div>
             {name && (
-              <div className="property-group" style={{ marginTop: '12px' }}>
+              <div className="property-group">
                 <label>Variable name: <strong>{name}</strong></label>
               </div>
             )}
@@ -1259,6 +1300,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           <select
             value={isCustomType ? '__custom__' : dexpiType}
             onChange={handleDexpiTypeChange}
+            data-tour="dexpi-type-select"
           >
             <option value="">Select DEXPI type...</option>
             {(elementType === 'bpmn:Task' ||
@@ -2020,7 +2062,7 @@ const ProcessStepAttributesSection: React.FC<{
   return (
     <div className="property-group">
       <h4>Attributes ({attributes.length})</h4>
-      <button onClick={addAttribute} className="btn-add-port">Add Attribute</button>
+      <button onClick={addAttribute} className="btn-add-port" data-tour="add-attribute">Add Attribute</button>
       
       {attributes.map((attr, index) => (
         <div key={index} className="port-item">
@@ -3046,6 +3088,49 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
   }
 
 
+  const isDataAssociation = ['bpmn:Association', 'bpmn:DataOutputAssociation', 'bpmn:DataInputAssociation'].includes(element.type);
+  const chainTouchesInstrumentation = (() => {
+    if (!isDataAssociation) return false;
+    const typeOfTask = (el: any): string => {
+      const vals = el?.businessObject?.extensionElements?.values;
+      const de = Array.isArray(vals)
+        ? vals.find((v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element')
+        : undefined;
+      return de?.dexpiType || de?.type || '';
+    };
+    const dataObj = [element.source, element.target].find(
+      (el: any) => el?.type === 'bpmn:DataObjectReference'
+    );
+    if (!dataObj) return false;
+    return [...(dataObj.incoming || []), ...(dataObj.outgoing || [])].some((c: any) => {
+      const other = c.source === dataObj ? c.target : c.source;
+      const t = other ? typeOfTask(other) : '';
+      return !!t && DEXPI_REGISTRY.hasAncestor(t, 'InstrumentationActivity');
+    });
+  })();
+
+  if (chainTouchesInstrumentation) {
+    // Measured-variable link: the association itself carries nothing in the
+    // export — the variable lives on the data object, the references on the
+    // instrumentation activity. Offer orientation instead of dead editors.
+    return (
+      <div className="stream-properties-panel">
+        <h3>Data Association</h3>
+        <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', marginBottom: '12px', fontSize: '0.85rem', color: '#2e7d32' }}>
+          Part of a measured-variable link: instrumentation activity, data
+          object, process step.
+        </div>
+        <div style={{ fontSize: '0.85rem', color: '#444', lineHeight: 1.5 }}>
+          This connection has no properties of its own. Click the data object
+          (the page-like shape) to pick the variable and author its value —
+          it exports as a <code>Core/QualifiedValue</code> parameter slot on
+          the measured step, referenced by the instrumentation activity via{' '}
+          <code>MeasuredVariableReference</code>.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="stream-properties-panel">
       <h3>Stream Properties</h3>
@@ -3092,7 +3177,9 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
         )}
       </div>
 
-      {/* Material State Information */}
+      {/* Material State Information — material streams only; an information
+          flow between steps carries no material state */}
+      {element.type === 'bpmn:SequenceFlow' && (
       <div className="property-group" style={{ background: '#e3f2fd', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
         <h4 style={{ margin: '0 0 8px 0', color: '#1976d2' }}>Material State</h4>
         <label style={{ marginBottom: '8px', display: 'block' }}>
@@ -3415,12 +3502,14 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           </div>
         )}
       </div>
+      )}
 
       {/* MaterialTemplateReference editor — Process.xml declares the
           reference on Stream (lower=0 upper=1, target /Process.MaterialTemplate).
           Dropdown is populated from every MaterialTemplate Object found in
-          the project. Empty value clears the reference. */}
-      {allMaterialTemplates.length > 0 && (
+          the project. Empty value clears the reference. Material streams
+          only, like the Material State block above. */}
+      {element.type === 'bpmn:SequenceFlow' && allMaterialTemplates.length > 0 && (
         <div className="property-group" style={{ background: '#f3e5f5', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
           <h4 style={{ margin: '0 0 8px 0', color: '#7b1fa2' }}>Material Template</h4>
           <label>
@@ -3448,7 +3537,7 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
 
       <div className="property-group">
         <h4>Stream Attributes ({attributes.length})</h4>
-        <button onClick={addAttribute} className="btn-add-port">Add Attribute</button>
+        <button onClick={addAttribute} className="btn-add-port" data-tour="add-attribute">Add Attribute</button>
         
         {attributes.map((attr, index) => (
           <div key={index} className="port-item">
