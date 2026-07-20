@@ -278,6 +278,32 @@ function App() {
   const [profileExportFilename, setProfileExportFilename] = useState<string>('generated-profile.xml');
   const isNavigatingBack = useRef(false);
   
+  // Suppress native text selection for the duration of any diagram drag.
+  // Safari anchors a page-wide selection when a drag that starts on an
+  // unselectable element (a palette entry) sweeps across selectable text
+  // (hints, panel copy, toasts) — the whole page paints as selected
+  // mid-drag. diagram-js brackets every drag with drag.init/drag.cleanup;
+  // a body class turns off user-select in between, and any selection
+  // Safari already anchored is cleared on entry.
+  useEffect(() => {
+    if (!modeler) return;
+    const eventBus = modeler.get('eventBus') as any;
+    const onDragInit = () => {
+      window.getSelection()?.removeAllRanges();
+      document.body.classList.add('dexpi-dragging');
+    };
+    const onDragCleanup = () => {
+      document.body.classList.remove('dexpi-dragging');
+    };
+    eventBus.on('drag.init', onDragInit);
+    eventBus.on('drag.cleanup', onDragCleanup);
+    return () => {
+      eventBus.off('drag.init', onDragInit);
+      eventBus.off('drag.cleanup', onDragCleanup);
+      onDragCleanup();
+    };
+  }, [modeler]);
+
   // Update global flag for port visibility
   useEffect(() => {
     (window as any).__dexpi_show_ports__ = showPorts;
@@ -1501,6 +1527,8 @@ function App() {
                 textAlign: 'center',
                 padding: '0 18%',
                 pointerEvents: 'none',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
                 zIndex: 5,
                 color: '#98a3ab',
               }}

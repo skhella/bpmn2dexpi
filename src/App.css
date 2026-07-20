@@ -834,3 +834,12 @@
     flex-wrap: wrap;
   }
 }
+
+/* Active diagram drag (palette create, move, connect): no text selection
+   anywhere — Safari otherwise anchors a page-wide selection when the drag
+   crosses selectable text. Toggled via drag.init / drag.cleanup. */
+body.dexpi-dragging,
+body.dexpi-dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
