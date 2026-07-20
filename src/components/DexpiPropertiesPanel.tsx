@@ -666,6 +666,123 @@ interface DexpiPropertiesPanelProps {
   loadedProfiles?: { name: string; xml: string }[];
 }
 
+
+/**
+ * Editor for a connected data object — the process variable of an
+ * instrumentation chain or a step-to-step information flow.
+ *
+ * The variable-name dropdown is schema-assisted: it lists the
+ * QualifiedValue-typed CompositionProperties declared (including
+ * inherited) on the class of every connected non-instrumentation step,
+ * so canonical names (Temperature, Pressure, Duty, ...) are one pick
+ * away. Custom names stay possible — they export as extensions that
+ * Generate Profile declares.
+ */
+const readTaskDexpiType = (el: any): string => {
+  const vals = el?.businessObject?.extensionElements?.values;
+  const de = Array.isArray(vals)
+    ? vals.find((v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element')
+    : undefined;
+  return de?.dexpiType || de?.type || '';
+};
+
+const ProcessVariableEditor: React.FC<{ element: any; modeler: any }> = ({ element, modeler }) => {
+  const name: string = element.businessObject?.name || '';
+  const [customMode, setCustomMode] = React.useState(false);
+
+  const taskEnds = React.useMemo(() => {
+    return [...(element.incoming || []), ...(element.outgoing || [])]
+      .map((c: any) => (c.source === element ? c.target : c.source))
+      .filter((el: any) => el && (
+        el.type === 'bpmn:Task' || el.type === 'bpmn:SubProcess' ||
+        el.type?.includes('Task') || el.type === 'bpmn:CallActivity'
+      ));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [element, element.incoming?.length, element.outgoing?.length]);
+
+  const instrInChain = taskEnds.some((el: any) => {
+    const t = readTaskDexpiType(el);
+    return !!t && DEXPI_REGISTRY.hasAncestor(t, 'InstrumentationActivity');
+  });
+
+  const candidates = React.useMemo(() => {
+    const stepClasses = taskEnds
+      .map((el: any) => readTaskDexpiType(el))
+      .filter((t: string) => !t || !DEXPI_REGISTRY.hasAncestor(t, 'InstrumentationActivity'))
+      .map((t: string) => t || 'ProcessStep');
+    const classes = stepClasses.length > 0 ? stepClasses : ['ProcessStep'];
+    const names = new Set<string>();
+    classes.forEach((cls) => {
+      DEXPI_REGISTRY.getProperties(cls).forEach((prop) => {
+        if (prop.kind === 'composition' && (prop.targetType || '').includes('QualifiedValue')) {
+          names.add(prop.name);
+        }
+      });
+    });
+    return Array.from(names).sort();
+  }, [taskEnds]);
+
+  const applyName = (v: string) => {
+    modeler.get('modeling').updateProperties(element, { name: v });
+  };
+
+  const showCustomInput = customMode || (!!name && !candidates.includes(name));
+
+  return (
+    <div className="dexpi-properties-panel">
+      <h3>Process Variable</h3>
+      <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '0.85rem', color: '#2e7d32' }}>
+        {instrInChain ? (
+          <>Exported as a <code>Core/QualifiedValue</code> parameter slot on the
+          connected process step, referenced by the instrumentation activity
+          via <code>MeasuredVariableReference</code>.</>
+        ) : (
+          <>Exported as an <code>InformationFlow</code> between the connected
+          elements&apos; <code>InformationPort</code>s.</>
+        )}
+      </div>
+      <div className="property-group" style={{ marginTop: '12px' }}>
+        <label>
+          Variable name:
+          <select
+            value={showCustomInput ? '__custom__' : name}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === '__custom__') {
+                setCustomMode(true);
+              } else {
+                setCustomMode(false);
+                applyName(v);
+              }
+            }}
+          >
+            <option value="">Select variable...</option>
+            {candidates.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+            <option value="__custom__">— Custom...</option>
+          </select>
+        </label>
+        {showCustomInput && (
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => applyName(e.target.value)}
+            placeholder="Custom variable name..."
+            style={{ marginTop: '4px' }}
+          />
+        )}
+        <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '6px' }}>
+          Choices are the variable properties the DEXPI 2.0 schema declares on
+          the connected step&apos;s class. Custom names export as extensions —
+          declare them via Generate Profile to make strict validation accept
+          them.
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ element, modeler, loadedProfiles }) => {
   // Full registry: Process.xml + Core.xml + any loaded Profiles. Used both
   // for the dropdown class list AND for the required-flag lookup that the
@@ -1187,19 +1304,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
       const isConnected = (element.incoming?.length ?? 0) > 0 || (element.outgoing?.length ?? 0) > 0;
 
       if (isConnected) {
-        return (
-          <div className="dexpi-properties-panel">
-            <h3>Process Variable</h3>
-            <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '0.85rem', color: '#2e7d32' }}>
-              Exported as <code>InformationVariant</code> in the DEXPI InformationFlow.
-            </div>
-            {name && (
-              <div className="property-group" style={{ marginTop: '12px' }}>
-                <label>Variable name: <strong>{name}</strong></label>
-              </div>
-            )}
-          </div>
-        );
+        return <ProcessVariableEditor element={element} modeler={modeler} />;
       }
 
       return (
