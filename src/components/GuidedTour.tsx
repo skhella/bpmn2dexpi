@@ -259,14 +259,31 @@ const STEPS: TourStep[] = [
     isDone: (r, b) => grewBy(r, b, 'bpmn:DataObjectReference', 1),
   },
   {
-    id: 'name-variable',
-    title: 'Name the variable',
+    id: 'wire',
+    title: 'Wire it through',
     body:
-      'Double-click the data object and type the variable name, for example Temperature. ' +
-      'Click elsewhere to finish editing. ' +
-      'The name becomes the InformationVariant of the exported InformationFlow.',
+      'Click the instrument task and drag its connection arrow onto the data object — ' +
+      'the link appears dashed (a data association). Then click the data object and drag ' +
+      'its connection arrow onto the process step being measured or controlled. ' +
+      'This instrument-variable-step chain is what the exporter reads: the variable ' +
+      'becomes a Core/QualifiedValue parameter slot on the measured step, and the ' +
+      'instrument receives a ProcessStepReference and a MeasuredVariableReference.',
     targets: ['.canvas-container'],
     placement: 'top',
+    isDone: (r, b) =>
+      Array.from(wiredDataObjectIds(r)).some((id) => !b.wiredDataObjectIds.has(id)),
+  },
+  {
+    id: 'name-variable',
+    title: 'Pick the variable',
+    body:
+      'Click the data object — its panel now shows the Process Variable editor. ' +
+      'Pick the variable from the dropdown, for example Temperature. ' +
+      'The choices are the variable properties the DEXPI 2.0 schema declares on the ' +
+      'connected step class; a custom name exports as an extension, which strict ' +
+      'validation will flag and a Profile can declare.',
+    targets: ['#dop-property', '.properties-panel'],
+    placement: 'left',
     isDone: (r, b) =>
       r
         .getAll()
@@ -276,21 +293,6 @@ const STEPS: TourStep[] = [
             !b.namedDataObjectIds.has(e.id) &&
             !!e.businessObject?.name
         ),
-  },
-  {
-    id: 'wire',
-    title: 'Wire it through',
-    body:
-      'Click the instrument task and drag its connection arrow onto the data object — ' +
-      'the link appears dashed (a data association). Then click the data object and drag ' +
-      'its connection arrow onto the process step being measured or controlled. ' +
-      'This instrument-variable-step chain is what the exporter reads: it becomes an ' +
-      'InformationFlow, and the instrument receives a ProcessStepReference and a ' +
-      'MeasuredVariableReference.',
-    targets: ['.canvas-container'],
-    placement: 'top',
-    isDone: (r, b) =>
-      Array.from(wiredDataObjectIds(r)).some((id) => !b.wiredDataObjectIds.has(id)),
   },
   {
     id: 'strict',
