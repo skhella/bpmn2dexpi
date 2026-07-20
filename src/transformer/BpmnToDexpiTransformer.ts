@@ -2405,7 +2405,14 @@ export class BpmnToDexpiTransformer {
           if (!attr.name || !attr.value) return;
 
           if (resolveAttrKind(attr) === 'composition') {
-            if (!dexpiStep.Components) dexpiStep.Components = [];
+            // A step with ports already carries Components as a single
+            // object — normalize to an array before pushing, mirroring the
+            // measuredParameters block below.
+            if (!dexpiStep.Components) {
+              dexpiStep.Components = [];
+            } else if (!Array.isArray(dexpiStep.Components)) {
+              dexpiStep.Components = [dexpiStep.Components as Record<string, unknown>];
+            }
             (dexpiStep.Components as Record<string, unknown>[]).push(
               this.buildQualifiedValueComponentsCarrier(attr, step.type),
             );
