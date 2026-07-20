@@ -1259,6 +1259,7 @@ export const DexpiPropertiesPanel: React.FC<DexpiPropertiesPanelProps> = ({ elem
           <select
             value={isCustomType ? '__custom__' : dexpiType}
             onChange={handleDexpiTypeChange}
+            data-tour="dexpi-type-select"
           >
             <option value="">Select DEXPI type...</option>
             {(elementType === 'bpmn:Task' ||

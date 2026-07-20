@@ -3,8 +3,9 @@
  *
  * Orients visitors who open the hosted app without having read the paper:
  * what the tool is, how to model a BFD/PFD with DEXPI Process semantics,
- * the BPMN-to-DEXPI mapping, and a one-click way to load the bundled
- * Tennessee Eastman example (the paper's benchmark). Shown once per browser
+ * the BPMN-to-DEXPI mapping, an entry point into the interactive
+ * step-by-step tour, and a one-click way to load the bundled Tennessee
+ * Eastman example (the paper's benchmark). Shown once per browser
  * (localStorage flag, owned by App) and reopenable from the toolbar's
  * Guide button.
  */
@@ -13,16 +14,17 @@ interface IntroGuideProps {
   open: boolean;
   onClose: () => void;
   onLoadExample: () => void;
+  onStartTour: () => void;
 }
 
 const MAPPING: [string, string][] = [
   ['Start event', 'Source'],
   ['End event', 'Sink'],
-  ['Task', 'ProcessStep (class chosen in the panel)'],
+  ['Task', 'ProcessStep or InstrumentationActivity (class chosen in the panel)'],
   ['Subprocess', 'Nested ProcessStep (SubProcessSteps hierarchy)'],
   ['Sequence flow', 'Stream (MaterialFlow / EnergyFlow / InformationFlow)'],
   ['Ports on an element', 'MaterialPort / energy ports / InformationPort'],
-  ['Data object', 'Material library host, or an instrumentation variable on the connected step'],
+  ['Data object', 'Material library host, or a named process variable linking a process step and an instrumentation activity'],
   ['Pool', 'The process container (ProcessModel)'],
 ];
 
@@ -31,11 +33,11 @@ const STEPS: string[] = [
   'Drag tasks for the process steps and pick each one’s DEXPI class (Compressing, Cooling, ReactingChemicals, …) in the right-hand panel. Splitting and mixing are process steps too (SplittingMaterial, MixingSimple) — DEXPI Process has no gateways.',
   'Connect elements with sequence flows — each becomes a DEXPI Stream, and typed ports (Material / Energy / Information) are created on both ends automatically. Toggle “Ports” in the toolbar to see them.',
   'Define materials under “Materials”: templates, components, and states with flow data and composition. Link a stream to a material state in the stream’s panel.',
-  'Add a measured or controlled variable by connecting a data object to a process step (instrumentation).',
+  'Model instrumentation as its own small task: set its DEXPI class to MeasuringProcessVariable (or ControllingProcessVariable, ConveyingSignal, …). Create a data object named after the variable (Temperature, Pressure, Level, …) and wire the instrumentation task and the process step together through it with data associations. The variable is exported as an InformationFlow, and the instrumentation activity references the step it measures.',
   'Export DEXPI XML — the output is validated against the official DEXPI 2.0 XML Schema. Enable Strict mode in the export dialog for the five information-model fidelity checks.',
 ];
 
-export function IntroGuide({ open, onClose, onLoadExample }: IntroGuideProps) {
+export function IntroGuide({ open, onClose, onLoadExample, onStartTour }: IntroGuideProps) {
   if (!open) return null;
 
   return (
@@ -113,8 +115,11 @@ export function IntroGuide({ open, onClose, onLoadExample }: IntroGuideProps) {
             {' · '}
             <a href="https://github.com/skhella/bpmn2dexpi" target="_blank" rel="noreferrer">Documentation</a>
           </div>
-          <div style={{ display: 'flex', gap: '0.5em' }}>
-            <button className="btn btn-primary" onClick={onLoadExample}>
+          <div style={{ display: 'flex', gap: '0.5em', flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" onClick={onStartTour}>
+              Step-by-step tour
+            </button>
+            <button className="btn" onClick={onLoadExample}>
               Load the Tennessee Eastman example
             </button>
             <button className="btn" onClick={onClose}>Start modeling</button>

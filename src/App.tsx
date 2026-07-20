@@ -10,6 +10,7 @@ import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
 import { IntroGuide } from './components/IntroGuide';
+import { GuidedTour } from './components/GuidedTour';
 import { CiteDialog } from './components/CiteDialog';
 import { BpmnToDexpiTransformer } from './transformer/BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
@@ -222,6 +223,9 @@ function App() {
 
   // Citation dialog, opened from the footer's "Cite" affordance.
   const [showCiteDialog, setShowCiteDialog] = useState<boolean>(false);
+
+  // Interactive step-by-step tour, entered from the intro guide.
+  const [showTour, setShowTour] = useState<boolean>(false);
 
   // Strict-mode export-time warning modal. Populated by handleExportDexpi
   // when strict mode is on and the property-name validator finds
@@ -554,6 +558,8 @@ function App() {
         dexpiExtension
       ]
     });
+    // Debug/automation handle, same pattern as __dexpi_show_ports__.
+    (window as any).__bpmn_modeler__ = bpmnModeler;
 
     const eventBus = bpmnModeler.get('eventBus') as any;
     
@@ -1170,6 +1176,11 @@ function App() {
     closeIntroGuide();
   };
 
+  const handleStartTour = () => {
+    closeIntroGuide();
+    setShowTour(true);
+  };
+
   const handleNewDiagram = async () => {
     if (!modeler) return;
     if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
@@ -1208,10 +1219,11 @@ function App() {
               ← Back to Parent
             </button>
           )}
-          <button 
-            onClick={() => setShowPorts(!showPorts)} 
+          <button
+            onClick={() => setShowPorts(!showPorts)}
             className={`btn ${showPorts ? 'btn-active' : ''}`}
             title="Toggle port visibility"
+            data-tour="ports-toggle"
           >
             {showPorts ? '● Ports: ON' : '○ Ports: OFF'}
           </button>
@@ -1456,7 +1468,7 @@ function App() {
               </>
             )}
           </div>
-          <button onClick={openExportDexpiDialog} className="btn btn-primary">Export DEXPI XML</button>
+          <button onClick={openExportDexpiDialog} className="btn btn-primary" data-tour="export-dexpi">Export DEXPI XML</button>
         </div>
       </header>
       
@@ -1708,6 +1720,13 @@ function App() {
         open={showIntroGuide}
         onClose={closeIntroGuide}
         onLoadExample={handleLoadExample}
+        onStartTour={handleStartTour}
+      />
+
+      <GuidedTour
+        active={showTour}
+        modeler={modeler}
+        onExit={() => setShowTour(false)}
       />
 
       <CiteDialog
