@@ -62,7 +62,15 @@ interface TourStep {
 }
 
 interface Baseline {
-  counts: Record<string, number>;
+  /** Element ids present when the tour (or a diagram replacement) started —
+   *  completion checks look for elements NOT in these sets, so deleting
+   *  and re-adding elements can never strand a step the way count
+   *  thresholds could. */
+  startEventIds: Set<string>;
+  endEventIds: Set<string>;
+  taskIds: Set<string>;
+  flowIds: Set<string>;
+  dataObjectIds: Set<string>;
   /** Tasks that already carried a specific (non-generic) class. */
   specificIds: Set<string>;
   measuringIds: Set<string>;
@@ -110,13 +118,11 @@ const hasSpecificClass = (e: any): boolean => {
 };
 
 const captureBaseline = (registry: any): Baseline => ({
-  counts: {
-    'bpmn:StartEvent': countType(registry, 'bpmn:StartEvent'),
-    'bpmn:EndEvent': countType(registry, 'bpmn:EndEvent'),
-    'bpmn:SequenceFlow': countType(registry, 'bpmn:SequenceFlow'),
-    'bpmn:DataObjectReference': countType(registry, 'bpmn:DataObjectReference'),
-    task: registry.getAll().filter(isTask).length,
-  },
+  startEventIds: idsWhere(registry, (e) => e.type === 'bpmn:StartEvent'),
+  endEventIds: idsWhere(registry, (e) => e.type === 'bpmn:EndEvent'),
+  taskIds: idsWhere(registry, isTask),
+  flowIds: idsWhere(registry, (e) => e.type === 'bpmn:SequenceFlow'),
+  dataObjectIds: idsWhere(registry, (e) => e.type === 'bpmn:DataObjectReference'),
   specificIds: idsWhere(registry, (e) => isTask(e) && hasSpecificClass(e)),
   measuringIds: idsWhere(registry, (e) => isTask(e) && dexpiTypeOf(e) === 'MeasuringProcessVariable'),
   namedDataObjectIds: idsWhere(
@@ -126,11 +132,9 @@ const captureBaseline = (registry: any): Baseline => ({
   wiredDataObjectIds: new Set<string>(),
 });
 
-/** Count grew by at least `by` since the tour-start baseline. */
-const grewBy = (registry: any, baseline: Baseline, key: string, by: number): boolean => {
-  const now = key === 'task' ? registry.getAll().filter(isTask).length : countType(registry, key);
-  return now >= baseline.counts[key] + by;
-};
+/** Elements matching `pred` that were not present at the baseline. */
+const newSince = (registry: any, baseIds: Set<string>, pred: (e: any) => boolean): any[] =>
+  registry.getAll().filter((e: any) => pred(e) && !baseIds.has(e.id));
 
 const STEPS: TourStep[] = [
   {
@@ -152,7 +156,7 @@ const STEPS: TourStep[] = [
       'Start events are exported as DEXPI Sources — one per feed.',
     targets: ['.djs-palette .entry[data-action="create.start-event"]', '.djs-palette'],
     placement: 'right',
-    isDone: (r, b) => grewBy(r, b, 'bpmn:StartEvent', 1),
+    isDone: (r, b) => newSince(r, b.startEventIds, (e) => e.type === 'bpmn:StartEvent').length >= 1,
   },
   {
     id: 'task',
@@ -162,7 +166,7 @@ const STEPS: TourStep[] = [
       'Tasks are exported as DEXPI ProcessSteps.',
     targets: ['.djs-palette .entry[data-action="create.task"]', '.djs-palette'],
     placement: 'right',
-    isDone: (r, b) => grewBy(r, b, 'task', 1),
+    isDone: (r, b) => newSince(r, b.taskIds, isTask).length >= 1,
   },
   {
     id: 'classify',
@@ -202,7 +206,7 @@ const STEPS: TourStep[] = [
       'End events are exported as DEXPI Sinks.',
     targets: ['.djs-palette .entry[data-action="create.end-event"]', '.djs-palette'],
     placement: 'right',
-    isDone: (r, b) => grewBy(r, b, 'bpmn:EndEvent', 1),
+    isDone: (r, b) => newSince(r, b.endEventIds, (e) => e.type === 'bpmn:EndEvent').length >= 1,
   },
   {
     id: 'connect',
@@ -214,7 +218,7 @@ const STEPS: TourStep[] = [
       'are created on both ends automatically.',
     targets: ['.canvas-container'],
     placement: 'top',
-    isDone: (r, b) => grewBy(r, b, 'bpmn:SequenceFlow', 2),
+    isDone: (r, b) => newSince(r, b.flowIds, (e) => e.type === 'bpmn:SequenceFlow').length >= 2,
   },
   {
     id: 'ports',
@@ -234,7 +238,7 @@ const STEPS: TourStep[] = [
       'it will be the measuring instrument, not a process step.',
     targets: ['.djs-palette .entry[data-action="create.task"]', '.djs-palette'],
     placement: 'right',
-    isDone: (r, b) => grewBy(r, b, 'task', 2),
+    isDone: (r, b) => newSince(r, b.taskIds, isTask).some((e: any) => !hasSpecificClass(e)),
   },
   {
     id: 'instr-class',
@@ -262,7 +266,7 @@ const STEPS: TourStep[] = [
       'the data object stands for that variable.',
     targets: ['.djs-palette .entry[data-action="create.data-object"]', '.djs-palette'],
     placement: 'right',
-    isDone: (r, b) => grewBy(r, b, 'bpmn:DataObjectReference', 1),
+    isDone: (r, b) => newSince(r, b.dataObjectIds, (e) => e.type === 'bpmn:DataObjectReference').length >= 1,
   },
   {
     id: 'wire',
@@ -508,6 +512,20 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
           ring.style.width = `${rect.width + 10}px`;
           ring.style.height = `${rect.height + 10}px`;
         }
+        // Anchors on the canvas (the canvas itself or a diagram shape):
+        // park the bubble at the canvas's top-right, next to the panel —
+        // never over the modeling area. The ring keeps marking the anchor.
+        const canvasEl = document.querySelector('.canvas-container');
+        if (canvasEl && (target === canvasEl || canvasEl.contains(target))) {
+          const c = canvasEl.getBoundingClientRect();
+          left = c.right - BUBBLE_WIDTH - GAP;
+          top = c.top + GAP;
+          left = Math.max(8, Math.min(left, vw - BUBBLE_WIDTH - 8));
+          top = Math.max(8, Math.min(top, vh - bh - 8));
+          bubble.style.left = `${left}px`;
+          bubble.style.top = `${top}px`;
+          return;
+        }
         switch (current.placement) {
           case 'right':
             left = rect.right + GAP;
@@ -523,16 +541,8 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
             break;
           case 'top':
           default:
-            // Anchored to large targets (the canvas): sit just inside the
-            // bottom edge — modeling usually happens in the upper half, so
-            // the bubble stays out of the way (and it can be dragged).
-            if (rect.height > vh / 2) {
-              left = rect.left + rect.width / 2 - BUBBLE_WIDTH / 2;
-              top = rect.bottom - bh - GAP;
-            } else {
-              left = rect.left + rect.width / 2 - BUBBLE_WIDTH / 2;
-              top = rect.top - bh - GAP;
-            }
+            left = rect.left + rect.width / 2 - BUBBLE_WIDTH / 2;
+            top = rect.top - bh - GAP;
             break;
         }
       } else {
