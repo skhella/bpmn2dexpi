@@ -231,9 +231,24 @@ export const DataObjectPropertiesPanel: React.FC<DataObjectPropertiesPanelProps>
   if (isUnconnected) {
     return (
       <div className="dexpi-properties-panel">
-        <h3>Material / Simulation Data</h3>
-        <div style={{ padding: '8px', backgroundColor: '#f3e5f5', borderRadius: '4px', fontSize: '0.85rem', color: '#6a1b9a' }}>
-          MaterialTemplate or simulation case — edit via the <strong>Materials panel</strong> in the toolbar.
+        <h3>Data Object</h3>
+        <div style={{ fontSize: '0.85rem', color: '#444', lineHeight: 1.5, marginBottom: '12px' }}>
+          A data object plays one of two roles, depending on how you use it:
+        </div>
+        <div style={{ padding: '10px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '0.85rem', color: '#2e7d32', marginBottom: '10px' }}>
+          <strong>Process variable (instrumentation).</strong> Connect it
+          between an instrumentation task (e.g. MeasuringProcessVariable)
+          and a process step with data associations — click this shape, drag
+          the connection arrow onto the task or step, and repeat for the
+          other side. Once connected, this panel becomes the Process
+          Variable editor where you pick the variable (Temperature,
+          Pressure, …) and author its value.
+        </div>
+        <div style={{ padding: '10px', backgroundColor: '#f3e5f5', borderRadius: '4px', fontSize: '0.85rem', color: '#6a1b9a' }}>
+          <strong>Material / simulation library host.</strong> Left
+          unconnected, it can carry MaterialTemplates and MaterialStates —
+          manage those via the <strong>Materials panel</strong> in the
+          toolbar.
         </div>
       </div>
     );

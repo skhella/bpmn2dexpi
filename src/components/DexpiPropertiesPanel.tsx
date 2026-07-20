@@ -3048,6 +3048,49 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
   }
 
 
+  const isDataAssociation = ['bpmn:Association', 'bpmn:DataOutputAssociation', 'bpmn:DataInputAssociation'].includes(element.type);
+  const chainTouchesInstrumentation = (() => {
+    if (!isDataAssociation) return false;
+    const typeOfTask = (el: any): string => {
+      const vals = el?.businessObject?.extensionElements?.values;
+      const de = Array.isArray(vals)
+        ? vals.find((v: any) => v.$type === 'dexpi:Element' || v.$type === 'dexpi:element')
+        : undefined;
+      return de?.dexpiType || de?.type || '';
+    };
+    const dataObj = [element.source, element.target].find(
+      (el: any) => el?.type === 'bpmn:DataObjectReference'
+    );
+    if (!dataObj) return false;
+    return [...(dataObj.incoming || []), ...(dataObj.outgoing || [])].some((c: any) => {
+      const other = c.source === dataObj ? c.target : c.source;
+      const t = other ? typeOfTask(other) : '';
+      return !!t && DEXPI_REGISTRY.hasAncestor(t, 'InstrumentationActivity');
+    });
+  })();
+
+  if (chainTouchesInstrumentation) {
+    // Measured-variable link: the association itself carries nothing in the
+    // export — the variable lives on the data object, the references on the
+    // instrumentation activity. Offer orientation instead of dead editors.
+    return (
+      <div className="stream-properties-panel">
+        <h3>Data Association</h3>
+        <div style={{ padding: '8px', backgroundColor: '#e8f5e9', borderRadius: '4px', marginBottom: '12px', fontSize: '0.85rem', color: '#2e7d32' }}>
+          Part of a measured-variable link: instrumentation activity, data
+          object, process step.
+        </div>
+        <div style={{ fontSize: '0.85rem', color: '#444', lineHeight: 1.5 }}>
+          This connection has no properties of its own. Click the data object
+          (the page-like shape) to pick the variable and author its value —
+          it exports as a <code>Core/QualifiedValue</code> parameter slot on
+          the measured step, referenced by the instrumentation activity via{' '}
+          <code>MeasuredVariableReference</code>.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="stream-properties-panel">
       <h3>Stream Properties</h3>
@@ -3094,7 +3137,9 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
         )}
       </div>
 
-      {/* Material State Information */}
+      {/* Material State Information — material streams only; an information
+          flow between steps carries no material state */}
+      {element.type === 'bpmn:SequenceFlow' && (
       <div className="property-group" style={{ background: '#e3f2fd', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
         <h4 style={{ margin: '0 0 8px 0', color: '#1976d2' }}>Material State</h4>
         <label style={{ marginBottom: '8px', display: 'block' }}>
@@ -3417,12 +3462,14 @@ export const StreamPropertiesPanel: React.FC<StreamPropertiesPanelProps> = ({ el
           </div>
         )}
       </div>
+      )}
 
       {/* MaterialTemplateReference editor — Process.xml declares the
           reference on Stream (lower=0 upper=1, target /Process.MaterialTemplate).
           Dropdown is populated from every MaterialTemplate Object found in
-          the project. Empty value clears the reference. */}
-      {allMaterialTemplates.length > 0 && (
+          the project. Empty value clears the reference. Material streams
+          only, like the Material State block above. */}
+      {element.type === 'bpmn:SequenceFlow' && allMaterialTemplates.length > 0 && (
         <div className="property-group" style={{ background: '#f3e5f5', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
           <h4 style={{ margin: '0 0 8px 0', color: '#7b1fa2' }}>Material Template</h4>
           <label>

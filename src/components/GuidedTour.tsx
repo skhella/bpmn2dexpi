@@ -298,9 +298,10 @@ const STEPS: TourStep[] = [
     body:
       'Click the highlighted data object (the page-like shape between instrument and ' +
       'step) — its panel shows the Process Variable editor. Pick the variable from the ' +
-      'dropdown, for example Temperature. The choices are the variable properties the ' +
-      'DEXPI 2.0 schema declares on the connected step class; a custom name exports as ' +
-      'an extension, which strict validation will flag and a Profile can declare.',
+      'dropdown, for example Temperature. The list is exactly the variables the DEXPI ' +
+      'information model already defines for this specific process step class — ' +
+      'anything else is an extension: pick Custom, and strict validation will flag it ' +
+      'until a Profile declares it.',
     targets: ['#dop-property', '@@resolve', '.properties-panel'],
     placement: 'left',
     resolveTarget: (modeler: any) => {
