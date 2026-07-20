@@ -85,9 +85,6 @@ const dexpiTypeOf = (el: any): string => {
   return de?.dexpiType || de?.type || '';
 };
 
-const countType = (registry: any, type: string): number =>
-  registry.getAll().filter((e: any) => e.type === type).length;
-
 const idsWhere = (registry: any, pred: (e: any) => boolean): Set<string> =>
   new Set(registry.getAll().filter(pred).map((e: any) => e.id));
 
