@@ -90,7 +90,8 @@ dexpi-schema-files/
 ├── DEXPI_XML_Schema.xsd             # Official DEXPI 2.0 XML Schema
 ├── Process.xml                      # DEXPI 2.0 Process model (BFD/PFD)
 ├── Plant.xml                        # DEXPI 2.0 Plant model (P&ID) — used by --validate
-└── Core.xml                         # DEXPI 2.0 Core model (shared foundation)
+├── Core.xml                         # DEXPI 2.0 Core model (shared foundation)
+└── DEXPI_XML_Schema_1.1.0_RC_1.xsd  # Draft schema 1.1.0 (reference only, not used)
 ```
 
 ## Validation
@@ -112,7 +113,16 @@ A Profile is an XML file that adds project-specific classes or properties on top
 
 Reference Profiles live in `examples/profiles/` (`sample-extension.xml`, `tep-generated.xml`).
 
-This approach follows the conceptual extensibility direction DEXPI 2.0 is being designed for, but the canonical Profile idiom is not yet standardized — generated Profiles may need migration once it is.
+This follows the extension half of the *Profiles for DEXPI* working draft, which states that the DEXPI meta model already supports profiles: a profile declares classes and properties in the same grammar `Process.xml` and `Core.xml` use, and generated Profiles here do exactly that. Two alignment gaps remain against published profiles such as the DISC Profile — the generator emits a `<Profile>` root rather than the schema's `<Model>` root with `<Import>` elements, and it redeclares a class instead of using `<ClassExtension baseType="…">` to add properties to an existing one, which the registry also does not yet read. The restriction half of a profile (constraints, required-ness, allowed classes) is not implemented here; it depends on schema 1.1.0.
+
+## Standards tracking
+
+The tool targets **DEXPI 2.0.0**, the current published specification. Two drafts are in review and will affect it:
+
+- **DEXPI 2.0.1** — a bugfix release for the Process model, which DEXPI intends to supersede 2.0.0. Changes that reach this project's output include `Composition.MoleFractiona` renamed to `MoleFractions`, `Core.PhysicalQuantities.PercentageUnit` renamed to `RatioUnit`, removal of the `ProcessModel.Compositions` and `ProcessModel.MaterialStateTypes` containers, `MeasuringProcessVariable.MeasuredVariable` becoming a data property typed by the `MeasuredQuantity` enumeration, and `InformationPorts` being added to `InstrumentationActivity`.
+- **DEXPI Profile / XML Schema 1.1.0** — the profile mechanism: meta-element reference properties, a `Core.Constraints` package, and a `Templates` link for the Process Type Library. See `dexpi-schema-files/README.md`.
+
+Migration is not started; exports remain 2.0.0.
 
 ## Testing
 
