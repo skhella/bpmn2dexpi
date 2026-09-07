@@ -46,6 +46,16 @@ export { validateEmittedDexpiClassExistence } from './DexpiClassExistenceValidat
  */
 const DEXPI_NS = 'http://dexpi.org/schema/bpmn-extension';
 
+/** Core data types for text carried as a translatable value. */
+const MULTI_LANGUAGE_STRING = 'Core/DataTypes.MultiLanguageString';
+const SINGLE_LANGUAGE_STRING = 'Core/DataTypes.SingleLanguageString';
+/**
+ * Language tag for emitted MultiLanguageString values. The BPMN source
+ * carries no language metadata, and DEXPI's own reference examples tag
+ * their descriptions 'en'.
+ */
+const DEFAULT_LANGUAGE = 'en';
+
 export class BpmnToDexpiTransformer {
   private processSteps: Map<string, InternalProcessStep> = new Map();
   private streams: Map<string, InternalStream> = new Map();
@@ -1988,6 +1998,26 @@ export class BpmnToDexpiTransformer {
       }
     }
 
+    // Add InstrumentationSystemActivities. Per Process.xml this is the only
+    // composition in the model that accepts InstrumentationActivity objects;
+    // ProcessSteps and SubProcessSteps both declare /Process.ProcessStep and
+    // therefore cannot carry them.
+    const instrumentationSystems = this.buildInstrumentationSystemActivities();
+    if (instrumentationSystems.length > 0) {
+      if (!processModelObject.Components) {
+        processModelObject.Components = [];
+      }
+      const instrumentationComponent = {
+        '$': { 'property': 'InstrumentationSystemActivities' },
+        'Object': instrumentationSystems,
+      };
+      if (Array.isArray(processModelObject.Components)) {
+        processModelObject.Components.push(instrumentationComponent);
+      } else {
+        processModelObject.Components = [processModelObject.Components, instrumentationComponent];
+      }
+    }
+
     // Build the full Model structure following DEXPI 2.0.0 specification.
     // Model/@name and Model/@uri are XSD-required. `name` must match
     // [A-Za-z_][A-Za-z_0-9]* (the DEXPI XSD `name` simple type); `uri` is
@@ -2059,11 +2089,69 @@ export class BpmnToDexpiTransformer {
     // Only build top-level process steps (those without parents)
     this.processSteps.forEach((step) => {
       if (step.parentId) return; // Skip child process steps, they'll be added as SubProcessSteps
-      
+      // Instrumentation activities are not ProcessSteps and never belong in
+      // a ProcessSteps composition, at any nesting level.
+      if (this.isInstrumentationStep(step)) return;
+
       steps.push(this.buildProcessStepObject(step));
     });
 
     return steps;
+  }
+
+  /**
+   * True when a step's DEXPI class descends from InstrumentationActivity
+   * (MeasuringProcessVariable, ControllingProcessVariable, and the rest).
+   * Resolved through the class registry, so profile-declared instrumentation
+   * subclasses are recognised too.
+   */
+  private isInstrumentationStep(step: InternalProcessStep): boolean {
+    const bare = step.type?.startsWith('Process.') ? step.type.slice('Process.'.length) : step.type;
+    return !!bare && this.registry.hasAncestor(bare, 'InstrumentationActivity');
+  }
+
+  /**
+   * Every InstrumentationActivity in the model, wrapped in the single
+   * InstrumentationSystemActivity that DEXPI requires as their owner:
+   *
+   *   ProcessModel.InstrumentationSystemActivities
+   *     └── InstrumentationSystemActivity.InstrumentationActivities
+   *           └── MeasuringProcessVariable / ControllingProcessVariable
+   *
+   * One wrapper is emitted for the whole model. The BPMN source expresses no
+   * grouping of instrumentation into separate systems, and inventing one
+   * would assert a structure the author never stated; a single system
+   * activity is the honest representation of "these all belong to this
+   * model". Identifier, Label and Description are all lower=1 on
+   * InstrumentationSystemActivity, so each is emitted.
+   */
+  private buildInstrumentationSystemActivities(): Record<string, unknown>[] {
+    const activities: Record<string, unknown>[] = [];
+    this.processSteps.forEach((step) => {
+      if (this.isInstrumentationStep(step)) {
+        activities.push(this.buildProcessStepObject(step));
+      }
+    });
+    if (activities.length === 0) return [];
+
+    const label = 'Instrumentation';
+    return [{
+      '$': {
+        // Exactly one wrapper per model, so a stable literal id is both
+        // unique and deterministic — no need to burn a random uid on it.
+        'id': this.sanitizeId('InstrumentationSystem'),
+        'type': 'Process/Process.InstrumentationSystemActivity',
+      },
+      'Data': [
+        { '$': { 'property': 'Identifier' }, 'String': label },
+        { '$': { 'property': 'Label' }, 'String': label },
+        this.buildTextData('InstrumentationSystemActivity', 'Description', label),
+      ],
+      'Components': [{
+        '$': { 'property': 'InstrumentationActivities' },
+        'Object': activities,
+      }],
+    }];
   }
 
   private buildProcessStepObject(step: InternalProcessStep): Record<string, unknown> {
@@ -2154,10 +2242,9 @@ export class BpmnToDexpiTransformer {
           if (!Array.isArray(dexpiStep.Data)) {
             dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
           }
-          (dexpiStep.Data as Record<string, unknown>[]).push({
-            '$': { 'property': 'Description' },
-            'String': step.name,
-          });
+          (dexpiStep.Data as Record<string, unknown>[]).push(
+            this.buildTextData(bareStepType, 'Description', step.name),
+          );
         }
         // Both ProcessStepReference and MeasuredVariableReference express the
         // canonical-on-ProcessStep linkage from each InstrumentationActivity
@@ -2357,9 +2444,18 @@ export class BpmnToDexpiTransformer {
         
         step.subProcessSteps.forEach((childId: string) => {
           const childStep = this.processSteps.get(childId);
-          if (childStep) {
-            subProcessObjects.push(this.buildProcessStepObject(childStep));
-          }
+          if (!childStep) return;
+          // SubProcessSteps declares ClassReference type="/Process.ProcessStep".
+          // InstrumentationActivity descends from Core/ConceptualObject, not
+          // from ProcessStep, so nesting a measuring or controlling activity
+          // here is a target-class violation: a strict consumer rejects the
+          // activity and, with it, the parent step that contains it. These
+          // are collected instead into the model-level
+          // InstrumentationSystemActivities composition (see
+          // buildInstrumentationSystemActivities); the link back to the step
+          // they observe is already carried by ProcessStepReference.
+          if (this.isInstrumentationStep(childStep)) return;
+          subProcessObjects.push(this.buildProcessStepObject(childStep));
         });
         
         if (subProcessObjects.length > 0) {
@@ -2884,12 +2980,9 @@ export class BpmnToDexpiTransformer {
 
       // Add Description if present
       if (template.description) {
-        (dexpiTemplate.Data as Record<string, unknown>[]).push({
-          '$': {
-            'property': 'Description'
-          },
-          'String': template.description
-        });
+        (dexpiTemplate.Data as Record<string, unknown>[]).push(
+          this.buildTextData('MaterialTemplate', 'Description', template.description),
+        );
       }
 
       // Add NumberOfMaterialComponents if present
@@ -2958,10 +3051,21 @@ export class BpmnToDexpiTransformer {
     const components: Record<string, unknown>[] = [];
 
     this.materialComponents.forEach((component) => {
+      // MaterialComponent is an AbstractClass in Process.xml, so it cannot be
+      // instantiated. Its concrete subclasses are PureMaterialComponent (a
+      // single chemical species, carrying ChEBI/IUPAC identifiers) and
+      // CustomMaterialComponent (a project-defined component, which is also
+      // where the standard declares ProjectReference). Anything not marked
+      // pure is a custom component: that is what the class is for, and it is
+      // the only concrete choice that accepts the authored data.
+      const componentClassName =
+        component.xsiType === 'PureMaterialComponent'
+          ? 'PureMaterialComponent'
+          : 'CustomMaterialComponent';
       const dexpiComponent: Record<string, unknown> = {
         '$': {
           'id': this.sanitizeId(component.uid),
-          'type': component.xsiType === 'PureMaterialComponent' ? 'Process/Process.PureMaterialComponent' : 'Process/Process.MaterialComponent'
+          'type': `Process/Process.${componentClassName}`
         },
         'Data': [
           {
@@ -2985,12 +3089,9 @@ export class BpmnToDexpiTransformer {
 
       // Add Description if present
       if (component.description) {
-        (dexpiComponent.Data as Record<string, unknown>[]).push({
-          '$': {
-            'property': 'Description'
-          },
-          'String': component.description
-        });
+        (dexpiComponent.Data as Record<string, unknown>[]).push(
+          this.buildTextData(componentClassName, 'Description', component.description),
+        );
       }
 
       // Add ChEBI_identifier if present
@@ -3091,12 +3192,9 @@ export class BpmnToDexpiTransformer {
       // (the type isn't a UnionDataType admitting Undefined here).
       const descriptionValue = state.description || state.label || state.identifier;
       if (descriptionValue) {
-        (dexpiState.Data as Record<string, unknown>[]).push({
-          '$': {
-            'property': 'Description'
-          },
-          'String': descriptionValue
-        });
+        (dexpiState.Data as Record<string, unknown>[]).push(
+          this.buildTextData('MaterialState', 'Description', descriptionValue),
+        );
       }
 
       // Add State reference to MaterialStateType
@@ -3149,12 +3247,9 @@ export class BpmnToDexpiTransformer {
 
       // Add Description if present
       if (stateType.description) {
-        (dexpiStateType.Data as Record<string, unknown>[]).push({
-          '$': {
-            'property': 'Description'
-          },
-          'String': stateType.description
-        });
+        (dexpiStateType.Data as Record<string, unknown>[]).push(
+          this.buildTextData('MaterialStateType', 'Description', stateType.description),
+        );
       }
 
       // (No MaterialTemplateReference here — Process.xml declares that
@@ -3174,6 +3269,17 @@ export class BpmnToDexpiTransformer {
           dexpiStateType.Components = [];
         }
         for (const s of stateType.flow.scalars) {
+          // Scalars the model declares on Composition are emitted there
+          // instead — but only when this state type actually has a
+          // Composition object to carry them; with no composition present
+          // there is nowhere canonical to put them, so they stay here and
+          // the strict validator reports them as it did before.
+          if (
+            this.flowScalarOwner(s.property) === 'Composition' &&
+            stateType.flow?.composition
+          ) {
+            continue;
+          }
           (dexpiStateType.Components as Record<string, unknown>[]).push({
             '$': { 'property': s.property },
             'Object': [{
@@ -3238,6 +3344,30 @@ export class BpmnToDexpiTransformer {
    * MaterialStateType's `<References property="Composition" objects="#...">`
    * resolves locally.
    */
+  /**
+   * Decide which class owns an authored flow scalar.
+   *
+   * The BPMN side authors flow scalars against a MaterialStateType, but the
+   * information model splits them: MaterialStateType declares MassFlow,
+   * VolumeFlow, Density, Viscosity and SpecificEnthalpy, while Composition
+   * declares MassFlow and MoleFlow. MoleFlow has always been a Composition
+   * property in DEXPI 2.0 — emitting it on MaterialStateType made it an
+   * extension that no standard consumer could read.
+   *
+   * Resolution is by declaration, not by name: MaterialStateType wins when it
+   * declares the property, Composition takes what is left over that it
+   * declares, and anything neither declares stays on MaterialStateType as
+   * before, where the strict validator reports it and the Profile generator
+   * can close it.
+   */
+  private flowScalarOwner(property: string): 'MaterialStateType' | 'Composition' {
+    const declaredOn = (className: string) =>
+      this.registry.getProperties(className).some(prop => prop.name === property);
+    if (declaredOn('MaterialStateType')) return 'MaterialStateType';
+    if (declaredOn('Composition')) return 'Composition';
+    return 'MaterialStateType';
+  }
+
   private buildCompositions(): Record<string, unknown>[] {
     const out: Record<string, unknown>[] = [];
     this.materialStateTypes.forEach((stateType) => {
@@ -3289,6 +3419,34 @@ export class BpmnToDexpiTransformer {
           }],
         };
         compositionObj.Components = [fractionsComponents];
+      }
+
+      // Flow scalars the model declares on Composition rather than on
+      // MaterialStateType (MoleFlow, and MassFlow when expressed per
+      // composition basis). Authored once on the BPMN side; routed here so
+      // they land on the class that actually declares them.
+      const compositionScalars = (stateType.flow.scalars ?? []).filter(
+        sc => this.flowScalarOwner(sc.property) === 'Composition',
+      );
+      if (compositionScalars.length > 0) {
+        if (!Array.isArray(compositionObj.Components)) {
+          compositionObj.Components = [];
+        }
+        for (const sc of compositionScalars) {
+          (compositionObj.Components as Record<string, unknown>[]).push({
+            '$': { 'property': sc.property },
+            'Object': [{
+              '$': { 'type': 'Core/QualifiedValue' },
+              'Data': this.buildQualifiedValueData({
+                className: 'Composition',
+                property: sc.property,
+                value: sc.value,
+                unit: sc.unit,
+                unitEnum: sc.unitEnum,
+              }),
+            }],
+          });
+        }
       }
 
       out.push(compositionObj);
@@ -3518,6 +3676,65 @@ export class BpmnToDexpiTransformer {
    * `className` is the class the QualifiedValue is composed under; it is how
    * the PhysicalQuantity unit binding for `property` is found in the schema.
    */
+  /**
+   * Build the `<Data property="…">` payload for a text-valued property,
+   * shaped to whatever data type the information model declares for it.
+   *
+   * DEXPI types `Description` as `Core/DataTypes.MultiLanguageString` on
+   * nine Process classes, and as a plain `Builtin/String` on MaterialState
+   * alone (unchanged in 2.0.1 beta 2 — an inconsistency in the standard,
+   * not in this emitter). Asking the registry for the declared type rather
+   * than hardcoding that split keeps both spellings correct today, and
+   * follows the model automatically if DEXPI harmonises it later.
+   *
+   * The aggregated shape matches the DEXPI reference examples:
+   *
+   *   <Data property="Description">
+   *     <AggregatedDataValue type="Core/DataTypes.MultiLanguageString">
+   *       <Data property="SingleLanguageStrings">
+   *         <AggregatedDataValue type="Core/DataTypes.SingleLanguageString">
+   *           <Data property="Language"><String>en</String></Data>
+   *           <Data property="Value"><String>…</String></Data>
+   *         </AggregatedDataValue>
+   *       </Data>
+   *     </AggregatedDataValue>
+   *   </Data>
+   *
+   * An unknown class or property falls back to the plain string form: that
+   * is the pre-existing behaviour, and a wrong guess at an aggregate shape
+   * would be harder for a consumer to recover from than a flat value.
+   */
+  private buildTextData(
+    className: string,
+    propertyName: string,
+    text: string,
+  ): Record<string, unknown> {
+    const declared = this.registry
+      .getProperties(className)
+      .find(prop => prop.name === propertyName)?.targetType;
+
+    if (declared !== MULTI_LANGUAGE_STRING) {
+      return { '$': { 'property': propertyName }, 'String': text };
+    }
+
+    return {
+      '$': { 'property': propertyName },
+      'AggregatedDataValue': {
+        '$': { 'type': MULTI_LANGUAGE_STRING },
+        'Data': {
+          '$': { 'property': 'SingleLanguageStrings' },
+          'AggregatedDataValue': {
+            '$': { 'type': SINGLE_LANGUAGE_STRING },
+            'Data': [
+              { '$': { 'property': 'Language' }, 'String': DEFAULT_LANGUAGE },
+              { '$': { 'property': 'Value' }, 'String': text },
+            ],
+          },
+        },
+      },
+    };
+  }
+
   private buildQualifiedValueData(opts: {
     className: string;
     property: string;

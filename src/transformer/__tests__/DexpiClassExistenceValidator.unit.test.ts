@@ -34,6 +34,29 @@ const REGISTRY = DexpiProcessClassRegistry.fromXmlSources([
 ]);
 
 describe('Tier 6: class-existence validator', () => {
+  it('flags an Object that instantiates an abstract class', () => {
+    // MaterialComponent is an AbstractClass in Process.xml; its concrete
+    // subclasses are CustomMaterialComponent and PureMaterialComponent. An
+    // abstract type has no instantiable form, so a consumer building typed
+    // instances cannot construct it — reported here rather than passing as
+    // "the class exists".
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="mc1" type="Process/Process.MaterialComponent"/>
+    </Model>`;
+    const failures = validateEmittedDexpiClassExistence(xml, 'unit', REGISTRY);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].className).toBe('MaterialComponent');
+    expect(failures[0].context).toMatch(/abstract/);
+  });
+
+  it('accepts the concrete subclasses of an abstract class', () => {
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="mc1" type="Process/Process.CustomMaterialComponent"/>
+      <Object id="mc2" type="Process/Process.PureMaterialComponent"/>
+    </Model>`;
+    expect(validateEmittedDexpiClassExistence(xml, 'unit', REGISTRY)).toHaveLength(0);
+  });
+
   it('flags an Object whose declared type is unknown to the registry', () => {
     const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
       <Object id="o1" type="Process/Process.NotARealClass"/>

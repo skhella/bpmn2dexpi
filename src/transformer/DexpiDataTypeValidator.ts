@@ -19,6 +19,8 @@
  *   - Builtin/String     → always valid (any text)
  *   - Builtin/Undefined  → always valid (placeholder for unknown union members)
  *   - Enumeration ref    → value ∈ literal names from registry.getEnumerationLiterals
+ *   - AggregatedDataType → must be carried as an <AggregatedDataValue>, not
+ *                          as a primitive value element (shape check only)
  *   - Other class refs   → not validated here (out of scope: target-class checking)
  *
  * The XSD does not perform these checks because `<Data>` content is a
@@ -229,6 +231,58 @@ export function validateEmittedDexpiDataTypes(
         context: `<Data property="${propName}">${value}</Data> inside <${carrier.tagName} type="${typeAttr}"> — declared ${declaredType}`,
       });
     }
+  }
+
+  // ── 1b. Aggregated data-type shape ──────────────────────────────────────
+  // A property declared as an AggregatedDataType (MultiLanguageString,
+  // PhysicalQuantity, ...) must carry an <AggregatedDataValue>, not a
+  // primitive. Pass 1 cannot see this: it validates the *text* of a value
+  // against Builtin and Enumeration types and skips everything else, so a
+  // <Data property="Description"><String>Water</String></Data> where the
+  // model declares MultiLanguageString was reported as clean while a strict
+  // consumer rejects the value — and with it the object carrying it.
+  const PRIMITIVE_VALUE_TAGS = new Set([
+    'String', 'Double', 'Integer', 'Boolean', 'DateTime',
+  ]);
+  for (const el of dataElements) {
+    const propName = el.getAttribute('property');
+    if (!propName) continue;
+
+    const carrier = nearestEnclosingTypedCarrier(el);
+    const typeAttr = carrier?.getAttribute('type');
+    if (!carrier || !typeAttr) continue;
+
+    const className = bareClassName(typeAttr);
+    if (!registry.isValidClass(className)) continue;
+
+    const declaredType = registry
+      .getProperties(className)
+      .find(prop => prop.name === propName)?.targetType;
+    // No declared type, or a primitive one, or an enumeration (carried as a
+    // <DataReference>): all outside this check.
+    if (!declaredType) continue;
+    if (declaredType.startsWith('Builtin/')) continue;
+    const declaredBare = bareClassName(declaredType);
+    if (!registry.isValidClass(declaredBare)) continue;
+    if (registry.getEnumerationLiterals(declaredBare)) continue;
+
+    const primitiveChild = Array.from(el.childNodes).find(
+      node => PRIMITIVE_VALUE_TAGS.has((node as Element).nodeName),
+    ) as Element | undefined;
+    if (!primitiveChild) continue; // aggregated, referenced, or Undefined — fine
+
+    const value = (el.textContent ?? '').trim();
+    failures.push({
+      source,
+      className,
+      propertyName: propName,
+      declaredType,
+      actualValue: value,
+      context: `<Data property="${propName}"><${primitiveChild.nodeName}>${value}` +
+        `</${primitiveChild.nodeName}></Data> inside <${carrier.tagName} type="${typeAttr}"> — ` +
+        `declared ${declaredType}, which must be carried as ` +
+        `<AggregatedDataValue type="${declaredType}">`,
+    });
   }
 
   // ── 2. Enumeration DataReference target resolution (D9) ──────────────────

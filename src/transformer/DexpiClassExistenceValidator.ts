@@ -2,7 +2,8 @@
  * DexpiClassExistenceValidator
  *
  * Tier-6 validation: every emitted <Object type="..."> resolves to a class
- * known to the active DEXPI registry (Process + Core + any loaded Profiles).
+ * known to the active DEXPI registry (Process + Core + any loaded Profiles),
+ * and that class is concrete — an abstract class cannot be instantiated.
  *
  * After the resolveStepType fallback chain ('dexpi-validated' → 'custom-supertype'
  * → 'unvalidated') a clean transformer run cannot emit an unknown class:
@@ -73,17 +74,35 @@ export function validateEmittedDexpiClassExistence(
     const typeRef = obj.getAttribute('type');
     if (!typeRef) continue;
     const className = bareClassName(typeRef);
-    if (registry.isValidClass(className)) continue;
-
     const objectId = obj.getAttribute('id') ?? '(no id)';
-    failures.push({
-      source,
-      className,
-      typeRef,
-      objectId,
-      context: `<Object id="${objectId}" type="${typeRef}"> references class "${className}" ` +
-        `which is not declared in the active DEXPI registry (Process + Core + loaded Profiles).`,
-    });
+
+    if (!registry.isValidClass(className)) {
+      failures.push({
+        source,
+        className,
+        typeRef,
+        objectId,
+        context: `<Object id="${objectId}" type="${typeRef}"> references class "${className}" ` +
+          `which is not declared in the active DEXPI registry (Process + Core + loaded Profiles).`,
+      });
+      continue;
+    }
+
+    // A declared class is not necessarily an instantiable one. AbstractClass
+    // declarations (MaterialComponent, InstrumentationActivity, ...) exist to
+    // be subclassed; an <Object> typed by one has no concrete class, so a
+    // consumer building typed instances cannot construct it. Existence alone
+    // never caught this, which is how MaterialComponent objects shipped.
+    if (!registry.isConcreteClass(className)) {
+      failures.push({
+        source,
+        className,
+        typeRef,
+        objectId,
+        context: `<Object id="${objectId}" type="${typeRef}"> instantiates "${className}", ` +
+          `which the DEXPI model declares abstract. Use one of its concrete subclasses.`,
+      });
+    }
   }
 
   return failures;
