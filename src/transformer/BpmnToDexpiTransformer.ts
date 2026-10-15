@@ -474,6 +474,7 @@ export class BpmnToDexpiTransformer {
       customSuperType: typing.customSuperType,
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
+      description: this.getDocumentation(task),
       hierarchyLevel: dexpiData?.hierarchyLevel,
       ports: dexpiData?.ports || [],
       attributes: dexpiData?.attributes || [],
@@ -584,6 +585,7 @@ export class BpmnToDexpiTransformer {
       type: 'Source',
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
+      description: this.getDocumentation(event),
       ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
         ...port,
         portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
@@ -626,6 +628,7 @@ export class BpmnToDexpiTransformer {
       type: 'Sink',
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
+      description: this.getDocumentation(event),
       ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
         ...port,
         portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
@@ -1371,6 +1374,21 @@ export class BpmnToDexpiTransformer {
       }
     }
     return false;
+  }
+
+  /**
+   * Text of a BPMN element's own <bpmn:documentation> child (first
+   * non-empty one; BaseElement allows several). This is the BPMN-native
+   * carrier for ProcessStep.Description — see InternalProcessStep.description.
+   */
+  private getDocumentation(element: Element): string | undefined {
+    for (const c of Array.from(element.children) as Element[]) {
+      const local = c.localName || c.tagName.split(':').pop() || '';
+      if (local.toLowerCase() !== 'documentation') continue;
+      const text = (c.textContent ?? '').trim();
+      if (text) return text;
+    }
+    return undefined;
   }
 
   /**
@@ -2230,20 +2248,22 @@ export class BpmnToDexpiTransformer {
         this.registry.size > 0 &&
         bareStepType !== undefined &&
         this.registry.hasAncestor(bareStepType, 'InstrumentationActivity');
+      if (!Array.isArray(dexpiStep.Data)) {
+        dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
+      }
       if (isInstrumentationActivity) {
         // InstrumentationActivity declares Description (lower=1) on its
-        // abstract supertype. The BPMN-side `name` is the human-facing
-        // label of this activity in the diagram — exactly what
-        // Description's spec text describes ("a description"). Use it as
-        // the Description value; this is reading an established equivalence
-        // (label ↔ description on the same entity), not a name-similarity
-        // guess.
-        if (step.name) {
-          if (!Array.isArray(dexpiStep.Data)) {
-            dexpiStep.Data = [dexpiStep.Data as Record<string, unknown>];
-          }
+        // abstract supertype. An authored <bpmn:documentation> is the
+        // description proper; without one, the BPMN-side `name` — the
+        // human-facing label of this activity in the diagram — is exactly
+        // what Description's spec text describes ("a description"), so it
+        // keeps the lower=1 guarantee. This is reading an established
+        // equivalence (label ↔ description on the same entity), not a
+        // name-similarity guess.
+        const descriptionValue = step.description || step.name;
+        if (descriptionValue) {
           (dexpiStep.Data as Record<string, unknown>[]).push(
-            this.buildTextData(bareStepType, 'Description', step.name),
+            this.buildTextData(bareStepType, 'Description', descriptionValue),
           );
         }
         // Both ProcessStepReference and MeasuredVariableReference express the
@@ -2297,6 +2317,16 @@ export class BpmnToDexpiTransformer {
       }
 
       // Ports composition for non-instrumentation steps.
+      if (!isInstrumentationActivity && step.description) {
+        // ProcessStep.Description (lower=0) from <bpmn:documentation>.
+        // buildTextData shapes it as the MultiLanguageString aggregate
+        // Process.xml declares for every ProcessStep subclass (plain
+        // String only when the class is unknown to the registry).
+        (dexpiStep.Data as Record<string, unknown>[]).push(
+          this.buildTextData(bareStepType || 'ProcessStep', 'Description', step.description),
+        );
+      }
+
       if (!isInstrumentationActivity && step.ports && step.ports.length > 0) {
         const portObjects: Record<string, unknown>[] = [];
         
@@ -2499,6 +2529,17 @@ export class BpmnToDexpiTransformer {
       if (step.attributes && step.attributes.length > 0) {
         step.attributes.forEach((attr) => {
           if (!attr.name || !attr.value) return;
+          // Description is upper=1 and already emitted from
+          // <bpmn:documentation> (or from the name on instrumentation
+          // activities); a second <Data property="Description"> from the
+          // generic attribute editor would break that cardinality.
+          if (attr.name === 'Description' && (step.description || isInstrumentationActivity)) {
+            this.logger.warn(
+              `Step "${step.name}" (id=${step.id}): attribute "Description" ignored — ` +
+              `Description is emitted from the element's bpmn:documentation.`,
+            );
+            return;
+          }
 
           if (resolveAttrKind(attr) === 'composition') {
             // A step with ports already carries Components as a single

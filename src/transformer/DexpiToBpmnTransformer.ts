@@ -25,6 +25,15 @@ interface DexpiStep {
   dexpiType: string;      // e.g. "Pumping", "Source", "Sink"
   identifier: string;
   label: string;
+  /**
+   * ProcessStep.Description (Core/DataTypes.MultiLanguageString on every
+   * ProcessStep subclass, lower=0). Carried into BPMN as the element's
+   * native <bpmn:documentation> — the BaseElement slot BPMN 2.0 reserves for
+   * "descriptions and other documentation" — so it shows up in the standard
+   * Documentation group of the properties panel and round-trips through
+   * BpmnToDexpiTransformer, which reads it back from the same place.
+   */
+  description?: string;
   ports: DexpiPort[];
   /** Step-level qualified attributes (Components/Data on the Object). */
   attributes?: ParsedStreamAttribute[];
@@ -647,6 +656,9 @@ export class DexpiToBpmnTransformer {
     const dexpiType = fullType.replace('Process/Process.', '');
     const identifier = this.getDataString(obj, 'Identifier') || id;
     const label = this.getDataString(obj, 'Label') || dexpiType;
+    // getDataString unwraps both the plain <String> form and the canonical
+    // MultiLanguageString aggregate (first language's Value).
+    const description = this.getDataString(obj, 'Description') || undefined;
 
     const ports: DexpiPort[] = [];
     const portsContainer = this.findComponents(obj, 'Ports');
@@ -733,7 +745,7 @@ export class DexpiToBpmnTransformer {
     }
 
     return {
-      id, dexpiType, identifier, label, ports, parentId, children,
+      id, dexpiType, identifier, label, description, ports, parentId, children,
       attributes: attributes.length > 0 ? attributes : undefined,
       processStepRef: processStepRef || undefined,
       measuredVariable,
@@ -2900,11 +2912,22 @@ ${innerLines ? innerLines + '\n' : ''}${indent}  </dexpi:element>
 ${indent}</bpmn:extensionElements>`;
     };
 
+    const escDocText = (text: string) => text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
     const renderStep = (step: DexpiStep, indent: string): string => {
       const elId = bpmnId(step.id);
       const name = step.label !== step.dexpiType ? step.label : step.dexpiType;
       const childIndent = `${indent}  `;
-      const extEl = extensionXml(step, childIndent);
+      // ProcessStep.Description → <bpmn:documentation>. The BPMN 2.0 XSD
+      // orders tBaseElement's children documentation*, extensionElements?,
+      // so it has to precede the extension block (bpmn-moddle serialises
+      // in the same order).
+      const docEl = step.description
+        ? `${childIndent}<bpmn:documentation>${escDocText(step.description)}</bpmn:documentation>\n`
+        : '';
+      const extEl = docEl + extensionXml(step, childIndent);
       const inc = incoming.get(step.id)?.map(id => `${childIndent}<bpmn:incoming>${bpmnId(id)}</bpmn:incoming>`).join('\n') || '';
       const out = outgoing.get(step.id)?.map(id => `${childIndent}<bpmn:outgoing>${bpmnId(id)}</bpmn:outgoing>`).join('\n') || '';
       const flowRefs = [inc, out].filter(Boolean).join('\n');

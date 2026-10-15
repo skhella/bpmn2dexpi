@@ -16,6 +16,13 @@ export interface InternalProcessStep {
   customSuperType?: string;    // user-chosen DEXPI parent class for Custom-typed steps
   identifier: string;
   uid: string;
+  /**
+   * Text of the element's <bpmn:documentation>, exported as
+   * ProcessStep.Description (Core/DataTypes.MultiLanguageString). The native
+   * BPMN documentation slot is the counterpart of Label ↔ name: human-facing
+   * text lives in standard BPMN, identity/typing in the dexpi extension.
+   */
+  description?: string;
   hierarchyLevel?: string;
   ports: DexpiPort[];
   attributes: Array<{ name: string; value: string; unit?: string; scope?: string; range?: string; provenance?: string; qualifier?: string; nameUri?: string }>;

@@ -536,3 +536,131 @@ describe('Case-tolerant localName matches (bpmn-moddle round-trip)', () => {
     }
   });
 });
+
+describe('ProcessStep.Description from bpmn:documentation', () => {
+  /** Returns the Description <Data> child of the Object with the given id. */
+  function descriptionOf(out: string, objectId: string): Element | null {
+    const doc = new DOMParser().parseFromString(out, 'text/xml');
+    const obj = Array.from(doc.getElementsByTagName('Object')).find(o => o.getAttribute('id') === objectId);
+    if (!obj) return null;
+    return Array.from(obj.children).find(c =>
+      c.tagName === 'Data' && c.getAttribute('property') === 'Description') ?? null;
+  }
+
+  /** Text carried by a MultiLanguageString-shaped Description, or null. */
+  function multiLanguageText(data: Element | null): string | null {
+    const agg = data && Array.from(data.children).find(c =>
+      c.tagName === 'AggregatedDataValue' && c.getAttribute('type') === 'Core/DataTypes.MultiLanguageString');
+    const value = agg?.querySelector('Data[property="Value"] > String');
+    return value?.textContent ?? null;
+  }
+
+  it('emits documentation as a MultiLanguageString Description on an ordinary ProcessStep', async () => {
+    const xml = bpmn(`
+      <task id="T1" name="Pumping">
+        <documentation>Transfers feed &amp; recycle to the reactor</documentation>
+        <extensionElements>
+          <dexpi:element dexpiType="Pumping" identifier="T1" uid="uid-T1"/>
+        </extensionElements>
+      </task>
+      ${startEvent('SE1', 'Feed')}
+      ${endEvent('EE1', 'Product')}
+      ${seqFlow('F1', 'SE1', 'T1')}
+      ${seqFlow('F2', 'T1', 'EE1')}
+    `);
+    const out = await new BpmnToDexpiTransformer().transform(xml);
+
+    const description = descriptionOf(out, 'uid_T1');
+    expect(description).not.toBeNull();
+    expect(multiLanguageText(description)).toBe('Transfers feed & recycle to the reactor');
+    expect(description!.querySelector('Data[property="Language"] > String')?.textContent).toBe('en');
+    // Exactly one Description (upper=1), and no plain-String variant.
+    expect(Array.from(description!.children).map(c => c.tagName)).toEqual(['AggregatedDataValue']);
+  });
+
+  it('emits Description on Source and Sink events from their documentation', async () => {
+    const xml = bpmn(`
+      ${annotatedTask('T1', 'Mixing', 'Mixing')}
+      <startEvent id="SE1" name="Feed">
+        <documentation>Fresh feed from tank farm</documentation>
+        <extensionElements>
+          <dexpi:element dexpiType="Source" identifier="SE1" uid="uid-SE1"/>
+        </extensionElements>
+        <outgoing>F1</outgoing>
+      </startEvent>
+      <endEvent id="EE1" name="Product">
+        <documentation>To product storage</documentation>
+        <extensionElements>
+          <dexpi:element dexpiType="Sink" identifier="EE1" uid="uid-EE1"/>
+        </extensionElements>
+        <incoming>F2</incoming>
+      </endEvent>
+      ${seqFlow('F1', 'SE1', 'T1')}
+      ${seqFlow('F2', 'T1', 'EE1')}
+    `);
+    const out = await new BpmnToDexpiTransformer().transform(xml);
+    expect(multiLanguageText(descriptionOf(out, 'uid_SE1'))).toBe('Fresh feed from tank farm');
+    expect(multiLanguageText(descriptionOf(out, 'uid_EE1'))).toBe('To product storage');
+    expect(descriptionOf(out, 'uid_T1')).toBeNull();
+  });
+
+  it('emits no Description when the step has no documentation', async () => {
+    const xml = bpmn(`
+      ${annotatedTask('T1', 'Pumping', 'Pumping')}
+      ${startEvent('SE1', 'Feed')}
+      ${endEvent('EE1', 'Product')}
+      ${seqFlow('F1', 'SE1', 'T1')}
+      ${seqFlow('F2', 'T1', 'EE1')}
+    `);
+    const out = await new BpmnToDexpiTransformer().transform(xml);
+    expect(descriptionOf(out, 'uid_T1')).toBeNull();
+    expect(descriptionOf(out, 'uid_SE1')).toBeNull();
+  });
+
+  it('prefers documentation over the name for an InstrumentationActivity Description', async () => {
+    const xml = bpmn(`
+      ${annotatedTask('T1', 'Heating', 'Heating')}
+      <task id="M1" name="TI-101">
+        <documentation>Reactor outlet temperature indication</documentation>
+        <extensionElements>
+          <dexpi:element dexpiType="MeasuringProcessVariable" identifier="M1" uid="uid-M1"/>
+        </extensionElements>
+      </task>
+      ${startEvent('SE1', 'Feed')}
+      ${endEvent('EE1', 'Product')}
+      ${seqFlow('F1', 'SE1', 'T1')}
+      ${seqFlow('F2', 'T1', 'EE1')}
+    `);
+    const out = await new BpmnToDexpiTransformer().transform(xml);
+    const description = descriptionOf(out, 'uid_M1');
+    expect(multiLanguageText(description)).toBe('Reactor outlet temperature indication');
+    // The name still goes out as Label, but is no longer the Description.
+    expect(description!.textContent).not.toContain('TI-101');
+  });
+
+  it('drops a duplicate Description attribute in favour of documentation and warns', async () => {
+    const xml = bpmn(`
+      <task id="T1" name="Pumping">
+        <documentation>From documentation</documentation>
+        <extensionElements>
+          <dexpi:element dexpiType="Pumping" identifier="T1" uid="uid-T1">
+            <dexpi:data property="Description">From attribute editor</dexpi:data>
+          </dexpi:element>
+        </extensionElements>
+      </task>
+      ${startEvent('SE1', 'Feed')}
+      ${endEvent('EE1', 'Product')}
+      ${seqFlow('F1', 'SE1', 'T1')}
+      ${seqFlow('F2', 'T1', 'EE1')}
+    `);
+    const t = new BpmnToDexpiTransformer();
+    const out = await t.transform(xml);
+    const doc = new DOMParser().parseFromString(out, 'text/xml');
+    const obj = Array.from(doc.getElementsByTagName('Object')).find(o => o.getAttribute('id') === 'uid_T1')!;
+    const descriptions = Array.from(obj.children).filter(c =>
+      c.tagName === 'Data' && c.getAttribute('property') === 'Description');
+    expect(descriptions).toHaveLength(1);
+    expect(multiLanguageText(descriptions[0])).toBe('From documentation');
+    expect(t.logger.warnings.some(w => w.includes(`attribute "Description" ignored`))).toBe(true);
+  });
+});

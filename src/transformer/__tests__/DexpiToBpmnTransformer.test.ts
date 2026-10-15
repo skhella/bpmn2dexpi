@@ -880,7 +880,115 @@ ${step('MX1', 'Mixing', 'Mixer')}
     });
   });
 
+  describe('step Description → bpmn:documentation', () => {
+    // happy-dom has no namespace-aware lookup; the importer always writes
+    // the bpmn: prefix, so match on the qualified tag name.
+    const parse = (bpmn: string): Document => new DOMParser().parseFromString(bpmn, 'application/xml');
+    const elements = (doc: Document, localName: string): Element[] =>
+      Array.from(doc.getElementsByTagName(`bpmn:${localName}`));
+    const isDocumentation = (c: Element): boolean =>
+      c.tagName === 'bpmn:documentation' || c.localName === 'documentation';
+    const documentationOf = (el: Element | undefined): Element | null =>
+      (el && Array.from(el.children).find(isDocumentation)) || null;
+
+    const multiLanguageDescription = (text: string): string => `
+          <Data property="Description">
+            <AggregatedDataValue type="Core/DataTypes.MultiLanguageString">
+              <Data property="SingleLanguageStrings">
+                <AggregatedDataValue type="Core/DataTypes.SingleLanguageString">
+                  <Data property="Language"><String>en</String></Data>
+                  <Data property="Value"><String>${text}</String></Data>
+                </AggregatedDataValue>
+              </Data>
+            </AggregatedDataValue>
+          </Data>`;
+
+    const describedStep = (id: string, type: string, label: string, descriptionXml: string): string => `
+        <Object id="${id}" type="Process/Process.${type}">
+          <Data property="Identifier"><String>${id}</String></Data>
+          <Data property="Label"><String>${label}</String></Data>
+          ${descriptionXml}
+        </Object>`;
+
+    it('emits the canonical MultiLanguageString Description as <bpmn:documentation> before extensionElements', async () => {
+      const xml = dexpi(describedStep('S1', 'Pumping', 'Feed pump',
+        multiLanguageDescription('Transfers feed from storage to the reactor')));
+      const bpmn = await new DexpiToBpmnTransformer().transform(xml);
+      expectWellFormedXml(bpmn);
+
+      const task = elements(parse(bpmn), 'task')[0];
+      expect(task).toBeDefined();
+      const children = Array.from(task.children).map(c => c.tagName.replace(/^bpmn:/, ''));
+      expect(children[0]).toBe('documentation');
+      expect(children.indexOf('documentation')).toBeLessThan(children.indexOf('extensionElements'));
+      expect(task.children[0].textContent).toBe('Transfers feed from storage to the reactor');
+      // Not duplicated into the generic attribute carrier.
+      expect(bpmn).not.toContain('<dexpi:data property="Description">');
+    });
+
+    it('reads the plain <String> Description form too', async () => {
+      const xml = dexpi(describedStep('S1', 'Mixing', 'Mixer',
+        '<Data property="Description"><String>Blends A &amp; B</String></Data>'));
+      const bpmn = await new DexpiToBpmnTransformer().transform(xml);
+      expectWellFormedXml(bpmn);
+      expect(documentationOf(elements(parse(bpmn), 'task')[0])?.textContent).toBe('Blends A & B');
+    });
+
+    it('carries Description on Source / Sink events and subprocesses as well', async () => {
+      const xml = dexpi([
+        describedStep('SRC', 'Source', 'Feed', multiLanguageDescription('Raw feed entry')),
+        subProcessStep('SP', 'ProcessStep', 'Section', step('C1', 'Pumping', 'Inner pump'))
+          .replace('<Data property="Label"><String>Section</String></Data>',
+            '<Data property="Label"><String>Section</String></Data>' + multiLanguageDescription('Whole section')),
+        describedStep('SNK', 'Sink', 'Product', multiLanguageDescription('Product outlet')),
+      ].join('\n'));
+      const bpmn = await new DexpiToBpmnTransformer().transform(xml);
+      expectWellFormedXml(bpmn);
+      const doc = parse(bpmn);
+      expect(documentationOf(elements(doc, 'startEvent')[0])?.textContent).toBe('Raw feed entry');
+      expect(documentationOf(elements(doc, 'endEvent')[0])?.textContent).toBe('Product outlet');
+      expect(documentationOf(elements(doc, 'subProcess')[0])?.textContent).toBe('Whole section');
+      // Child without a Description gets no documentation element.
+      const inner = elements(doc, 'task').find(t => t.getAttribute('name') === 'Inner pump');
+      expect(inner).toBeDefined();
+      expect(documentationOf(inner)).toBeNull();
+    });
+
+    it('omits <bpmn:documentation> when the step has no Description', async () => {
+      const bpmn = await new DexpiToBpmnTransformer().transform(dexpi(step('S1', 'Pumping', 'Pump')));
+      expect(bpmn).not.toContain('<bpmn:documentation>');
+    });
+  });
+
   describe('round-trip', () => {
+    it('BPMN → DEXPI → BPMN keeps bpmn:documentation as ProcessStep.Description', async () => {
+      const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:dexpi="http://dexpi.org/bpmn-extension/1.0" id="D1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="P1">
+    <bpmn:startEvent id="SE1"><bpmn:documentation>Feed enters here</bpmn:documentation><bpmn:extensionElements><dexpi:element dexpiType="Source" identifier="SE1" uid="uid_SE1"/></bpmn:extensionElements><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="T1" name="Pumping"><bpmn:documentation>Pumps feed &amp; recycle</bpmn:documentation><bpmn:extensionElements><dexpi:element dexpiType="Pumping" identifier="T1" uid="uid_T1"><dexpi:port portId="T1_MI1" name="MI1" portType="MaterialPort" direction="Inlet"/><dexpi:port portId="T1_MO1" name="MO1" portType="MaterialPort" direction="Outlet"/></dexpi:element></bpmn:extensionElements><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F2</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="EE1"><bpmn:extensionElements><dexpi:element dexpiType="Sink" identifier="EE1" uid="uid_EE1"/></bpmn:extensionElements><bpmn:incoming>F2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="F1" sourceRef="SE1" targetRef="T1"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="T1" targetRef="EE1"/>
+  </bpmn:process>
+</bpmn:definitions>`;
+
+      const dexpiXml = await new BpmnToDexpiTransformer().transform(bpmn);
+      expect(dexpiXml).toContain('Pumps feed &amp; recycle');
+      const bpmn2 = await new DexpiToBpmnTransformer().transform(dexpiXml);
+      expectWellFormedXml(bpmn2);
+      const doc = new DOMParser().parseFromString(bpmn2, 'application/xml');
+      const docText = (localName: string): string | null => {
+        const el = doc.getElementsByTagName(`bpmn:${localName}`)[0];
+        const d = el && Array.from(el.children).find(c => c.tagName === 'bpmn:documentation');
+        return d ? d.textContent : null;
+      };
+      expect(docText('task')).toBe('Pumps feed & recycle');
+      expect(docText('startEvent')).toBe('Feed enters here');
+      expect(docText('endEvent')).toBeNull();
+    });
+
     it('BPMN → DEXPI → BPMN preserves step types and extensionElements', async () => {
       const bpmn = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"

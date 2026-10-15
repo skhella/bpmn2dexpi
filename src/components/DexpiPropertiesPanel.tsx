@@ -83,7 +83,10 @@ const CLASS_AUTO_EMITTED: Record<string, Set<string>> = {
   // "HierarchyLevel"> siblings on the same Object and violate DEXPI's
   // upper="1" cardinality. Inherited by every ProcessStep subclass via
   // the supertype walk in isAutoEmittedByTransformer.
-  ProcessStep: new Set(['HierarchyLevel']),
+  // Description is emitted from the element's native <bpmn:documentation>
+  // (edited in the standard Documentation group of the properties panel),
+  // so it is likewise kept out of the attribute editor.
+  ProcessStep: new Set(['HierarchyLevel', 'Description']),
   EngineeringModel: new Set([
     'ExportDateTime', 'OriginatingSystemName',
     'OriginatingSystemVendorName', 'OriginatingSystemVersion',
