@@ -44,6 +44,24 @@ describe('Tier 5: cardinality validator', () => {
     expect(valueFailure!.actualCount).toBe(0);
   });
 
+  it('reports every Object separately when several share an id', () => {
+    // Third-party exports (e.g. the Semantum Tennessee Eastman file) reuse
+    // ids across Objects. The validator iterates Object elements, not unique
+    // ids, so each offending Object yields its own failure.
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="QualifiedValue1" type="Core/QualifiedValue">
+        <Data property="Unit"><String>kg/h</String></Data>
+      </Object>
+      <Object id="QualifiedValue1" type="Core/QualifiedValue">
+        <Data property="Unit"><String>kg/h</String></Data>
+      </Object>
+    </Model>`;
+    const failures = validateEmittedDexpiCardinality(xml, 'unit', REGISTRY);
+    const valueFailures = failures.filter(f => f.propertyName === 'Value');
+    expect(valueFailures).toHaveLength(2);
+    expect(valueFailures.every(f => f.objectId === 'QualifiedValue1')).toBe(true);
+  });
+
   it('flags exceeds-upper (upper=1, observed=2)', () => {
     // Identifier on most classes has upper=1. Two <Data property="Identifier"/>
     // on the same Object should be flagged.
