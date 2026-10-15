@@ -97,7 +97,15 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(countTypeAttr('MaterialStateType')).toBe(12);
     expect(countTypeAttr('Composition')).toBe(12);
     expect(countTypeAttr('MaterialTemplate')).toBeGreaterThanOrEqual(1);
-    expect(countTypeAttr('MaterialComponent')).toBeGreaterThanOrEqual(8);
+    // Material components are emitted as concrete subclasses. Process.xml
+    // declares MaterialComponent as an AbstractClass, so an <Object> typed by
+    // it cannot be instantiated by a consumer building typed instances; the
+    // concrete choices are CustomMaterialComponent (which is also where the
+    // standard declares ProjectReference) and PureMaterialComponent.
+    expect(
+      countTypeAttr('CustomMaterialComponent') + countTypeAttr('PureMaterialComponent'),
+    ).toBeGreaterThanOrEqual(8);
+    expect(countTypeAttr('MaterialComponent')).toBe(0);
   });
 
   // Composition's per-component fractions: Process.xml declares

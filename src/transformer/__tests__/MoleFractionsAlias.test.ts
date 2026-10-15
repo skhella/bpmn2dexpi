@@ -122,11 +122,18 @@ describe('MoleFractions read-alias (listing input round-trips)', () => {
     expect(out).toMatch(/property="MoleFractiona"/);
     expect(out).not.toMatch(/property="MoleFractions"/);
 
-    // The fractions carrier resolves as a declared property — the only
-    // property-name finding from this input is the MoleFlow vocabulary gap.
+    // Both carriers resolve as declared properties, so this input produces no
+    // property-name findings at all. MoleFlow is authored against the
+    // MaterialStateType but declared on Composition, and is emitted there —
+    // it used to be reported as a MaterialStateType vocabulary gap, which was
+    // the emitter putting it on the wrong class rather than a gap in DEXPI.
     const propErrors = t.lastPropertyNameValidation!.errors;
-    expect(propErrors.some(e => e.includes('MaterialStateType.MoleFlow'))).toBe(true);
+    expect(propErrors.some(e => e.includes('MaterialStateType.MoleFlow'))).toBe(false);
     expect(propErrors.some(e => e.includes('MoleFraction'))).toBe(false);
+    // Emitted under Composition, which is where Process.xml declares MoleFlow.
+    expect(out).toMatch(
+      /<Object[^>]*type="Process\/Process\.Composition"[\s\S]*?property="MoleFlow"/,
+    );
 
     // The authored token `Fraction` is not a PercentageUnit literal; the
     // schema-bound carrier emits it as a qualified DataReference so the
