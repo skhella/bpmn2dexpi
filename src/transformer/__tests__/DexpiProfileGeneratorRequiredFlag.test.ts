@@ -200,11 +200,13 @@ describe('Profile generator — required-flag on streams', () => {
       required: true,
     });
     const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
-    expect(result.xml).toContain('<ConcreteClass name="ThermalEnergyFlow"');
-    // Match: the ThermalEnergyFlow ConcreteClass must contain a MyHeatProp DataProperty
+    // ThermalEnergyFlow is a standard class, so the custom property lands in a
+    // ClassExtension on it (never a re-declaration).
+    expect(result.xml).toContain('<ClassExtension name="ThermalEnergyFlowExtension" baseType="Process/Process.ThermalEnergyFlow">');
+    // Match: the extension must contain a MyHeatProp DataProperty
     // declared with lower="1" (rather than lower="0" as for non-required custom props).
-    const match = result.xml.match(/<ConcreteClass name="ThermalEnergyFlow"[\s\S]*?<\/ConcreteClass>/);
-    expect(match, 'expected a ThermalEnergyFlow ConcreteClass block').toBeTruthy();
+    const match = result.xml.match(/<ClassExtension name="ThermalEnergyFlowExtension"[\s\S]*?<\/ClassExtension>/);
+    expect(match, 'expected a ThermalEnergyFlow ClassExtension block').toBeTruthy();
     expect(match![0]).toMatch(/name="MyHeatProp"\s+lower="1"/);
   });
 
@@ -309,11 +311,11 @@ describe('Profile generator — required-flag on ports (#38 follow-up)', () => {
   </process>
 </definitions>`;
     const result = generateProfileFromDexpiXml(dexpi, REGISTRY, { bpmnXml: bpmn });
-    // The narrowed declaration should land on a MaterialPort ConcreteClass
+    // The narrowed declaration should land on a MaterialPort ClassExtension
     // (per-class scope), not on the wrapping Compressing class.
-    expect(result.xml).toMatch(/<ConcreteClass\s+name="MaterialPort"/);
-    const matMatch = result.xml.match(/<ConcreteClass[^>]*name="MaterialPort"[\s\S]*?<\/ConcreteClass>/);
-    expect(matMatch, 'expected a MaterialPort ConcreteClass block').toBeDefined();
+    expect(result.xml).toMatch(/<ClassExtension\s+name="MaterialPortExtension"/);
+    const matMatch = result.xml.match(/<ClassExtension[^>]*name="MaterialPortExtension"[\s\S]*?<\/ClassExtension>/);
+    expect(matMatch, 'expected a MaterialPort ClassExtension block').toBeDefined();
     expect(matMatch![0]).toMatch(/name="MyPortRate"\s+lower="1"/);
   });
 

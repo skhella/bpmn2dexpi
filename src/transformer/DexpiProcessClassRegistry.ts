@@ -108,6 +108,32 @@ export interface DexpiClassInfo {
   properties: DexpiProperty[];
   /** Source file label that contributed this class (for conflict diagnostics). */
   sourceFile: string;
+  /**
+   * Name of the enclosing <Package>, when the class is declared inside one
+   * (e.g. 'Process' for Process.Pumping, 'Diagram' for Core.Diagram.Shape).
+   * Undefined for top-level declarations such as Core/ConceptualObject or
+   * Process/ProcessModel. Lets a generated profile reference the class
+   * exactly as the serialisation grammar requires: `Model/Package.Class`.
+   */
+  packageName?: string;
+}
+
+/**
+ * A `<ClassExtension name="…" baseType="…">` declaration: the mechanism the
+ * "Profiles for DEXPI" working draft (and the DISC profile, its reference
+ * case) uses to inject properties into an existing class without
+ * re-declaring it. Applied after every source has been parsed, so an
+ * extension may precede or follow the class it extends.
+ */
+interface ParsedClassExtension {
+  /** The extension's own name (e.g. 'CustomMaterialComponentExtension'). */
+  name: string;
+  /** Bare name of the class being extended, resolved from baseType. */
+  baseClass: string;
+  /** The raw baseType reference, for diagnostics. */
+  baseRef: string;
+  properties: DexpiProperty[];
+  sourceFile: string;
 }
 
 interface SchemaSource {
@@ -121,6 +147,17 @@ interface SchemaSource {
 }
 
 const PROCESS_SCHEMA_FILENAME = 'Process.xml';
+
+/**
+ * Appended to every same-name additive merge warning. Re-declaring a
+ * standard class to add properties predates the "Profiles for DEXPI"
+ * working draft; the official models never redeclare a class, so the merge
+ * has no defined semantics outside this tool. Existing profile files keep
+ * loading, but authors are pointed at the sanctioned mechanism.
+ */
+const SAME_NAME_MERGE_DEPRECATION =
+  ' (deprecated: re-declaring an existing class is not a DEXPI profile mechanism; ' +
+  'use <ClassExtension name="…Extension" baseType="…"> to add properties)';
 const CORE_SCHEMA_FILENAME = 'Core.xml';
 
 export class DexpiProcessClassRegistry {
@@ -211,9 +248,11 @@ export class DexpiProcessClassRegistry {
     const mergeWarnings: string[] = [];
 
     const conflicts: string[] = [];
+    const pendingExtensions: ParsedClassExtension[] = [];
 
     for (const source of sources) {
-      const { classes: parsed, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml(source);
+      const { classes: parsed, extensions, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml(source);
+      pendingExtensions.push(...extensions);
       // Merge enumerations ADDITIVELY, mirroring the class merge below: a later
       // source (e.g. a generated Profile) declaring an enumeration of the same
       // name EXTENDS it — new literals union in — rather than shadowing it. This
@@ -294,13 +333,20 @@ export class DexpiProcessClassRegistry {
             }
           }
           mergeWarnings.push(
-            `Class "${cls.name}" from "${cls.sourceFile}" merged into prior declaration from "${existing.sourceFile}"`
+            `Class "${cls.name}" from "${cls.sourceFile}" merged into prior declaration from "${existing.sourceFile}"` +
+            SAME_NAME_MERGE_DEPRECATION
           );
           continue;
         }
         classes.set(cls.name, cls);
       }
     }
+
+    // ClassExtension is the draft's sanctioned injection mechanism, so it
+    // merges silently (no warning). Applied after all sources so the base
+    // class may come from any of them.
+    const missing: string[] = [];
+    applyClassExtensions(classes, pendingExtensions, conflicts, missing);
 
     if (conflicts.length > 0) {
       throw new Error(
@@ -309,7 +355,6 @@ export class DexpiProcessClassRegistry {
     }
 
     if (strict) {
-      const missing: string[] = [];
       for (const cls of classes.values()) {
         for (const st of cls.superTypes) {
           if (!classes.has(st)) {
@@ -505,7 +550,7 @@ export class DexpiProcessClassRegistry {
     for (const [k, v] of this.classes) {
       cloned.set(k, { ...v, properties: [...v.properties], superTypes: [...v.superTypes] });
     }
-    const { classes: parsed, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml({ name, xml });
+    const { classes: parsed, extensions, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml({ name, xml });
     // Clone enums + merge new ones ADDITIVELY (same package+name extends in
     // place rather than shadowing — consistent with fromXmlSources and the
     // class merge, so a Profile unit literal lands on the real enum).
@@ -561,11 +606,17 @@ export class DexpiProcessClassRegistry {
           if (!existingByName.has(np.name)) existing.properties.push(np);
         }
         mergeWarnings.push(
-          `Class "${cls.name}" from "${cls.sourceFile}" merged into prior declaration from "${existing.sourceFile}"`
+          `Class "${cls.name}" from "${cls.sourceFile}" merged into prior declaration from "${existing.sourceFile}"` +
+          SAME_NAME_MERGE_DEPRECATION
         );
         continue;
       }
       cloned.set(cls.name, cls);
+    }
+    const missingBases: string[] = [];
+    applyClassExtensions(cloned, extensions, conflicts, missingBases);
+    if (missingBases.length > 0) {
+      throw new Error(`DEXPI schema unresolved base types:\n  ${missingBases.join('\n  ')}`);
     }
     if (conflicts.length > 0) {
       throw new Error(
@@ -815,6 +866,8 @@ export class DexpiProcessClassRegistry {
 
 interface ParsedSchema {
   classes: DexpiClassInfo[];
+  /** ClassExtension declarations, applied by base type after parsing. */
+  extensions: ParsedClassExtension[];
   /** Map of enumeration name → literal names (in declaration order). */
   enumerations: Map<string, string[]>;
   /** Fully-qualified enum index keyed by `Model/Package.Enum`, with metadata. */
@@ -843,10 +896,35 @@ function parseSchemaXml(source: SchemaSource): ParsedSchema {
         .querySelector('Data[property="MetaData/description"] > String')
         ?.textContent?.trim() ?? '';
       const properties = parseDirectProperties(el, name);
+      const packageName = enclosingPackageName(el);
 
-      out.push({ name, kind, superTypes, description, properties, sourceFile: source.name });
+      out.push({ name, kind, superTypes, description, properties, sourceFile: source.name, packageName });
     });
   };
+
+  // <ClassExtension name="X" baseType="Model/Package.Class"> — properties
+  // declared here belong to the base class (declaredOn = base), exactly as
+  // if Process.xml had declared them. The extension's own name is kept
+  // only for diagnostics; it is not a class and cannot be instantiated.
+  const extensions: ParsedClassExtension[] = [];
+  for (const el of Array.from(doc.querySelectorAll('ClassExtension'))) {
+    const name = el.getAttribute('name') ?? '';
+    const baseRef = el.getAttribute('baseType') ?? '';
+    const baseClass = baseRef ? parseTypeRef(baseRef) : null;
+    if (!baseClass) {
+      throw new Error(
+        `ClassExtension "${name}" in "${source.name}" has no usable baseType ` +
+        `(got "${baseRef}"); the draft requires baseType to name the class being extended`,
+      );
+    }
+    extensions.push({
+      name,
+      baseClass,
+      baseRef,
+      properties: parseDirectProperties(el, baseClass),
+      sourceFile: source.name,
+    });
+  }
 
   extract('ConcreteClass', 'concrete');
   extract('AbstractClass', 'abstract');
@@ -905,7 +983,73 @@ function parseSchemaXml(source: SchemaSource): ParsedSchema {
     enumerations.set(detail.name, detail.literals.map(l => l.name));
   }
 
-  return { classes: out, enumerations, enumDetails };
+  return { classes: out, extensions, enumerations, enumDetails };
+}
+
+/** Name of the nearest enclosing <Package>, or undefined at model level. */
+function enclosingPackageName(el: Element): string | undefined {
+  let cur: Element | null = el.parentElement;
+  while (cur) {
+    if (cur.tagName === 'Package') return cur.getAttribute('name') ?? undefined;
+    cur = cur.parentElement;
+  }
+  return undefined;
+}
+
+/**
+ * Apply parsed ClassExtension declarations to a class map. Properties not
+ * yet declared on the base class (directly) are appended; a property the
+ * base already declares with a different kind is a conflict, reported to
+ * the caller's conflicts list; an extension whose base class is not loaded
+ * goes to `missing`, so the caller can throw under strict supertype
+ * resolution and ignore it otherwise.
+ */
+function applyClassExtensions(
+  classes: Map<string, DexpiClassInfo>,
+  extensions: ParsedClassExtension[],
+  conflicts: string[],
+  missing: string[],
+): void {
+  for (const ext of extensions) {
+    const target = classes.get(ext.baseClass);
+    if (!target) {
+      missing.push(
+        `ClassExtension "${ext.name}" (in ${ext.sourceFile}) extends unknown base type "${ext.baseRef}"`,
+      );
+      continue;
+    }
+    // Compare against everything the base class already has, inherited
+    // included: an extension that re-declares Identifier (from
+    // ConceptualObject) as a reference would shadow the inherited data
+    // property with the wrong kind.
+    const byName = new Map<string, DexpiProperty>();
+    const walked = new Set<string>();
+    const walk = (name: string) => {
+      if (walked.has(name)) return;
+      walked.add(name);
+      const info = classes.get(name);
+      if (!info) return;
+      for (const p of info.properties) if (!byName.has(p.name)) byName.set(p.name, p);
+      for (const st of info.superTypes) walk(st);
+    };
+    walk(target.name);
+    let conflict = false;
+    for (const np of ext.properties) {
+      const ep = byName.get(np.name);
+      if (ep && ep.kind !== np.kind) {
+        conflicts.push(
+          `ClassExtension "${ext.name}" property "${np.name}" kind divergence: ` +
+          `${ep.declaredOn} already declares it as ${ep.kind} (inherited by ${target.name}), ` +
+          `"${ext.sourceFile}" declares ${np.kind}`,
+        );
+        conflict = true;
+      }
+    }
+    if (conflict) continue;
+    for (const np of ext.properties) {
+      if (!byName.has(np.name)) target.properties.push(np);
+    }
+  }
 }
 
 /**

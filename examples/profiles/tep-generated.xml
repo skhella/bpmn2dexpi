@@ -7,11 +7,16 @@
 
   Conventions used by the generator:
 
-    - Uniform-merge load semantics: same-name class declarations merge
-      additively into the registry — kind, supertypes, description,
-      sourceFile preserved; only properties not already declared by name
-      are appended. The registry records a warning per merge so callers
-      can surface unintended collisions.
+    - A profile is a DEXPI XML model (<Model> root with <Import>s of the
+      models it extends), as the DEXPI 2.0 XML Schema defines it and as
+      the DISC profile — the reference case of the "Profiles for DEXPI"
+      working draft — is published.
+
+    - Properties added to a class the imported models already declare go
+      into <ClassExtension name="<Class>Extension" baseType="…"> (the
+      schema's injection element; DISC naming convention). Only classes
+      unknown to the imported models are declared as <ConcreteClass>.
+      A class is never re-declared by name.
 
     - Conservative type inference: DataProperty values are typed as
       Builtin/Undefined; ReferenceProperty / CompositionProperty targets
@@ -23,97 +28,99 @@
     - Deterministic ordering: classes alphabetical; properties within a
       class sorted by (kind, name). Same input -> byte-identical output.
 -->
-<Profile uri="https://bpmn2dexpi.local/profiles/generated">
-  <ConcreteClass name="Compressing" superTypes="/Process.GeneratingFlow">
-    <CompositionProperty name="Duty" lower="0" upper="1">
+<Model name="bpmn2dexpi_generated_profile" uri="https://bpmn2dexpi.local/profiles/generated">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <ClassExtension name="CompressingExtension" baseType="Process/Process.Compressing">
+    <CompositionProperty name="Duty" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-  </ConcreteClass>
-  <ConcreteClass name="ControllingProcessVariable" superTypes="/Process.InstrumentationActivity">
-    <ReferenceProperty name="MeasuredVariableReference" lower="0" upper="1">
+  </ClassExtension>
+  <ClassExtension name="ControllingProcessVariableExtension" baseType="Process/Process.ControllingProcessVariable">
+    <ReferenceProperty name="MeasuredVariableReference" lower="0" upper="1" oppositeLower="0" isOrdered="false" isUnique="false">
       <ClassReference type="Core/QualifiedValue"/>
     </ReferenceProperty>
-    <ReferenceProperty name="ProcessStepReference" lower="0" upper="1">
-      <ClassReference type="/Process.DrivingByMotor"/>
+    <ReferenceProperty name="ProcessStepReference" lower="0" upper="1" oppositeLower="0" isOrdered="false" isUnique="false">
+      <ClassReference type="Process/Process.DrivingByMotor"/>
     </ReferenceProperty>
-  </ConcreteClass>
-  <ConcreteClass name="CustomMaterialComponent" superTypes="/Process.MaterialComponent">
-    <CompositionProperty name="AntoineA" lower="0" upper="1">
+  </ClassExtension>
+  <ClassExtension name="CustomMaterialComponentExtension" baseType="Process/Process.CustomMaterialComponent">
+    <CompositionProperty name="AntoineA" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="AntoineB" lower="0" upper="1">
+    <CompositionProperty name="AntoineB" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="AntoineC" lower="0" upper="1">
+    <CompositionProperty name="AntoineC" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="HeatOfVaporization" lower="0" upper="1">
+    <CompositionProperty name="HeatOfVaporization" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="LiquidDensity" lower="0" upper="1">
+    <CompositionProperty name="LiquidDensity" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="LiquidHeatCapacity" lower="0" upper="1">
+    <CompositionProperty name="LiquidHeatCapacity" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="MolecularWeight" lower="0" upper="1">
+    <CompositionProperty name="MolecularWeight" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="ReferenceTemperature" lower="0" upper="1">
+    <CompositionProperty name="ReferenceTemperature" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="VapourHeatCapacity" lower="0" upper="1">
+    <CompositionProperty name="VapourHeatCapacity" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <DataProperty name="IsEffectivelyNoncondensable" lower="0" upper="1">
+    <DataProperty name="IsEffectivelyNoncondensable" lower="0" upper="1" isOrdered="false" isUnique="false">
       <DataTypeReference type="Builtin/Boolean"/>
     </DataProperty>
-    <DataProperty name="VaporPressureEquation" lower="0" upper="1">
+    <DataProperty name="VaporPressureEquation" lower="0" upper="1" isOrdered="false" isUnique="false">
       <DataTypeReference type="Builtin/String"/>
     </DataProperty>
-    <DataProperty name="VaporPressureResultUnitReference" lower="0" upper="1">
+    <DataProperty name="VaporPressureResultUnitReference" lower="0" upper="1" isOrdered="false" isUnique="false">
       <DataTypeReference type="Builtin/AnyURI"/>
     </DataProperty>
-  </ConcreteClass>
-  <ConcreteClass name="MaterialStateType" superTypes="Core/ConceptualObject">
-    <CompositionProperty name="MoleFlow" lower="0" upper="1">
+  </ClassExtension>
+  <ClassExtension name="MaterialStateTypeExtension" baseType="Process/Process.MaterialStateType">
+    <CompositionProperty name="MoleFlow" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/ConceptualObject"/>
     </CompositionProperty>
-  </ConcreteClass>
-  <ConcreteClass name="Pumping" superTypes="/Process.GeneratingFlow">
-    <CompositionProperty name="MassFlow" lower="0" upper="1">
+  </ClassExtension>
+  <ClassExtension name="PumpingExtension" baseType="Process/Process.Pumping">
+    <CompositionProperty name="MassFlow" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-  </ConcreteClass>
-  <ConcreteClass name="QualifiedValue" superTypes="Core/ConceptualObject">
-    <DataProperty name="UnitReference" lower="0" upper="1">
+  </ClassExtension>
+  <ClassExtension name="QualifiedValueExtension" baseType="Core/QualifiedValue">
+    <DataProperty name="UnitReference" lower="0" upper="1" isOrdered="false" isUnique="false">
       <DataTypeReference type="Builtin/String"/>
     </DataProperty>
-  </ConcreteClass>
-  <ConcreteClass name="ReactingChemicals" superTypes="/Process.ProcessStep">
-    <CompositionProperty name="Composition" lower="0" upper="1">
+  </ClassExtension>
+  <ClassExtension name="ReactingChemicalsExtension" baseType="Process/Process.ReactingChemicals">
+    <CompositionProperty name="Composition" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="Level" lower="0" upper="1">
+    <CompositionProperty name="Level" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-    <CompositionProperty name="MassFlow" lower="0" upper="1">
+    <CompositionProperty name="MassFlow" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-  </ConcreteClass>
-  <ConcreteClass name="RegulatingFlow" superTypes="/Process.SteeringFlow">
-    <CompositionProperty name="Composition" lower="0" upper="1">
+  </ClassExtension>
+  <ClassExtension name="RegulatingFlowExtension" baseType="Process/Process.RegulatingFlow">
+    <CompositionProperty name="Composition" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-  </ConcreteClass>
-  <ConcreteClass name="SeparatingByPhaseSeparation" superTypes="/Process.Separating">
-    <CompositionProperty name="Level" lower="0" upper="1">
+  </ClassExtension>
+  <ClassExtension name="SeparatingByPhaseSeparationExtension" baseType="Process/Process.SeparatingByPhaseSeparation">
+    <CompositionProperty name="Level" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-  </ConcreteClass>
-  <ConcreteClass name="SplittingMaterial" superTypes="/Process.Splitting">
-    <CompositionProperty name="Level" lower="0" upper="1">
+  </ClassExtension>
+  <ClassExtension name="SplittingMaterialExtension" baseType="Process/Process.SplittingMaterial">
+    <CompositionProperty name="Level" lower="0" upper="1" isOrdered="false">
       <ClassReference type="Core/QualifiedValue"/>
     </CompositionProperty>
-  </ConcreteClass>
-</Profile>
+  </ClassExtension>
+</Model>

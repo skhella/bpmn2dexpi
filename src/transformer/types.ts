@@ -342,6 +342,19 @@ export interface TransformOptions {
    */
   profileXmls?: { name: string; xml: string }[];
   /**
+   * Profiles the emitted document should declare as imports, after the
+   * Core and Process imports:
+   *   <Import prefix="Profile" source="tep.profile.xml"/>
+   * `source` is written verbatim — by convention a path relative to the
+   * emitted document (the CLI writes the generated profile next to the
+   * output and imports it by that relative name) or an absolute URL when
+   * the profile has a published home. `prefix` defaults to "Profile".
+   * Declaring the import is what lets a consumer that resolves imports see
+   * the profile's ClassExtension declarations instead of treating the
+   * extension properties as unknown.
+   */
+  profileImports?: { prefix?: string; source: string }[];
+  /**
    * Strict-mode validation toggle. Default false (DEXPI 2.0's permissive
    * philosophy: any XSD-valid output is exchangeable, so the user-facing
    * default is XSD-only). When true, the transformer additionally runs

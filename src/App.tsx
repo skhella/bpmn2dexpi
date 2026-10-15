@@ -868,6 +868,13 @@ function App() {
         // Profile classes are recognized as dexpiType targets in both
         // strict and non-strict mode.
         profileXmls: loadedProfiles,
+        // Declare each loaded profile as an <Import> by its file name, so
+        // the exported document names the profiles it was written against
+        // (keep the profile files next to the export).
+        profileImports: loadedProfiles.map(p => ({
+          prefix: p.name.replace(/\.xml$/i, ''),
+          source: p.name,
+        })),
         strict: strictMode,
       });
 

@@ -61,7 +61,7 @@ export interface DexpiXmlValidation {
  * Process / Plant models are imported under prefixes other than `Core` /
  * `Process` / `Plant` (or when no Import declarations are present at all).
  */
-export function checkImportPrefixes(xml: string): string[] {
+export function checkImportPrefixes(xml: string, loadedProfileNames: string[] = []): string[] {
   const warnings: string[] = [];
   let doc: Document;
   try {
@@ -86,6 +86,11 @@ export function checkImportPrefixes(xml: string): string[] {
     const prefix = imp.getAttribute('prefix') ?? '';
     const source = imp.getAttribute('source') ?? '';
     let known = false;
+    // A profile the caller loaded (--profile FILE) satisfies an import of
+    // that file, matched by basename so a relative sibling reference in the
+    // document ("tep.profile.xml") pairs with the path the caller passed.
+    const sourceBase = source.split('/').pop() ?? source;
+    if (loadedProfileNames.some(n => (n.split('/').pop() ?? n) === sourceBase)) known = true;
     for (const model of ['Core', 'Process', 'Plant'] as const) {
       if (source.includes(`${model}.xml`)) {
         known = true;
@@ -127,6 +132,7 @@ export function validateDexpiXml(
   xml: string,
   registry: DexpiProcessClassRegistry,
   label = 'dexpi input',
+  loadedProfileNames: string[] = [],
 ): DexpiXmlValidation {
   const nameFailures = validateEmittedDexpiXml(xml, label, registry);
   const dataTypeFailures = validateEmittedDexpiDataTypes(xml, label, registry);
@@ -163,6 +169,6 @@ export function validateDexpiXml(
   return {
     tiers,
     totalFindings: tiers.reduce((n, t) => n + t.errors.length, 0),
-    prefixWarnings: checkImportPrefixes(xml),
+    prefixWarnings: checkImportPrefixes(xml, loadedProfileNames),
   };
 }

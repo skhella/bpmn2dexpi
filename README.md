@@ -110,14 +110,49 @@ The same checks also run standalone on existing DEXPI 2.0 files from any tool: `
 
 ## Extension mechanisms
 
-A Profile is an XML file that adds project-specific classes or properties on top of the DEXPI 2.0 standard vocabulary — useful when your project needs concepts the standard doesn't cover. Profiles live per-session; re-import after page reload.
+A Profile is a DEXPI XML model file that adds project-specific classes or properties on top of the DEXPI 2.0 standard vocabulary — useful when your project needs concepts the standard doesn't cover. Profiles live per-session; re-import after page reload.
 
 - **Import** — UI: *Import Profile* in the DEXPI menu. CLI: `--profile FILE` (repeatable). Library: `profileXmls` option on `transformer.transform()`.
 - **Generate** — walk the current model and emit a Profile that closes every fidelity gap. UI: *Generate Profile*. CLI: `--generate-profile FILE`. Output is deterministic — safe to commit.
 
 Reference Profiles live in `examples/profiles/` (`sample-extension.xml`, `tep-generated.xml`).
 
-This follows the extension half of the *Profiles for DEXPI* working draft, which states that the DEXPI meta model already supports profiles: a profile declares classes and properties in the same grammar `Process.xml` and `Core.xml` use, and generated Profiles here do exactly that. Two alignment gaps remain against published profiles such as the DISC Profile — the generator emits a `<Profile>` root rather than the schema's `<Model>` root with `<Import>` elements, and it redeclares a class instead of using `<ClassExtension baseType="…">` to add properties to an existing one, which the registry also does not yet read. The restriction half of a profile (constraints, required-ness, allowed classes) is not implemented here; it depends on schema 1.1.0.
+### Profile format
+
+A profile is written in the same grammar as `Process.xml` and `Core.xml` and validates against the official `DEXPI_XML_Schema.xsd`:
+
+```xml
+<Model name="my_profile" uri="https://example.org/profiles/my_profile">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+
+  <!-- add properties to a class the imported models declare -->
+  <ClassExtension name="CustomMaterialComponentExtension" baseType="Process/Process.CustomMaterialComponent">
+    <CompositionProperty name="AntoineA" lower="0" upper="1"> … </CompositionProperty>
+  </ClassExtension>
+
+  <!-- declare a genuinely new class -->
+  <ConcreteClass name="BiologicalReactor" superTypes="Process/Process.ReactingChemicals"> … </ConcreteClass>
+</Model>
+```
+
+`<ClassExtension>` is the DEXPI 2.0 XML Schema's own element for adding properties to an existing class (it is how the DISC profile, the reference case of the *Profiles for DEXPI* working draft, is published). The generator emits one `<ClassExtension name="<Class>Extension">` per extended class and a `<ConcreteClass>` only for classes the imported models do not declare; it never re-declares a standard class. The registry applies extensions by `baseType` on load. The older style — re-declaring a standard class by name to add properties — still loads, with a deprecation warning, so existing profile files keep working.
+
+### Profile imports in exported documents
+
+An exported document names the profiles it was written against, after the Core and Process imports:
+
+```xml
+<Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+<Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+<Import prefix="Profile" source="tep.profile.xml"/>
+```
+
+Convention: the profile is written next to the output and imported by a path relative to it (the CLI derives this from `--generate-profile FILE` and from each `--profile FILE`; the UI uses the loaded profile's file name; the library takes `profileImports: [{ prefix, source }]`). Use an absolute URL as `source` when the profile has a published home. `--validate --profile FILE` treats an import whose file name matches a loaded profile as satisfied.
+
+Extension properties are serialised by their bare name (`<Components property="AntoineA">`), the same way the standard properties are. The schema's `property` attribute also allows the qualified form `Profile/CustomMaterialComponentExtension.AntoineA`, and DISC P&ID files use it; the *Profiles for DEXPI* draft does not prescribe either, and bare names are what import-resolving consumers (pyDEXPI, the DEXPIViewer validator with the profile loaded) read today, so bare names are kept until the draft settles the question.
+
+The restriction half of a profile (constraints, required-ness, allowed classes) is not implemented here; it depends on schema 1.1.0.
 
 ## Standards tracking
 

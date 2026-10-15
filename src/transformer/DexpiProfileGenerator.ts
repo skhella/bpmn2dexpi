@@ -14,12 +14,21 @@
  * known reference) and for users who want to commit generated Profiles
  * to source control.
  *
- * Generated Profiles are emitted as plain
- *   <Profile uri="..."> ... </Profile>
- * The registry merges any same-name class declarations into the existing
- * class additively (uniform mechanism — no second mode, no marker
- * required). Collisions are non-fatal but surface as merge warnings so
- * callers can flag unintended ones.
+ * Generated Profiles are DEXPI XML model files in the 2.0.0 grammar:
+ *   <Model name="…" uri="…">
+ *     <Import prefix="Core" source="…/Core.xml"/>
+ *     <Import prefix="Process" source="…/Process.xml"/>
+ *     <ClassExtension name="XExtension" baseType="Process/Process.X">…</ClassExtension>
+ *     <ConcreteClass name="NewClass" superTypes="Core/ConceptualObject">…</ConcreteClass>
+ *   </Model>
+ * A class the loaded registry already declares is never re-declared: its
+ * additional properties go into a <ClassExtension> whose baseType names
+ * the class, which is the injection mechanism the DEXPI 2.0 XML Schema
+ * provides and the DISC profile (the reference case of the "Profiles for
+ * DEXPI" working draft) uses. Only classes unknown to the registry are
+ * declared as <ConcreteClass>. The registry applies ClassExtension by
+ * baseType on load; the older same-name re-declaration still loads, with
+ * a deprecation warning.
  *
  * Type inference is conservative: every DataProperty gets
  * Builtin/Undefined, every ReferenceProperty / CompositionProperty gets
@@ -70,11 +79,16 @@ const PROFILE_HEADER_COMMENT = `
 
   Conventions used by the generator:
 
-    - Uniform-merge load semantics: same-name class declarations merge
-      additively into the registry — kind, supertypes, description,
-      sourceFile preserved; only properties not already declared by name
-      are appended. The registry records a warning per merge so callers
-      can surface unintended collisions.
+    - A profile is a DEXPI XML model (<Model> root with <Import>s of the
+      models it extends), as the DEXPI 2.0 XML Schema defines it and as
+      the DISC profile — the reference case of the "Profiles for DEXPI"
+      working draft — is published.
+
+    - Properties added to a class the imported models already declare go
+      into <ClassExtension name="<Class>Extension" baseType="…"> (the
+      schema's injection element; DISC naming convention). Only classes
+      unknown to the imported models are declared as <ConcreteClass>.
+      A class is never re-declared by name.
 
     - Conservative type inference: DataProperty values are typed as
       Builtin/Undefined; ReferenceProperty / CompositionProperty targets
@@ -653,11 +667,14 @@ function inferTargetClassesFromObservedTargets(
   for (const [key, classSet] of observed) {
     const lca = leastCommonAncestor(Array.from(classSet), registry);
     if (lca && lca !== 'ConceptualObject') {
-      // Re-qualify with the source-file path (Process / Core).
+      // Qualify as seen from the generated profile, a separate model that
+      // imports Process and Core: `Process/Process.X`, `Core/Package.X`.
       const info = registry.getClass(lca);
-      if (info?.sourceFile === 'Process.xml') inferred.set(key, `/Process.${lca}`);
-      else if (info?.sourceFile === 'Core.xml') inferred.set(key, `Core/${lca}`);
-      else inferred.set(key, lca); // Profile-defined class — emit bare
+      if (info?.sourceFile === 'Process.xml' || info?.sourceFile === 'Core.xml') {
+        inferred.set(key, modelQualifiedName(info));
+      } else {
+        inferred.set(key, lca); // Profile-defined class — emit bare
+      }
     }
   }
   return inferred;
@@ -1088,7 +1105,7 @@ function renderUnitExtensionsXml(units?: Map<string, Set<string>>): string {
   const lines: string[] = [];
   lines.push('  <Package name="PhysicalQuantities">');
   for (const enumName of [...units.keys()].sort()) {
-    lines.push(`    <Enumeration name="${enumName}" superTypes="/PhysicalQuantities.PhysicalQuantityUnit">`);
+    lines.push(`    <Enumeration name="${enumName}" superTypes="Core/PhysicalQuantities.PhysicalQuantityUnit">`);
     for (const literal of [...units.get(enumName)!].sort()) {
       lines.push(`      <EnumerationLiteral name="${literal}"/>`);
     }
@@ -1143,55 +1160,75 @@ function comparePropertyDecl(
   return a.name.localeCompare(b.name);
 }
 
+/** Identity and imports of every generated profile. */
+export const GENERATED_PROFILE_NAME = 'bpmn2dexpi_generated_profile';
+export const GENERATED_PROFILE_URI = 'https://bpmn2dexpi.local/profiles/generated';
+const CORE_IMPORT_SOURCE = 'https://data.dexpi.org/models/2.0.0/Core.xml';
+const PROCESS_IMPORT_SOURCE = 'https://data.dexpi.org/models/2.0.0/Process.xml';
+
+/**
+ * Per-render state: the <Import>s the profile needs. Core and Process are
+ * always imported; a class that came from another loaded profile adds an
+ * import of that profile (its source label, as a sibling file reference).
+ */
+interface RenderContext {
+  imports: Map<string, string>;
+}
+
 function renderProfileXml(
   classes: GeneratedClass[],
   registry: DexpiProcessClassRegistry,
   units?: Map<string, Set<string>>,
 ): string {
+  const ctx: RenderContext = {
+    imports: new Map([['Core', CORE_IMPORT_SOURCE], ['Process', PROCESS_IMPORT_SOURCE]]),
+  };
+  const body: string[] = [];
+  for (const cls of classes) {
+    body.push(renderClassXml(cls, registry, ctx));
+  }
+  const unitsXml = renderUnitExtensionsXml(units);
+  if (unitsXml) body.push(unitsXml);
+
   const lines: string[] = [];
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push(`<!--${PROFILE_HEADER_COMMENT}-->`);
-  lines.push('<Profile uri="https://bpmn2dexpi.local/profiles/generated">');
-  for (const cls of classes) {
-    lines.push(renderClassXml(cls, registry));
+  lines.push(`<Model name="${GENERATED_PROFILE_NAME}" uri="${GENERATED_PROFILE_URI}">`);
+  for (const [prefix, source] of ctx.imports) {
+    lines.push(`  <Import prefix="${escAttr(prefix)}" source="${escAttr(source)}"/>`);
   }
-  const unitsXml = renderUnitExtensionsXml(units);
-  if (unitsXml) lines.push(unitsXml);
-  lines.push('</Profile>');
+  lines.push(...body);
+  lines.push('</Model>');
   lines.push(''); // trailing newline
   return lines.join('\n');
 }
 
-function renderClassXml(cls: GeneratedClass, registry: DexpiProcessClassRegistry): string {
-  // Supertype resolution priority:
-  //   1. customSuperType from a Custom-typed BPMN annotation (user's choice).
-  //   2. The class's existing supertype in the registry (we're extending an
-  //      already-declared class with new properties — preserve its parent).
-  //   3. Core/ConceptualObject as the most permissive fallback for genuinely
-  //      new classes the model used without prior declaration.
-  //
-  // Special case: when extending ConceptualObject itself (the root class,
-  // which has no supertypes in Core.xml), emitting `superTypes="Core/ConceptualObject"`
-  // would be self-referential and the registry's supertype-divergence check
-  // would reject the resulting Profile on reload. Emit an empty supertypes=
-  // for that case so the parser yields the same empty list Core.xml has.
-  let supertype: string;
-  if (cls.customSuperType) {
-    supertype = qualifyUserSupertype(cls.customSuperType, registry);
-  } else {
-    const info = registry.getClass(cls.name);
-    if (info && info.superTypes.length > 0) {
-      supertype = qualifySupertype(info.superTypes[0], registry);
-    } else if (info) {
-      // Class exists in registry with no supertypes — it is the universal
-      // root. Don't fabricate a self-reference.
-      supertype = '';
-    } else {
-      supertype = 'Core/ConceptualObject';
+function renderClassXml(cls: GeneratedClass, registry: DexpiProcessClassRegistry, ctx: RenderContext): string {
+  // A class the registry already declares is extended, never re-declared:
+  //   <ClassExtension name="<Class>Extension" baseType="Model/Package.Class">
+  // carries the additional properties, and the registry applies them to the
+  // base class on load. The one exception is a Custom-typed BPMN annotation
+  // with a user-chosen supertype: that is the author declaring a NEW class,
+  // so it is rendered as a ConcreteClass even if an intermediate registry
+  // already holds the seed declaration.
+  const info = cls.customSuperType ? undefined : registry.getClass(cls.name);
+  const lines: string[] = [];
+  if (info) {
+    const baseType = qualifyClassRef(info, ctx);
+    lines.push(`  <ClassExtension name="${escAttr(cls.name)}Extension" baseType="${escAttr(baseType)}">`);
+    for (const p of cls.properties) {
+      lines.push(renderPropertyXml(p));
     }
+    lines.push('  </ClassExtension>');
+    return lines.join('\n');
   }
 
-  const lines: string[] = [];
+  // Genuinely new class. Supertype: the user's choice from the BPMN
+  // annotation, else Core/ConceptualObject (the universal root) as the
+  // most permissive fallback.
+  const supertype = cls.customSuperType
+    ? qualifyUserSupertype(cls.customSuperType, registry, ctx)
+    : 'Core/ConceptualObject';
   lines.push(`  <ConcreteClass name="${escAttr(cls.name)}" superTypes="${escAttr(supertype)}">`);
   for (const p of cls.properties) {
     lines.push(renderPropertyXml(p));
@@ -1206,15 +1243,16 @@ function renderPropertyXml(p: GeneratedProperty): string {
   // when the generator observes the property always present, infers
   // lower=1; when observed multiple times, infers higher upper bound.
   const lower = p.inferredLower ?? 0;
-  const upper = p.inferredUpper === null ? '*' : (p.inferredUpper ?? 1);
-  // Note: the metamodel uses upper="*" for unbounded, but DEXPI's own
-  // schema files use upper="*" only via a separate isOrdered/cardinality
-  // form. The simplest serialization that round-trips through the
-  // registry is to emit the numeric upper, omitting the attribute when
-  // unbounded — but most strict consumers will accept upper="*". For
-  // consistency we always emit numeric values; unbounded becomes
-  // upper="*" only if explicitly set to null (rare in practice).
-  const upperAttr = upper === '*' ? '*' : String(upper);
+  // DEXPI_XML_Schema.xsd types `upper` as xsd:integer and makes it optional:
+  // an unbounded property simply omits it (as Process.xml does for every
+  // multi-valued CompositionProperty). `isOrdered` and `isUnique` are
+  // required on DataProperty / ReferenceProperty, `isOrdered` on
+  // CompositionProperty, and ReferenceProperty also requires
+  // `oppositeLower`; the generator declares no ordering, uniqueness or
+  // inverse constraints, so they are written as false / 0 — the values the
+  // official models use when they state none.
+  const upper = p.inferredUpper === null ? null : (p.inferredUpper ?? 1);
+  const upperAttr = upper === null ? '' : ` upper="${upper}"`;
 
   switch (p.kind) {
     case 'data': {
@@ -1223,7 +1261,7 @@ function renderPropertyXml(p: GeneratedProperty): string {
       // had no value-level signal (intermediate registry-merge passes).
       const dataType = p.inferredType ?? 'Builtin/Undefined';
       return [
-        `    <DataProperty name="${escAttr(p.name)}" lower="${lower}" upper="${upperAttr}">`,
+        `    <DataProperty name="${escAttr(p.name)}" lower="${lower}"${upperAttr} isOrdered="false" isUnique="false">`,
         `      <DataTypeReference type="${escAttr(dataType)}"/>`,
         `    </DataProperty>`,
       ].join('\n');
@@ -1234,7 +1272,7 @@ function renderPropertyXml(p: GeneratedProperty): string {
       // universal supertype) when no targets were observed.
       const target = p.inferredTargetClass ?? 'Core/ConceptualObject';
       return [
-        `    <ReferenceProperty name="${escAttr(p.name)}" lower="${lower}" upper="${upperAttr}">`,
+        `    <ReferenceProperty name="${escAttr(p.name)}" lower="${lower}"${upperAttr} oppositeLower="0" isOrdered="false" isUnique="false">`,
         `      <ClassReference type="${escAttr(target)}"/>`,
         `    </ReferenceProperty>`,
       ].join('\n');
@@ -1248,7 +1286,7 @@ function renderPropertyXml(p: GeneratedProperty): string {
       if (p.boundUnitEnum) {
         const enumRef = `Core/PhysicalQuantities.${p.boundUnitEnum}`;
         return [
-          `    <CompositionProperty name="${escAttr(p.name)}" lower="${lower}" upper="${upperAttr}">`,
+          `    <CompositionProperty name="${escAttr(p.name)}" lower="${lower}"${upperAttr} isOrdered="false">`,
           `      <BoundClass>`,
           `        <ClassReference type="Core/QualifiedValue"/>`,
           `        <DataTypeBinding parameter="Core/QualifiedValue.Type">`,
@@ -1267,11 +1305,8 @@ function renderPropertyXml(p: GeneratedProperty): string {
         ].join('\n');
       }
       const target = p.inferredTargetClass ?? 'Core/ConceptualObject';
-      // CompositionProperty's upper attribute is also informative; emit
-      // it for symmetry with reference/data even though Process.xml's own
-      // CompositionProperty declarations omit it.
       return [
-        `    <CompositionProperty name="${escAttr(p.name)}" lower="${lower}" upper="${upperAttr}">`,
+        `    <CompositionProperty name="${escAttr(p.name)}" lower="${lower}"${upperAttr} isOrdered="false">`,
         `      <ClassReference type="${escAttr(target)}"/>`,
         `    </CompositionProperty>`,
       ].join('\n');
@@ -1280,18 +1315,35 @@ function renderPropertyXml(p: GeneratedProperty): string {
 }
 
 /**
- * Re-qualify a bare class name to a name reference suitable for the
- * superTypes attribute. Uses the source-file label to decide between
- * '/Process.X' (Process.xml) and 'Core/X' (Core.xml or other). Profile-
- * declared classes use 'Core/ConceptualObject' as a permissive fallback
- * since their original namespace prefix isn't available here.
+ * Name reference for a registry class as seen FROM the generated profile,
+ * which is a separate model: `Prefix/Package.Class`, where Prefix is the
+ * import prefix of the model that declares the class (Process.xml → Process,
+ * Core.xml → Core, another loaded profile → its file label, which is then
+ * added to the profile's imports as a sibling-file reference).
  */
-function qualifySupertype(bareName: string, registry: DexpiProcessClassRegistry): string {
+function qualifyClassRef(info: { name: string; sourceFile: string; packageName?: string }, ctx: RenderContext): string {
+  const model = info.sourceFile.replace(/\.xml$/i, '');
+  if (model === 'Process' || model === 'Core') return modelQualifiedName(info);
+  const prefix = model.replace(/[^A-Za-z_0-9]/g, '_').replace(/^(?![A-Za-z_])/, '_');
+  if (!ctx.imports.has(prefix)) ctx.imports.set(prefix, info.sourceFile);
+  return `${prefix}/${info.packageName ? `${info.packageName}.` : ''}${info.name}`;
+}
+
+/** `Model/Package.Class` for a class from Process.xml or Core.xml (import prefix = model name). */
+function modelQualifiedName(info: { name: string; sourceFile: string; packageName?: string }): string {
+  const model = info.sourceFile.replace(/\.xml$/i, '');
+  return `${model}/${info.packageName ? `${info.packageName}.` : ''}${info.name}`;
+}
+
+/**
+ * Re-qualify a bare class name to a name reference suitable for the
+ * superTypes attribute of a new class. Unknown names fall back to
+ * Core/ConceptualObject so the generated Profile is still loadable.
+ */
+function qualifySupertype(bareName: string, registry: DexpiProcessClassRegistry, ctx: RenderContext): string {
   const info = registry.getClass(bareName);
   if (!info) return `Core/ConceptualObject`;
-  if (info.sourceFile === 'Process.xml') return `/Process.${bareName}`;
-  if (info.sourceFile === 'Core.xml') return `Core/${bareName}`;
-  return `Core/ConceptualObject`;
+  return qualifyClassRef(info, ctx);
 }
 
 /**
@@ -1303,11 +1355,11 @@ function qualifySupertype(bareName: string, registry: DexpiProcessClassRegistry)
  * undeclared class), fall back to Core/ConceptualObject so the generated
  * Profile is still loadable.
  */
-function qualifyUserSupertype(userSuperType: string, registry: DexpiProcessClassRegistry): string {
+function qualifyUserSupertype(userSuperType: string, registry: DexpiProcessClassRegistry, ctx: RenderContext): string {
   // Already a qualified reference (e.g. "Process/Process.X" or "Core/X")
   // — pass through verbatim.
   if (userSuperType.includes('/')) return userSuperType;
-  return qualifySupertype(userSuperType, registry);
+  return qualifySupertype(userSuperType, registry, ctx);
 }
 
 function escAttr(s: string): string {

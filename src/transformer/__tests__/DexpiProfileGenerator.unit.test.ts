@@ -78,8 +78,8 @@ describe('DEXPI Profile generator', () => {
     const result = generateProfileFromDexpiXml(cleanXml, freshRegistry());
     expect(result.declarations).toBe(0);
     expect(result.classCount).toBe(0);
-    expect(result.xml).toContain('<Profile ');
-    expect(result.xml).toContain('</Profile>');
+    expect(result.xml).toContain('<Model ');
+    expect(result.xml).toContain('</Model>');
   });
 
   it('groups by class, sorts alphabetically, sorts properties by (kind, name)', () => {
@@ -99,11 +99,12 @@ describe('DEXPI Profile generator', () => {
     const result = generateProfileFromDexpiXml(xml, freshRegistry());
     const declared = result.xml;
     // Classes alphabetical: Composition before MaterialStateType.
-    expect(declared.indexOf('name="Composition"')).toBeLessThan(declared.indexOf('name="MaterialStateType"'));
+    // Both classes exist in Process.xml, so each is a ClassExtension named <Class>Extension.
+    expect(declared.indexOf('name="CompositionExtension"')).toBeLessThan(declared.indexOf('name="MaterialStateTypeExtension"'));
     // Within MaterialStateType: sorted by kind first ('composition',
     // 'data', 'reference'), then by name within kind. So:
     //   GammaComp (composition) < BetaData (data) < AlphaRef (reference) < ZetaRef (reference)
-    const inMst = declared.slice(declared.indexOf('name="MaterialStateType"'));
+    const inMst = declared.slice(declared.indexOf('name="MaterialStateTypeExtension"'));
     const positions = ['GammaComp', 'BetaData', 'AlphaRef', 'ZetaRef'].map(p => inMst.indexOf(p));
     expect(positions.every((v, i, a) => i === 0 || a[i - 1] < v)).toBe(true);
   });
@@ -113,7 +114,7 @@ describe('DEXPI Profile generator — Custom-class declarations from BPMN annota
   // A minimal BPMN with a single Task carrying a Custom-typed dexpi:Element:
   // dexpiType="MyReactor" + customSuperType="ReactingChemicals".
   // The generator should pick this up via seedFromCustomBpmnAnnotations and
-  // emit a <ConcreteClass name="MyReactor" superTypes="/Process.ReactingChemicals"/>
+  // emit a <ConcreteClass name="MyReactor" superTypes="Process/Process.ReactingChemicals"/>
   // declaration — even though the class instance carries no rich-DEXPI children
   // and would otherwise produce zero validator failures.
   const customBpmn = `<?xml version="1.0" encoding="UTF-8"?>
@@ -134,7 +135,9 @@ describe('DEXPI Profile generator — Custom-class declarations from BPMN annota
     const out = await t.transform(customBpmn);
     const result = generateProfileFromDexpiXml(out, freshRegistry(), { bpmnXml: customBpmn });
     expect(result.classCount).toBe(1);
-    expect(result.xml).toContain('<ConcreteClass name="MyReactor" superTypes="/Process.ReactingChemicals">');
+    // The profile is a separate model importing Process.xml under the
+    // prefix "Process", so the supertype is referenced as Process/Process.X.
+    expect(result.xml).toContain('<ConcreteClass name="MyReactor" superTypes="Process/Process.ReactingChemicals">');
     // Class-only entry — no property declarations expected.
     expect(result.declarations).toBe(0);
   });
@@ -239,7 +242,7 @@ describe('DEXPI Profile generation round-trip on TEP fixture', () => {
       'precondition: there must be some fidelity gap for the generator to fill — ' +
       'otherwise this round-trip test is vacuous'
     ).toBeGreaterThan(0);
-    expect(generated.xml).toContain('<Profile ');
+    expect(generated.xml).toContain('<Model ');
 
     // (c) round-trip integrity: a FRESH registry must consume what the
     // generator produced. If this fails, the generator emitted something

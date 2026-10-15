@@ -16,6 +16,10 @@
   reference any combination of Process.xml / Core.xml supertypes, and
   carry DataProperty / ReferenceProperty / CompositionProperty entries.
 
+  To add properties to a class the standard already declares, use the
+  schema's <ClassExtension name="<Class>Extension" baseType="Process/Process.<Class>">
+  element instead of a ConcreteClass (see examples/profiles/tep-generated.xml).
+
   Merge rules (enforced at registry load time):
 
     1. Same-name class redeclarations merge additively into the existing
@@ -49,8 +53,10 @@
 <Model name="SampleExtension" uri="https://example.org/profiles/sample-extension">
   <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
   <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
 
-  <ConcreteClass name="BiologicalReactor" superTypes="/Process.ReactingChemicals">
+  <ConcreteClass name="BiologicalReactor" superTypes="Process/Process.ReactingChemicals">
     <DataProperty name="ResidenceTime" isOrdered="false" isUnique="false" lower="0" upper="1">
       <DataTypeReference type="Builtin/Double"/>
       <Data property="MetaData/description">

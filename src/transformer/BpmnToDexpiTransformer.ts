@@ -2061,7 +2061,11 @@ export class BpmnToDexpiTransformer {
               'prefix': 'Process',
               'source': 'https://data.dexpi.org/models/2.0.0/Process.xml'
             }
-          }
+          },
+          // Profiles the document was written against. Declared after the
+          // standard models so a consumer resolving imports in order has
+          // Core and Process loaded before the profile that extends them.
+          ...this.buildProfileImports(options.profileImports),
         ],
         'Object': {
           '$': {
@@ -2126,6 +2130,29 @@ export class BpmnToDexpiTransformer {
   private isInstrumentationStep(step: InternalProcessStep): boolean {
     const bare = step.type?.startsWith('Process.') ? step.type.slice('Process.'.length) : step.type;
     return !!bare && this.registry.hasAncestor(bare, 'InstrumentationActivity');
+  }
+
+  /**
+   * <Import> entries for the profiles named in options.profileImports.
+   * Prefixes default to "Profile"; a second unprefixed profile gets
+   * "Profile2", "Profile3", … so every prefix in the document is unique
+   * (the serialisation grammar keys references by prefix).
+   */
+  private buildProfileImports(
+    imports: { prefix?: string; source: string }[] | undefined,
+  ): Record<string, unknown>[] {
+    if (!imports || imports.length === 0) return [];
+    const used = new Set(['Core', 'Process']);
+    return imports.map((imp) => {
+      let prefix = (imp.prefix || 'Profile').replace(/[^A-Za-z_0-9]/g, '_').replace(/^(?![A-Za-z_])/, '_');
+      if (used.has(prefix)) {
+        let n = 2;
+        while (used.has(`${prefix}${n}`)) n++;
+        prefix = `${prefix}${n}`;
+      }
+      used.add(prefix);
+      return { '$': { 'prefix': prefix, 'source': imp.source } };
+    });
   }
 
   /**

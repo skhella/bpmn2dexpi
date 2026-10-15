@@ -7,7 +7,7 @@
  */
 
 import { readFileSync, writeFileSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname, join, relative, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { JSDOM } from 'jsdom';
 
@@ -84,7 +84,11 @@ Flags:
                   1 = XSD-invalid or error; 2 = XSD-valid with findings.
 
   --generate-profile FILE
-                  After transforming, emit a DEXPI Profile XML to FILE
+                  After transforming, emit a DEXPI Profile XML to FILE.
+                  The DEXPI output declares the profile as an
+                  <Import prefix="Profile" source="…"/> (path relative to
+                  the output), as it does for every --profile FILE, so
+                  consumers that resolve imports see the declarations.
                   declaring every property name that did not resolve
                   through the loaded schema. Output is deterministic
                   (sorted, no timestamps) so generated profiles are safe
@@ -188,7 +192,7 @@ async function validateMain() {
     }
 
     // 2) Five information-model fidelity dimensions.
-    const result = validateDexpiXml(dexpiXml, registry, inputPath);
+    const result = validateDexpiXml(dexpiXml, registry, inputPath, profilePaths);
     for (const w of result.prefixWarnings) console.error(`⚠ ${w}`);
     for (const { tier, errors } of result.tiers) {
       if (errors.length === 0) {
@@ -234,10 +238,34 @@ async function main() {
       xml: readFileSync(p, 'utf-8'),
     }));
 
+    // Every profile the document is written against is declared as an
+    // <Import> after Core and Process: the ones loaded with --profile and
+    // the one --generate-profile is about to write. Sources are paths
+    // relative to the output file (or to the working directory when the
+    // document goes to stdout), so the profile travels as a sibling file.
+    const importBase = outputPath ? dirname(outputPath) : process.cwd();
+    const importSource = (p) => {
+      const rel = relative(importBase, p).split('\\').join('/');
+      // Inside the output's folder tree: import by that relative path.
+      // Elsewhere: import by file name and say so — the document and its
+      // profile are meant to travel together, and a path climbing out of
+      // the tree would not survive the move.
+      if (rel && !rel.startsWith('../')) return rel;
+      console.error(
+        `ℹ Profile ${p} is not under the output folder; the document imports it as ` +
+        `"${basename(p)}" — keep the two files together.`,
+      );
+      return basename(p);
+    };
+    const profileImports = [
+      ...profilePaths.map(p => ({ prefix: basename(p).replace(/\.xml$/i, ''), source: importSource(p) })),
+      ...(generateProfilePath ? [{ prefix: 'Profile', source: importSource(generateProfilePath) }] : []),
+    ];
+
     // Transform to DEXPI. strict + profileXmls flow into transform()'s
     // registry construction; profile-loading errors (divergent declarations / unresolved
     // supertype) throw and are caught below.
-    const dexpiXml = await transformer.transform(bpmnXml, { strict, profileXmls });
+    const dexpiXml = await transformer.transform(bpmnXml, { strict, profileXmls, profileImports });
 
     if (outputPath) {
       // Write to file — always produced, even when strict-mode validation finds issues.

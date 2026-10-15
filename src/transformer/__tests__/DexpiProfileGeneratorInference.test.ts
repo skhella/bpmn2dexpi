@@ -140,7 +140,7 @@ describe('Profile generator — target-class inference', () => {
     </Model>`;
     const result = generateProfileFromDexpiXml(xml, REGISTRY);
     expect(result.xml).toContain('<ReferenceProperty name="MyTemplateRef"');
-    expect(result.xml).toMatch(/<ClassReference type="\/Process\.MaterialTemplate"\/>/);
+    expect(result.xml).toMatch(/<ClassReference type="Process\/Process\.MaterialTemplate"\/>/);
   });
 
   // Note: the "falls back to Core/ConceptualObject when no targets are
