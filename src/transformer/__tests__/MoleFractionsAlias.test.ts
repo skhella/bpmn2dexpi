@@ -1,22 +1,22 @@
 /**
  * MoleFractions read-alias + schema-driven fraction carrier.
  *
- * The Process SIG has accepted correcting the `MoleFractiona` schema typo to
- * `MoleFractions` in a future DEXPI release (see MIGRATION.md §3). Until that
- * schema ships, the contract is:
+ * The `MoleFractiona` spelling in Process.xml is a known schema typo whose
+ * correction to `MoleFractions` is anticipated in a future DEXPI release. Until
+ * that schema ships, the contract is:
  *
  *   - READ:  both spellings are accepted as the authored fractions carrier in
  *            BPMN extensionElements (so files written against either era —
- *            including the paper's illustrative MaterialState listing, which
- *            uses the corrected spelling — round-trip their values).
+ *            including ones that use the corrected spelling — round-trip
+ *            their values).
  *   - EMIT:  the carrier property name comes from the loaded schema
  *            (DexpiProcessClassRegistry.compositionFractionProperty), so the
  *            output always matches what Process.xml declares — `MoleFractiona`
  *            today, flipping automatically when the corrected schema is
  *            dropped in.
  *
- * The input below mirrors the paper's appendix listing (flat carrier,
- * MoleFractions spelling, Unit token `Fraction`, MoleFlow in KilomolePerHour).
+ * The input below uses a flat carrier, the MoleFractions spelling, Unit token
+ * `Fraction`, and MoleFlow in KilomolePerHour.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -104,7 +104,7 @@ describe('Registry — compositionFractionProperty (schema-driven carrier name)'
   });
 });
 
-describe('MoleFractions read-alias (paper-listing input round-trips)', () => {
+describe('MoleFractions read-alias (listing input round-trips)', () => {
   it('extracts a MoleFractions-spelled vector and emits it under the schema-declared carrier', { timeout: 15_000 }, async () => {
     const t = new BpmnToDexpiTransformer();
     const out = await t.transform(LISTING2_STYLE_BPMN, {
@@ -122,12 +122,18 @@ describe('MoleFractions read-alias (paper-listing input round-trips)', () => {
     expect(out).toMatch(/property="MoleFractiona"/);
     expect(out).not.toMatch(/property="MoleFractions"/);
 
-    // The fractions carrier resolves as a declared property — the only
-    // property-name finding from this input is the MoleFlow vocabulary gap
-    // (the paper's §5 example #1).
+    // Both carriers resolve as declared properties, so this input produces no
+    // property-name findings at all. MoleFlow is authored against the
+    // MaterialStateType but declared on Composition, and is emitted there —
+    // it used to be reported as a MaterialStateType vocabulary gap, which was
+    // the emitter putting it on the wrong class rather than a gap in DEXPI.
     const propErrors = t.lastPropertyNameValidation!.errors;
-    expect(propErrors.some(e => e.includes('MaterialStateType.MoleFlow'))).toBe(true);
+    expect(propErrors.some(e => e.includes('MaterialStateType.MoleFlow'))).toBe(false);
     expect(propErrors.some(e => e.includes('MoleFraction'))).toBe(false);
+    // Emitted under Composition, which is where Process.xml declares MoleFlow.
+    expect(out).toMatch(
+      /<Object[^>]*type="Process\/Process\.Composition"[\s\S]*?property="MoleFlow"/,
+    );
 
     // The authored token `Fraction` is not a PercentageUnit literal; the
     // schema-bound carrier emits it as a qualified DataReference so the

@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite the article below
+  (the preferred citation), and optionally the software itself.
+type: software
+title: "BPMN2DEXPI: DEXPI Process Modeling Tool"
+authors:
+  - family-names: Khella
+    given-names: Shady
+version: 0.3.1
+date-released: "2026-07-12"
+license: MIT
+repository-code: "https://github.com/skhella/bpmn2dexpi"
+url: "https://skhella.github.io/bpmn2dexpi/"
+keywords:
+  - DEXPI
+  - BPMN
+  - process engineering
+  - block flow diagram
+  - process flow diagram
+  - interoperability
+preferred-citation:
+  type: article
+  title: >-
+    Representing DEXPI Process in BPMN 2.0 for graphical modeling and
+    exchange of block flow and process flow diagrams
+  authors:
+    - family-names: Khella
+      given-names: Shady
+    - family-names: Schichtel
+      given-names: Markus
+    - family-names: Esche
+      given-names: Erik
+    - family-names: Weichhardt
+      given-names: Frauke
+    - family-names: Repke
+      given-names: Jens-Uwe
+  journal: Digital Chemical Engineering
+  year: 2026
+  doi: 10.1016/j.dche.2026.100326

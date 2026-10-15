@@ -188,6 +188,53 @@ describe('Data-type validator — TEP fixture (regression)', () => {
   });
 });
 
+describe('Data-type validator — aggregated data types', () => {
+  it('flags a MultiLanguageString-declared property carried as a plain String', () => {
+    // MaterialStateType.Description is declared Core/DataTypes.MultiLanguageString.
+    // A plain <String> is the wrong carrier: a strict consumer rejects the
+    // value and, with it, the object holding it.
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="mst1" type="Process/Process.MaterialStateType">
+        <Data property="Description"><String>Purge gas</String></Data>
+      </Object>
+    </Model>`;
+    const failures = validateEmittedDexpiDataTypes(xml, 'unit', REGISTRY);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].propertyName).toBe('Description');
+    expect(failures[0].declaredType).toBe('Core/DataTypes.MultiLanguageString');
+  });
+
+  it('accepts the aggregated carrier', () => {
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="mst1" type="Process/Process.MaterialStateType">
+        <Data property="Description">
+          <AggregatedDataValue type="Core/DataTypes.MultiLanguageString">
+            <Data property="SingleLanguageStrings">
+              <AggregatedDataValue type="Core/DataTypes.SingleLanguageString">
+                <Data property="Language"><String>en</String></Data>
+                <Data property="Value"><String>Purge gas</String></Data>
+              </AggregatedDataValue>
+            </Data>
+          </AggregatedDataValue>
+        </Data>
+      </Object>
+    </Model>`;
+    expect(validateEmittedDexpiDataTypes(xml, 'unit', REGISTRY)).toEqual([]);
+  });
+
+  it('leaves MaterialState.Description alone, which DEXPI declares Builtin/String', () => {
+    // The one class where a plain string is the correct carrier. Unchanged in
+    // 2.0.1 beta 2 — an inconsistency in the standard, so the check follows
+    // the declared type per property rather than the property name.
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="ms1" type="Process/Process.MaterialState">
+        <Data property="Description"><String>Purge gas</String></Data>
+      </Object>
+    </Model>`;
+    expect(validateEmittedDexpiDataTypes(xml, 'unit', REGISTRY)).toEqual([]);
+  });
+});
+
 describe('Data-type validator — out-of-scope types', () => {
   it('skips properties whose target is a class reference (not a Builtin or Enum)', () => {
     // Composition.MoleFractiona uses a CompositionProperty target — the

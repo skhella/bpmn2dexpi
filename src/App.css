@@ -795,3 +795,51 @@
 }
 
 
+
+/* Narrow screens (phones, small portrait tablets): side-by-side layout
+   would let the fixed-width properties panel consume the entire row and
+   collapse the canvas to zero width, so nothing of the diagram is ever
+   visible. Stack instead — canvas on top, panel below — so the diagram
+   renders and fit-viewport has a real viewport to fit into. Everything
+   here is scoped to the media query: above 768px no rule applies and the
+   desktop layout is untouched. */
+@media (max-width: 768px) {
+  .app-content {
+    flex-direction: column;
+  }
+
+  .canvas-container {
+    flex: 1 1 55%;
+    min-height: 260px;
+  }
+
+  .properties-panel {
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 45%;
+    max-height: 45%;
+    border-left: none;
+    border-top: 1px solid #ddd;
+    padding: 1rem;
+  }
+
+  /* Let the title block and toolbar wrap instead of clipping off-screen. */
+  .app-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
+}
+
+/* Active diagram drag (palette create, move, connect): no text selection
+   anywhere — Safari otherwise anchors a page-wide selection when the drag
+   crosses selectable text. Toggled via drag.init / drag.cleanup. */
+body.dexpi-dragging,
+body.dexpi-dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}

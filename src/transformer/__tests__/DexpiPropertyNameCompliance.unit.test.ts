@@ -8,8 +8,8 @@
  * extensionElements) and after transformation (DEXPI XML output).
  *
  * Why this exists: XSD validation (DexpiOutputValidator) treats
- * property names as opaque strings. This suite is what backs the paper's
- * property-name fidelity claims and prevents regressions on the Tier-1
+ * property names as opaque strings. This suite verifies DEXPI 2.0
+ * property-name fidelity and prevents regressions on the Tier-1
  * canonical-name fixes landed in this branch.
  *
  * Why we generate the Profile dynamically: the architectural-mismatch
@@ -57,8 +57,8 @@ const BASE_REGISTRY = DexpiProcessClassRegistry.fromXmlSources([
 //
 // Strict-mode fidelity validation always runs in this suite, regardless
 // of the user-facing default for the strict flag (off by default in the
-// transformer / CLI / UI per DEXPI 2.0's permissive philosophy). The CI
-// gate backing the paper's fidelity claims is non-negotiable.
+// transformer / CLI / UI per DEXPI 2.0's permissive philosophy). This CI
+// fidelity gate is non-negotiable.
 
 describe('DEXPI property-name fidelity (Process.xml + Core.xml + generated TEP Profile)', () => {
   // Build the augmented registry once in beforeAll so every test gets a

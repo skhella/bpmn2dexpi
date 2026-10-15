@@ -29,6 +29,59 @@ const REGISTRY = DexpiProcessClassRegistry.fromXmlSources([
 ]);
 
 describe('Tier 4: reference target-class validator', () => {
+  it('flags an Object nested under a composition that does not accept its class', () => {
+    // SubProcessSteps declares ClassReference type="/Process.ProcessStep".
+    // MeasuringProcessVariable descends from InstrumentationActivity, whose
+    // supertype is Core/ConceptualObject — so it is not a ProcessStep and
+    // cannot be nested here. A strict consumer rejects the nested object and
+    // the parent step along with it.
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="step1" type="Process/Process.ReactingChemicals">
+        <Components property="SubProcessSteps">
+          <Object id="mpv1" type="Process/Process.MeasuringProcessVariable"/>
+        </Components>
+      </Object>
+    </Model>`;
+    const failures = validateEmittedDexpiReferences(xml, 'unit', REGISTRY);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].propertyName).toBe('SubProcessSteps');
+    expect(failures[0].expectedClass).toBe('ProcessStep');
+    expect(failures[0].actualClass).toBe('MeasuringProcessVariable');
+  });
+
+  it('accepts a subclass of the declared composition target, and the canonical instrumentation nesting', () => {
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="step1" type="Process/Process.ReactingChemicals">
+        <Components property="SubProcessSteps">
+          <Object id="step2" type="Process/Process.Pumping"/>
+        </Components>
+      </Object>
+      <Object id="isa1" type="Process/Process.InstrumentationSystemActivity">
+        <Components property="InstrumentationActivities">
+          <Object id="mpv1" type="Process/Process.MeasuringProcessVariable"/>
+        </Components>
+      </Object>
+    </Model>`;
+    expect(validateEmittedDexpiReferences(xml, 'unit', REGISTRY)).toEqual([]);
+  });
+
+  it('flags a References target id that resolves to no object (dangling)', () => {
+    // The official XSD types `objects` as nameOrIdReferences — a
+    // pattern-checked string, not xs:IDREFS — so unresolved ids pass XSD
+    // validation. This dimension must catch them.
+    const xml = `<?xml version="1.0"?><Model name="x" uri="https://t/">
+      <Object id="state_type" type="Process/Process.MaterialStateType">
+        <References property="Composition" objects="#does_not_exist"/>
+      </Object>
+    </Model>`;
+    const failures = validateEmittedDexpiReferences(xml, 'unit', REGISTRY);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].propertyName).toBe('Composition');
+    expect(failures[0].actualClass).toBe('(unresolved id)');
+    expect(failures[0].targetId).toBe('does_not_exist');
+    expect(failures[0].context).toContain('does not resolve to any Object');
+  });
+
   it('flags a References target whose class does not match the declared target', () => {
     // MaterialStateType.Composition declares target /Process.Composition.
     // Here we point it at a Stream — should fail.

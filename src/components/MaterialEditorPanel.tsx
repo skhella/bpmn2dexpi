@@ -446,6 +446,57 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
     setEdited(item.data);
   }, [item]);
 
+  // componentReference → display name for every MaterialComponent declared
+  // in the model (keyed by uid and by Identifier — fraction rows built from
+  // the template's ListOfComponents carry uids; legacy saves carried
+  // identifiers). Composition rows show the component's Label / Identifier
+  // instead of the raw uid; the reference itself is derived from the
+  // template's component order, so the row renders it read-only rather
+  // than as an editable field.
+  const componentNameByRef = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!modeler) return map;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const readData = (parent: any, propertyName: string): string => {
+      if (Array.isArray(parent.data)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const d = parent.data.find((x: any) => (x.property ?? x.$attrs?.property) === propertyName);
+        if (d) return d.body ?? d.$body ?? '';
+      }
+      for (const c of parent.$children ?? []) {
+        const t = (c.$type || '').toLowerCase();
+        if ((t === 'dexpi:data' || t === 'data') &&
+            (c.property === propertyName || c.$attrs?.property === propertyName)) {
+          return c.body ?? c.$body ?? '';
+        }
+      }
+      return '';
+    };
+    try {
+      const elementRegistry = modeler.get('elementRegistry');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dataObjs = elementRegistry.filter((el: any) => el.type === 'bpmn:DataObjectReference');
+      for (const el of dataObjs) {
+        const vals = el.businessObject?.extensionElements?.values ?? [];
+        for (const v of vals) {
+          const t = v?.$type || '';
+          // MaterialComponent and its concrete subclasses; the
+          // ListOfMaterialComponents wrapper class also contains the
+          // substring, so exclude it explicitly.
+          if (!t.includes('MaterialComponent') || t.includes('ListOfMaterialComponents')) continue;
+          const identifier = readData(v, 'Identifier');
+          const name = readData(v, 'Label') || identifier || v.uid || '';
+          if (!name) continue;
+          if (v.uid) map.set(v.uid, name);
+          if (identifier) map.set(identifier, name);
+        }
+      }
+    } catch {
+      // Registry unavailable — rows fall back to the raw reference text.
+    }
+    return map;
+  }, [modeler, item]);
+
   /**
    * Save the edited MaterialComponent back to the BPMN moddle tree using the
    * canonical DEXPI carrier shape (`<dexpi:data property="X">v</dexpi:data>`,
@@ -750,26 +801,21 @@ export const MaterialEditorPanel: React.FC<MaterialEditorPanelProps> = ({ item, 
                       marginBottom: '6px',
                       alignItems: 'center',
                     }}>
-                      <input
-                        type="text"
-                        value={fraction.componentReference || ''}
-                        onChange={(e) => {
-                          const newFractions = [...edited.flow.composition.fractions];
-                          newFractions[index] = { ...newFractions[index], componentReference: e.target.value };
-                          setEdited({
-                            ...edited,
-                            flow: {
-                              ...edited.flow,
-                              composition: {
-                                ...edited.flow.composition,
-                                fractions: newFractions,
-                              },
-                            },
-                          });
+                      <div
+                        style={{
+                          flex: 1,
+                          fontSize: '0.9em',
+                          color: '#333',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
                         }}
-                        placeholder="Component"
-                        style={{ flex: 1 }}
-                      />
+                        title={fraction.componentReference || undefined}
+                      >
+                        {componentNameByRef.get(fraction.componentReference) ||
+                          fraction.componentReference ||
+                          `Component ${index + 1}`}
+                      </div>
                       <input
                         type="number"
                         step="0.0001"

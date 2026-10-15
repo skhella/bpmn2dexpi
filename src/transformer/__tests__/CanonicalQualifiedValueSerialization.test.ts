@@ -204,7 +204,7 @@ describe('TEP canonical QualifiedValue emit', () => {
   it('emits fraction vectors as a PhysicalQuantityVector with a PercentageUnit reference', () => {
     expect(out).toContain('<AggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantityVector">');
     expect(out).toContain('<DataReference data="Core/PhysicalQuantities.PercentageUnit.Percent"/>');
-    expect(count(/<Data property="Values"/g)).toBe(88); // 11 compositions × 8 components
+    expect(count(/<Data property="Values"/g)).toBe(96); // 12 compositions × 8 components
   });
 
   it('never emits a flat <String> Unit/UnitReference on a QualifiedValue', () => {

@@ -1,6 +1,10 @@
 <img src="./src/assets/noncropped_logo.png" alt="BPMN2DEXPI Logo" width="400" />
 
+[![DOI](https://zenodo.org/badge/1142310809.svg)](https://zenodo.org/badge/latestdoi/1142310809)
+
 A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DEXPI 2.0–compliant block flow and process flow diagrams, validated against the official DEXPI XML Schema.
+
+**Use it in your browser — no installation:** [skhella.github.io/bpmn2dexpi](https://skhella.github.io/bpmn2dexpi/). Everything runs client-side; diagrams are autosaved locally and never leave your machine. A first-visit guide walks through modeling a BFD/PFD with DEXPI semantics and can load the Tennessee Eastman example with one click.
 
 ## Features
 
@@ -22,6 +26,8 @@ A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DE
 - **xmllint** (for XSD validation in Node/CLI — `libxml2-utils` on Linux, `brew install libxml2` on macOS). Browser contexts use a structural fallback.
 
 ## Quick Start
+
+The fastest way to try the tool is the hosted app: [skhella.github.io/bpmn2dexpi](https://skhella.github.io/bpmn2dexpi/) — no setup needed. To run it locally instead:
 
 ```bash
 git clone https://github.com/skhella/bpmn2dexpi.git
@@ -58,7 +64,7 @@ See [CLI_USAGE.md](./CLI_USAGE.md) for more.
 
 ## Web Interface
 
-Open `http://localhost:5173`, drag elements from the palette, connect with typed flows, configure ports and stream properties in the side panel, edit instrumentation variables on connected `DataObject`s, and export to DEXPI 2.0 XML or Neo4j.
+Open the [hosted app](https://skhella.github.io/bpmn2dexpi/) (or `http://localhost:5173` when running locally), drag elements from the palette, connect with typed flows, configure ports and stream properties in the side panel, edit instrumentation variables on connected `DataObject`s, and export to DEXPI 2.0 XML or Neo4j.
 
 *Import ▾ → Import DEXPI XML* opens an existing DEXPI 2.0 Process document as an editable diagram: process steps, typed ports, streams, subprocesses, instrumentation wiring, stream quantities with their qualifiers, and the full material library (templates, components, states, compositions) are reconstructed, and an obstacle-aware layout engine places everything automatically — DEXPI Process carries no diagram geometry, so the layout is heuristic. Content survives the cycle completely: exporting the imported diagram reproduces the original document's information-model content object-for-object (an integration test pins this on the Tennessee Eastman benchmark; element order and per-run ids may differ).
 
@@ -142,4 +148,4 @@ DEXPI Specification is licensed under CC BY 4.0.
 
 ---
 
-v0.3.0
+v0.3.1

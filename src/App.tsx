@@ -9,12 +9,16 @@ import { DataObjectPropertiesPanel } from './components/DataObjectPropertiesPane
 import { MaterialLibraryPanel } from './components/MaterialLibraryPanel';
 import { MaterialEditorPanel } from './components/MaterialEditorPanel';
 import { Neo4jExportModal } from './components/Neo4jExportModal';
+import { IntroGuide } from './components/IntroGuide';
+import { GuidedTour } from './components/GuidedTour';
+import { CiteDialog } from './components/CiteDialog';
 import { BpmnToDexpiTransformer } from './transformer/BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
 import { generateProfileFromDexpiXml } from './transformer/DexpiProfileGenerator';
 import { DexpiToBpmnTransformer } from './transformer/DexpiToBpmnTransformer';
 import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../dexpi-schema-files/Core.xml?raw';
+import tepExampleBpmn from '../examples/Tennessee_Eastman_Process.bpmn?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
 import {
@@ -22,9 +26,20 @@ import {
   isMaterialTemplatesContainer,
 } from './utils/materialContainers';
 import logoImg from './assets/cropped_logo_B2P.png';
+import { version as appVersion } from '../package.json';
 import './App.css';
 
+// Quiet project links shown in the app chrome: repository, the article the
+// tool accompanies, and a one-click issue form whose title is pre-tagged
+// with the running release so bug reports arrive versioned.
+const REPO_URL = 'https://github.com/skhella/bpmn2dexpi';
+const PAPER_URL = 'https://doi.org/10.1016/j.dche.2026.100326';
+const ISSUE_URL = `${REPO_URL}/issues/new?title=${encodeURIComponent(`[v${appVersion}] `)}`;
+
 const AUTOSAVE_KEY = 'bpmn2dexpi_autosave';
+// First-visit guide: set once the dialog has been dismissed, so it greets
+// each browser a single time (reopenable from the toolbar's Guide button).
+const INTRO_SEEN_KEY = 'bpmn2dexpi_intro_seen';
 
 // localStorage helpers — wrap every access so disabled-storage contexts
 // (Firefox strict-privacy, Safari ITP, sandboxed iframes, storage-quota
@@ -132,6 +147,30 @@ function refreshAllElementsAfterImport(bpmnModelerInstance: any): void {
   }
 }
 
+/**
+ * Fit the diagram into the visible canvas, tolerating degenerate viewports.
+ * fit-viewport derives scale and translation from the canvas container's
+ * client box; when that box has no area (narrow screens where the
+ * fixed-width properties panel consumes the whole row, calls that land
+ * mid-layout) the math degenerates to non-finite values, which WebKit
+ * rejects with "The provided value is non-finite" while Chromium tolerates
+ * the same call. Fitting the view is cosmetic, so it must never fail the
+ * operation that requested it (an import reported "Import failed" on
+ * phones for exactly this): skip when there is no viewport area, and
+ * swallow engine-specific geometry errors.
+ */
+function fitViewportSafely(bpmnModelerInstance: any): void {
+  if (!bpmnModelerInstance) return;
+  try {
+    const canvas = bpmnModelerInstance.get('canvas') as any;
+    const container = typeof canvas.getContainer === 'function' ? canvas.getContainer() : null;
+    if (container && (container.clientWidth === 0 || container.clientHeight === 0)) return;
+    canvas.zoom('fit-viewport');
+  } catch (e) {
+    console.warn('fit-viewport skipped (non-fatal):', e);
+  }
+}
+
 function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [modeler, setModeler] = useState<BpmnModeler | null>(null);
@@ -140,6 +179,12 @@ function App() {
   const [_currentPlane, setCurrentPlane] = useState<string | null>(null);
   const [planeStack, setPlaneStack] = useState<string[]>([]);
   const [showPorts, setShowPorts] = useState<boolean>(false);
+  // Empty-canvas onboarding hint. True while the diagram holds nothing but
+  // the root plane — a structural registry check, so autosave restores,
+  // imports, and element creation all flip it without extra wiring. The
+  // overlay renders pointer-events: none, so it never intercepts palette
+  // drags or canvas clicks.
+  const [canvasEmpty, setCanvasEmpty] = useState<boolean>(false);
   const [showMaterialLibrary, setShowMaterialLibrary] = useState<boolean>(false);
   // Strict-mode property-name fidelity validation toggle. Off by default
   // (DEXPI 2.0's permissive philosophy: any XSD-valid output is exchangeable,
@@ -174,6 +219,19 @@ function App() {
   // DexpiToBpmnTransformer's own heuristic layout (obstacle-aware routing,
   // port anchoring, collision avoidance) — no ELK relayout on this branch.
   const [showImportMenu, setShowImportMenu] = useState<boolean>(false);
+
+  // First-visit guide dialog. Opens automatically the first time a browser
+  // loads the app (no localStorage flag yet); afterwards only via the
+  // toolbar's Guide button. Lazy initializer keeps this render-deterministic.
+  const [showIntroGuide, setShowIntroGuide] = useState<boolean>(
+    () => safeLocalGetItem(INTRO_SEEN_KEY) === null,
+  );
+
+  // Citation dialog, opened from the footer's "Cite" affordance.
+  const [showCiteDialog, setShowCiteDialog] = useState<boolean>(false);
+
+  // Interactive step-by-step tour, entered from the intro guide.
+  const [showTour, setShowTour] = useState<boolean>(false);
 
   // Strict-mode export-time warning modal. Populated by handleExportDexpi
   // when strict mode is on and the property-name validator finds
@@ -226,6 +284,32 @@ function App() {
   const [profileExportFilename, setProfileExportFilename] = useState<string>('generated-profile.xml');
   const isNavigatingBack = useRef(false);
   
+  // Suppress native text selection for the duration of any diagram drag.
+  // Safari anchors a page-wide selection when a drag that starts on an
+  // unselectable element (a palette entry) sweeps across selectable text
+  // (hints, panel copy, toasts) — the whole page paints as selected
+  // mid-drag. diagram-js brackets every drag with drag.init/drag.cleanup;
+  // a body class turns off user-select in between, and any selection
+  // Safari already anchored is cleared on entry.
+  useEffect(() => {
+    if (!modeler) return;
+    const eventBus = modeler.get('eventBus') as any;
+    const onDragInit = () => {
+      window.getSelection()?.removeAllRanges();
+      document.body.classList.add('dexpi-dragging');
+    };
+    const onDragCleanup = () => {
+      document.body.classList.remove('dexpi-dragging');
+    };
+    eventBus.on('drag.init', onDragInit);
+    eventBus.on('drag.cleanup', onDragCleanup);
+    return () => {
+      eventBus.off('drag.init', onDragInit);
+      eventBus.off('drag.cleanup', onDragCleanup);
+      onDragCleanup();
+    };
+  }, [modeler]);
+
   // Update global flag for port visibility
   useEffect(() => {
     (window as any).__dexpi_show_ports__ = showPorts;
@@ -436,7 +520,7 @@ function App() {
       const parentElement = elementRegistry.get(parentId);
       if (parentElement) {
         canvas.setRootElement(parentElement);
-        canvas.zoom('fit-viewport');
+        fitViewportSafely(modeler);
       }
     }
 
@@ -477,8 +561,7 @@ function App() {
     }
     // Zoom-to-fit even when no plane navigation happened — handles the
     // common case of "I panned/zoomed and want to reset the view".
-    const canvas = modeler.get('canvas') as any;
-    canvas.zoom('fit-viewport');
+    fitViewportSafely(modeler);
     // Close every transient overlay so the user lands on a clean canvas.
     setSelectedElement(null);
     setSelectedMaterialItem(null);
@@ -507,6 +590,8 @@ function App() {
         dexpiExtension
       ]
     });
+    // Debug/automation handle, same pattern as __dexpi_show_ports__.
+    (window as any).__bpmn_modeler__ = bpmnModeler;
 
     const eventBus = bpmnModeler.get('eventBus') as any;
     
@@ -584,8 +669,8 @@ function App() {
       refreshAllElementsAfterImport(bpmnModeler);
 
       const canvas = bpmnModeler.get('canvas') as any;
-      canvas.zoom('fit-viewport');
-      
+      fitViewportSafely(bpmnModeler);
+
       // Initialize currentRootElement after import is complete
       currentRootElement = canvas.getRootElement();
       
@@ -619,6 +704,27 @@ function App() {
       bpmnModeler.destroy();
     };
   }, []);
+
+  // Track whether the canvas is empty. Only root planes register without a
+  // parent, so "no element has a parent" is exactly "nothing modeled yet" —
+  // across drilled-down subprocess planes too. commandStack.changed covers
+  // every model edit (create, delete, undo, redo); import.done covers
+  // importXML calls, which bypass the command stack.
+  useEffect(() => {
+    if (!modeler) return;
+    const eventBus = modeler.get('eventBus') as any;
+    const elementRegistry = modeler.get('elementRegistry') as any;
+    const recompute = () => {
+      setCanvasEmpty(!elementRegistry.getAll().some((el: any) => el.parent));
+    };
+    recompute();
+    eventBus.on('import.done', recompute);
+    eventBus.on('commandStack.changed', recompute);
+    return () => {
+      eventBus.off('import.done', recompute);
+      eventBus.off('commandStack.changed', recompute);
+    };
+  }, [modeler]);
 
   /**
    * Run the full strict-mode validation pipeline against the current model
@@ -1057,6 +1163,29 @@ function App() {
     }
   };
 
+  // Shared BPMN-loading path for the file-picker import and the intro
+  // guide's bundled example — identical sequence, only the source of the
+  // XML and the success message differ.
+  const loadBpmnXml = async (text: string, message = 'BPMN imported successfully!') => {
+    if (!modeler) return;
+    try {
+      const preprocessedText = preprocessBpmnXml(text);
+      await modeler.importXML(preprocessedText);
+      refreshAllElementsAfterImport(modeler);
+      // Save imported diagram immediately
+      const { xml } = await modeler.saveXML({ format: true });
+      if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
+      setValidationMessage(message);
+      // Reset navigation state
+      setPlaneStack([]);
+      setCurrentPlane(null);
+      fitViewportSafely(modeler);
+    } catch (err) {
+      console.error('Import failed:', err);
+      setValidationMessage('Import failed: ' + (err as Error).message);
+    }
+  };
+
   const handleImportBpmn = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1064,25 +1193,7 @@ function App() {
     input.onchange = async (e: any) => {
       const file = e.target.files[0];
       if (!file || !modeler) return;
-
-      try {
-        const text = await file.text();
-        const preprocessedText = preprocessBpmnXml(text);
-        await modeler.importXML(preprocessedText);
-        refreshAllElementsAfterImport(modeler);
-        // Save imported diagram immediately
-        const { xml } = await modeler.saveXML({ format: true });
-        if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
-        setValidationMessage('BPMN imported successfully!');
-        // Reset navigation state
-        setPlaneStack([]);
-        setCurrentPlane(null);
-        const canvas = modeler.get('canvas') as any;
-        canvas.zoom('fit-viewport');
-      } catch (err) {
-        console.error('Import failed:', err);
-        setValidationMessage('Import failed: ' + (err as Error).message);
-      }
+      await loadBpmnXml(await file.text());
     };
     input.click();
   };
@@ -1129,6 +1240,21 @@ function App() {
     input.click();
   };
 
+  const closeIntroGuide = () => {
+    safeLocalSetItem(INTRO_SEEN_KEY, '1');
+    setShowIntroGuide(false);
+  };
+
+  const handleLoadExample = async () => {
+    await loadBpmnXml(tepExampleBpmn, 'Tennessee Eastman example loaded');
+    closeIntroGuide();
+  };
+
+  const handleStartTour = () => {
+    closeIntroGuide();
+    setShowTour(true);
+  };
+
   const handleNewDiagram = async () => {
     if (!modeler) return;
     if (!window.confirm('Start a new diagram? Any unsaved changes will be lost.')) return;
@@ -1138,8 +1264,7 @@ function App() {
     setPlaneStack([]);
     setCurrentPlane(null);
     setSelectedElement(null);
-    const canvas = modeler.get('canvas') as any;
-    canvas.zoom('fit-viewport');
+    fitViewportSafely(modeler);
     setValidationMessage('New diagram created');
   };
 
@@ -1168,15 +1293,23 @@ function App() {
               ← Back to Parent
             </button>
           )}
-          <button 
-            onClick={() => setShowPorts(!showPorts)} 
+          <button
+            onClick={() => setShowPorts(!showPorts)}
             className={`btn ${showPorts ? 'btn-active' : ''}`}
             title="Toggle port visibility"
+            data-tour="ports-toggle"
           >
             {showPorts ? '● Ports: ON' : '○ Ports: OFF'}
           </button>
-          <button 
-            onClick={() => setShowMaterialLibrary(!showMaterialLibrary)} 
+          <button
+            onClick={() => setShowIntroGuide(true)}
+            className="btn"
+            title="How to model a BFD/PFD with DEXPI semantics"
+          >
+            Guide
+          </button>
+          <button
+            onClick={() => setShowMaterialLibrary(!showMaterialLibrary)}
             className={`btn ${showMaterialLibrary ? 'btn-active' : ''}`}
             title="Toggle material library"
           >
@@ -1322,6 +1455,7 @@ function App() {
               onClick={() => setShowDexpiMenu(v => !v)}
               className={`btn ${showDexpiMenu ? 'btn-active' : ''}`}
               title="Strict-mode validation, Profile import, Profile generation"
+              data-tour="dexpi-menu"
             >
               {/* Surface a small "active" indicator when strict is on or
                   any Profile is loaded, so users know there's session-state
@@ -1376,6 +1510,7 @@ function App() {
                       checked={strictMode}
                       onChange={(e) => setStrictMode(e.target.checked)}
                       style={{ margin: '3px 0 0 0' }}
+                      data-tour="strict-toggle"
                     />
                     <span>
                       Strict property-name validation
@@ -1389,6 +1524,7 @@ function App() {
                   <button
                     onClick={() => { handleValidateNow(); setShowDexpiMenu(false); }}
                     className="btn"
+                    data-tour="validate-now"
                     title="Run the full five-tier strict validation against the current model without exporting. Findings show in the same warning dialog the export path uses."
                   >
                     Validate now
@@ -1435,6 +1571,7 @@ function App() {
                       onClick={() => { profileFileInputRef.current?.click(); setShowDexpiMenu(false); }}
                       className="btn"
                       style={{ flex: '1 1 auto' }}
+                      data-tour="import-profile"
                       title="Load a DEXPI Profile (project-specific extension schema)."
                     >
                       Import Profile
@@ -1443,6 +1580,7 @@ function App() {
                       onClick={() => { openGenerateProfileDialog(); setShowDexpiMenu(false); }}
                       className="btn"
                       style={{ flex: '1 1 auto' }}
+                      data-tour="generate-profile-menu"
                       title="Generate a DEXPI Profile from the current model that fills every metamodel-fidelity gap. Re-import the downloaded file to apply it."
                     >
                       Generate Profile
@@ -1462,13 +1600,13 @@ function App() {
               </>
             )}
           </div>
-          <button onClick={openExportDexpiDialog} className="btn btn-primary">Export DEXPI XML</button>
+          <button onClick={openExportDexpiDialog} className="btn btn-primary" data-tour="export-dexpi">Export DEXPI XML</button>
         </div>
       </header>
       
       <div className="app-content">
-        <div 
-          className="canvas-container" 
+        <div
+          className="canvas-container"
           ref={containerRef}
           onClick={() => {
             // Close material editor panel when clicking on canvas
@@ -1476,7 +1614,37 @@ function App() {
               setSelectedMaterialItem(null);
             }
           }}
-        ></div>
+        >
+          {canvasEmpty && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.6em',
+                textAlign: 'center',
+                padding: '0 18%',
+                pointerEvents: 'none',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                zIndex: 5,
+                color: '#98a3ab',
+              }}
+            >
+              <div style={{ fontSize: '1.05rem', fontWeight: 500 }}>
+                Drag a start event from the palette to begin modeling
+              </div>
+              <div style={{ fontSize: '0.85rem', maxWidth: '460px', lineHeight: 1.5 }}>
+                Start events become DEXPI Sources, tasks become ProcessSteps,
+                and sequence flows become Streams. Toggle Ports in the toolbar
+                to show the DEXPI ports created when you connect elements.
+              </div>
+            </div>
+          )}
+        </div>
         
         {showMaterialLibrary && (
           <>
@@ -1515,7 +1683,45 @@ function App() {
           )}
         </div>
       </div>
-      
+
+      {/* Permanent slim footer: release version on the left; repository,
+          article, and a pre-versioned issue form on the right. The issue
+          link's title prefix means bug reports arrive tagged with the
+          release they were seen on. */}
+      <footer
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '3px 14px',
+          fontSize: '0.74rem',
+          color: '#5f6b74',
+          background: '#f2f4f5',
+          borderTop: '1px solid #ddd',
+          flexShrink: 0,
+        }}
+      >
+        <span>BPMN2DEXPI v{appVersion}</span>
+        <span style={{ display: 'flex', gap: '16px' }}>
+          <a href={REPO_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>GitHub</a>
+          <a href={PAPER_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Paper</a>
+          <button
+            onClick={() => setShowCiteDialog(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              font: 'inherit',
+              color: '#46586a',
+              cursor: 'pointer',
+            }}
+          >
+            Cite
+          </button>
+          <a href={ISSUE_URL} target="_blank" rel="noreferrer" style={{ color: '#46586a', textDecoration: 'none' }}>Report an issue</a>
+        </span>
+      </footer>
+
       {validationMessage && (
         <div className="validation-message">
           {validationMessage}
@@ -1628,6 +1834,7 @@ function App() {
               <button
                 onClick={() => { setStrictWarning(null); openGenerateProfileDialog(); }}
                 className="btn btn-primary"
+                data-tour="generate-profile"
               >
                 Generate Profile
               </button>
@@ -1642,6 +1849,24 @@ function App() {
         onExport={handleExportNeo4j}
         isExporting={neo4jExporting}
         progress={neo4jProgress}
+      />
+
+      <IntroGuide
+        open={showIntroGuide}
+        onClose={closeIntroGuide}
+        onLoadExample={handleLoadExample}
+        onStartTour={handleStartTour}
+      />
+
+      <GuidedTour
+        active={showTour}
+        modeler={modeler}
+        onExit={() => setShowTour(false)}
+      />
+
+      <CiteDialog
+        open={showCiteDialog}
+        onClose={() => setShowCiteDialog(false)}
       />
 
       {showProfileExportDialog && (
@@ -1701,6 +1926,7 @@ function App() {
               <button
                 onClick={() => { setShowProfileExportDialog(false); handleGenerateProfile(); }}
                 className="btn btn-primary"
+                data-tour="profile-generate-confirm"
               >
                 Generate
               </button>

@@ -215,6 +215,39 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
   });
 
   // ── basic output structure ────────────────────────────────────────────────
+  describe('step Components carrier normalization', () => {
+    it('emits ports and a composition-kind custom attribute side by side', async () => {
+      // Regression: a step with ports carries Components as a single
+      // object; pushing a custom (composition-kind) attribute used to
+      // throw "Components.push is not a function".
+      const xml = bpmn(`
+        <task id="T1" name="Mixing">
+          <extensionElements>
+            <dexpi:element dexpiType="Mixing" identifier="T1" uid="uid-T1">
+              <dexpi:port id="T1_MI1_port" name="MI1" portType="MaterialPort" direction="Inlet" label="MI1"/>
+              <dexpi:components property="DesignMargin">
+                <dexpi:object type="Core/QualifiedValue">
+                  <dexpi:data property="Value">10</dexpi:data>
+                </dexpi:object>
+              </dexpi:components>
+            </dexpi:element>
+          </extensionElements>
+        </task>
+        ${startEvent('SE1', 'Feed')}
+        ${endEvent('EE1', 'Product')}
+        ${seqFlow('F1', 'SE1', 'T1')}
+        ${seqFlow('F2', 'T1', 'EE1')}
+      `);
+      const t = new BpmnToDexpiTransformer();
+      const out = await t.transform(xml);
+
+      expect(out).toContain('property="Ports"');
+      expect(out).toContain('property="DesignMargin"');
+      const parsed = new DOMParser().parseFromString(out, 'text/xml');
+      expect(parsed.querySelector('parsererror')).toBeNull();
+    });
+  });
+
   describe('output structure', () => {
     it('generates XML containing the expected DEXPI ProcessStep', async () => {
       const xml = bpmn(`

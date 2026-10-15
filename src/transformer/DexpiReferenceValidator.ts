@@ -9,7 +9,8 @@
  *   - Tier 1: XSD                 (structural well-formedness, ID/IDREF integrity)
  *   - Tier 2: property-name+kind  (name presence on wrapping class, carrier kind)
  *   - Tier 3: data-type           (value-level Builtin / Enumeration conformance)
- *   - Tier 4: reference target    (this — class-of-target conformance)
+ *   - Tier 4: reference target    (this — class-of-target conformance, for
+ *                                  references and for composition containment)
  *   - Tier 5: cardinality         (lower/upper bounds — DexpiCardinalityValidator)
  *
  * What the XSD already enforces:
@@ -114,7 +115,23 @@ export function validateEmittedDexpiReferences(
     const targets = targetsAttr.split(/\s+/).filter(Boolean).map(stripHash);
     for (const targetId of targets) {
       const actualClass = idToClass.get(targetId);
-      if (!actualClass) continue; // dangling ref — XSD's job, not ours
+      if (!actualClass) {
+        // Dangling reference. The official XSD cannot catch this — the
+        // `objects` attribute is typed nameOrIdReferences, a pattern-checked
+        // xsd:string, not xs:IDREFS — so unresolved ids are this
+        // dimension's job.
+        failures.push({
+          source,
+          className: wrappingClass,
+          propertyName: propName,
+          expectedClass: expectedTarget,
+          actualClass: '(unresolved id)',
+          targetId,
+          context: `<References property="${propName}" objects="#${targetId}"/> inside <Object type="${wrappingType}"> — ` +
+            `target id "${targetId}" does not resolve to any Object in the document`,
+        });
+        continue;
+      }
       if (!isClassOrSubclass(registry, actualClass, expectedTarget)) {
         failures.push({
           source,
@@ -127,6 +144,50 @@ export function validateEmittedDexpiReferences(
             `target id "${targetId}" resolves to class "${actualClass}", expected "${expectedTarget}" (or subclass)`,
         });
       }
+    }
+  }
+
+  // ── Tier 4c: Object containment inside <Components> ──────────────────
+  // A CompositionProperty declares the class it may contain. The XSD cannot
+  // enforce it (Components accepts any Object), and Tier 2 only checks that
+  // the property name exists on the wrapping class — so an object nested
+  // under a composition that does not accept its class passes both. That is
+  // how InstrumentationActivity objects were emitted under SubProcessSteps,
+  // which declares /Process.ProcessStep: a strict consumer rejects the
+  // nested object and, with it, the parent that contains it.
+  for (const compEl of Array.from(doc.getElementsByTagName('Components'))) {
+    const propName = compEl.getAttribute('property');
+    if (!propName) continue;
+
+    const wrappingType = nearestEnclosingObjectType(compEl);
+    if (!wrappingType) continue;
+    const wrappingClass = bareClassName(wrappingType);
+    if (!registry.isValidClass(wrappingClass)) continue;
+
+    const expectedTarget = expectedTargetClass(registry, wrappingClass, propName);
+    if (!expectedTarget) continue; // unknown property, or a data property
+
+    for (const child of Array.from(compEl.childNodes)) {
+      const el = child as Element;
+      if (!el.getAttribute || el.nodeName !== 'Object') continue;
+      const childType = el.getAttribute('type');
+      if (!childType) continue;
+      const actualClass = bareClassName(childType);
+      if (!registry.isValidClass(actualClass)) continue; // Tier 6 reports unknown classes
+      if (isClassOrSubclass(registry, actualClass, expectedTarget)) continue;
+
+      const childId = el.getAttribute('id') ?? '(no id)';
+      failures.push({
+        source,
+        className: wrappingClass,
+        propertyName: propName,
+        expectedClass: expectedTarget,
+        actualClass,
+        targetId: childId,
+        context: `<Components property="${propName}"> inside <Object type="${wrappingType}"> contains ` +
+          `<Object id="${childId}" type="${childType}"> — the composition declares "${expectedTarget}" ` +
+          `(or subclass), got "${actualClass}"`,
+      });
     }
   }
 
@@ -152,7 +213,19 @@ export function validateEmittedDexpiReferences(
     if (!expectedTarget) continue;
 
     const actualClass = idToClass.get(targetId);
-    if (!actualClass) continue;
+    if (!actualClass) {
+      failures.push({
+        source,
+        className: wrappingClass,
+        propertyName: propName,
+        expectedClass: expectedTarget,
+        actualClass: '(unresolved id)',
+        targetId,
+        context: `<Components property="${propName}"><ObjectReference object="#${targetId}"/></Components> inside <Object type="${wrappingType}"> — ` +
+          `target id "${targetId}" does not resolve to any Object in the document`,
+      });
+      continue;
+    }
     if (!isClassOrSubclass(registry, actualClass, expectedTarget)) {
       failures.push({
         source,
