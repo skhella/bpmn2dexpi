@@ -263,6 +263,85 @@ describe('DexpiToBpmnTransformer', () => {
       expect(dataObjectShape).toBeGreaterThan(subprocessPlane);
     });
 
+    it('imports instrumentation from the canonical InstrumentationSystemActivities container and seats it beside the observed step', async () => {
+      // DEXPI 2.0 (Process.xml): ProcessStep.SubProcessSteps takes
+      // /Process.ProcessStep only, and InstrumentationActivity descends from
+      // Core/ConceptualObject — so a schema-correct document carries its
+      // MeasuringProcessVariable / ControllingProcessVariable objects under
+      //   ProcessModel.InstrumentationSystemActivities
+      //     └── InstrumentationSystemActivity.InstrumentationActivities
+      // and links each back to its step with ProcessStepReference. This is
+      // the shape the exporter emits since the issue-#87 fix; the importer
+      // must read it (it used to look only inside SubProcessSteps, so every
+      // instrument in a canonical document was silently dropped).
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Model name="process_model" uri="http://www.example.org">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel">
+      <Object id="pm1" type="Process/ProcessModel">
+        <Components property="ProcessSteps">
+${subProcessStep('RC1', 'ReactingChemicals', 'Reactor section', `
+        <Object id="PS1" type="Process/Process.ReactingChemicals">
+          <Data property="Identifier"><String>PS1</String></Data>
+          <Data property="Label"><String>Reactor</String></Data>
+          <Components property="Temperature">
+            <Object id="PS1_Temperature" type="Core/QualifiedValue"/>
+          </Components>
+        </Object>`)}
+${step('PU1', 'Pumping', 'Feed pump')}
+        </Components>
+        <Components property="InstrumentationSystemActivities">
+          <Object id="InstrumentationSystem" type="Process/Process.InstrumentationSystemActivity">
+            <Data property="Identifier"><String>Instrumentation</String></Data>
+            <Data property="Label"><String>Instrumentation</String></Data>
+            <Components property="InstrumentationActivities">
+              <Object id="MA1" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier"><String>MA1</String></Data>
+                <Data property="Label"><String>TI-101</String></Data>
+                <References property="ProcessStepReference" objects="#PS1"/>
+                <References property="MeasuredVariableReference" objects="#PS1_Temperature"/>
+              </Object>
+              <Object id="MA2" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier"><String>MA2</String></Data>
+                <Data property="Label"><String>FI-201</String></Data>
+                <References property="ProcessStepReference" objects="#PU1"/>
+              </Object>
+            </Components>
+          </Object>
+        </Components>
+      </Object>
+    </Components>
+  </Object>
+</Model>`;
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+      expectWellFormedXml(out);
+
+      // Both instruments survive the import as tasks.
+      expect(out).toContain('<bpmn:task id="MA1"');
+      expect(out).toContain('<bpmn:task id="MA2"');
+      expect(out).toContain('dexpiType="MeasuringProcessVariable"');
+
+      // MA1 observes PS1, which lives inside subprocess RC1, so MA1 is seated
+      // on RC1's plane next to it — where the BPMN author drew it.
+      const rcStart = out.indexOf('<bpmn:subProcess id="RC1"');
+      const rcEnd = out.indexOf('</bpmn:subProcess>', rcStart);
+      const ma1 = out.indexOf('<bpmn:task id="MA1"');
+      expect(ma1).toBeGreaterThan(rcStart);
+      expect(ma1).toBeLessThan(rcEnd);
+
+      // MA2 observes a root-level step and stays on the root plane.
+      const ma2 = out.indexOf('<bpmn:task id="MA2"');
+      expect(ma2 < rcStart || ma2 > rcEnd).toBe(true);
+
+      // The measured-variable wiring is reconstructed from the canonical
+      // references exactly as for the flat shape.
+      expect(out).toContain('<bpmn:dataObjectReference id="PS1_Temperature"');
+      expect(out).toContain('<bpmn:dataOutputAssociation id="DataOutputAssociation_PS1_Temperature">');
+      expect(out).toContain('<bpmn:dataInputAssociation id="DataInputAssociation_PS1_Temperature">');
+    });
+
     it('also recognizes nested ProcessModel containers as subprocess children', async () => {
       const nestedProcessModelStep = `
         <Object id="RC1" type="Process/Process.ReactingChemicals">

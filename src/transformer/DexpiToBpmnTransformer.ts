@@ -17,6 +17,9 @@
 
 import { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';
 
+/** Composition fraction vectors, in the order the importer prefers them. */
+const FRACTION_PROPERTIES = new Set(['MoleFractiona', 'MoleFractions', 'MassFractions']);
+
 interface DexpiStep {
   id: string;
   dexpiType: string;      // e.g. "Pumping", "Source", "Sink"
@@ -252,6 +255,43 @@ export class DexpiToBpmnTransformer {
           const step = this.parseStep(obj);
           this.collectStep(step, steps);
         });
+    }
+
+    // Canonical DEXPI 2.0 home for instrumentation (Process.xml):
+    //   ProcessModel.InstrumentationSystemActivities
+    //     └── InstrumentationSystemActivity.InstrumentationActivities
+    //           └── MeasuringProcessVariable / ControllingProcessVariable / …
+    // SubProcessSteps declares ClassReference /Process.ProcessStep, and
+    // InstrumentationActivity descends from Core/ConceptualObject, so a
+    // schema-correct document never nests an instrument under a step. Exports
+    // before the issue-#87 fix did exactly that; those still import through
+    // findNestedProcessStepObjects above. Here we read the canonical container
+    // and seat each activity in the same BPMN container as the step it
+    // observes (ProcessStepReference) — the plane the BPMN author drew it on.
+    const instrumentationActivities: DexpiStep[] = [];
+    const systemsContainer = this.findComponents(processModel, 'InstrumentationSystemActivities');
+    if (systemsContainer) {
+      Array.from(systemsContainer.children)
+        .filter(el => el.tagName === 'Object')
+        .forEach(system => {
+          const activitiesContainer = this.findComponents(system, 'InstrumentationActivities');
+          if (!activitiesContainer) return;
+          Array.from(activitiesContainer.children)
+            .filter(el => el.tagName === 'Object')
+            .forEach(obj => instrumentationActivities.push(this.parseStep(obj)));
+        });
+    }
+    if (instrumentationActivities.length > 0) {
+      const stepById = new Map(steps.map(s => [s.id, s]));
+      instrumentationActivities.forEach(activity => {
+        const observed = activity.processStepRef ? stepById.get(activity.processStepRef) : undefined;
+        const owner = observed?.parentId ? stepById.get(observed.parentId) : undefined;
+        if (owner) {
+          activity.parentId = owner.id;
+          owner.children.push(activity);
+        }
+        this.collectStep(activity, steps);
+      });
     }
 
     // Build a global map of QualifiedValue Object id → owning Components
@@ -540,7 +580,24 @@ export class DexpiToBpmnTransformer {
     let composition: DexpiMaterialStateType['composition'];
     if (compObj) {
       const display = this.getDataString(compObj, 'Display') || undefined;
-      for (const fractionProperty of ['MoleFractiona', 'MoleFractions', 'MassFractions']) {
+      // Scalar QualifiedValues declared on Composition itself — DEXPI 2.0
+      // puts MoleFlow here, not on MaterialStateType (Process.xml:
+      // Composition.MoleFlow). The BPMN authoring shape keeps every state
+      // scalar on <dexpi:MaterialStateType>, and the exporter routes each
+      // one to the class that declares it, so folding Composition's scalars
+      // into the same list closes the round-trip without inventing a second
+      // authoring slot.
+      for (const c of Array.from(compObj.children) as Element[]) {
+        if (c.tagName !== 'Components') continue;
+        const property = c.getAttribute('property');
+        if (!property || FRACTION_PROPERTIES.has(property)) continue;
+        const qv = Array.from(c.children).find(x =>
+          x.tagName === 'Object' && x.getAttribute('type') === 'Core/QualifiedValue') as Element | undefined;
+        if (!qv) continue;
+        const { value, unit, unitEnum } = this.readQvCanonical(qv);
+        if (value && !scalars.some(s => s.property === property)) scalars.push({ property, value, unit, unitEnum });
+      }
+      for (const fractionProperty of FRACTION_PROPERTIES) {
         const carrier = Array.from(compObj.children).find(c =>
           c.tagName === 'Components' && c.getAttribute('property') === fractionProperty);
         if (!carrier) continue;
@@ -1178,7 +1235,27 @@ export class DexpiToBpmnTransformer {
       c.tagName === 'String' || c.tagName === 'Double' ||
       c.tagName === 'Integer' || c.tagName === 'Boolean'
     );
-    return valueNode?.textContent?.trim() || '';
+    if (valueNode) return valueNode.textContent?.trim() || '';
+    // Canonical text carrier: properties typed Core/DataTypes.MultiLanguageString
+    // (Description on most Process classes) serialise as
+    //   <AggregatedDataValue type="Core/DataTypes.MultiLanguageString">
+    //     <Data property="SingleLanguageStrings">
+    //       <AggregatedDataValue type="Core/DataTypes.SingleLanguageString">
+    //         <Data property="Language"><String>en</String></Data>
+    //         <Data property="Value"><String>…</String></Data>
+    // Read the first language's Value so the text survives the import; the
+    // exporter re-emits it in the same canonical shape.
+    const aggregated = Array.from(dataEl.children).find(c =>
+      c.tagName === 'AggregatedDataValue' &&
+      (c.getAttribute('type') || '').endsWith('DataTypes.MultiLanguageString'));
+    if (!aggregated) return '';
+    const strings = Array.from(aggregated.children).find(c =>
+      c.tagName === 'Data' && c.getAttribute('property') === 'SingleLanguageStrings');
+    const single = strings && Array.from(strings.children).find(c => c.tagName === 'AggregatedDataValue');
+    const value = single && Array.from(single.children).find(c =>
+      c.tagName === 'Data' && c.getAttribute('property') === 'Value');
+    const text = value && Array.from(value.children).find(c => c.tagName === 'String');
+    return text?.textContent?.trim() || '';
   }
 
   // ── Layout engine ───────────────────────────────────────────────────────────
