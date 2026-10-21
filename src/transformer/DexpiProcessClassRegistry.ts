@@ -1193,7 +1193,11 @@ function parseUpper(raw: string | null): number | null {
 
 /**
  * Best-effort target-type extraction:
- *   DataProperty       → first <DataTypeReference type="..."/>
+ *   DataProperty       → first <DataTypeReference type="..."/> that is not
+ *                        Builtin/Undefined, so an optional union such as
+ *                        HierarchyLevel (Undefined | ProcessStepHierarchyLevel)
+ *                        resolves to its real member; Builtin/Undefined only
+ *                        when the property declares nothing else
  *   ReferenceProperty  → first <ClassReference type="..."/>
  *   CompositionProperty → either direct <ClassReference> or wrapped in <BoundClass>
  *
@@ -1202,8 +1206,9 @@ function parseUpper(raw: string | null): number | null {
  */
 function parsePropertyTargetType(el: Element, kind: PropertyKind): string | undefined {
   if (kind === 'data') {
-    const dtr = el.querySelector('DataTypeReference');
-    return dtr?.getAttribute('type') ?? undefined;
+    const refs = Array.from(el.querySelectorAll('DataTypeReference'));
+    const real = refs.find(r => r.getAttribute('type') !== 'Builtin/Undefined');
+    return (real ?? refs[0])?.getAttribute('type') ?? undefined;
   }
   if (kind === 'reference') {
     const cr = el.querySelector('ClassReference');

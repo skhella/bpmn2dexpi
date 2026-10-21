@@ -586,6 +586,7 @@ export class BpmnToDexpiTransformer {
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
       description: this.getDocumentation(event),
+      hierarchyLevel: dexpiData?.hierarchyLevel,
       ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
         ...port,
         portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
@@ -629,6 +630,7 @@ export class BpmnToDexpiTransformer {
       identifier: dexpiData?.identifier || id,
       uid: dexpiData?.uid || this.generateUid(),
       description: this.getDocumentation(event),
+      hierarchyLevel: dexpiData?.hierarchyLevel,
       ports: (dexpiData?.ports || []).map((port: DexpiPort) => ({
         ...port,
         portId: port.portId.startsWith(`${id}_`) ? port.portId : `${id}_${port.portId}`
@@ -2199,6 +2201,46 @@ export class BpmnToDexpiTransformer {
     }];
   }
 
+  /**
+   * <Data property="HierarchyLevel"> as a DataReference to a literal of
+   * Process/Enumerations.ProcessStepHierarchyLevel (path and literal set
+   * both come from the loaded schema). Returns null when no level applies.
+   *
+   * Default, from structure alone: a step that carries emitted
+   * SubProcessSteps is a ProcessSection; any other step is a UnitOperation —
+   * except a nested Source/Sink, which is a boundary proxy of its enclosing
+   * section rather than a unit of its own, and gets no level. An explicit
+   * hierarchyLevel on the BPMN element's dexpi:element overrides all of it.
+   */
+  private buildHierarchyLevelData(step: InternalProcessStep): Record<string, unknown> | null {
+    const path = this.registry.getEnumReferencePathForProperty('ProcessStep', 'HierarchyLevel');
+    const literals = path ? this.registry.getQualifiedEnumLiterals(path) : null;
+    if (!path || !literals) return null;
+
+    let level: string | undefined = step.hierarchyLevel?.trim() || undefined;
+    if (level && !literals.includes(level)) {
+      this.logger.warn(
+        `Step "${step.name}" (id=${step.id}): hierarchyLevel "${level}" is not a ` +
+        `${path} literal (${literals.join(', ')}) — using the structural default.`,
+      );
+      level = undefined;
+    }
+    if (!level) {
+      const hasChildren = step.subProcessSteps.some((childId) => {
+        const child = this.processSteps.get(childId);
+        return !!child && !this.isInstrumentationStep(child);
+      });
+      const isBoundaryProxy = !!step.parentId && (step.type === 'Source' || step.type === 'Sink');
+      if (hasChildren) level = 'ProcessSection';
+      else if (!isBoundaryProxy) level = 'UnitOperation';
+    }
+    if (!level) return null;
+    return {
+      '$': { 'property': 'HierarchyLevel' },
+      'DataReference': { '$': { 'data': `${path}.${level}` } },
+    };
+  }
+
   private buildProcessStepObject(step: InternalProcessStep): Record<string, unknown> {
       // Build the correct DEXPI type - use Process/Process.{Type} format
       // If step.type is already "Process.X", use it; otherwise wrap it
@@ -2589,14 +2631,12 @@ export class BpmnToDexpiTransformer {
         });
       }
 
-      // Add HierarchyLevel if present
-      if (step.hierarchyLevel) {
-        (dexpiStep.Data as Record<string, unknown>[]).push({
-          '$': {
-            'property': 'HierarchyLevel'
-          },
-          'String': step.hierarchyLevel
-        });
+      // ProcessStep.HierarchyLevel (lower=0, ProcessStepHierarchyLevel
+      // enumeration): an explicit dexpi:element hierarchyLevel wins, else
+      // the level is derived from the nesting the export already encodes.
+      if (!isInstrumentationActivity) {
+        const hierarchyData = this.buildHierarchyLevelData(step);
+        if (hierarchyData) (dexpiStep.Data as Record<string, unknown>[]).push(hierarchyData);
       }
 
       // Materialise QualifiedValue parameter slots for variables that

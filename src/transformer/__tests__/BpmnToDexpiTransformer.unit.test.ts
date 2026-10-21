@@ -664,3 +664,98 @@ describe('ProcessStep.Description from bpmn:documentation', () => {
     expect(t.logger.warnings.some(w => w.includes(`attribute "Description" ignored`))).toBe(true);
   });
 });
+
+describe('ProcessStep.HierarchyLevel', () => {
+  const ENUM = 'Process/Enumerations.ProcessStepHierarchyLevel';
+
+  /** Literal of the HierarchyLevel DataReference on an Object, or null when absent. */
+  function levelOf(out: string, objectId: string): string | null {
+    const doc = new DOMParser().parseFromString(out, 'text/xml');
+    const obj = Array.from(doc.getElementsByTagName('Object')).find(o => o.getAttribute('id') === objectId);
+    const data = obj && Array.from(obj.children).filter(c =>
+      c.tagName === 'Data' && c.getAttribute('property') === 'HierarchyLevel');
+    if (!data || data.length === 0) return null;
+    expect(data).toHaveLength(1); // lower=0, upper=1
+    const ref = data[0].querySelector(':scope > DataReference')?.getAttribute('data') ?? '';
+    expect(ref.startsWith(`${ENUM}.`)).toBe(true);
+    return ref.slice(ENUM.length + 1);
+  }
+
+  /** subProcess "SP1" holding a Source proxy, a task and a Sink proxy. */
+  function section(extra = '', childExtra = ''): string {
+    return `
+      <subProcess id="SP1" name="Section">
+        <extensionElements>
+          <dexpi:element dexpiType="ReactingChemicals" identifier="SP1" uid="uid-SP1" ${extra}/>
+        </extensionElements>
+        <startEvent id="SE_in" name="In">
+          <extensionElements><dexpi:element dexpiType="Source" identifier="SE_in" uid="uid-SE_in"/></extensionElements>
+        </startEvent>
+        <task id="T1" name="Pump">
+          <extensionElements>
+            <dexpi:element dexpiType="Pumping" identifier="T1" uid="uid-T1" ${childExtra}/>
+          </extensionElements>
+        </task>
+        <endEvent id="EE_out" name="Out">
+          <extensionElements><dexpi:element dexpiType="Sink" identifier="EE_out" uid="uid-EE_out"/></extensionElements>
+        </endEvent>
+      </subProcess>`;
+  }
+
+  async function exportOf(body: string): Promise<{ out: string; t: BpmnToDexpiTransformer }> {
+    const t = new BpmnToDexpiTransformer();
+    return { out: await t.transform(bpmn(body)), t };
+  }
+
+  it('derives ProcessSection for a step with SubProcessSteps and UnitOperation for its leaves', async () => {
+    const { out } = await exportOf(`${section()}
+      ${annotatedTask('T2', 'Mixing', 'Mixing')}`);
+    expect(levelOf(out, 'uid_SP1')).toBe('ProcessSection');
+    expect(levelOf(out, 'uid_T1')).toBe('UnitOperation');
+    // A leaf on the root plane is a UnitOperation too.
+    expect(levelOf(out, 'uid_T2')).toBe('UnitOperation');
+  });
+
+  it('gives root-plane Source and Sink UnitOperation, and nested boundary Source/Sink none', async () => {
+    const { out } = await exportOf(`${section()}
+      ${startEvent('SE1', 'Feed')}
+      ${endEvent('EE1', 'Product')}`);
+    expect(levelOf(out, 'uid_SE1')).toBe('UnitOperation');
+    expect(levelOf(out, 'uid_EE1')).toBe('UnitOperation');
+    expect(levelOf(out, 'uid_SE_in')).toBeNull();
+    expect(levelOf(out, 'uid_EE_out')).toBeNull();
+  });
+
+  it('lets an explicit dexpi:element hierarchyLevel override the structural default', async () => {
+    const { out, t } = await exportOf(
+      section('hierarchyLevel="ProcessTrain"', 'hierarchyLevel="ControlFunction"'));
+    expect(levelOf(out, 'uid_SP1')).toBe('ProcessTrain');
+    expect(levelOf(out, 'uid_T1')).toBe('ControlFunction');
+    expect(t.logger.warnings.filter(w => w.includes('hierarchyLevel'))).toEqual([]);
+  });
+
+  it('applies an explicit level to a leaf that the default would call a UnitOperation, and to a nested proxy', async () => {
+    const body = `<subProcess id="SP1" name="Section">
+        <extensionElements><dexpi:element dexpiType="ReactingChemicals" identifier="SP1" uid="uid-SP1"/></extensionElements>
+        <startEvent id="SE_in" name="In">
+          <extensionElements><dexpi:element dexpiType="Source" identifier="SE_in" uid="uid-SE_in" hierarchyLevel="ElementaryFunction"/></extensionElements>
+        </startEvent>
+        ${annotatedTask('T1', 'Pump', 'Pumping')}
+      </subProcess>`;
+    const { out } = await exportOf(body);
+    expect(levelOf(out, 'uid_SE_in')).toBe('ElementaryFunction');
+  });
+
+  it('falls back to the default and warns when hierarchyLevel is not an enumeration literal', async () => {
+    const { out, t } = await exportOf(section('hierarchyLevel="Plant"'));
+    expect(levelOf(out, 'uid_SP1')).toBe('ProcessSection');
+    expect(t.logger.warnings.some(w => w.includes('hierarchyLevel "Plant"'))).toBe(true);
+  });
+
+  it('is deterministic: exporting twice yields the same levels', async () => {
+    const body = section();
+    const a = await exportOf(body);
+    const b = await exportOf(body);
+    for (const id of ['uid_SP1', 'uid_T1', 'uid_SE_in']) expect(levelOf(a.out, id)).toBe(levelOf(b.out, id));
+  });
+});
