@@ -108,6 +108,15 @@ describe('DEXPI import round-trip — data completeness', () => {
     expect(d2).toContain('QuantityProvenance.Specified');
     expect((d2.match(/property="SubReference"/g) ?? []).length)
       .toBe((d1.match(/property="SubReference"/g) ?? []).length);
+    // HierarchyLevel is stated on every step, derived on the first export and
+    // read back as an explicit level on the second; the literal counts match.
+    const levelCounts = (xml: string) => {
+      const counts: Record<string, number> = {};
+      for (const m of xml.matchAll(/ProcessStepHierarchyLevel\.(\w+)"/g)) counts[m[1]] = (counts[m[1]] ?? 0) + 1;
+      return counts;
+    };
+    expect(levelCounts(d1)).toEqual({ ProcessSection: 7, UnitOperation: 33 });
+    expect(levelCounts(d2)).toEqual(levelCounts(d1));
     expect((d2.match(/Process\.MaterialTemplate"/g) ?? []).length)
       .toBe((d1.match(/Process\.MaterialTemplate"/g) ?? []).length);
     expect((d2.match(/Process\.Composition"/g) ?? []).length)

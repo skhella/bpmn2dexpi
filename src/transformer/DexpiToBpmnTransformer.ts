@@ -34,6 +34,13 @@ interface DexpiStep {
    * BpmnToDexpiTransformer, which reads it back from the same place.
    */
   description?: string;
+  /**
+   * ProcessStep.HierarchyLevel literal (e.g. "ProcessSection"), read from the
+   * DataReference into Process/Enumerations.ProcessStepHierarchyLevel and
+   * carried into BPMN as dexpi:element hierarchyLevel, where the exporter's
+   * explicit-override rule picks it up again.
+   */
+  hierarchyLevel?: string;
   ports: DexpiPort[];
   /** Step-level qualified attributes (Components/Data on the Object). */
   attributes?: ParsedStreamAttribute[];
@@ -659,6 +666,7 @@ export class DexpiToBpmnTransformer {
     // getDataString unwraps both the plain <String> form and the canonical
     // MultiLanguageString aggregate (first language's Value).
     const description = this.getDataString(obj, 'Description') || undefined;
+    const hierarchyLevel = this.getHierarchyLevelLiteral(obj);
 
     const ports: DexpiPort[] = [];
     const portsContainer = this.findComponents(obj, 'Ports');
@@ -709,7 +717,7 @@ export class DexpiToBpmnTransformer {
     const attributes = this.parseAttributesOn(
       obj,
       new Set([
-        'Identifier', 'Label', 'Description', 'Ports', 'ProcessSteps',
+        'Identifier', 'Label', 'Description', 'HierarchyLevel', 'Ports', 'ProcessSteps',
         'SubProcessSteps', 'NominalDirection',
         // Schema-correct instrumentation properties (DEXPI 2.0 Spec p.900):
         // these are structural references that get synthesized into the
@@ -745,12 +753,27 @@ export class DexpiToBpmnTransformer {
     }
 
     return {
-      id, dexpiType, identifier, label, description, ports, parentId, children,
+      id, dexpiType, identifier, label, description, hierarchyLevel, ports, parentId, children,
       attributes: attributes.length > 0 ? attributes : undefined,
       processStepRef: processStepRef || undefined,
       measuredVariable,
       measuredVariableRefId: measuredVariableRefId || undefined,
     };
+  }
+
+  /**
+   * The literal name behind <Data property="HierarchyLevel"><DataReference
+   * data="Process/Enumerations.ProcessStepHierarchyLevel.X"/></Data>.
+   * Only the object's own Data child is read (never a nested step's).
+   */
+  private getHierarchyLevelLiteral(obj: Element): string | undefined {
+    const data = Array.from(obj.children).find(
+      c => c.tagName === 'Data' && c.getAttribute('property') === 'HierarchyLevel',
+    );
+    const ref = data && Array.from(data.children).find(c => c.tagName === 'DataReference');
+    const path = ref?.getAttribute('data') ?? '';
+    const literal = path.slice(path.lastIndexOf('.') + 1);
+    return literal || undefined;
   }
 
   /**
@@ -2906,8 +2929,9 @@ export class DexpiToBpmnTransformer {
       const attrsXml = renderAttrTags(step.attributes, `${indent}    `);
       const innerLines = [portsXml, attrsXml].filter(Boolean).join('\n');
 
+      const hierarchyAttr = step.hierarchyLevel ? ` hierarchyLevel="${escAttrXml(step.hierarchyLevel)}"` : '';
       return `${indent}<bpmn:extensionElements>
-${indent}  <dexpi:element dexpiType="${step.dexpiType}" identifier="${step.identifier}" uid="${step.id}">
+${indent}  <dexpi:element dexpiType="${step.dexpiType}" identifier="${step.identifier}" uid="${step.id}"${hierarchyAttr}>
 ${innerLines ? innerLines + '\n' : ''}${indent}  </dexpi:element>
 ${indent}</bpmn:extensionElements>`;
     };

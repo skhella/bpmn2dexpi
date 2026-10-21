@@ -1016,3 +1016,47 @@ ${step('MX1', 'Mixing', 'Mixer')}
     });
   });
 });
+
+describe('ProcessStep.HierarchyLevel import', () => {
+  const ref = (literal: string) =>
+    `<Data property="HierarchyLevel"><DataReference data="Process/Enumerations.ProcessStepHierarchyLevel.${literal}"/></Data>`;
+
+  it('reads the DataReference literal into dexpi:element hierarchyLevel', async () => {
+    const section = `
+        <Object id="SEC1" type="Process/Process.ReactingChemicals">
+          <Data property="Identifier"><String>SEC1</String></Data>
+          <Data property="Label"><String>Section</String></Data>
+          ${ref('ProcessSection')}
+          <Components property="SubProcessSteps">
+            <Object id="MX1" type="Process/Process.Mixing">
+              <Data property="Identifier"><String>MX1</String></Data>
+              <Data property="Label"><String>Mixer</String></Data>
+              ${ref('UnitOperation')}
+            </Object>
+          </Components>
+        </Object>`;
+    const out = await new DexpiToBpmnTransformer().transform(dexpi(section));
+    expect(out).toMatch(/<dexpi:element dexpiType="ReactingChemicals"[^>]*hierarchyLevel="ProcessSection"/);
+    expect(out).toMatch(/<dexpi:element dexpiType="Mixing"[^>]*hierarchyLevel="UnitOperation"/);
+    // Not duplicated as a generic attribute.
+    expect(out).not.toContain('property="HierarchyLevel"');
+  });
+
+  it('omits the attribute when the step carries no HierarchyLevel', async () => {
+    const out = await new DexpiToBpmnTransformer().transform(dexpi(step('MX1', 'Mixing', 'Mixer')));
+    expect(out).not.toContain('hierarchyLevel=');
+  });
+
+  it('round-trips an explicit non-default level through BPMN back to DEXPI', async () => {
+    const xml = dexpi(`
+        <Object id="MX1" type="Process/Process.Mixing">
+          <Data property="Identifier"><String>MX1</String></Data>
+          <Data property="Label"><String>Mixer</String></Data>
+          ${ref('ControlFunction')}
+        </Object>`);
+    const bpmn = await new DexpiToBpmnTransformer().transform(xml);
+    const back = await new BpmnToDexpiTransformer().transform(bpmn);
+    expect(back).toContain('ProcessStepHierarchyLevel.ControlFunction');
+    expect(back).not.toContain('ProcessStepHierarchyLevel.UnitOperation');
+  });
+});
