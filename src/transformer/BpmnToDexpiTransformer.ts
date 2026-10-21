@@ -328,6 +328,30 @@ export class BpmnToDexpiTransformer {
       });
     });
 
+    // Guard the hierarchy: a Source/Sink nested in a subprocess is a boundary
+    // proxy for a port on that subprocess, and its port must resolve to that
+    // parent port (SuperReference). A proxy port with no counterpart on the
+    // section means the stream crosses the section boundary without a port on
+    // the section — the export is XSD-valid but the hierarchy is open, which
+    // is invisible to every validator. Surface it as a warning.
+    this.processSteps.forEach((step) => {
+      if (!step.parentId || (step.type !== 'Source' && step.type !== 'Sink')) return;
+      const parent = this.processSteps.get(step.parentId);
+      if (!parent) return;
+      step.ports.forEach((port: DexpiPort) => {
+        if (this.ports.get(port.portId)?.parentPortId) return;
+        this.logger.warn(
+          `Subprocess "${parent.name}" (id=${parent.id}): nested ${step.type} ` +
+          `"${step.name}" (id=${step.id}) port "${port.name}" (${port.portType}, ` +
+          `${port.direction}) has no counterpart port on the subprocess — ` +
+          `SuperReference omitted from DEXPI output, so the connection crosses ` +
+          `the section boundary without a port on the section. Declare a ` +
+          `${port.portType} on the subprocess's dexpi:element with ` +
+          `subReference="${port.portId}".`
+        );
+      });
+    });
+
     // Extract sequence flows (MaterialFlow / EnergyFlow streams)
     const sequenceFlows = Array.from(process.querySelectorAll('sequenceFlow'));
     sequenceFlows.forEach((flow) => {

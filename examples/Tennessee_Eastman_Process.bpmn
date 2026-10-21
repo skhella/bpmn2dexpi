@@ -37,6 +37,22 @@
       </bpmn:extensionElements>
       <bpmn:outgoing>Flow_109uz3k</bpmn:outgoing>
     </bpmn:startEvent>
+    <bpmn:startEvent id="Event_0eei1rc" name="Electrical Energy">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="Event_0eei1rc" uid="uid_Event_0eei1rc">
+          <dexpi:port id="Event_0eei1rc_EEO1_port" name="EEO1" portType="ElectricalEnergyPort" direction="Outlet" label="EEO1" />
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_0eei1rc</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:startEvent id="Event_0eei1cp" name="Electrical Energy">
+      <bpmn:extensionElements>
+        <dexpi:element dexpiType="Source" identifier="Event_0eei1cp" uid="uid_Event_0eei1cp">
+          <dexpi:port id="Event_0eei1cp_EEO1_port" name="EEO1" portType="ElectricalEnergyPort" direction="Outlet" label="EEO1" />
+        </dexpi:element>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_0eei1cp</bpmn:outgoing>
+    </bpmn:startEvent>
     <bpmn:subProcess id="Activity_07878z5" name="ReactingChemicals">
       <bpmn:extensionElements>
         <dexpi:element dexpiType="ReactingChemicals" identifier="Activity_07878z5" uid="uid_Activity_07878z5">
@@ -45,6 +61,7 @@
           <dexpi:port id="Activity_07878z5_MI3_port" name="MI3" portType="MaterialPort" direction="Inlet" label="MI3" subReference="Event_17fqava_MI3_port" />
           <dexpi:port id="Activity_07878z5_MI4_port" name="MI4" portType="MaterialPort" direction="Inlet" label="MI4" subReference="Event_13mofb0_MI4_port" />
           <dexpi:port id="Activity_07878z5_MI5_port" name="MI5" portType="MaterialPort" direction="Inlet" label="MI5" subReference="Event_15gcv4n_MI5_port" />
+          <dexpi:port id="Activity_07878z5_EEI1_port" name="EEI1" portType="ElectricalEnergyPort" direction="Inlet" label="EEI1" subReference="Event_01fem2h_EEI1_port" />
           <dexpi:port id="Activity_07878z5_MO1_port" name="MO1" portType="MaterialPort" direction="Outlet" label="MO1" subReference="Event_062k0v7_MO1_port" />
           <dexpi:data property="Method">Unspecified</dexpi:data>
         </dexpi:element>
@@ -54,6 +71,7 @@
       <bpmn:incoming>Flow_1j96ab6</bpmn:incoming>
       <bpmn:incoming>Flow_09zyhyl</bpmn:incoming>
       <bpmn:incoming>Flow_1a07km3</bpmn:incoming>
+      <bpmn:incoming>Flow_0eei1rc</bpmn:incoming>
       <bpmn:outgoing>Flow_07wd8rg</bpmn:outgoing>
       <bpmn:subProcess id="Activity_11rkrj8" name="RemovingThermalEnergy">
         <bpmn:extensionElements>
@@ -337,7 +355,7 @@
       <bpmn:startEvent id="Event_01fem2h" name="EEI1">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="Source" identifier="Event_01fem2h" uid="uid_Event_01fem2h">
-            <dexpi:port id="Event_01fem2h_EEI1_port" name="EEI1" portType="ElectricalEnergyPort" direction="Outlet" label="EEI1" />
+            <dexpi:port id="Event_01fem2h_EEI1_port" name="EEI1" portType="ElectricalEnergyPort" direction="Outlet" label="EEI1" superReference="Activity_07878z5_EEI1_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:outgoing>Flow_0gji0fb</bpmn:outgoing>
@@ -1020,11 +1038,13 @@
       <bpmn:extensionElements>
         <dexpi:element dexpiType="Compressing" identifier="Activity_0yezzw8" uid="uid_Activity_0yezzw8">
           <dexpi:port id="Activity_0yezzw8_MI1_port" name="MI1" portType="MaterialPort" direction="Inlet" label="MI1" subReference="Event_1g1zmip_MI1_port" />
+          <dexpi:port id="Activity_0yezzw8_EEI1_port" name="EEI1" portType="ElectricalEnergyPort" direction="Inlet" label="EEI1" subReference="Event_1mp0d4h_EEI1_port" />
           <dexpi:port id="Activity_0yezzw8_MO1_port" name="MO1" portType="MaterialPort" direction="Outlet" label="MO1" subReference="Event_1pcm1vz_MO1_port" />
           <dexpi:data property="Method">Unspecified</dexpi:data>
         </dexpi:element>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_11f0gdt</bpmn:incoming>
+      <bpmn:incoming>Flow_0eei1cp</bpmn:incoming>
       <bpmn:outgoing>Flow_09zyhyl</bpmn:outgoing>
       <bpmn:task id="Activity_11ivs96" name="RegulatingFlow">
         <bpmn:extensionElements>
@@ -1175,7 +1195,7 @@
       <bpmn:startEvent id="Event_1mp0d4h" name="EEI1">
         <bpmn:extensionElements>
           <dexpi:element dexpiType="Source" identifier="Event_1mp0d4h" uid="uid_Event_1mp0d4h">
-            <dexpi:port id="Event_1mp0d4h_EEI1_port" name="EEI1" portType="ElectricalEnergyPort" direction="Outlet" label="EEI1" />
+            <dexpi:port id="Event_1mp0d4h_EEI1_port" name="EEI1" portType="ElectricalEnergyPort" direction="Outlet" label="EEI1" superReference="Activity_0yezzw8_EEI1_port" />
           </dexpi:element>
         </bpmn:extensionElements>
         <bpmn:outgoing>Flow_1gic2ao</bpmn:outgoing>
@@ -1329,6 +1349,16 @@
             </dexpi:object>
           </dexpi:components>
         </dexpi:Stream>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0eei1rc" name="EEO1 - EEI1" sourceRef="Event_0eei1rc" targetRef="Activity_07878z5">
+      <bpmn:extensionElements>
+        <dexpi:Stream sourcePortId="Event_0eei1rc_EEO1_port" targetPortId="Activity_07878z5_EEI1_port" />
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0eei1cp" name="EEO1 - EEI1" sourceRef="Event_0eei1cp" targetRef="Activity_0yezzw8">
+      <bpmn:extensionElements>
+        <dexpi:Stream sourcePortId="Event_0eei1cp_EEO1_port" targetPortId="Activity_0yezzw8_EEI1_port" />
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1j96ab6" name="MO1 - Stream 1 - MI1" sourceRef="Event_11q5mwu" targetRef="Activity_07878z5">
@@ -2283,6 +2313,18 @@
           <ns4:Bounds x="194" y="545" width="55" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0eei1rc_di" bpmnElement="Event_0eei1rc">
+        <ns4:Bounds x="442" y="500" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <ns4:Bounds x="418" y="543" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0eei1cp_di" bpmnElement="Event_0eei1cp">
+        <ns4:Bounds x="802" y="100" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <ns4:Bounds x="710" y="111" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_1wn35l8_di" bpmnElement="Activity_07878z5" isExpanded="false" ns6:stroke="#0d4372" ns6:fill="#bbdefb" ns7:background-color="#bbdefb" ns7:border-color="#0d4372">
         <ns4:Bounds x="410" y="358" width="100" height="80" />
       </bpmndi:BPMNShape>
@@ -2330,6 +2372,14 @@
         <bpmndi:BPMNLabel>
           <ns4:Bounds x="590" y="606" width="80" height="27" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0eei1rc_di" bpmnElement="Flow_0eei1rc">
+        <ns5:waypoint x="460" y="500" />
+        <ns5:waypoint x="460" y="438" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0eei1cp_di" bpmnElement="Flow_0eei1cp">
+        <ns5:waypoint x="820" y="136" />
+        <ns5:waypoint x="820" y="168" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_1j96ab6_di" bpmnElement="Flow_1j96ab6">
         <ns5:waypoint x="238" y="300" />

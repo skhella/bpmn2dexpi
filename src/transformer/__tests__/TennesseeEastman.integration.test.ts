@@ -239,6 +239,46 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     }
   });
 
+  // Hierarchy closure: every Source/Sink nested in a section is a boundary
+  // proxy whose port must link up to a port on the section (SuperReference,
+  // mirrored by SubReference on the section's port). The XSD and every
+  // validator accept an export where a proxy port has no parent — the
+  // stream then crosses the section boundary without a port on the section.
+  // That is exactly how the EEI1 electrical-energy inlets of ReactingChemicals
+  // and Compressing were missing from the fixture until 2026-10-19, while
+  // every material boundary port was linked. Pin closure for ALL port types.
+  it('every nested Source/Sink boundary port carries a SuperReference to a port on its section', () => {
+    const doc = new DOMParser().parseFromString(output, 'text/xml');
+    const isCarrier = (el: Element | null, prop: string) =>
+      el?.tagName === 'Components' && el.getAttribute('property') === prop;
+    const nestedProxies = Array.from(doc.getElementsByTagName('Object')).filter(obj => {
+      const type = obj.getAttribute('type');
+      return (type === 'Process/Process.Source' || type === 'Process/Process.Sink')
+        && isCarrier(obj.parentElement, 'SubProcessSteps');
+    });
+    // TEP: four sections, each with material inlets/outlets as proxies.
+    expect(nestedProxies.length).toBeGreaterThanOrEqual(8);
+
+    const missing: string[] = [];
+    let checked = 0;
+    for (const proxy of nestedProxies) {
+      const ports = Array.from(proxy.children).find(c => isCarrier(c, 'Ports'));
+      for (const port of Array.from(ports?.children ?? [])) {
+        checked++;
+        const hasSuper = Array.from(port.children).some(c =>
+          c.tagName === 'References' && c.getAttribute('property') === 'SuperReference');
+        if (!hasSuper) missing.push(`${proxy.getAttribute('id')} / ${port.getAttribute('id')}`);
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+    expect(missing, `nested boundary ports without SuperReference:\n${missing.join('\n')}`).toEqual([]);
+    // The two electrical-energy inlets that used to be open, now linked.
+    expect(output).toContain('objects="#Activity_07878z5_EEI1_port"');
+    expect(output).toContain('objects="#Activity_0yezzw8_EEI1_port"');
+    expect(transformer.logger.warnings.filter(w => /no counterpart port on the subprocess/.test(w)))
+      .toEqual([]);
+  });
+
   it('logs no unannotated warnings for fully-annotated TEP', () => {
     // TEP example file is fully annotated with dexpi:element, so the transformer
     // uses Mode 1 (dexpi-validated) for all elements — no unannotated warnings expected.
