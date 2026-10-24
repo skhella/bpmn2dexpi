@@ -161,7 +161,7 @@ The Profile is produced whenever the model uses a class or property that the DEX
 
 Use an absolute URL as `source` when the profile has a published home. `--validate --profile FILE` treats an import whose file name matches a loaded profile as satisfied, so validate an export with its Profile loaded: `--validate tep.xml --profile tep.profile.xml`.
 
-Extension properties are serialised by their bare name (`<Components property="AntoineA">`), the same way the standard properties are. The schema's `property` attribute also allows the qualified form `Profile/CustomMaterialComponentExtension.AntoineA`, and DISC P&ID files use it; the *Profiles for DEXPI* draft does not prescribe either, and bare names are what import-resolving consumers (pyDEXPI, the DEXPIViewer validator with the profile loaded) read today, so bare names are kept until the draft settles the question.
+Extension properties are serialised by their bare name (`<Components property="AntoineA">`), the same way the standard properties are. The schema's `property` attribute also allows the qualified form `Profile/CustomMaterialComponentExtension.AntoineA`; the *Profiles for DEXPI* draft does not prescribe either, so bare names are kept until it does.
 
 The restriction half of a profile (constraints, required-ness, allowed classes) is not implemented here; it depends on schema 1.1.0.
 
