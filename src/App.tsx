@@ -16,8 +16,10 @@ import { BpmnToDexpiTransformer } from './transformer/BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
 import { generateProfileFromDexpiXml } from './transformer/DexpiProfileGenerator';
 import { DexpiToBpmnTransformer } from './transformer/DexpiToBpmnTransformer';
-import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
-import coreXmlRaw from '../dexpi-schema-files/Core.xml?raw';
+import { loadDexpiModelXml } from './dexpiModelFiles';
+import {
+  DEFAULT_DEXPI_VERSION, DEXPI_VERSIONS, detectDexpiVersion, isDexpiVersion, type DexpiVersion,
+} from './transformer/dexpiVersions';
 import tepExampleBpmn from '../examples/Tennessee_Eastman_Process.bpmn?raw';
 import { exportToNeo4j } from './utils/neo4jExporter';
 import type { Neo4jConfig } from './utils/neo4jExporter';
@@ -259,11 +261,20 @@ function App() {
     projectName: string;
     projectDescription: string;
     author: string;
+    /**
+     * DEXPI release the export, Validate now, Generate Profile and Neo4j
+     * export are written against. Importing a DEXPI document sets it to the
+     * release that document imports, so a re-export stays in that release.
+     * The authoring panels keep the 2.0.0 vocabulary; the exporter maps it
+     * to the target release from the loaded models.
+     */
+    dexpiVersion: DexpiVersion;
   }>({
     filename: 'process-model-dexpi.xml',
     projectName: 'DEXPI Process Model',
     projectDescription: 'Generated from BPMN.io',
     author: 'bpmn2dexpi',
+    dexpiVersion: DEFAULT_DEXPI_VERSION,
   });
 
   // BPMN export filename dialog. BPMN doesn't carry the project / author
@@ -749,9 +760,11 @@ function App() {
       // Export DEXPI XML would race on the module-singleton's
       // last*Validation fields and surface the wrong findings.
       const t = new BpmnToDexpiTransformer();
+      const { processXml, coreXml } = await loadDexpiModelXml(exportOptions.dexpiVersion);
       await t.transform(xmlForTransform, {
-        processXml: processXmlRaw,
-        coreXml: coreXmlRaw,
+        processXml,
+        coreXml,
+        dexpiVersion: exportOptions.dexpiVersion,
         profileXmls: loadedProfiles,
         strict: true,
       });
@@ -873,15 +886,20 @@ function App() {
       // overwrite the shared last*Validation fields between this
       // handler's await and the modal-population code below.
       const t = new BpmnToDexpiTransformer();
+      // The models of the target release (2.0.0 in the main bundle, 2.0.1
+      // loaded on first use). The exporter reads the release's shape from
+      // them and imports them by their published URIs.
+      const { processXml, coreXml } = await loadDexpiModelXml(exportOptions.dexpiVersion);
       const dexpiXml = await t.transform(xmlForTransform, {
         projectName: exportOptions.projectName,
         projectDescription: exportOptions.projectDescription,
         author: exportOptions.author,
-        processXml: processXmlRaw,
+        dexpiVersion: exportOptions.dexpiVersion,
+        processXml,
         // Strict mode needs Core.xml in the registry too so the validator
         // can walk supertype chains across Process → Core. Always pass it
         // so flipping the toggle without a re-import works.
-        coreXml: coreXmlRaw,
+        coreXml,
         // Per-session DEXPI Profile extensions; empty array if none loaded.
         // Profile classes are recognized as dexpiType targets in both
         // strict and non-strict mode.
@@ -1039,7 +1057,10 @@ function App() {
       const t = new BpmnToDexpiTransformer();
       // coreXml is required so the canonical QualifiedValue emitter can resolve
       // units + enum references from Core.xml; without it units fail closed.
-      const dexpiXml = await t.transform(bpmnXml, { processXml: processXmlRaw, coreXml: coreXmlRaw });
+      const { processXml, coreXml } = await loadDexpiModelXml(exportOptions.dexpiVersion);
+      const dexpiXml = await t.transform(bpmnXml, {
+        processXml, coreXml, dexpiVersion: exportOptions.dexpiVersion,
+      });
 
       // Export to Neo4j
       const exportResult = await exportToNeo4j(dexpiXml, config, (current: number, total: number) => {
@@ -1082,13 +1103,14 @@ function App() {
    * localStorage — a page reload clears them and the user must re-import.
    */
   const handleImportProfile = (file: File) => {
-    file.text().then(xml => {
+    file.text().then(async xml => {
       const candidate = { name: file.name, xml };
       let mergeWarnings: ReadonlyArray<string> = [];
       try {
+        const { processXml, coreXml } = await loadDexpiModelXml(exportOptions.dexpiVersion);
         const reg = DexpiProcessClassRegistry.fromXmlSources([
-          { name: 'Process.xml', xml: processXmlRaw },
-          { name: 'Core.xml', xml: coreXmlRaw },
+          { name: 'Process.xml', xml: processXml },
+          { name: 'Core.xml', xml: coreXml },
           ...loadedProfiles,
           candidate,
         ]);
@@ -1159,16 +1181,18 @@ function App() {
       // included so the generator only surfaces NEW gaps not already
       // covered by loaded Profiles.
       const t = new BpmnToDexpiTransformer();
+      const { processXml, coreXml } = await loadDexpiModelXml(exportOptions.dexpiVersion);
       const dexpiXml = await t.transform(xmlForTransform, {
         projectName: 'DEXPI Process Model',
         author: 'bpmn2dexpi',
-        processXml: processXmlRaw,
-        coreXml: coreXmlRaw,
+        dexpiVersion: exportOptions.dexpiVersion,
+        processXml,
+        coreXml,
         profileXmls: loadedProfiles,
       });
       const reg = DexpiProcessClassRegistry.fromXmlSources([
-        { name: 'Process.xml', xml: processXmlRaw },
-        { name: 'Core.xml', xml: coreXmlRaw },
+        { name: 'Process.xml', xml: processXml },
+        { name: 'Core.xml', xml: coreXml },
         ...loadedProfiles,
       ]);
       const generated = generateProfileFromDexpiXml(dexpiXml, reg, { bpmnXml: xmlForTransform });
@@ -1251,9 +1275,15 @@ function App() {
         // subclasses like MeasuringProcessVariable are not recognized as
         // InstrumentationActivity and the data-object/association
         // reconstruction is silently skipped.
-        const bpmnXml = await new DexpiToBpmnTransformer().transform(dexpiXml, {
-          processXml: processXmlRaw,
-          coreXml: coreXmlRaw,
+        // The document's own release (recognised from its <Import> sources)
+        // picks the models the importer reads it against, and becomes the
+        // target of the next export so the model stays in that release.
+        const importer = new DexpiToBpmnTransformer();
+        const docVersion = detectDexpiVersion(dexpiXml).version;
+        const { processXml, coreXml } = await loadDexpiModelXml(docVersion ?? exportOptions.dexpiVersion);
+        const bpmnXml = await importer.transform(dexpiXml, {
+          processXml,
+          coreXml,
         });
         const preprocessedText = preprocessBpmnXml(bpmnXml);
         await modeler.importXML(preprocessedText);
@@ -1261,7 +1291,17 @@ function App() {
         // Save imported diagram immediately
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
-        setValidationMessage('DEXPI imported successfully!');
+        if (docVersion) {
+          setExportOptions(prev => ({ ...prev, dexpiVersion: docVersion }));
+          setValidationMessage(`DEXPI ${docVersion} document imported; exports now target DEXPI ${docVersion}.`);
+        } else if (importer.lastDeclaredVersion) {
+          setValidationMessage(
+            `DEXPI imported (document imports DEXPI ${importer.lastDeclaredVersion} models, which this build ` +
+            `does not bundle — read against the ${exportOptions.dexpiVersion} models).`,
+          );
+        } else {
+          setValidationMessage('DEXPI imported successfully!');
+        }
         // Reset navigation state
         setPlaneStack([]);
         setCurrentPlane(null);
@@ -2178,6 +2218,31 @@ function App() {
                 value={exportOptions.author}
                 onChange={(e) => setExportOptions({ ...exportOptions, author: e.target.value })}
               />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="export-dexpi-version">Target DEXPI version:</label>
+              <select
+                id="export-dexpi-version"
+                value={exportOptions.dexpiVersion}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (isDexpiVersion(v)) setExportOptions({ ...exportOptions, dexpiVersion: v });
+                }}
+              >
+                {DEXPI_VERSIONS.map(v => (
+                  <option key={v} value={v}>
+                    DEXPI {v}{v === DEFAULT_DEXPI_VERSION ? ' (default)' : ''}
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: '0.85em', color: '#555', marginTop: '0.25em' }}>
+                The document imports the models of this release
+                (<code>data.dexpi.org/models/{exportOptions.dexpiVersion}/…</code>) and follows
+                their shape; 2.0.1 writes <code>MoleFractions</code> / <code>RatioUnit</code> and
+                composes state types and compositions in place. The same release is used by
+                Validate now, Generate Profile and the Neo4j export.
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '0.5em', justifyContent: 'flex-end' }}>

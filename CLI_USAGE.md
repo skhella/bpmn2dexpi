@@ -46,7 +46,8 @@ npm run transform -- [flags] <input.bpmn> [output.xml]
 | `--profile FILE` | Load a DEXPI Profile into the vocabulary (repeatable). The export declares it with an `<Import prefix="…">`. |
 | `--generate-profile FILE` | Write the export's Profile to FILE instead of the default `output.profile.xml`. |
 | `--no-profile` | Do not write or import a Profile, even when the model uses properties outside the DEXPI 2.0 vocabulary. |
-| `--validate FILE` | Validate an existing DEXPI 2.0 XML file (Process or Plant) instead of transforming: XSD plus the five fidelity dimensions. Combine with `--profile` for the Profiles it was written against. |
+| `--validate FILE` | Validate an existing DEXPI 2.0 XML file (Process or Plant) instead of transforming: XSD plus the five fidelity dimensions. Combine with `--profile` for the Profiles it was written against. The release (2.0.0 or 2.0.1) is read from the file's `<Import>` sources. |
+| `--dexpi-version V` | Write DEXPI `2.0.0` (default) or `2.0.1`: the export loads that release's bundled models, imports them, and follows their shape. With `--validate`, the release to assume when the file's imports do not name one. |
 
 ```bash
 # export with strict checks
@@ -55,6 +56,9 @@ npm run transform -- --strict examples/Tennessee_Eastman_Process.bpmn tep.xml
 
 # validate any DEXPI 2.0 file, loading the Profile it imports
 npm run transform -- --validate tep.xml --profile tep.profile.xml
+
+# write a DEXPI 2.0.1 document (and its 2.0.1 profile)
+npm run transform -- --dexpi-version 2.0.1 examples/Tennessee_Eastman_Process.bpmn tep201.xml
 ```
 
 ### Help

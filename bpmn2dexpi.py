@@ -10,13 +10,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-def transform(bpmn_file: str, output_file: str = None) -> str:
+def transform(bpmn_file: str, output_file: str = None, dexpi_version: str = None) -> str:
     """
     Convert a BPMN file to DEXPI XML format.
     
     Args:
         bpmn_file: Path to input BPMN file
         output_file: Optional path to save output (if None, returns XML as string)
+        dexpi_version: DEXPI release to write, "2.0.0" (default) or "2.0.1"
     
     Returns:
         DEXPI XML as string if output_file is None, otherwise None
@@ -30,7 +31,10 @@ def transform(bpmn_file: str, output_file: str = None) -> str:
         raise FileNotFoundError(f"BPMN file not found: {bpmn_file}")
     
     # Build command
-    cmd = ['node', 'cli.js', str(bpmn_path)]
+    cmd = ['node', 'cli.js']
+    if dexpi_version:
+        cmd += ['--dexpi-version', dexpi_version]
+    cmd.append(str(bpmn_path))
     if output_file:
         cmd.append(str(output_file))
     

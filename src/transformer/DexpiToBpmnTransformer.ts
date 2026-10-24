@@ -16,8 +16,12 @@
  */
 
 import { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';
+import { DEFAULT_DEXPI_VERSION, detectDexpiVersion, type DexpiVersion } from './dexpiVersions';
 
-/** Composition fraction vectors, in the order the importer prefers them. */
+/**
+ * Composition fraction vectors, in the order the importer prefers them:
+ * MoleFractiona (DEXPI 2.0.0), MoleFractions (2.0.1), MassFractions (both).
+ */
 const FRACTION_PROPERTIES = new Set(['MoleFractiona', 'MoleFractions', 'MassFractions']);
 
 interface DexpiStep {
@@ -210,6 +214,12 @@ const MARGIN_Y = 100;
 const ENERGY_BAND_GAP = 80; // vertical gap between an energy boundary event and its connected task
 
 export interface DexpiToBpmnTransformOptions {
+  /**
+   * DEXPI release whose bundled models to load when processXml / coreXml are
+   * not supplied. Defaults to the release the document imports (recognised
+   * from its <Import> sources), then to the tool's default target.
+   */
+  dexpiVersion?: DexpiVersion;
   /** Pre-loaded Process.xml string (for browser builds where the file isn't on disk). */
   processXml?: string;
   /**
@@ -226,15 +236,35 @@ export class DexpiToBpmnTransformer {
   /** DEXPI Process class registry — loaded from Process.xml. Empty until first transform(). */
   private registry: DexpiProcessClassRegistry = DexpiProcessClassRegistry.empty();
 
+  /**
+   * The DEXPI release the last imported document was written against,
+   * recognised from the model URIs in its <Import> declarations
+   * (https://data.dexpi.org/models/<version>/…). Null when the document
+   * imports no versioned model. A caller re-exporting the imported model
+   * passes this as the exporter's dexpiVersion to stay in the same release.
+   */
+  lastDetectedVersion: DexpiVersion | null = null;
+  /**
+   * The version segment the last document's imports carried, bundled or not
+   * ('2.1.0' for a document from a release this build does not know), or
+   * null when none.
+   */
+  lastDeclaredVersion: string | null = null;
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   async transform(dexpiXml: string, options: DexpiToBpmnTransformOptions = {}): Promise<string> {
+    const detected = detectDexpiVersion(dexpiXml);
+    this.lastDetectedVersion = detected.version;
+    this.lastDeclaredVersion = detected.declared;
+
     // Load DEXPI class registry (cached after first call). Used to classify
     // instrumentation steps via the InstrumentationActivity ancestor check —
     // no hardcoded list of subclass names. With both schema strings supplied
     // (the browser path), build the full two-source registry; with only
     // processXml, fall back to the single-source load; with neither, the
-    // Node disk loader reads Process.xml + Core.xml itself.
+    // Node disk loader reads the bundled Process.xml + Core.xml of the
+    // release the document imports (or the one asked for).
     this.registry = options.processXml && options.coreXml
       ? DexpiProcessClassRegistry.fromXmlSources(
           [
@@ -243,7 +273,11 @@ export class DexpiToBpmnTransformer {
           ],
           { strictSupertypes: true },
         )
-      : await DexpiProcessClassRegistry.load(options.processXml);
+      : options.processXml
+        ? await DexpiProcessClassRegistry.load(options.processXml)
+        : await DexpiProcessClassRegistry.loadDefault({
+            version: options.dexpiVersion ?? detected.version ?? DEFAULT_DEXPI_VERSION,
+          });
 
     const parsed = this.parseDexpi(dexpiXml);
     this.materializeBoundaryProxyEvents(parsed);
@@ -423,22 +457,57 @@ export class DexpiToBpmnTransformer {
         .forEach(obj => materialComponents.push(this.parseMaterialComponent(obj)));
     }
 
-    // Parse MaterialStates (linked to a MaterialStateType via the State reference).
+    // Parse MaterialStates and the MaterialStateTypes they use. Two shapes:
+    //   DEXPI 2.0.0 — the state references its type (<References
+    //     property="State">) into the model-level MaterialStateTypes
+    //     container, and the type references its Composition into the
+    //     model-level Compositions container;
+    //   DEXPI 2.0.1 — both containers are gone: the type is composed under
+    //     MaterialState.State (0..1) or MaterialState.Phases (0..*), and the
+    //     Composition under MaterialStateType.Composition.
+    // Both are read here; a type composed inline is collected once by id
+    // even when several states compose it (by ObjectReference).
     const materialStates: DexpiMaterialState[] = [];
+    const materialStateTypes: DexpiMaterialStateType[] = [];
+    const seenStateTypeIds = new Set<string>();
+    const collectStateType = (typeObj: Element): DexpiMaterialStateType => {
+      const parsed = this.parseMaterialStateType(typeObj, compositionsById);
+      if (!seenStateTypeIds.has(parsed.uid)) {
+        seenStateTypeIds.add(parsed.uid);
+        materialStateTypes.push(parsed);
+      }
+      return parsed;
+    };
     const stateContainer = this.findComponents(processModel, 'MaterialStates');
     if (stateContainer) {
       Array.from(stateContainer.children)
         .filter(el => el.tagName === 'Object')
-        .forEach(obj => materialStates.push(this.parseMaterialState(obj)));
+        .forEach(obj => {
+          const state = this.parseMaterialState(obj);
+          for (const property of ['State', 'Phases']) {
+            const carrier = this.findComponents(obj, property);
+            if (!carrier) continue;
+            for (const child of Array.from(carrier.children) as Element[]) {
+              let typeId: string | undefined;
+              if (child.tagName === 'Object') {
+                typeId = collectStateType(child).uid;
+              } else if (child.tagName === 'ObjectReference') {
+                typeId = (child.getAttribute('object') ?? '').replace(/^#/, '') || undefined;
+              }
+              // The BPMN authoring links a state to one type (State); phases
+              // composed under Phases are kept as library entries.
+              if (property === 'State' && typeId && !state.stateTypeRef) state.stateTypeRef = typeId;
+            }
+          }
+          materialStates.push(state);
+        });
     }
 
-    // Parse MaterialStateTypes (the actual flow data — MoleFlow, Composition, etc.)
-    const materialStateTypes: DexpiMaterialStateType[] = [];
     const stateTypeContainer = this.findComponents(processModel, 'MaterialStateTypes');
     if (stateTypeContainer) {
       Array.from(stateTypeContainer.children)
         .filter(el => el.tagName === 'Object')
-        .forEach(obj => materialStateTypes.push(this.parseMaterialStateType(obj, compositionsById)));
+        .forEach(obj => collectStateType(obj));
     }
 
     return {
@@ -669,8 +738,13 @@ export class DexpiToBpmnTransformer {
     const hierarchyLevel = this.getHierarchyLevelLiteral(obj);
 
     const ports: DexpiPort[] = [];
-    const portsContainer = this.findComponents(obj, 'Ports');
-    if (portsContainer) {
+    // ProcessStep.Ports; DEXPI 2.0.1 adds InstrumentationActivity.InformationPorts,
+    // read the same way so a document that connects instruments through
+    // information ports keeps them on the imported task.
+    const portContainers = ['Ports', 'InformationPorts']
+      .map(property => this.findComponents(obj, property))
+      .filter((c): c is Element => c !== null);
+    for (const portsContainer of portContainers) {
       Array.from(portsContainer.children)
         .filter(el => el.tagName === 'Object')
         .forEach(portObj => {
@@ -727,6 +801,9 @@ export class DexpiToBpmnTransformer {
         // Profile-extension carrier for the variable identity when no
         // canonical parameter slot exists.
         'MeasuredVariableLabel',
+        // DEXPI 2.0.1 data property (MeasuredQuantity literal) — read below as
+        // a variable-identity fallback, never as a user-visible attribute.
+        'MeasuredVariable', 'InformationPorts',
       ])
     );
 
@@ -742,6 +819,14 @@ export class DexpiToBpmnTransformer {
     // <Components property="X"> wrapper), then fall back to the
     // Profile-extension MeasuredVariableLabel Data property.
     const measuredVariableLabel = this.getDataString(obj, 'MeasuredVariableLabel');
+    // DEXPI 2.0.1: MeasuringProcessVariable.MeasuredVariable is a data
+    // property typed Undefined | Enumerations.MeasuredQuantity, written as
+    // <Data property="MeasuredVariable"><DataReference data="…MeasuredQuantity.Flow"/>.
+    // The literal is the quantity class (Flow, Level, Pressure, …); the
+    // canonical reference above, when present, names the exact parameter and
+    // wins. (In 2.0.0 the same property was a QualifiedValue composition;
+    // a Components carrier of that name is left to parseAttributesOn.)
+    const measuredQuantityLiteral = this.getEnumLiteral(obj, 'MeasuredVariable');
     // measuredVariable from the canonical path is resolved post-parse via
     // the qualifiedValueId→property map; for now we record the raw ref id
     // in a tagged form, and let parseDexpi swap it for the property name.
@@ -750,6 +835,8 @@ export class DexpiToBpmnTransformer {
       measuredVariable = `__refid:${measuredVariableRefId}`;
     } else if (measuredVariableLabel) {
       measuredVariable = measuredVariableLabel;
+    } else if (measuredQuantityLiteral) {
+      measuredVariable = measuredQuantityLiteral;
     }
 
     return {
@@ -767,8 +854,17 @@ export class DexpiToBpmnTransformer {
    * Only the object's own Data child is read (never a nested step's).
    */
   private getHierarchyLevelLiteral(obj: Element): string | undefined {
+    return this.getEnumLiteral(obj, 'HierarchyLevel');
+  }
+
+  /**
+   * The literal name of an enumeration-valued <Data property="…"> on `obj`
+   * (the last dot-segment of its DataReference target), or undefined when
+   * the property is absent, Undefined, or not a DataReference.
+   */
+  private getEnumLiteral(obj: Element, property: string): string | undefined {
     const data = Array.from(obj.children).find(
-      c => c.tagName === 'Data' && c.getAttribute('property') === 'HierarchyLevel',
+      c => c.tagName === 'Data' && c.getAttribute('property') === property,
     );
     const ref = data && Array.from(data.children).find(c => c.tagName === 'DataReference');
     const path = ref?.getAttribute('data') ?? '';

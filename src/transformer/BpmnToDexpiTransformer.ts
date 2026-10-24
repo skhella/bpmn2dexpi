@@ -23,6 +23,11 @@ import { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
 import { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
 import { validateEmittedDexpiClassExistence } from './DexpiClassExistenceValidator';
 import { generateProfileFromDexpiXml, type GenerateProfileResult } from './DexpiProfileGenerator';
+import {
+  DEFAULT_DEXPI_VERSION,
+  dexpiModelImportSource,
+  type DexpiModelName,
+} from './dexpiVersions';
 // Authoritative source of the OriginatingSystem* metadata for the
 // EngineeringModel root. Pulling from package.json keeps "Originating system
 // name = bpmn2dexpi", vendor = author, version = the npm version always in
@@ -167,6 +172,7 @@ export class BpmnToDexpiTransformer {
     } else {
       this.registry = await DexpiProcessClassRegistry.loadDefault({
         extensions: options.profileXmls,
+        version: options.dexpiVersion ?? DEFAULT_DEXPI_VERSION,
       });
     }
     // Surface every same-name additive merge the registry recorded as a
@@ -1997,8 +2003,20 @@ export class BpmnToDexpiTransformer {
       }
     }
 
-    // Add MaterialStateTypes collection if there are any
-    if (this.materialStateTypes.size > 0) {
+    // Where the loaded Process model composes MaterialStateType and
+    // Composition. DEXPI 2.0.0 keeps both in model-level containers
+    // (ProcessModel.MaterialStateTypes / ProcessModel.Compositions) and
+    // links them by reference; 2.0.1 removes those containers and nests the
+    // state type under MaterialState.State and the Composition under
+    // MaterialStateType.Composition. Read from the registry, never from a
+    // version string, so the emitted shape is whatever the loaded model
+    // declares.
+    const shape = this.materialShape();
+
+    // Add MaterialStateTypes collection if there are any — only when the
+    // model declares the container; otherwise the state types are emitted
+    // nested in their MaterialState (buildMaterialStates).
+    if (this.materialStateTypes.size > 0 && shape.stateTypesAtModel) {
       if (!processModelObject.Components) {
         processModelObject.Components = [];
       }
@@ -2059,10 +2077,12 @@ export class BpmnToDexpiTransformer {
     }
 
     // Add Compositions collection (one per MaterialStateType that carries
-    // composition data). Per Process.xml, ProcessModel.Compositions is the
-    // CompositionProperty container; MaterialStateType.Composition is the
-    // ReferenceProperty that points back into this collection.
-    const compositionObjects = this.buildCompositions();
+    // composition data). In DEXPI 2.0.0 ProcessModel.Compositions is the
+    // CompositionProperty container and MaterialStateType.Composition the
+    // ReferenceProperty that points back into it; when the loaded model
+    // composes Composition under MaterialStateType instead (2.0.1), the
+    // Composition is emitted inline there and this container is not used.
+    const compositionObjects = shape.compositionNested ? [] : this.buildCompositions();
     if (compositionObjects.length > 0) {
       if (!processModelObject.Components) {
         processModelObject.Components = [];
@@ -2098,7 +2118,7 @@ export class BpmnToDexpiTransformer {
       }
     }
 
-    // Build the full Model structure following DEXPI 2.0.0 specification.
+    // Build the full Model structure following the DEXPI 2.0 serialisation.
     // Model/@name and Model/@uri are XSD-required. `name` must match
     // [A-Za-z_][A-Za-z_0-9]* (the DEXPI XSD `name` simple type); `uri` is
     // xsd:anyURI, so a URN is valid and avoids implying the model is
@@ -2112,16 +2132,19 @@ export class BpmnToDexpiTransformer {
           'uri': modelUri
         },
         'Import': [
+          // The standard models, by the URIs the loaded model files declare
+          // for themselves (https://data.dexpi.org/models/<version>/…), so
+          // the document names exactly the release it was written against.
           {
             '$': {
               'prefix': 'Core',
-              'source': 'https://data.dexpi.org/models/2.0.0/Core.xml'
+              'source': this.modelImportSource('Core', options),
             }
           },
           {
             '$': {
               'prefix': 'Process',
-              'source': 'https://data.dexpi.org/models/2.0.0/Process.xml'
+              'source': this.modelImportSource('Process', options),
             }
           },
           // Profiles the document was written against. Declared after the
@@ -2165,6 +2188,43 @@ export class BpmnToDexpiTransformer {
     };
 
     return model;
+  }
+
+  /**
+   * Import source for one of the standard models: the URI the loaded model
+   * file declares (Model/@uri), falling back to the published URI of the
+   * requested target version when the loaded file declares none (inline
+   * test fixtures) or no registry is loaded.
+   */
+  private modelImportSource(model: DexpiModelName, options: TransformOptions): string {
+    return (
+      this.registry.modelUri(model) ??
+      dexpiModelImportSource(options.dexpiVersion ?? DEFAULT_DEXPI_VERSION, model)
+    );
+  }
+
+  /**
+   * How the loaded Process model composes the material-state objects:
+   *   stateTypesAtModel  — ProcessModel declares a MaterialStateTypes
+   *                        composition (2.0.0); when it does not, every
+   *                        MaterialStateType is emitted inside the
+   *                        MaterialState that uses it (MaterialState.State,
+   *                        a composition in 2.0.1).
+   *   compositionNested  — MaterialStateType.Composition is a composition
+   *                        (2.0.1): the Composition object is emitted inline
+   *                        there rather than referenced from the
+   *                        ProcessModel.Compositions container (2.0.0).
+   * With no registry loaded the 2.0.0 shape is kept, as before.
+   */
+  private materialShape(): { stateTypesAtModel: boolean; compositionNested: boolean } {
+    if (this.registry.size === 0) return { stateTypesAtModel: true, compositionNested: false };
+    const kindOf = (className: string, property: string) =>
+      this.registry.getProperties(className).find(p => p.name === property)?.kind;
+    const stateTypesAtModel =
+      kindOf('ProcessModel', 'MaterialStateTypes') === 'composition' ||
+      kindOf('MaterialState', 'State') !== 'composition';
+    const compositionNested = kindOf('MaterialStateType', 'Composition') === 'composition';
+    return { stateTypesAtModel, compositionNested };
   }
 
   private buildProcessSteps(): Record<string, unknown>[] {
@@ -2450,6 +2510,21 @@ export class BpmnToDexpiTransformer {
               'objects': `#${this.sanitizeId(step.measuredVariableSourceId)}`,
             },
           });
+        }
+        // MeasuredVariable: DEXPI 2.0.1 types it on MeasuringProcessVariable as
+        // a data property (Undefined | Enumerations.MeasuredQuantity); 2.0.0
+        // declared it as a QualifiedValue composition, which this exporter
+        // never filled. Emitted only where the loaded model declares it as a
+        // data property and the authored variable name is a literal of the
+        // declared enumeration — the ISA-style quantity classes (Flow,
+        // Level, Pressure, …). A name outside the enumeration (Temperature
+        // is not a MeasuredQuantity literal) leaves the optional property
+        // out; the precise identity still travels via MeasuredVariableReference.
+        const measuredVariableData = step.measuredVariable
+          ? this.buildEnumData(bareStepType, 'MeasuredVariable', step.measuredVariable)
+          : null;
+        if (measuredVariableData) {
+          (dexpiStep.Data as Record<string, unknown>[]).push(measuredVariableData);
         }
       }
 
@@ -3334,6 +3409,12 @@ export class BpmnToDexpiTransformer {
 
   private buildMaterialStates(): Record<string, unknown>[] {
     const states: Record<string, unknown>[] = [];
+    const shape = this.materialShape();
+    // When MaterialState.State is a composition (2.0.1), the state type is
+    // emitted inside the first state that uses it; a second state using the
+    // same type composes it by ObjectReference (the DEXPI XSD lets a
+    // Components carrier hold either), keeping single ownership.
+    const emittedStateTypes = new Set<string>();
 
     this.materialStates.forEach((state) => {
       const dexpiState: Record<string, unknown> = {
@@ -3373,8 +3454,10 @@ export class BpmnToDexpiTransformer {
         );
       }
 
-      // Add State reference to MaterialStateType
-      if (state.stateTypeRef) {
+      // State → MaterialStateType: a reference into the model-level
+      // MaterialStateTypes container (2.0.0), or the state type composed
+      // inline under MaterialState.State (2.0.1).
+      if (state.stateTypeRef && shape.stateTypesAtModel) {
         if (!dexpiState.References) {
           dexpiState.References = [];
         }
@@ -3384,100 +3467,148 @@ export class BpmnToDexpiTransformer {
             'objects': `#${this.sanitizeId(state.stateTypeRef)}`
           }
         });
+      } else if (state.stateTypeRef) {
+        const stateType = this.materialStateTypes.get(state.stateTypeRef);
+        const typeId = this.sanitizeId(state.stateTypeRef);
+        if (!stateType) {
+          this.logger.warn(
+            `MaterialState ${state.identifier}: State references MaterialStateType "${state.stateTypeRef}", ` +
+            `which is not authored — the loaded model composes state types under MaterialState.State, ` +
+            `so the reference is omitted.`,
+          );
+        } else {
+          if (!dexpiState.Components) dexpiState.Components = [];
+          (dexpiState.Components as Record<string, unknown>[]).push(
+            emittedStateTypes.has(typeId)
+              ? { '$': { 'property': 'State' }, 'ObjectReference': [{ '$': { 'object': `#${typeId}` } }] }
+              : { '$': { 'property': 'State' }, 'Object': [this.buildMaterialStateTypeObject(stateType)] },
+          );
+          emittedStateTypes.add(typeId);
+        }
       }
 
       states.push(dexpiState);
     });
+
+    if (!shape.stateTypesAtModel) {
+      // A state type no MaterialState uses has no canonical home in a model
+      // without ProcessModel.MaterialStateTypes. Say so rather than invent a
+      // container the model does not declare.
+      this.materialStateTypes.forEach((stateType) => {
+        if (emittedStateTypes.has(this.sanitizeId(stateType.uid))) return;
+        this.logger.warn(
+          `MaterialStateType ${stateType.identifier} is used by no MaterialState; the loaded ` +
+          `DEXPI model has no ProcessModel.MaterialStateTypes container (removed in 2.0.1), so it ` +
+          `is omitted from the export. Reference it from a MaterialState's State to keep it.`,
+        );
+      });
+    }
 
     return states;
   }
 
   private buildMaterialStateTypes(): Record<string, unknown>[] {
     const stateTypes: Record<string, unknown>[] = [];
-
     this.materialStateTypes.forEach((stateType) => {
-      const dexpiStateType: Record<string, unknown> = {
-        '$': {
-          'id': this.sanitizeId(stateType.uid),
-          'type': 'Process/Process.MaterialStateType'
-        },
-        'Data': [
-          {
-            '$': {
-              'property': 'Identifier'
-            },
-            'String': stateType.identifier
-          }
-        ]
-      };
+      stateTypes.push(this.buildMaterialStateTypeObject(stateType));
+    });
+    return stateTypes;
+  }
 
-      // Add Label if present
-      if (stateType.label) {
-        (dexpiStateType.Data as Record<string, unknown>[]).push({
+  /** One Process/Process.MaterialStateType Object (scalars + Composition). */
+  private buildMaterialStateTypeObject(stateType: InternalMaterialStateType): Record<string, unknown> {
+    const shape = this.materialShape();
+    const dexpiStateType: Record<string, unknown> = {
+      '$': {
+        'id': this.sanitizeId(stateType.uid),
+        'type': 'Process/Process.MaterialStateType'
+      },
+      'Data': [
+        {
           '$': {
-            'property': 'Label'
+            'property': 'Identifier'
           },
-          'String': stateType.label
+          'String': stateType.identifier
+        }
+      ]
+    };
+
+    // Add Label if present
+    if (stateType.label) {
+      (dexpiStateType.Data as Record<string, unknown>[]).push({
+        '$': {
+          'property': 'Label'
+        },
+        'String': stateType.label
+      });
+    }
+
+    // Add Description if present
+    if (stateType.description) {
+      (dexpiStateType.Data as Record<string, unknown>[]).push(
+        this.buildTextData('MaterialStateType', 'Description', stateType.description),
+      );
+    }
+
+    // (No MaterialTemplateReference here — Process.xml declares that
+    // ReferenceProperty on Stream and MaterialPort, not on MaterialStateType.
+    // The canonical Stream-side emit lives in buildStreams above.)
+
+    // Scalar QualifiedValue properties on MaterialStateType. Generic
+    // emit: each entry round-trips one <dexpi:components property="X">
+    // <dexpi:object type="Core/QualifiedValue"> child authored on the
+    // BPMN side, regardless of whether the property name is declared in
+    // Process.xml (canonical: MassFlow, VolumeFlow, ...) or a project
+    // extension (e.g. MoleFlow). The strict-mode validator surfaces
+    // non-canonical names; the Profile generator declares them as
+    // CompositionProperty extensions on MaterialStateType.
+    if (stateType.flow?.scalars && stateType.flow.scalars.length > 0) {
+      if (!dexpiStateType.Components) {
+        dexpiStateType.Components = [];
+      }
+      for (const s of stateType.flow.scalars) {
+        // Scalars the model declares on Composition are emitted there
+        // instead — but only when this state type actually has a
+        // Composition object to carry them; with no composition present
+        // there is nowhere canonical to put them, so they stay here and
+        // the strict validator reports them as it did before.
+        if (
+          this.flowScalarOwner(s.property) === 'Composition' &&
+          stateType.flow?.composition
+        ) {
+          continue;
+        }
+        (dexpiStateType.Components as Record<string, unknown>[]).push({
+          '$': { 'property': s.property },
+          'Object': [{
+            '$': { 'type': 'Core/QualifiedValue' },
+            'Data': this.buildQualifiedValueData({
+              className: 'MaterialStateType',
+              property: s.property,
+              value: s.value,
+              unit: s.unit,
+              unitEnum: s.unitEnum,
+            }),
+          }],
         });
       }
+    }
 
-      // Add Description if present
-      if (stateType.description) {
-        (dexpiStateType.Data as Record<string, unknown>[]).push(
-          this.buildTextData('MaterialStateType', 'Description', stateType.description),
-        );
-      }
-
-      // (No MaterialTemplateReference here — Process.xml declares that
-      // ReferenceProperty on Stream and MaterialPort, not on MaterialStateType.
-      // The canonical Stream-side emit lives in buildStreams above.)
-
-      // Scalar QualifiedValue properties on MaterialStateType. Generic
-      // emit: each entry round-trips one <dexpi:components property="X">
-      // <dexpi:object type="Core/QualifiedValue"> child authored on the
-      // BPMN side, regardless of whether the property name is declared in
-      // Process.xml (canonical: MassFlow, VolumeFlow, ...) or a project
-      // extension (e.g. MoleFlow). The strict-mode validator surfaces
-      // non-canonical names; the Profile generator declares them as
-      // CompositionProperty extensions on MaterialStateType.
-      if (stateType.flow?.scalars && stateType.flow.scalars.length > 0) {
+    // MaterialStateType.Composition: in DEXPI 2.0.0 a ReferenceProperty
+    // (target /Process.Composition) into the ProcessModel.Compositions
+    // container, where the Composition Object is materialised with a
+    // deterministic id derived from the state type's uid; in 2.0.1 a
+    // CompositionProperty (0..1), so the same Object is emitted inline.
+    if (stateType.flow?.composition) {
+      if (shape.compositionNested) {
         if (!dexpiStateType.Components) {
           dexpiStateType.Components = [];
         }
-        for (const s of stateType.flow.scalars) {
-          // Scalars the model declares on Composition are emitted there
-          // instead — but only when this state type actually has a
-          // Composition object to carry them; with no composition present
-          // there is nowhere canonical to put them, so they stay here and
-          // the strict validator reports them as it did before.
-          if (
-            this.flowScalarOwner(s.property) === 'Composition' &&
-            stateType.flow?.composition
-          ) {
-            continue;
-          }
-          (dexpiStateType.Components as Record<string, unknown>[]).push({
-            '$': { 'property': s.property },
-            'Object': [{
-              '$': { 'type': 'Core/QualifiedValue' },
-              'Data': this.buildQualifiedValueData({
-                className: 'MaterialStateType',
-                property: s.property,
-                value: s.value,
-                unit: s.unit,
-                unitEnum: s.unitEnum,
-              }),
-            }],
-          });
-        }
-      }
-
-      // MaterialStateType.Composition is a ReferenceProperty per Process.xml
-      // (target: /Process.Composition). Emit the reference here; the
-      // referenced Composition Object is materialised under
-      // ProcessModel.Compositions (CompositionProperty container) with a
-      // deterministic id derived from the state type's uid.
-      if (stateType.flow?.composition) {
+        (dexpiStateType.Components as Record<string, unknown>[]).push({
+          '$': { 'property': 'Composition' },
+          'Object': [this.buildCompositionObject(stateType)],
+        });
+      } else {
         if (!dexpiStateType.References) {
           dexpiStateType.References = [];
         }
@@ -3489,11 +3620,9 @@ export class BpmnToDexpiTransformer {
           },
         });
       }
+    }
 
-      stateTypes.push(dexpiStateType);
-    });
-
-    return stateTypes;
+    return dexpiStateType;
   }
 
   /**
@@ -3548,86 +3677,101 @@ export class BpmnToDexpiTransformer {
     const out: Record<string, unknown>[] = [];
     this.materialStateTypes.forEach((stateType) => {
       if (!stateType.flow?.composition) return;
-      const compositionId = this.sanitizeId(`${stateType.uid}_Composition`);
-      const compositionData: Record<string, unknown>[] = [];
-      if (stateType.flow.composition.display) {
-        compositionData.push({
-          '$': { 'property': 'Display' },
-          'String': stateType.flow.composition.display,
-        });
-      }
-      const compositionObj: Record<string, unknown> = {
-        '$': {
-          'id': compositionId,
-          'type': 'Process/Process.Composition',
-        },
-      };
-      if (compositionData.length > 0) {
-        compositionObj.Data = compositionData;
-      }
+      out.push(this.buildCompositionObject(stateType));
+    });
+    return out;
+  }
 
-      // Per-component fraction vector. The carrier property name is resolved
-      // from the loaded schema (Composition declares MoleFractiona — sic —
-      // and MassFractions today; when the accepted DEXPI correction renames
-      // the Mole spelling, the emit follows Process.xml automatically).
-      const fractions = stateType.flow.composition.fractions ?? [];
-      if (fractions.length > 0) {
-        const basisLabel = (stateType.flow.composition.basis || 'Mole').toLowerCase();
-        const carrierProperty = this.registry.compositionFractionProperty(
-          basisLabel === 'mass' ? 'Mass' : 'Mole',
-        );
-        // Canonical PhysicalQuantityVector via the shared emitter: the vector's
-        // Values + Unit nest in an <AggregatedDataValue
-        // type="…PhysicalQuantityVector">, with the unit resolved from the
-        // schema (Composition.<carrier> binds to PercentageUnit) against the
-        // authored token — no hardcoded 'Fraction'. The QualifiedValue's scalar
-        // Value holds the vector; DisplayText is <Undefined/>.
-        const fractionsComponents = {
-          '$': { 'property': carrierProperty },
+  /**
+   * The Process/Process.Composition Object of one state type: Display, the
+   * fraction vector under the carrier the loaded model declares, and the
+   * flow scalars the model declares on Composition. Its id is derived from
+   * the state type's uid so a 2.0.0 MaterialStateType.Composition reference
+   * resolves; the 2.0.1 inline placement keeps the id, which is harmless.
+   */
+  private buildCompositionObject(stateType: InternalMaterialStateType): Record<string, unknown> {
+    const composition = stateType.flow.composition;
+    if (!composition) {
+      throw new Error(`MaterialStateType ${stateType.identifier} has no composition to emit`);
+    }
+    const compositionId = this.sanitizeId(`${stateType.uid}_Composition`);
+    const compositionData: Record<string, unknown>[] = [];
+    if (composition.display) {
+      compositionData.push({
+        '$': { 'property': 'Display' },
+        'String': composition.display,
+      });
+    }
+    const compositionObj: Record<string, unknown> = {
+      '$': {
+        'id': compositionId,
+        'type': 'Process/Process.Composition',
+      },
+    };
+    if (compositionData.length > 0) {
+      compositionObj.Data = compositionData;
+    }
+
+    // Per-component fraction vector. The carrier property name is resolved
+    // from the loaded schema (Composition declares MoleFractiona — sic —
+    // and MassFractions today; when the accepted DEXPI correction renames
+    // the Mole spelling, the emit follows Process.xml automatically).
+    const fractions = composition.fractions ?? [];
+    if (fractions.length > 0) {
+      const basisLabel = (composition.basis || 'Mole').toLowerCase();
+      const carrierProperty = this.registry.compositionFractionProperty(
+        basisLabel === 'mass' ? 'Mass' : 'Mole',
+      );
+      // Canonical PhysicalQuantityVector via the shared emitter: the vector's
+      // Values + Unit nest in an <AggregatedDataValue
+      // type="…PhysicalQuantityVector">, with the unit resolved from the
+      // schema (Composition.<carrier> binds to PercentageUnit) against the
+      // authored token — no hardcoded 'Fraction'. The QualifiedValue's scalar
+      // Value holds the vector; DisplayText is <Undefined/>.
+      const fractionsComponents = {
+        '$': { 'property': carrierProperty },
+        'Object': [{
+          '$': { 'type': 'Core/QualifiedValue' },
+          'Data': this.buildQualifiedValueData({
+            className: 'Composition',
+            property: carrierProperty,
+            values: fractions.map(f => f.value),
+            unit: composition.unit,
+          }),
+        }],
+      };
+      compositionObj.Components = [fractionsComponents];
+    }
+
+    // Flow scalars the model declares on Composition rather than on
+    // MaterialStateType (MoleFlow, and MassFlow when expressed per
+    // composition basis). Authored once on the BPMN side; routed here so
+    // they land on the class that actually declares them.
+    const compositionScalars = (stateType.flow.scalars ?? []).filter(
+      sc => this.flowScalarOwner(sc.property) === 'Composition',
+    );
+    if (compositionScalars.length > 0) {
+      if (!Array.isArray(compositionObj.Components)) {
+        compositionObj.Components = [];
+      }
+      for (const sc of compositionScalars) {
+        (compositionObj.Components as Record<string, unknown>[]).push({
+          '$': { 'property': sc.property },
           'Object': [{
             '$': { 'type': 'Core/QualifiedValue' },
             'Data': this.buildQualifiedValueData({
               className: 'Composition',
-              property: carrierProperty,
-              values: fractions.map(f => f.value),
-              unit: stateType.flow.composition.unit,
+              property: sc.property,
+              value: sc.value,
+              unit: sc.unit,
+              unitEnum: sc.unitEnum,
             }),
           }],
-        };
-        compositionObj.Components = [fractionsComponents];
+        });
       }
+    }
 
-      // Flow scalars the model declares on Composition rather than on
-      // MaterialStateType (MoleFlow, and MassFlow when expressed per
-      // composition basis). Authored once on the BPMN side; routed here so
-      // they land on the class that actually declares them.
-      const compositionScalars = (stateType.flow.scalars ?? []).filter(
-        sc => this.flowScalarOwner(sc.property) === 'Composition',
-      );
-      if (compositionScalars.length > 0) {
-        if (!Array.isArray(compositionObj.Components)) {
-          compositionObj.Components = [];
-        }
-        for (const sc of compositionScalars) {
-          (compositionObj.Components as Record<string, unknown>[]).push({
-            '$': { 'property': sc.property },
-            'Object': [{
-              '$': { 'type': 'Core/QualifiedValue' },
-              'Data': this.buildQualifiedValueData({
-                className: 'Composition',
-                property: sc.property,
-                value: sc.value,
-                unit: sc.unit,
-                unitEnum: sc.unitEnum,
-              }),
-            }],
-          });
-        }
-      }
-
-      out.push(compositionObj);
-    });
-    return out;
+    return compositionObj;
   }
 
   private findPortForConnection(
@@ -3880,6 +4024,26 @@ export class BpmnToDexpiTransformer {
    * is the pre-existing behaviour, and a wrong guess at an aggregate shape
    * would be harder for a consumer to recover from than a flat value.
    */
+  /**
+   * `<Data property="…"><DataReference data="Model/Package.Enum.Literal"/></Data>`
+   * for an enumeration-typed DataProperty, or null when the loaded model does
+   * not declare `propertyName` on `className` as a data property typed by an
+   * enumeration, or when `token` is not one of that enumeration's literals.
+   * Resolution is entirely from the registry; nothing is guessed.
+   */
+  private buildEnumData(
+    className: string,
+    propertyName: string,
+    token: string,
+  ): Record<string, unknown> | null {
+    const declared = this.registry.getProperties(className).find(p => p.name === propertyName);
+    if (!declared || declared.kind !== 'data') return null;
+    const path = this.registry.getEnumReferencePathForProperty(className, propertyName);
+    const literals = path ? this.registry.getQualifiedEnumLiterals(path) : null;
+    if (!path || !literals || !literals.includes(token)) return null;
+    return { '$': { 'property': propertyName }, 'DataReference': { '$': { 'data': `${path}.${token}` } } };
+  }
+
   private buildTextData(
     className: string,
     propertyName: string,

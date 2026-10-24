@@ -31,6 +31,16 @@ const { generateProfileFromDexpiXml } = await import('./src/transformer/DexpiPro
 const { DexpiProcessClassRegistry } = await import('./src/transformer/DexpiProcessClassRegistry.ts');
 const { validateDexpiXml } = await import('./src/transformer/validateDexpiXml.ts');
 const { validateDexpiOutputXsd } = await import('./src/transformer/DexpiOutputValidator.ts');
+const {
+  DEFAULT_DEXPI_VERSION, DEXPI_VERSIONS, DEXPI_XSD_FILENAME,
+  dexpiModelRelativePath, detectDexpiVersion, isDexpiVersion,
+} = await import('./src/transformer/dexpiVersions.ts');
+
+/** Bundled model files of one DEXPI release, as registry sources. */
+const bundledModels = (version, models) => models.map(model => ({
+  name: `${model}.xml`,
+  xml: readFileSync(join(SCHEMA_DIR, dexpiModelRelativePath(version, model)), 'utf-8'),
+}));
 
 const args = process.argv.slice(2);
 
@@ -40,7 +50,7 @@ bpmn2dexpi - BPMN to DEXPI XML Transformer
 
 Usage:
   node cli.js [flags] <input.bpmn> [output.xml]
-  node cli.js --validate <dexpi.xml> [--profile FILE]...
+  node cli.js --validate <dexpi.xml> [--profile FILE]... [--dexpi-version V]
   npm run transform <input.bpmn> [output.xml]
 
 Arguments:
@@ -92,6 +102,17 @@ Flags:
   --no-profile    Do not generate the export's profile: no profile file,
                   no <Import prefix="Profile"> in the document.
 
+  --dexpi-version VERSION
+                  DEXPI release to write: 2.0.0 (default) or 2.0.1. The
+                  export loads that release's bundled models and imports
+                  them (https://data.dexpi.org/models/VERSION/…); the shape
+                  follows the models — in 2.0.1 MoleFractions / RatioUnit,
+                  state types composed under MaterialState.State and the
+                  Composition under MaterialStateType, MeasuredVariable as
+                  a MeasuredQuantity literal. With --validate: the release
+                  to validate against when the document's imports do not
+                  say (they normally do, and are honoured).
+
 The export is self-describing by default: after transforming, the CLI
 generates the document's DEXPI Profile — every class and property the
 model uses that the DEXPI 2.0 vocabulary (plus any --profile FILE) does
@@ -123,6 +144,8 @@ Examples:
                                                  #   (Process or Plant/P&ID)
   node cli.js --validate output.xml --profile examples/profiles/tep-generated.xml
                                                  # Validate against loaded Profile
+  node cli.js --dexpi-version 2.0.1 process.bpmn output.xml
+                                                 # Write a DEXPI 2.0.1 document
   npm run transform process.bpmn output.xml      # Using npm script
 
 From Python:
@@ -143,9 +166,20 @@ const noProfile = args.includes('--no-profile');
 // flags.
 const profilePaths = [];
 let generateProfilePath = null;
+let dexpiVersionArg = null;
 const positional = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
+  if (a === '--dexpi-version') {
+    const v = args[i + 1];
+    if (!v || !isDexpiVersion(v)) {
+      console.error(`✗ Error: --dexpi-version requires one of ${DEXPI_VERSIONS.join(', ')} (got "${v ?? ''}")`);
+      process.exit(1);
+    }
+    dexpiVersionArg = v;
+    i++;
+    continue;
+  }
   if (a === '--profile') {
     if (i + 1 >= args.length || args[i + 1].startsWith('--')) {
       console.error('✗ Error: --profile requires a path argument');
@@ -194,10 +228,24 @@ const profilePath = generateProfilePath
 async function validateMain() {
   try {
     const dexpiXml = readFileSync(inputPath, 'utf-8');
+    // The release to validate against: the one the document imports
+    // (https://data.dexpi.org/models/<version>/…), else --dexpi-version,
+    // else the default. A document importing a release this build does not
+    // bundle is validated against the fallback and says so.
+    const detected = detectDexpiVersion(dexpiXml);
+    const version = detected.version ?? dexpiVersionArg ?? DEFAULT_DEXPI_VERSION;
+    if (detected.version) {
+      console.error(`ℹ Document imports the DEXPI ${version} models; validating against the ${version} vocabulary.`);
+    } else if (detected.declared) {
+      console.error(
+        `⚠ Document imports DEXPI ${detected.declared} models, which this build does not bundle ` +
+        `(known: ${DEXPI_VERSIONS.join(', ')}); validating against ${version}.`,
+      );
+    } else {
+      console.error(`ℹ Document imports no versioned DEXPI model; validating against ${version}.`);
+    }
     const sources = [
-      { name: 'Process.xml', xml: readFileSync(join(SCHEMA_DIR, 'Process.xml'), 'utf-8') },
-      { name: 'Plant.xml', xml: readFileSync(join(SCHEMA_DIR, 'Plant.xml'), 'utf-8') },
-      { name: 'Core.xml', xml: readFileSync(join(SCHEMA_DIR, 'Core.xml'), 'utf-8') },
+      ...bundledModels(version, ['Process', 'Plant', 'Core']),
       ...profilePaths.map(p => ({
         name: p.split('/').pop() || p,
         xml: readFileSync(p, 'utf-8'),
@@ -208,7 +256,8 @@ async function validateMain() {
     });
 
     // 1) Official XSD (xmllint in Node; structural fallback otherwise).
-    const xsd = await validateDexpiOutputXsd(dexpiXml, join(SCHEMA_DIR, 'DEXPI_XML_Schema.xsd'));
+    // One XML Schema for every bundled release (2.0.1 ships the same XSD).
+    const xsd = await validateDexpiOutputXsd(dexpiXml, join(SCHEMA_DIR, DEXPI_XSD_FILENAME));
     if (xsd.valid) {
       console.error(`✓ ${xsd.mode === 'xsd' ? 'XSD validation' : 'Structural check (xmllint unavailable)'}: ${inputPath} passes`);
     } else {
@@ -303,14 +352,15 @@ async function main() {
     // Transform to DEXPI. strict + profileXmls flow into transform()'s
     // registry construction; profile-loading errors (divergent declarations / unresolved
     // supertype) throw and are caught below.
+    const dexpiVersion = dexpiVersionArg ?? DEFAULT_DEXPI_VERSION;
     const dexpiXml = await transformer.transform(bpmnXml, {
-      strict, profileXmls, profileImports, generateProfile,
+      strict, profileXmls, profileImports, generateProfile, dexpiVersion,
     });
 
     if (outputPath) {
       // Write to file — always produced, even when strict-mode validation finds issues.
       writeFileSync(outputPath, dexpiXml, 'utf-8');
-      console.error(`✓ Successfully transformed ${inputPath} → ${outputPath}`);
+      console.error(`✓ Successfully transformed ${inputPath} → ${outputPath} (DEXPI ${dexpiVersion})`);
     } else {
       // Print to stdout
       console.log(dexpiXml);
@@ -338,8 +388,7 @@ async function main() {
       // have needed one, so the extension properties don't travel silently
       // without their declarations.
       const sources = [
-        { name: 'Process.xml', xml: readFileSync(join(SCHEMA_DIR, 'Process.xml'), 'utf-8') },
-        { name: 'Core.xml', xml: readFileSync(join(SCHEMA_DIR, 'Core.xml'), 'utf-8') },
+        ...bundledModels(dexpiVersion, ['Process', 'Core']),
         ...profileXmls,
       ];
       const reg = DexpiProcessClassRegistry.fromXmlSources(sources);

@@ -2,7 +2,7 @@
  * Neo4j Exporter for DEXPI XML
  * Parses DEXPI XML and exports to Neo4j graph database
  * 
- * Features (reads the DEXPI 2.0 Process.xml shape BpmnToDexpiTransformer writes):
+ * Features (reads the DEXPI 2.0.0 and 2.0.1 Process.xml shapes BpmnToDexpiTransformer writes):
  * - ProcessSteps as nodes with ports as properties
  * - InstrumentationActivity nodes from ProcessModel.InstrumentationSystemActivities
  *   with OBSERVES (→ ProcessStepReference) and MEASURES {variable}
@@ -836,21 +836,35 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
   // Parse Compositions — the per-stateType fraction vector lives here.
   // Each Composition Object holds Display + a single QualifiedValue
   // Components carrier whose property name encodes the basis
-  // (MoleFractiona — sic per Process.xml, with the accepted corrected
-  // spelling MoleFractions also read — or MassFractions) and whose
-  // Data property="Values" entries are the positional per-component
-  // fraction values. Build a uid → {basis, values} map for the
-  // MaterialStateType pass below to consult.
+  // (MoleFractiona in DEXPI 2.0.0, MoleFractions in 2.0.1, or
+  // MassFractions) and whose Data property="Values" entries are the
+  // positional per-component fraction values. Build a uid → {basis, values}
+  // map for the MaterialStateType pass below to consult.
+  //
+  // Where the objects sit depends on the release: 2.0.0 keeps every
+  // Composition in ProcessModel.Compositions and every MaterialStateType in
+  // ProcessModel.MaterialStateTypes, linked by reference; 2.0.1 removes both
+  // containers and composes the Composition under
+  // MaterialStateType.Composition and the state type under
+  // MaterialState.State / Phases. Both are read by class, wherever the
+  // Object sits; a nested Composition without an id is keyed by its
+  // state type's id.
   type CompositionData = { basis: 'Mole' | 'Mass'; values: string[] };
   const compositionDataByUid = new Map<string, CompositionData>();
   // Composition also carries scalar QualifiedValues — MoleFlow moved here
   // from MaterialStateType in Process.xml, and Display is a plain Data —
   // which are flattened onto the referencing MaterialStateType node.
   const compositionAttrsByUid = new Map<string, AttributeMap>();
-  const compositionsContainer = processModel.querySelector('Components[property="Compositions"]');
-  if (compositionsContainer) {
-    for (const compObj of Array.from(compositionsContainer.querySelectorAll(':scope > Object'))) {
-      const compId = compObj.getAttribute('id') || '';
+  const nestedCompositionKey = (compObj: Element): string => {
+    const owner = compObj.parentElement?.parentElement;
+    return `${owner?.getAttribute('id') ?? ''}_Composition`;
+  };
+  const compositionObjects = Array.from(
+    processModel.querySelectorAll('Object[type="Process/Process.Composition"]'),
+  );
+  {
+    for (const compObj of compositionObjects) {
+      const compId = compObj.getAttribute('id') || nestedCompositionKey(compObj);
       compositionAttrsByUid.set(compId, extractAllAttributes(compObj));
       // Identify the fractions carrier by canonical property name.
       const moleCarrier = compObj.querySelector(':scope > Components[property="MoleFractiona"]')
@@ -881,18 +895,27 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
     }
   }
 
-  // Parse Material State Types
-  const stateTypesContainer = processModel.querySelector('Components[property="MaterialStateTypes"]');
-  if (stateTypesContainer) {
-    for (const typeObj of Array.from(stateTypesContainer.querySelectorAll(':scope > Object'))) {
+  // Parse Material State Types — from ProcessModel.MaterialStateTypes (2.0.0)
+  // or composed under a MaterialState (2.0.1); each Object once, by id.
+  const seenStateTypeIds = new Set<string>();
+  {
+    for (const typeObj of Array.from(processModel.querySelectorAll('Object[type="Process/Process.MaterialStateType"]'))) {
       const id = typeObj.getAttribute('id') || '';
+      if (seenStateTypeIds.has(id)) continue;
+      seenStateTypeIds.add(id);
       const identifier = getDataValue(typeObj, 'Identifier');
       const label = getDataValue(typeObj, 'Label');
-      // Resolve the Composition reference (Process.xml MaterialStateType.Composition,
-      // lower=1, upper=1, target /Process.Composition). The fraction values
-      // and basis are pulled from the Composition map; the componentRef
-      // pairing happens later, once the state→template map is available.
-      const compositionRef = readRefTargetUid(typeObj, 'Composition');
+      // Resolve the Composition: a reference into ProcessModel.Compositions
+      // (2.0.0, MaterialStateType.Composition as ReferenceProperty) or the
+      // Object composed inline under MaterialStateType.Composition (2.0.1).
+      // The fraction values and basis are pulled from the Composition map;
+      // the componentRef pairing happens later, once the state→template map
+      // is available.
+      const inlineComposition = typeObj.querySelector(
+        ':scope > Components[property="Composition"] > Object[type="Process/Process.Composition"]',
+      );
+      const compositionRef = readRefTargetUid(typeObj, 'Composition')
+        ?? (inlineComposition ? (inlineComposition.getAttribute('id') || nestedCompositionKey(inlineComposition)) : undefined);
 
       // Fractions are populated in a post-pass below so we can pair
       // values with template.componentRefs by walking the streams.
@@ -909,16 +932,23 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
     }
   }
 
-  // Parse Material States. Process.xml's MaterialState declares a State
-  // reference to MaterialStateType (lower=1, upper=1). It does NOT
-  // declare a MaterialTemplateReference — that lives on Stream.
+  // Parse Material States. MaterialState.State links the state to its
+  // MaterialStateType (a reference in 2.0.0, a composition in 2.0.1). It
+  // does NOT declare a MaterialTemplateReference — that lives on Stream.
   const statesContainer = processModel.querySelector('Components[property="MaterialStates"]');
   if (statesContainer) {
     for (const stateObj of Array.from(statesContainer.querySelectorAll(':scope > Object'))) {
       const id = stateObj.getAttribute('id') || '';
       const identifier = getDataValue(stateObj, 'Identifier');
       const label = getDataValue(stateObj, 'Label');
-      const typeRef = readRefTargetUid(stateObj, 'State');
+      // State → MaterialStateType: a reference (2.0.0) or the type composed
+      // under MaterialState.State (2.0.1), inline or by ObjectReference.
+      const nestedState = stateObj.querySelector(':scope > Components[property="State"] > Object');
+      const nestedStateRef = stateObj.querySelector(':scope > Components[property="State"] > ObjectReference');
+      const typeRef = readRefTargetUid(stateObj, 'State')
+        ?? nestedState?.getAttribute('id')
+        ?? nestedStateRef?.getAttribute('object')?.replace(/^#/, '')
+        ?? undefined;
       // templateRef is filled in by the post-pass below, sourced from the
       // Stream that carries this state.
       materialStates.push({

@@ -14,7 +14,7 @@
  * known reference) and for users who want to commit generated Profiles
  * to source control.
  *
- * Generated Profiles are DEXPI XML model files in the 2.0.0 grammar:
+ * Generated Profiles are DEXPI XML model files in the DEXPI 2.0 grammar:
  *   <Model name="…" uri="…">
  *     <Import prefix="Core" source="…/Core.xml"/>
  *     <Import prefix="Process" source="…/Process.xml"/>
@@ -38,6 +38,7 @@
  */
 
 import type { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';
+import { DEFAULT_DEXPI_VERSION, dexpiModelImportSource } from './dexpiVersions';
 import {
   validateEmittedDexpiXml,
   validateBpmnExtensionElements,
@@ -1163,12 +1164,14 @@ function comparePropertyDecl(
 /** Identity and imports of every generated profile. */
 export const GENERATED_PROFILE_NAME = 'bpmn2dexpi_generated_profile';
 export const GENERATED_PROFILE_URI = 'https://bpmn2dexpi.local/profiles/generated';
-const CORE_IMPORT_SOURCE = 'https://data.dexpi.org/models/2.0.0/Core.xml';
-const PROCESS_IMPORT_SOURCE = 'https://data.dexpi.org/models/2.0.0/Process.xml';
 
 /**
  * Per-render state: the <Import>s the profile needs. Core and Process are
- * always imported; a class that came from another loaded profile adds an
+ * always imported — by the URIs the loaded model files declare for
+ * themselves (so a profile generated against the 2.0.1 models imports
+ * https://data.dexpi.org/models/2.0.1/…), falling back to the default
+ * release's published URIs when the registry was built from sources that
+ * declare none; a class that came from another loaded profile adds an
  * import of that profile (its source label, as a sibling file reference).
  */
 interface RenderContext {
@@ -1180,8 +1183,10 @@ function renderProfileXml(
   registry: DexpiProcessClassRegistry,
   units?: Map<string, Set<string>>,
 ): string {
+  const standardImport = (model: 'Core' | 'Process') =>
+    registry.modelUri(model) ?? dexpiModelImportSource(DEFAULT_DEXPI_VERSION, model);
   const ctx: RenderContext = {
-    imports: new Map([['Core', CORE_IMPORT_SOURCE], ['Process', PROCESS_IMPORT_SOURCE]]),
+    imports: new Map([['Core', standardImport('Core')], ['Process', standardImport('Process')]]),
   };
   const body: string[] = [];
   for (const cls of classes) {

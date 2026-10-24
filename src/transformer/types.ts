@@ -4,6 +4,7 @@
  */
 
 import type { DexpiPort } from '../dexpi/moddle';
+import type { DexpiVersion } from './dexpiVersions';
 
 // ── Process step (ProcessStep / Source / Sink / InstrumentationActivity) ─────
 
@@ -310,6 +311,19 @@ export interface TransformOptions {
   projectName?: string;
   projectDescription?: string;
   author?: string;
+  /**
+   * DEXPI release to write: '2.0.0' (default) or '2.0.1'. Selects which
+   * bundled model files the registry loads (when processXml / coreXml are
+   * not supplied) and which model URIs the document imports. Everything
+   * that differs between the releases — `MoleFractiona` vs `MoleFractions`,
+   * `PercentageUnit` vs `RatioUnit`, where MaterialStateType and Composition
+   * are composed, how MeasuredVariable is typed — is read from the loaded
+   * models, so the emitted shape follows the release automatically. When
+   * processXml / coreXml ARE supplied, they decide the release (their
+   * Model/@uri says which one they are) and this option only fills the
+   * import URIs when the supplied files declare none.
+   */
+  dexpiVersion?: DexpiVersion;
   /**
    * URI for the emitted DEXPI Model wrapper (Model/@uri, XSD-required).
    * Defaults to `urn:bpmn2dexpi:model:<sanitized projectName>` — a local

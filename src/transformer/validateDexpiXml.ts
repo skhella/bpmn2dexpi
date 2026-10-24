@@ -33,6 +33,11 @@
  * surfaces a warning when a document declares other prefixes for these
  * models, because findings against such a file would be spurious rather
  * than meaningful.
+ *
+ * Release caveat: the registry must hold the models of the release the
+ * document imports (2.0.0 or 2.0.1); checkDexpiVersionMatch() warns when it
+ * does not. The CLI's --validate picks the release from the document's
+ * imports.
  */
 
 import { DexpiProcessClassRegistry } from './DexpiProcessClassRegistry';
@@ -41,6 +46,7 @@ import { validateEmittedDexpiDataTypes } from './DexpiDataTypeValidator';
 import { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
 import { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
 import { validateEmittedDexpiClassExistence } from './DexpiClassExistenceValidator';
+import { detectDexpiVersion } from './dexpiVersions';
 
 export interface DexpiTierFindings {
   /** Human-readable tier label, matching the strict-mode summary labels. */
@@ -52,8 +58,37 @@ export interface DexpiTierFindings {
 export interface DexpiXmlValidation {
   tiers: DexpiTierFindings[];
   totalFindings: number;
-  /** Warnings about Import prefixes the validators cannot resolve. */
+  /**
+   * Warnings about Import prefixes the validators cannot resolve, and about
+   * a document whose imported model release differs from the loaded one.
+   */
   prefixWarnings: string[];
+}
+
+/**
+ * Warn when the document imports the models of one DEXPI release while the
+ * registry holds another: the five dimensions then report the differences
+ * between the releases (MoleFractiona vs MoleFractions, PercentageUnit vs
+ * RatioUnit, the material-state containers, …) as findings against the
+ * document. The CLI loads the release the document imports, so this fires
+ * for library callers who built the registry themselves — and for a
+ * document written against a release this build does not bundle.
+ */
+export function checkDexpiVersionMatch(xml: string, registry: DexpiProcessClassRegistry): string[] {
+  const detected = detectDexpiVersion(xml);
+  const loaded = registry.dexpiVersion;
+  if (!detected.declared || !loaded) return [];
+  if (detected.version === loaded) return [];
+  if (!detected.version) {
+    return [
+      `Document imports DEXPI ${detected.declared} models, which this build does not bundle; ` +
+      `validated against the ${loaded} vocabulary, so release differences will show up as findings.`,
+    ];
+  }
+  return [
+    `Document imports DEXPI ${detected.version} models but the loaded vocabulary is ${loaded}; ` +
+    `release differences will show up as findings. Load the ${detected.version} models to validate it.`,
+  ];
 }
 
 /**
@@ -169,6 +204,9 @@ export function validateDexpiXml(
   return {
     tiers,
     totalFindings: tiers.reduce((n, t) => n + t.errors.length, 0),
-    prefixWarnings: checkImportPrefixes(xml, loadedProfileNames),
+    prefixWarnings: [
+      ...checkImportPrefixes(xml, loadedProfileNames),
+      ...checkDexpiVersionMatch(xml, registry),
+    ],
   };
 }

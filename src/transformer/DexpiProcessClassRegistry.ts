@@ -27,9 +27,20 @@
  *                                                 //   from ProcessConnection
  *                                                 // plus own MassFlow/Pressure/...
  *
- * To update the class list when DEXPI releases a new version, replace
- * dexpi-schema-files/Process.xml (and Core.xml if changed) — no code changes.
+ * Each DEXPI release's model files are bundled under dexpi-schema-files/
+ * (2.0.0 at the folder root, later releases in a subfolder); loadDefault()
+ * picks a release by version, and the registry remembers the loaded models'
+ * published URIs (Model/@uri) so the exporter can import exactly the models
+ * it was built from.
  */
+
+import {
+  DEFAULT_DEXPI_VERSION,
+  dexpiModelRelativePath,
+  dexpiVersionFromModelUri,
+  type DexpiModelName,
+  type DexpiVersion,
+} from './dexpiVersions';
 
 export type ClassKind = 'concrete' | 'abstract';
 export type PropertyKind = 'data' | 'reference' | 'composition';
@@ -146,8 +157,6 @@ interface SchemaSource {
   xml: string;
 }
 
-const PROCESS_SCHEMA_FILENAME = 'Process.xml';
-
 /**
  * Appended to every same-name additive merge warning. Re-declaring a
  * standard class to add properties predates the "Profiles for DEXPI"
@@ -189,17 +198,27 @@ export class DexpiProcessClassRegistry {
    * so callers can flag potential typos or unintended name collisions.
    */
   readonly mergeWarnings: ReadonlyArray<string>;
+  /**
+   * Published URI of every loaded model, keyed by its Model/@name ('Core',
+   * 'Process', 'Plant', and the names of loaded profiles). Read straight
+   * from each source's root element, so a document built from this registry
+   * can import the models by the URIs the models themselves declare —
+   * which is also how the release they belong to is recognised.
+   */
+  private readonly modelUris: Map<string, string>;
 
   private constructor(
     classes: Map<string, DexpiClassInfo>,
     enumerations: Map<string, string[]> = new Map(),
     enumDetails: Map<string, EnumDetail> = new Map(),
     mergeWarnings: ReadonlyArray<string> = [],
+    modelUris: Map<string, string> = new Map(),
   ) {
     this.classes = classes;
     this.enumerations = enumerations;
     this.enumDetails = enumDetails;
     this.mergeWarnings = mergeWarnings;
+    this.modelUris = modelUris;
   }
 
   // ── Factories ─────────────────────────────────────────────────────────────
@@ -249,10 +268,14 @@ export class DexpiProcessClassRegistry {
 
     const conflicts: string[] = [];
     const pendingExtensions: ParsedClassExtension[] = [];
+    const modelUris = new Map<string, string>();
 
     for (const source of sources) {
-      const { classes: parsed, extensions, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml(source);
+      const { classes: parsed, extensions, enumerations: parsedEnums, enumDetails: parsedEnumDetails, modelName, modelUri } = parseSchemaXml(source);
       pendingExtensions.push(...extensions);
+      // First declaration of a model name wins, so a profile that happens to
+      // reuse a standard model's name cannot redirect the standard import.
+      if (modelName && modelUri && !modelUris.has(modelName)) modelUris.set(modelName, modelUri);
       // Merge enumerations ADDITIVELY, mirroring the class merge below: a later
       // source (e.g. a generated Profile) declaring an enumeration of the same
       // name EXTENDS it — new literals union in — rather than shadowing it. This
@@ -369,7 +392,7 @@ export class DexpiProcessClassRegistry {
       }
     }
 
-    return new DexpiProcessClassRegistry(classes, enumerations, enumDetails, mergeWarnings);
+    return new DexpiProcessClassRegistry(classes, enumerations, enumDetails, mergeWarnings, modelUris);
   }
 
   /**
@@ -390,35 +413,48 @@ export class DexpiProcessClassRegistry {
   }
 
   /**
-   * Load Process.xml + Core.xml from disk (Node) and merge with optional
-   * user-supplied DEXPI Profile extensions. Strict supertype resolution.
+   * Read the bundled model files of one DEXPI release from disk (Node only).
+   * `models` defaults to Process + Core — the vocabulary a Process document
+   * is written against; the standalone validator adds Plant. Source names
+   * are the bare file names ('Process.xml', …) whatever the release, since
+   * every consumer resolves qualified references by those names.
+   */
+  static async loadBundledModelSources(
+    version: DexpiVersion = DEFAULT_DEXPI_VERSION,
+    models: readonly DexpiModelName[] = ['Process', 'Core'],
+  ): Promise<SchemaSource[]> {
+    const { readFileSync } = await import('fs');
+    const { join, dirname } = await import('path');
+    const { fileURLToPath } = await import('url');
+
+    let base: string;
+    try {
+      // ESM
+      const __filename = fileURLToPath(import.meta.url);
+      base = dirname(__filename);
+    } catch {
+      base = __dirname;
+    }
+    const schemaDir = join(base, '..', '..', 'dexpi-schema-files');
+    return models.map(model => ({
+      name: `${model}.xml`,
+      xml: readFileSync(join(schemaDir, dexpiModelRelativePath(version, model)), 'utf-8'),
+    }));
+  }
+
+  /**
+   * Load Process.xml + Core.xml of one DEXPI release from disk (Node) and
+   * merge with optional user-supplied DEXPI Profile extensions. Strict
+   * supertype resolution. `version` defaults to the tool's default target.
    */
   static async loadDefault(
-    options: { extensions?: SchemaSource[] } = {}
+    options: { extensions?: SchemaSource[]; version?: DexpiVersion } = {}
   ): Promise<DexpiProcessClassRegistry> {
     const sources: SchemaSource[] = [];
     try {
-      const { readFileSync } = await import('fs');
-      const { join, dirname } = await import('path');
-      const { fileURLToPath } = await import('url');
-
-      let base: string;
-      try {
-        // ESM
-        const __filename = fileURLToPath(import.meta.url);
-        base = dirname(__filename);
-      } catch {
-        base = __dirname;
-      }
-      const schemaDir = join(base, '..', '..', 'dexpi-schema-files');
-      sources.push({
-        name: PROCESS_SCHEMA_FILENAME,
-        xml: readFileSync(join(schemaDir, PROCESS_SCHEMA_FILENAME), 'utf-8'),
-      });
-      sources.push({
-        name: CORE_SCHEMA_FILENAME,
-        xml: readFileSync(join(schemaDir, CORE_SCHEMA_FILENAME), 'utf-8'),
-      });
+      sources.push(...await DexpiProcessClassRegistry.loadBundledModelSources(
+        options.version ?? DEFAULT_DEXPI_VERSION,
+      ));
     } catch (err) {
       // Don't bare-swallow: include the underlying error so a broken
       // install (missing schema file, permissions error, malformed XML)
@@ -535,6 +571,31 @@ export class DexpiProcessClassRegistry {
   }
 
   /**
+   * Published URI of a loaded model (its Model/@uri), e.g.
+   * modelUri('Process') → 'https://data.dexpi.org/models/2.0.1/Process.xml'
+   * when the 2.0.1 Process model is loaded. Undefined for a model that is
+   * not loaded, or whose source declares no uri.
+   */
+  modelUri(modelName: string): string | undefined {
+    return this.modelUris.get(modelName);
+  }
+
+  /**
+   * The DEXPI release the loaded models belong to, read from the Process
+   * model's URI (Core's when no Process model is loaded). Null when no
+   * loaded model carries a versioned URI — a registry built from inline
+   * test fixtures, or an empty one.
+   */
+  get dexpiVersion(): DexpiVersion | null {
+    for (const name of ['Process', 'Core', 'Plant']) {
+      const uri = this.modelUris.get(name);
+      const v = uri ? dexpiVersionFromModelUri(uri) : null;
+      if (v) return v;
+    }
+    return null;
+  }
+
+  /**
    * Return a NEW registry containing the current classes plus the merge
    * of an additional schema XML. Used by the Profile generator to build
    * intermediate registries during iterative generation without retaining
@@ -550,7 +611,9 @@ export class DexpiProcessClassRegistry {
     for (const [k, v] of this.classes) {
       cloned.set(k, { ...v, properties: [...v.properties], superTypes: [...v.superTypes] });
     }
-    const { classes: parsed, extensions, enumerations: parsedEnums, enumDetails: parsedEnumDetails } = parseSchemaXml({ name, xml });
+    const { classes: parsed, extensions, enumerations: parsedEnums, enumDetails: parsedEnumDetails, modelName, modelUri } = parseSchemaXml({ name, xml });
+    const clonedModelUris = new Map(this.modelUris);
+    if (modelName && modelUri && !clonedModelUris.has(modelName)) clonedModelUris.set(modelName, modelUri);
     // Clone enums + merge new ones ADDITIVELY (same package+name extends in
     // place rather than shadowing — consistent with fromXmlSources and the
     // class merge, so a Profile unit literal lands on the real enum).
@@ -623,7 +686,7 @@ export class DexpiProcessClassRegistry {
         `DEXPI schema merge conflict — divergent declarations:\n  ${conflicts.join('\n  ')}`
       );
     }
-    return new DexpiProcessClassRegistry(cloned, clonedEnums, clonedEnumDetails, mergeWarnings);
+    return new DexpiProcessClassRegistry(cloned, clonedEnums, clonedEnumDetails, mergeWarnings, clonedModelUris);
   }
 
   /**
@@ -872,6 +935,10 @@ interface ParsedSchema {
   enumerations: Map<string, string[]>;
   /** Fully-qualified enum index keyed by `Model/Package.Enum`, with metadata. */
   enumDetails: Map<string, EnumDetail>;
+  /** Model/@name of the source's root element, when it is a <Model>. */
+  modelName?: string;
+  /** Model/@uri of the source's root element, when it is a <Model>. */
+  modelUri?: string;
 }
 
 /**
@@ -884,6 +951,10 @@ function parseSchemaXml(source: SchemaSource): ParsedSchema {
   const parser = new DOMParser();
   const doc = parser.parseFromString(source.xml, 'text/xml');
   const out: DexpiClassInfo[] = [];
+  const root = doc.documentElement;
+  const isModelRoot = !!root && (root.localName || root.tagName) === 'Model';
+  const modelName = isModelRoot ? (root.getAttribute('name') ?? undefined) : undefined;
+  const modelUri = isModelRoot ? (root.getAttribute('uri') ?? undefined) : undefined;
 
   const extract = (tagName: string, kind: ClassKind) => {
     const elements = Array.from(doc.querySelectorAll(tagName));
@@ -983,7 +1054,7 @@ function parseSchemaXml(source: SchemaSource): ParsedSchema {
     enumerations.set(detail.name, detail.literals.map(l => l.name));
   }
 
-  return { classes: out, extensions, enumerations, enumDetails };
+  return { classes: out, extensions, enumerations, enumDetails, modelName, modelUri };
 }
 
 /** Name of the nearest enclosing <Package>, or undefined at model level. */

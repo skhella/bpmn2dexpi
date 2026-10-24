@@ -49,6 +49,9 @@ npm run transform input.bpmn output.xml
 # written against via --profile
 npm run transform -- --validate existing-dexpi.xml
 
+# write DEXPI 2.0.1 instead of the default 2.0.0 (see "Target version")
+npm run transform -- --dexpi-version 2.0.1 input.bpmn output.xml
+
 # or install globally
 npm install -g bpmn2dexpi
 bpmn2dexpi input.bpmn output.xml
@@ -61,6 +64,7 @@ from bpmn2dexpi import transform
 
 transform('input.bpmn', 'output.xml')   # save to file
 xml = transform('input.bpmn')           # get as string
+transform('input.bpmn', 'out201.xml', dexpi_version='2.0.1')  # DEXPI 2.0.1
 ```
 
 See [CLI_USAGE.md](./CLI_USAGE.md) for more.
@@ -94,16 +98,25 @@ src/transformer/
 └── __tests__/
 
 dexpi-schema-files/
-├── DEXPI_XML_Schema.xsd             # Official DEXPI 2.0 XML Schema
-├── Process.xml                      # DEXPI 2.0 Process model (BFD/PFD)
-├── Plant.xml                        # DEXPI 2.0 Plant model (P&ID) — used by --validate
-├── Core.xml                         # DEXPI 2.0 Core model (shared foundation)
+├── DEXPI_XML_Schema.xsd             # Official DEXPI 2.0 XML Schema (same file in 2.0.0 and 2.0.1)
+├── Process.xml                      # DEXPI 2.0.0 Process model (BFD/PFD)
+├── Plant.xml                        # DEXPI 2.0.0 Plant model (P&ID) — used by --validate
+├── Core.xml                         # DEXPI 2.0.0 Core model (shared foundation)
+├── 2.0.1/                           # The same three models of DEXPI 2.0.1
 └── DEXPI_XML_Schema_1.1.0_RC_1.xsd  # Draft schema 1.1.0 (reference only, not used)
 ```
 
+`src/transformer/dexpiVersions.ts` knows the bundled releases and their model URIs; everything that differs between releases is read from the loaded model files.
+
+## Target version
+
+Exports can be written as **DEXPI 2.0.0** (the default) or **DEXPI 2.0.1**, the bugfix release of 30 September 2026 that replaces 2.0.0. Pick the release in the export dialog (*Target DEXPI version*), with `--dexpi-version 2.0.1` on the CLI, or with `{ dexpiVersion: '2.0.1' }` on `transformer.transform()`. The exporter loads that release's bundled model files and lets them decide the shape: a 2.0.1 document imports `https://data.dexpi.org/models/2.0.1/…`, writes the composition vector as `MoleFractions` with a `RatioUnit` literal, composes each `MaterialStateType` under its `MaterialState.State` and the `Composition` under `MaterialStateType.Composition` (the 2.0.0 `ProcessModel.MaterialStateTypes` / `Compositions` containers are gone), and writes `MeasuringProcessVariable.MeasuredVariable` as a `MeasuredQuantity` literal where the variable is one (Flow, Level, Pressure, …). The generated Profile imports the same release. Both the XML Schema and the BPMN-side authoring vocabulary are shared, so a model authored once can be exported in either release; the authoring panels keep the 2.0.0 names (`MoleFractiona` is read as either spelling).
+
+Importing a DEXPI document recognises its release from its `<Import>` sources, reads either shape, and makes that release the target of the next export, so a 2.0.0 file re-exported with target 2.0.1 is converted. `--validate` loads the models of the release a document imports. In the UI the selection also applies to *Validate now*, *Generate Profile* and the Neo4j export.
+
 ## Validation
 
-Every export is checked against the official DEXPI 2.0 XML Schema, so the file you get is always exchangeable with other DEXPI tools.
+Every export is checked against the official DEXPI 2.0 XML Schema (the same schema file in 2.0.0 and 2.0.1), so the file you get is always exchangeable with other DEXPI tools.
 
 The export follows the Process model as declared, which matters to strict consumers: instrumentation activities sit under `ProcessModel.InstrumentationSystemActivities` and reference the step they observe (never inside `SubProcessSteps`, which admits process steps only); `Description` is written as `MultiLanguageString` wherever the model declares it so, and a step's `bpmn:documentation` becomes its `Description`; `MoleFlow` sits on `Composition`; and every step carries `HierarchyLevel` — `ProcessSection` for a step with sub-steps, `UnitOperation` otherwise, or an explicit level set on the element.
 
@@ -167,12 +180,10 @@ The restriction half of a profile (constraints, required-ness, allowed classes) 
 
 ## Standards tracking
 
-The tool targets **DEXPI 2.0.0**. Two newer documents affect it:
+The tool writes **DEXPI 2.0.0** by default and **DEXPI 2.0.1** on request (see [Target version](#target-version)); it reads both.
 
-- **DEXPI 2.0.1** — published 30 September 2026 as the release replacing 2.0.0 (sources at [gitlab.com/dexpi/Specification](https://gitlab.com/dexpi/Specification), model files at `dexpi.org/specification/2.0.1/xml/`). Changes that reach this project's output include `Composition.MoleFractiona` renamed to `MoleFractions`, `Core.PhysicalQuantities.PercentageUnit` renamed to `RatioUnit`, removal of the `ProcessModel.Compositions` and `ProcessModel.MaterialStateTypes` containers, `MeasuringProcessVariable.MeasuredVariable` becoming a data property typed by the `MeasuredQuantity` enumeration, and `InformationPorts` being added to `InstrumentationActivity`.
+- **DEXPI 2.0.1** — published 30 September 2026 as the release replacing 2.0.0 (sources at [gitlab.com/dexpi/Specification](https://gitlab.com/dexpi/Specification), model files at `dexpi.org/specification/2.0.1/xml/`, bundled under `dexpi-schema-files/2.0.1/`). Handled: `MoleFractiona` → `MoleFractions`, `PercentageUnit` → `RatioUnit`, the removed `CompositionBasis` enumeration, the removed `ProcessModel.Compositions` / `MaterialStateTypes` containers with `MaterialStateType.Composition` and `MaterialState.State` as compositions, `MeasuredVariable` as a `MeasuredQuantity` data property, and the re-parented step taxonomy (the new abstract classes resolve through the registry's ancestry walk; the new concrete classes are available to typed steps). Read but not written: `MaterialState.Phases` (the BPMN authoring links a state to one type) and `InstrumentationActivity.InformationPorts` (instrumentation keeps the `ProcessStepReference` / `MeasuredVariableReference` representation on both releases). Not used: `ProcessStepDetail.Ports`, `PortNodePosition`, `StoringEnergy.ChargeCapacity` (an authored `Capacity` on `StoringEnergy` becomes a profile extension in 2.0.1). The 2.0.0 default will switch to 2.0.1 in a later release.
 - **DEXPI Profile / XML Schema 1.1.0** (working draft) — the profile mechanism: meta-element reference properties, a `Core.Constraints` package, and a `Templates` link for the Process Type Library. See `dexpi-schema-files/README.md`.
-
-Migration is not started; exports remain 2.0.0.
 
 ## Testing
 

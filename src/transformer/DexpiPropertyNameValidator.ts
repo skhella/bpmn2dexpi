@@ -304,6 +304,24 @@ export function validateEmittedDexpiXml(
  * Unit/UnitReference allowlist — a unit on a QualifiedValue must be a nested
  * DataReference, validated by the same property walk.
  */
+/**
+ * The property name the exporter emits for an authored BPMN-side carrier.
+ * Only the Composition mole-fraction vector is aliased: both published
+ * spellings are accepted on the authoring side and the loaded model's own
+ * declaration decides the emitted one (DexpiProcessClassRegistry.
+ * compositionFractionProperty). Every other name is emitted as authored.
+ */
+function emittedCarrierName(
+  registry: DexpiProcessClassRegistry,
+  wrappingClass: string,
+  authoredName: string,
+): string {
+  if (wrappingClass === 'Composition' && /^MoleFraction[as]$/.test(authoredName)) {
+    return registry.compositionFractionProperty('Mole');
+  }
+  return authoredName;
+}
+
 export function validateBpmnExtensionElements(
   bpmnXml: string,
   source: string,
@@ -398,8 +416,13 @@ function walkRichElement(
     // namespace="##other"` rule (strict reading); we recognize them by
     // localName regardless of which prefix the document declares.
     if (inDexpiNs && (ll === 'data' || ll === 'references' || ll === 'components')) {
-      const propName = child.getAttribute('property') || '';
-      if (!propName) continue;
+      const authoredName = child.getAttribute('property') || '';
+      if (!authoredName) continue;
+      // Check the name the exporter will emit, not the authored spelling:
+      // a Composition's mole-fraction vector is written under whichever
+      // carrier the loaded model declares (MoleFractiona in DEXPI 2.0.0,
+      // MoleFractions in 2.0.1) — the same read-alias the exporter applies.
+      const propName = emittedCarrierName(registry, wrappingClass, authoredName);
       const kind: PropertyKind =
         ll === 'data' ? 'data' :
         ll === 'references' ? 'reference' :
