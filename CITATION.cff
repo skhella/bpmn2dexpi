@@ -7,8 +7,8 @@ title: "BPMN2DEXPI: DEXPI Process Modeling Tool"
 authors:
   - family-names: Khella
     given-names: Shady
-version: 0.3.1
-date-released: "2026-07-12"
+version: 0.4.0
+date-released: "2026-10-24"
 license: MIT
 repository-code: "https://github.com/skhella/bpmn2dexpi"
 url: "https://skhella.github.io/bpmn2dexpi/"
