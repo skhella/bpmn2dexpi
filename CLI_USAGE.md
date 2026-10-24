@@ -34,10 +34,33 @@ npm run transform "examples/Tennessee_Eastman_Process.bpmn"
 node --import tsx cli.js <input.bpmn> [output.xml]
 ```
 
+### Flags
+
+```bash
+npm run transform -- [flags] <input.bpmn> [output.xml]
+```
+
+| Flag | Effect |
+|---|---|
+| `--strict` | After the export, run the five information-model fidelity checks (property names and kinds, data types, reference targets, cardinality, class existence) and exit non-zero on findings. The file is still written. |
+| `--profile FILE` | Load a DEXPI Profile into the vocabulary (repeatable). The export declares it with an `<Import prefix="…">`. |
+| `--generate-profile FILE` | Write the export's Profile to FILE instead of the default `output.profile.xml`. |
+| `--no-profile` | Do not write or import a Profile, even when the model uses properties outside the DEXPI 2.0 vocabulary. |
+| `--validate FILE` | Validate an existing DEXPI 2.0 XML file (Process or Plant) instead of transforming: XSD plus the five fidelity dimensions. Combine with `--profile` for the Profiles it was written against. |
+
+```bash
+# export with strict checks
+npm run transform -- --strict examples/Tennessee_Eastman_Process.bpmn tep.xml
+# → tep.xml and, because the example uses thermodynamic attributes, tep.profile.xml
+
+# validate any DEXPI 2.0 file, loading the Profile it imports
+npm run transform -- --validate tep.xml --profile tep.profile.xml
+```
+
 ### Help
 
 ```bash
-npm run transform --help
+npm run transform -- --help
 ```
 
 ---
@@ -136,19 +159,22 @@ for bpmn_file in input_dir.glob('*.bpmn'):
 
 ### Exit Codes
 
-- `0`: Success
-- `1`: Error (file not found, transformation failed, etc.)
+- `0`: success
+- `1`: error (file not found, transformation failed, XSD validation failed under `--validate`)
+- `2`: fidelity findings under `--strict` or `--validate` (the output file is still written)
 
 ---
 
 ## Output
 
-The CLI produces DEXPI XML that matches the web app's export format, including:
-- Process steps and equipment
-- Material streams with composition data
-- Port connections
-- Material templates and states
-- Process parameters
+The CLI produces the same DEXPI 2.0 XML as the web app's export:
+- process steps with ports, hierarchy level and sub-steps
+- material and energy streams with their quantities
+- instrumentation activities referencing the steps they observe
+- material templates, components, states and compositions
+- a `.profile.xml` next to the output whenever the model uses properties beyond the DEXPI 2.0 vocabulary, imported by the document (see the README, *Profile imports in exported documents*)
+
+The web app can also do the reverse — import a DEXPI 2.0 Process XML and lay it out as a BPMN diagram; the CLI does not.
 
 ---
 
@@ -203,7 +229,7 @@ df = process_pipeline('tennessee-eastman.bpmn')
 
 ## Requirements
 
-- Node.js >= 18
+- Node.js >= 20
 - npm >= 9
 - Python >= 3.7 (for Python wrapper)
 

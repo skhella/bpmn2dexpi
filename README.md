@@ -4,7 +4,7 @@
 
 A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DEXPI 2.0–compliant block flow and process flow diagrams, validated against the official DEXPI XML Schema.
 
-**Use it in your browser — no installation:** [skhella.github.io/bpmn2dexpi](https://skhella.github.io/bpmn2dexpi/). Everything runs client-side; diagrams are autosaved locally and never leave your machine. A first-visit guide walks through modeling a BFD/PFD with DEXPI semantics and can load the Tennessee Eastman example with one click.
+**Use it in your browser — no installation:** [skhella.github.io/bpmn2dexpi](https://skhella.github.io/bpmn2dexpi/). Everything runs client-side; diagrams are autosaved locally and never leave your machine. A first-visit guide and an interactive step-by-step tour walk through modeling a BFD/PFD with DEXPI semantics, and the Tennessee Eastman example loads with one click.
 
 ## Features
 
@@ -17,7 +17,7 @@ A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DE
 - **Typed ports & streams** — Material / Energy / Information, with flow rates, compositions, and qualified parameters
 - **Instrumentation variables on ProcessStep** — measured / controlled variables author canonically on the connected ProcessStep (DEXPI 2.0 spec p.900); a dedicated panel on connected `DataObject`s offers a property dropdown sourced from the connected step's class
 - **CLI tool** — batch-convert BPMN to DEXPI 2.0 XML from the terminal or Python; validate existing DEXPI 2.0 files — Process (BFD/PFD) *and* Plant (P&ID) — with `--validate`
-- **Neo4j export** — push process graphs directly to a Neo4j graph database
+- **Neo4j export** — push the process graph to Neo4j: steps and instrumentation as nodes, typed flow relationships (material, thermal, electrical, mechanical energy), section hierarchy, port-level entry/exit links, material library with fractions, and every quantity as a property
 
 ## Prerequisites
 
@@ -69,7 +69,7 @@ See [CLI_USAGE.md](./CLI_USAGE.md) for more.
 
 Open the [hosted app](https://skhella.github.io/bpmn2dexpi/) (or `http://localhost:5173` when running locally), drag elements from the palette, connect with typed flows, configure ports and stream properties in the side panel, edit instrumentation variables on connected `DataObject`s, and export to DEXPI 2.0 XML or Neo4j.
 
-*Import ▾ → Import DEXPI XML* opens an existing DEXPI 2.0 Process document as an editable diagram: process steps, typed ports, streams, subprocesses, instrumentation wiring, stream quantities with their qualifiers, and the full material library (templates, components, states, compositions) are reconstructed, and an obstacle-aware layout engine places everything automatically — DEXPI Process carries no diagram geometry, so the layout is heuristic. Content survives the cycle completely: exporting the imported diagram reproduces the original document's information-model content object-for-object (an integration test pins this on the Tennessee Eastman benchmark; element order and per-run ids may differ).
+The *Import ▾* menu takes a BPMN diagram, a DEXPI XML document, or a DEXPI Profile. *Import DEXPI XML* opens an existing DEXPI 2.0 Process document as an editable diagram: process steps, typed ports, streams, subprocesses, instrumentation wiring, stream quantities with their qualifiers, and the full material library (templates, components, states, compositions) are reconstructed, and an obstacle-aware layout engine places everything automatically — DEXPI Process carries no diagram geometry, so the layout is heuristic. Content survives the cycle completely: exporting the imported diagram reproduces the original document's information-model content object-for-object (an integration test pins this on the Tennessee Eastman benchmark; element order and per-run ids may differ).
 
 <img src="./examples/Web-Interface-Screenshot.png" alt="Web Interface Screenshot" width="90%" />
 
@@ -105,6 +105,8 @@ dexpi-schema-files/
 
 Every export is checked against the official DEXPI 2.0 XML Schema, so the file you get is always exchangeable with other DEXPI tools.
 
+The export follows the Process model as declared, which matters to strict consumers: instrumentation activities sit under `ProcessModel.InstrumentationSystemActivities` and reference the step they observe (never inside `SubProcessSteps`, which admits process steps only); `Description` is written as `MultiLanguageString` wherever the model declares it so, and a step's `bpmn:documentation` becomes its `Description`; `MoleFlow` sits on `Composition`; and every step carries `HierarchyLevel` — `ProcessSection` for a step with sub-steps, `UnitOperation` otherwise, or an explicit level set on the element.
+
 Turn on **Strict mode** (export dialog checkbox, `--strict` CLI flag, or `{ strict: true }` on `transformer.transform()`) for deeper fidelity checks: property names, data types, reference targets, required-property cardinality, and class existence. Strict mode never blocks the export — it produces a summary dialog (or CLI output) listing what doesn't match the schema, so you can fix it in the panel or capture it in a generated Profile.
 
 The data-type check is tight: every enumeration reference — including each measurement's unit, carried in the canonical `PhysicalQuantity` shape — is resolved against the imported model, so a reference to an undeclared enumeration or literal is flagged rather than passed through (and is auto-closeable via a generated Profile).
@@ -115,7 +117,7 @@ The same checks also run standalone on existing DEXPI 2.0 files from any tool: `
 
 A Profile is a DEXPI XML model file that adds project-specific classes or properties on top of the DEXPI 2.0 standard vocabulary — useful when your project needs concepts the standard doesn't cover. Profiles live per-session; re-import after page reload.
 
-- **Import** — UI: *Import Profile* in the DEXPI menu. CLI: `--profile FILE` (repeatable). Library: `profileXmls` option on `transformer.transform()`.
+- **Import** — UI: *Import ▾ → Import DEXPI Profile* (also in the DEXPI menu). CLI: `--profile FILE` (repeatable). Library: `profileXmls` option on `transformer.transform()`.
 - **Generate** — every DEXPI export produces its own Profile automatically (see [Profile imports in exported documents](#profile-imports-in-exported-documents)). To get the Profile on its own: UI: *Generate Profile*. CLI: `--generate-profile FILE` names where the export's Profile goes. Output is deterministic — safe to commit.
 
 Reference Profiles live in `examples/profiles/` (`sample-extension.xml`, `tep-generated.xml`).
@@ -165,10 +167,10 @@ The restriction half of a profile (constraints, required-ness, allowed classes) 
 
 ## Standards tracking
 
-The tool targets **DEXPI 2.0.0**, the current published specification. Two drafts are in review and will affect it:
+The tool targets **DEXPI 2.0.0**. Two newer documents affect it:
 
-- **DEXPI 2.0.1** — a bugfix release for the Process model, which DEXPI intends to supersede 2.0.0. Changes that reach this project's output include `Composition.MoleFractiona` renamed to `MoleFractions`, `Core.PhysicalQuantities.PercentageUnit` renamed to `RatioUnit`, removal of the `ProcessModel.Compositions` and `ProcessModel.MaterialStateTypes` containers, `MeasuringProcessVariable.MeasuredVariable` becoming a data property typed by the `MeasuredQuantity` enumeration, and `InformationPorts` being added to `InstrumentationActivity`.
-- **DEXPI Profile / XML Schema 1.1.0** — the profile mechanism: meta-element reference properties, a `Core.Constraints` package, and a `Templates` link for the Process Type Library. See `dexpi-schema-files/README.md`.
+- **DEXPI 2.0.1** — published 30 September 2026 as the release replacing 2.0.0 (sources at [gitlab.com/dexpi/Specification](https://gitlab.com/dexpi/Specification), model files at `dexpi.org/specification/2.0.1/xml/`). Changes that reach this project's output include `Composition.MoleFractiona` renamed to `MoleFractions`, `Core.PhysicalQuantities.PercentageUnit` renamed to `RatioUnit`, removal of the `ProcessModel.Compositions` and `ProcessModel.MaterialStateTypes` containers, `MeasuringProcessVariable.MeasuredVariable` becoming a data property typed by the `MeasuredQuantity` enumeration, and `InformationPorts` being added to `InstrumentationActivity`.
+- **DEXPI Profile / XML Schema 1.1.0** (working draft) — the profile mechanism: meta-element reference properties, a `Core.Constraints` package, and a `Templates` link for the Process Type Library. See `dexpi-schema-files/README.md`.
 
 Migration is not started; exports remain 2.0.0.
 
@@ -184,7 +186,7 @@ Unit tests (transformer, registry, validation) plus an end-to-end integration be
 
 ## Based on Research
 
-This tool implements the representation methodology described in:
+To cite the tool itself, use the *Cite* button in the app footer or [CITATION.cff](./CITATION.cff). It implements the representation methodology described in:
 
 > Shady Khella, Markus Schichtel, Erik Esche, Frauke Weichhardt, and Jens-Uwe Repke. *Representing DEXPI Process in BPMN 2.0 for graphical modeling and exchange of block flow and process flow diagrams*. Digital Chemical Engineering (2026), in press. DOI: [10.1016/j.dche.2026.100326](https://doi.org/10.1016/j.dche.2026.100326).
 
