@@ -2,12 +2,18 @@
  * Neo4j Exporter for DEXPI XML
  * Parses DEXPI XML and exports to Neo4j graph database
  * 
- * Features:
+ * Features (reads the DEXPI 2.0 Process.xml shape BpmnToDexpiTransformer writes):
  * - ProcessSteps as nodes with ports as properties
- * - Flow relationships (MaterialFlow, EnergyFlow, InformationFlow) on ALL hierarchy levels
- * - SubProcessEntry/SubProcessExit relationships using SubReference pattern
+ * - InstrumentationActivity nodes from ProcessModel.InstrumentationSystemActivities
+ *   with OBSERVES (→ ProcessStepReference) and MEASURES {variable}
+ *   (→ step owning the MeasuredVariableReference QualifiedValue)
+ * - Flow relationships typed from the connection class (Stream → MaterialStream,
+ *   Thermal/Electrical/MechanicalEnergyFlow, InformationFlow) on ALL hierarchy levels
+ * - SUB_PROCESS_ENTRY / SUB_PROCESS_EXIT from Port.SubReference / SuperReference
  * - CONTAINS relationships for subprocess hierarchy
- * - Generic attribute parsing for any DEXPI property
+ * - Generic attribute parsing: Data (incl. MultiLanguageString Description,
+ *   enum DataReferences) and Components-carried Core/QualifiedValue
+ *   quantities flattened to <property>_value / _unit / _provenance / _range
  */
 
 import { DexpiProcessClassRegistry } from '../transformer/DexpiProcessClassRegistry';
@@ -49,6 +55,29 @@ export interface ProcessStepNode {
   inputPorts: string[];
   outputPorts: string[];
   attributes: AttributeMap;
+  /**
+   * InstrumentationActivity only: uid of the ProcessStep named by the
+   * activity's `ProcessStepReference` (Process.xml, lower=1 upper=1).
+   */
+  processStepRef?: string;
+  /**
+   * InstrumentationActivity only: uid of the Core/QualifiedValue named by
+   * `MeasuredVariableReference`. Resolved to its owner via
+   * `DexpiGraphData.qualifiedValueOwners`.
+   */
+  measuredVariableRef?: string;
+}
+
+/**
+ * Where a Core/QualifiedValue with an id lives: the ProcessStep (or the
+ * ProcessStep owning the port) / Stream that carries it, plus the
+ * `Components property` name that names the physical variable
+ * (Temperature, MassFlow, Level, ...).
+ */
+export interface QualifiedValueOwner {
+  ownerId: string;
+  ownerKind: 'step' | 'stream' | 'other';
+  property: string;
 }
 
 export interface PortInfo {
@@ -143,7 +172,11 @@ export interface DexpiGraphData {
   materialComponents: MaterialComponent[];
   materialStates: MaterialState[];
   materialStateTypes: MaterialStateType[];
+  /** Core/QualifiedValue uid → owning step/stream + variable name. */
+  qualifiedValueOwners: Map<string, QualifiedValueOwner>;
 }
+
+type FlowType = StreamConnection['flowType'];
 
 /**
  * Flow type mapping based on port naming conventions (matches Python FLOW_TYPE_MAPPING)
@@ -197,108 +230,222 @@ function determineFlowType(portLabel: string): 'MaterialStream' | 'ElectricalEne
 }
 
 /**
- * Check if a process step should be treated as a navigational event
- * Navigational events are port connectors used for subprocess boundaries
- * They have Sub/SuperReferences but are NOT explicitly typed as Source, Sink, or specific process steps
+ * Connection-class → relationship type. The ProcessConnection Object's own
+ * DEXPI class is authoritative (Process.xml: Stream, ThermalEnergyFlow,
+ * ElectricalEnergyFlow, MechanicalEnergyFlow, InformationFlow). Ports carry
+ * no Label in Process.xml, so the exporter writes Identifier only and the
+ * Semantum export writes neither — the label regex above is kept only as a
+ * fallback for connection classes the registry does not know.
  */
-function isNavigationalEvent(elementType: string, ports: PortInfo[]): boolean {
-  if (!ports || ports.length === 0) return false;
-  
-  // If element is explicitly typed as Source or Sink, it's NOT navigational
-  const normalizedType = elementType.toLowerCase();
-  if (normalizedType.includes('source') || normalizedType.includes('sink')) {
-    return false;
-  }
-  
-  // Check if any port has a SubReference or SuperReference
-  // These references indicate this is a port connector linking parent/child subprocess boundaries
-  for (const port of ports) {
-    if (port.subReference || port.superReference) {
-      return true;
+const CONNECTION_CLASS_FLOW_TYPE: Record<string, FlowType> = {
+  Stream: 'MaterialStream',
+  ThermalEnergyFlow: 'ThermalEnergyFlow',
+  ElectricalEnergyFlow: 'ElectricalEnergyFlow',
+  MechanicalEnergyFlow: 'MechanicalEnergyFlow',
+  InformationFlow: 'InformationFlow',
+};
+
+function determineFlowTypeFromConnection(
+  connectionType: string,
+  sourcePortLabel: string,
+  targetPortLabel: string,
+): FlowType {
+  const bareName = (connectionType.split('.').pop() || '').trim();
+  const direct = CONNECTION_CLASS_FLOW_TYPE[bareName];
+  if (direct) return direct;
+  // Profile subclasses (e.g. a project-specific Stream subtype) resolve via
+  // the class hierarchy in Process.xml.
+  if (NEO4J_REGISTRY.size > 0 && bareName) {
+    for (const [cls, flowType] of Object.entries(CONNECTION_CLASS_FLOW_TYPE)) {
+      if (NEO4J_REGISTRY.hasAncestor(bareName, cls)) return flowType;
     }
   }
-  
-  return false;
+  // Legacy fallback: infer from a port label (MI1 / TEO1 / ...). An empty
+  // label falls through to MaterialStream.
+  return determineFlowType(sourcePortLabel || targetPortLabel);
 }
 
 /**
- * Generic attribute extractor - extracts all Data and Object elements from an XML element
+ * Check if a process step should be treated as a navigational event.
+ * Navigational events are the boundary proxies the BPMN→DEXPI transformer
+ * writes for a subprocess: nested Source/Sink steps whose port carries a
+ * `SuperReference` to the port of the enclosing subprocess. They are not
+ * real external sources/sinks — the material enters or leaves through the
+ * parent's port. (A port with a `SubReference` marks the subprocess side
+ * of that link, which `isSubProcess` already records.)
+ */
+function isNavigationalEvent(_elementType: string, ports: PortInfo[]): boolean {
+  if (!ports || ports.length === 0) return false;
+  return ports.some(port => !!port.superReference);
+}
+
+/** Direct child element lookup helpers (no descendant leakage). */
+function childData(parent: Element, property: string): Element | undefined {
+  return Array.from(parent.children).find(c =>
+    c.tagName === 'Data' && c.getAttribute('property') === property) as Element | undefined;
+}
+
+function firstPrimitiveChild(el: Element | undefined): Element | undefined {
+  if (!el) return undefined;
+  return Array.from(el.children).find(c =>
+    ['String', 'Double', 'Integer', 'Boolean', 'Number'].includes(c.tagName)) as Element | undefined;
+}
+
+/** `Core/…SomeUnit.Token` → `Token`; `…QuantityProvenance.Observed` → `Observed`. */
+function enumToken(el: Element | undefined): string | undefined {
+  if (!el) return undefined;
+  const ref = Array.from(el.children).find(c => c.tagName === 'DataReference');
+  const path = ref?.getAttribute('data') ?? ref?.getAttribute('type') ?? '';
+  if (path) return path.split('.').pop() || path;
+  const text = firstPrimitiveChild(el)?.textContent?.trim();
+  return text || undefined;
+}
+
+/**
+ * Text of a `<Data property="…">`: plain primitive, or the canonical
+ * Core/DataTypes.MultiLanguageString aggregate (Description on most Process
+ * classes), whose FIRST `<String>` is the Language — read
+ * SingleLanguageStrings → Value instead. Mirrors
+ * DexpiToBpmnTransformer.getDataString.
+ */
+function readDataText(dataEl: Element): string {
+  const primitive = firstPrimitiveChild(dataEl);
+  if (primitive) return primitive.textContent?.trim() || '';
+  const aggregated = Array.from(dataEl.children).find(c =>
+    c.tagName === 'AggregatedDataValue' &&
+    (c.getAttribute('type') || '').endsWith('DataTypes.MultiLanguageString')) as Element | undefined;
+  if (!aggregated) return '';
+  const strings = childData(aggregated, 'SingleLanguageStrings');
+  const single = strings && Array.from(strings.children).find(c => c.tagName === 'AggregatedDataValue');
+  const value = single && childData(single as Element, 'Value');
+  return firstPrimitiveChild(value)?.textContent?.trim() || '';
+}
+
+export interface QualifiedValueReading {
+  /** Numeric value when the Double/Integer parses, else undefined. */
+  value?: number;
+  /** Raw value text (kept when non-numeric, e.g. a String-typed quantity). */
+  valueText?: string;
+  unit?: string;
+  displayText?: string;
+  provenance?: string;
+  range?: string;
+  /** True when Value wraps a PhysicalQuantityVector (fraction carriers). */
+  isVector: boolean;
+}
+
+/**
+ * Read a Core/QualifiedValue Object in the canonical emitted shape
+ *   <Data property="Value">
+ *     <AggregatedDataValue type="Core/PhysicalQuantities.PhysicalQuantity">
+ *       <Data property="Unit"><DataReference data="…Unit.Token"/></Data>
+ *       <Data property="Value"><Double>…</Double></Data>
+ *   <Data property="DisplayText"><String>…</String></Data>
+ *   <Data property="Provenance"><DataReference data="…QuantityProvenance.X"/></Data>
+ *   <Data property="Range"><DataReference data="…QuantityRange.X"/></Data>
+ * with the flat fallback (primitive Value + Unit) for hand-authored files.
+ * Port of DexpiToBpmnTransformer.readQvCanonical.
+ */
+function readQualifiedValue(qv: Element): QualifiedValueReading {
+  const valueData = childData(qv, 'Value');
+  let valueText = firstPrimitiveChild(valueData)?.textContent?.trim() || '';
+  let unit = enumToken(childData(qv, 'Unit'));
+  let isVector = false;
+  if (valueData && !valueText) {
+    const agg = Array.from(valueData.children).find(c =>
+      c.tagName === 'AggregatedDataValue' || c.tagName === 'Object') as Element | undefined;
+    if (agg) {
+      isVector = (agg.getAttribute('type') || '').endsWith('PhysicalQuantityVector');
+      valueText = firstPrimitiveChild(childData(agg, 'Value'))?.textContent?.trim() || '';
+      unit = enumToken(childData(agg, 'Unit')) ?? unit;
+    }
+  }
+  const displayText = firstPrimitiveChild(childData(qv, 'DisplayText'))?.textContent?.trim() || undefined;
+  const numeric = valueText !== '' && Number.isFinite(Number(valueText)) ? Number(valueText) : undefined;
+  return {
+    value: numeric,
+    valueText: valueText || undefined,
+    unit,
+    displayText,
+    provenance: enumToken(childData(qv, 'Provenance')),
+    range: enumToken(childData(qv, 'Range')),
+    isVector,
+  };
+}
+
+/**
+ * The QualifiedValue Objects carried by `<Components property="X">` children
+ * of `element` (X = Temperature, MassFlow, MoleFlow, Duty, …). Returns one
+ * entry per carrier that holds at least one QualifiedValue.
+ */
+function qualifiedValueCarriers(element: Element): Array<{ property: string; qv: Element }> {
+  const out: Array<{ property: string; qv: Element }> = [];
+  for (const comp of Array.from(element.children)) {
+    if (comp.tagName !== 'Components') continue;
+    const property = comp.getAttribute('property');
+    if (!property) continue;
+    const qv = Array.from(comp.children).find(c =>
+      c.tagName === 'Object' && (c.getAttribute('type') || '').endsWith('QualifiedValue')) as Element | undefined;
+    if (qv) out.push({ property, qv });
+  }
+  return out;
+}
+
+/**
+ * Generic attribute extractor — direct `<Data>` children plus the
+ * physical quantities carried as `<Components property="X">` QualifiedValue
+ * Objects, flattened to `X_value` / `X_unit` / `X_displayText` /
+ * `X_provenance` / `X_range`. Vector carriers (composition fractions) are
+ * left to the Composition pass.
  */
 function extractAllAttributes(element: Element): AttributeMap {
   const attrs: AttributeMap = {};
-  
-  // Get direct Data children
-  const dataElements = element.querySelectorAll(':scope > Data');
-  for (const dataEl of Array.from(dataElements)) {
+
+  for (const dataEl of Array.from(element.children)) {
+    if (dataEl.tagName !== 'Data') continue;
     const property = dataEl.getAttribute('property');
     if (!property || property === 'Identifier' || property === 'Label') continue;
-    
-    const stringEl = dataEl.querySelector('String');
-    const numberEl = dataEl.querySelector('Number');
-    const boolEl = dataEl.querySelector('Boolean');
-    const dataRef = dataEl.querySelector('DataReference');
-    
-    if (stringEl?.textContent) {
-      attrs[property] = stringEl.textContent;
-    } else if (numberEl?.textContent) {
-      attrs[property] = parseFloat(numberEl.textContent);
-    } else if (boolEl?.textContent) {
-      attrs[property] = boolEl.textContent.toLowerCase() === 'true';
-    } else if (dataRef) {
-      const refValue = dataRef.getAttribute('data') || '';
-      const parts = refValue.split('.');
-      attrs[property] = parts[parts.length - 1] || refValue;
-    }
-  }
-  
-  // Get Object children that represent qualified values (MassFlow, Temperature, etc.)
-  const objectElements = element.querySelectorAll(':scope > Object[property]');
-  for (const objEl of Array.from(objectElements)) {
-    const property = objEl.getAttribute('property');
-    if (!property) continue;
-    
-    // Try PhysicalQuantity format
-    const physQty = objEl.querySelector('PhysicalQuantity');
-    if (physQty) {
-      const valueEl = physQty.querySelector('Data[property="Value"] Number');
-      const unitEl = physQty.querySelector('Data[property="Unit"] String');
-      if (valueEl?.textContent) attrs[`${property}_value`] = parseFloat(valueEl.textContent);
-      if (unitEl?.textContent) attrs[`${property}_unit`] = unitEl.textContent;
-    } else {
-      // Try QualifiedValue format
-      const valueData = objEl.querySelector('Data[property="Value"]');
-      if (valueData) {
-        const physQtyInner = valueData.querySelector('PhysicalQuantity');
-        if (physQtyInner) {
-          const valueEl = physQtyInner.querySelector('Data[property="Value"] Number');
-          const unitEl = physQtyInner.querySelector('Data[property="Unit"] String');
-          if (valueEl?.textContent) attrs[`${property}_value`] = parseFloat(valueEl.textContent);
-          if (unitEl?.textContent) attrs[`${property}_unit`] = unitEl.textContent;
-        }
+
+    const primitive = firstPrimitiveChild(dataEl);
+    if (primitive) {
+      const text = primitive.textContent?.trim() ?? '';
+      if (text === '') continue;
+      if (primitive.tagName === 'Boolean') {
+        attrs[property] = text.toLowerCase() === 'true';
+      } else if (primitive.tagName === 'Double' || primitive.tagName === 'Integer' || primitive.tagName === 'Number') {
+        const n = Number(text);
+        attrs[property] = Number.isFinite(n) ? n : text;
+      } else {
+        attrs[property] = text;
       }
-      
-      const provenanceEl = objEl.querySelector('Data[property="Provenance"] String');
-      const rangeEl = objEl.querySelector('Data[property="Range"] String');
-      if (provenanceEl?.textContent) attrs[`${property}_provenance`] = provenanceEl.textContent;
-      if (rangeEl?.textContent) attrs[`${property}_range`] = rangeEl.textContent;
+      continue;
     }
+    const text = readDataText(dataEl);
+    if (text) { attrs[property] = text; continue; }
+    const token = enumToken(dataEl);
+    if (token) attrs[property] = token;
   }
-  
+
+  for (const { property, qv } of qualifiedValueCarriers(element)) {
+    const r = readQualifiedValue(qv);
+    if (r.isVector) continue;
+    if (r.value !== undefined) attrs[`${property}_value`] = r.value;
+    else if (r.valueText) attrs[`${property}_value`] = r.valueText;
+    if (r.unit) attrs[`${property}_unit`] = r.unit;
+    if (r.displayText) attrs[`${property}_displayText`] = r.displayText;
+    if (r.provenance) attrs[`${property}_provenance`] = r.provenance;
+    if (r.range) attrs[`${property}_range`] = r.range;
+  }
+
   return attrs;
 }
 
 /**
- * Get text content from a Data element
+ * Get text content from a Data element (direct child of `element`).
  */
 function getDataValue(element: Element, property: string): string {
-  const dataEl = Array.from(element.querySelectorAll(':scope > Data'))
-    .find(d => d.getAttribute('property') === property);
-  if (dataEl) {
-    const stringEl = dataEl.querySelector('String');
-    const numberEl = dataEl.querySelector('Number');
-    return stringEl?.textContent || numberEl?.textContent || '';
-  }
-  return '';
+  const dataEl = childData(element, property);
+  return dataEl ? readDataText(dataEl) : '';
 }
 
 /**
@@ -354,6 +501,31 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
   if (!processModel) {
     throw new Error('No ProcessModel found in DEXPI XML');
   }
+
+  // QualifiedValue uid → owner. Instrumentation activities point their
+  // MeasuredVariableReference at the id of a `<Object type="Core/QualifiedValue">`
+  // carried by a step (or one of its ports) or a stream; the Components
+  // property that carries it names the measured variable.
+  const qualifiedValueOwners = new Map<string, QualifiedValueOwner>();
+  function registerQualifiedValueOwners(owner: Element, ownerId: string, ownerKind: QualifiedValueOwner['ownerKind']) {
+    const register = (carrierParent: Element) => {
+      for (const { property, qv } of qualifiedValueCarriers(carrierParent)) {
+        const qvId = qv.getAttribute('id');
+        if (qvId && !qualifiedValueOwners.has(qvId)) {
+          qualifiedValueOwners.set(qvId, { ownerId, ownerKind, property });
+        }
+      }
+    };
+    register(owner);
+    // Quantities carried by a port belong to the port's step.
+    const portsContainer = Array.from(owner.children).find(c =>
+      c.tagName === 'Components' && c.getAttribute('property') === 'Ports');
+    if (portsContainer) {
+      for (const portObj of Array.from(portsContainer.children)) {
+        if (portObj.tagName === 'Object') register(portObj);
+      }
+    }
+  }
   
   // Parse Process Steps recursively
   function parseProcessSteps(parent: Element, parentId: string | undefined, level: number) {
@@ -385,20 +557,25 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
             const dirValue = dirData?.getAttribute('data') || '';
             const isInput = dirValue.toLowerCase().includes('in');
             
-            // Get SubReference (parent port -> child port)
+            // SubReference (parent port -> child port). Process.xml declares
+            // Port.SubReference as a CompositionProperty, so the export
+            // writes `<Components property="SubReference"><ObjectReference
+            // object="#childPort"/>`. `ref` / `objects` are legacy spellings.
             let subReference: string | undefined;
-            const subRefContainer = portObj.querySelector('Components[property="SubReference"]');
+            const subRefContainer = Array.from(portObj.children).find(c =>
+              c.tagName === 'Components' && c.getAttribute('property') === 'SubReference');
             if (subRefContainer) {
-              const objRef = subRefContainer.querySelector('ObjectReference');
-              subReference = objRef?.getAttribute('ref') || undefined;
+              const objRef = Array.from(subRefContainer.children).find(c => c.tagName === 'ObjectReference');
+              const raw = objRef?.getAttribute('object')
+                ?? objRef?.getAttribute('ref')
+                ?? objRef?.getAttribute('objects')
+                ?? '';
+              subReference = raw.trim().split(/\s+/)[0]?.replace(/^#/, '') || undefined;
             }
             
-            // Get SuperReference (child port -> parent port)
-            let superReference: string | undefined;
-            const superRefEl = portObj.querySelector('References[property="SuperReference"] ObjectReference');
-            if (superRefEl) {
-              superReference = superRefEl.getAttribute('ref') || undefined;
-            }
+            // SuperReference (child port -> parent port) is a ReferenceProperty:
+            // `<References property="SuperReference" objects="#parentPort"/>`.
+            const superReference = readRefTargetUid(portObj, 'SuperReference');
             
             ports.set(portId, {
               id: portId,
@@ -460,6 +637,15 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
           }
         }
         const isNavigational = isNavigationalEvent(type, allPorts);
+
+        // Legacy files may nest instrumentation under SubProcessSteps; read
+        // the same references the InstrumentationSystemActivities pass reads.
+        const processStepRef = nodeType === 'InstrumentationActivity'
+          ? readRefTargetUid(stepObj, 'ProcessStepReference') : undefined;
+        const measuredVariableRef = nodeType === 'InstrumentationActivity'
+          ? readRefTargetUid(stepObj, 'MeasuredVariableReference') : undefined;
+
+        registerQualifiedValueOwners(stepObj, id, 'step');
         
         processSteps.push({
           id,
@@ -473,7 +659,9 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
           isNavigational,
           inputPorts,
           outputPorts,
-          attributes
+          attributes,
+          processStepRef,
+          measuredVariableRef,
         });
         
         // Recursively parse sub-process steps
@@ -485,6 +673,55 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
   }
   
   parseProcessSteps(processModel, undefined, 0);
+
+  // Parse instrumentation. Since the issue-#87 fix the exporter writes
+  // instrumentation activities under
+  //   ProcessModel.InstrumentationSystemActivities
+  //     → InstrumentationSystemActivity.InstrumentationActivities
+  //       → MeasuringProcessVariable / ControllingProcessVariable / …
+  // each carrying `References ProcessStepReference` (the observed step) and
+  // `References MeasuredVariableReference` (a QualifiedValue id). They are
+  // emitted as InstrumentationActivity nodes contained in the referenced
+  // step; OBSERVES / MEASURES edges are generated from the references.
+  const stepLevelById = new Map(processSteps.map(s => [s.id, s.hierarchy_level] as const));
+  const systemsContainer = Array.from(processModel.children).find(c =>
+    c.tagName === 'Components' && c.getAttribute('property') === 'InstrumentationSystemActivities');
+  if (systemsContainer) {
+    for (const systemObj of Array.from(systemsContainer.children)) {
+      if (systemObj.tagName !== 'Object') continue;
+      const systemId = systemObj.getAttribute('id') || '';
+      const activitiesContainer = Array.from(systemObj.children).find(c =>
+        c.tagName === 'Components' && c.getAttribute('property') === 'InstrumentationActivities');
+      if (!activitiesContainer) continue;
+      for (const actObj of Array.from(activitiesContainer.children)) {
+        if (actObj.tagName !== 'Object') continue;
+        const id = actObj.getAttribute('id') || '';
+        const type = actObj.getAttribute('type') || '';
+        const processStepRef = readRefTargetUid(actObj, 'ProcessStepReference');
+        const measuredVariableRef = readRefTargetUid(actObj, 'MeasuredVariableReference');
+        const parentLevel = processStepRef !== undefined ? stepLevelById.get(processStepRef) : undefined;
+        const attributes = extractAllAttributes(actObj);
+        if (systemId) attributes.instrumentationSystem = systemId;
+        registerQualifiedValueOwners(actObj, id, 'step');
+        processSteps.push({
+          id,
+          identifier: getDataValue(actObj, 'Identifier'),
+          label: getDataValue(actObj, 'Label'),
+          type: type.replace('Process/Process.', '').replace('Process/', ''),
+          nodeType: 'InstrumentationActivity',
+          parent: processStepRef !== undefined && stepLevelById.has(processStepRef) ? processStepRef : undefined,
+          hierarchy_level: parentLevel !== undefined ? parentLevel + 1 : 0,
+          isSubProcess: false,
+          isNavigational: false,
+          inputPorts: [],
+          outputPorts: [],
+          attributes,
+          processStepRef,
+          measuredVariableRef,
+        });
+      }
+    }
+  }
   
   // Parse Process Connections (Streams)
   const connectionsContainer = processModel.querySelector('Components[property="ProcessConnections"]');
@@ -493,6 +730,7 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
     
     for (const streamObj of Array.from(streamObjects)) {
       const id = streamObj.getAttribute('id') || '';
+      const connectionType = streamObj.getAttribute('type') || '';
       const identifier = getDataValue(streamObj, 'Identifier');
       const label = getDataValue(streamObj, 'Label');
       
@@ -516,8 +754,10 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
       
       if (!sourcePortInfo || !targetPortInfo) continue;
       
-      // Use the new flow type determination based on port labels
-      const flowType = determineFlowType(sourcePortInfo.label);
+      // Relationship type from the connection Object's own DEXPI class
+      // (Stream / ThermalEnergyFlow / …); port labels only as a fallback.
+      const flowType = determineFlowTypeFromConnection(connectionType, sourcePortInfo.label, targetPortInfo.label);
+      registerQualifiedValueOwners(streamObj, id, 'stream');
       
       // Process.xml declares both references on Stream
       // (lower=0, upper=1 each). Read via the canonical attribute form
@@ -603,10 +843,15 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
   // MaterialStateType pass below to consult.
   type CompositionData = { basis: 'Mole' | 'Mass'; values: string[] };
   const compositionDataByUid = new Map<string, CompositionData>();
+  // Composition also carries scalar QualifiedValues — MoleFlow moved here
+  // from MaterialStateType in Process.xml, and Display is a plain Data —
+  // which are flattened onto the referencing MaterialStateType node.
+  const compositionAttrsByUid = new Map<string, AttributeMap>();
   const compositionsContainer = processModel.querySelector('Components[property="Compositions"]');
   if (compositionsContainer) {
     for (const compObj of Array.from(compositionsContainer.querySelectorAll(':scope > Object'))) {
       const compId = compObj.getAttribute('id') || '';
+      compositionAttrsByUid.set(compId, extractAllAttributes(compObj));
       // Identify the fractions carrier by canonical property name.
       const moleCarrier = compObj.querySelector(':scope > Components[property="MoleFractiona"]')
         ?? compObj.querySelector(':scope > Components[property="MoleFractions"]');
@@ -619,15 +864,18 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
       // The fraction values live inside the canonical
       // <Data property="Value"><AggregatedDataValue type="…PhysicalQuantityVector">
       // <Data property="Values"><Double>…</Double></Data>…</AggregatedDataValue>.
-      // Use a descendant query so the nested Values are found; read the Double
-      // (with String / textContent fallbacks for robustness).
+      // bpmn2dexpi writes one <Data property="Values"> per component; the
+      // Semantum export packs all <Double> children into a single Values
+      // Data. Read every Double / String under each Values element.
       const valueEls = Array.from(qvObject.querySelectorAll('Data[property="Values"]'));
       const values: string[] = [];
       for (const v of valueEls) {
-        const txt = v.querySelector('Double')?.textContent
-          ?? v.querySelector('String')?.textContent
-          ?? v.textContent ?? '';
-        values.push(txt.trim());
+        const prims = Array.from(v.children).filter(c => c.tagName === 'Double' || c.tagName === 'String');
+        if (prims.length > 0) {
+          for (const prim of prims) values.push((prim.textContent ?? '').trim());
+        } else {
+          values.push((v.textContent ?? '').trim());
+        }
       }
       if (values.length > 0) compositionDataByUid.set(compId, { basis, values });
     }
@@ -648,11 +896,15 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
 
       // Fractions are populated in a post-pass below so we can pair
       // values with template.componentRefs by walking the streams.
+      // Composition-carried scalars (MoleFlow_value / MoleFlow_unit, Display)
+      // land on the MaterialStateType node; the state type's own Data wins
+      // on a name clash.
+      const compositionAttrs = compositionRef ? compositionAttrsByUid.get(compositionRef) : undefined;
       materialStateTypes.push({
         id, identifier, label,
         compositionRef,
         fractions: [],
-        attributes: extractAllAttributes(typeObj),
+        attributes: { ...(compositionAttrs ?? {}), ...extractAllAttributes(typeObj) },
       });
     }
   }
@@ -723,7 +975,7 @@ export function parseDexpiXml(xmlString: string): DexpiGraphData {
     }
   }
 
-  return { processSteps, ports, streams, materialTemplates, materialComponents, materialStates, materialStateTypes };
+  return { processSteps, ports, streams, materialTemplates, materialComponents, materialStates, materialStateTypes, qualifiedValueOwners };
 }
 
 /**
@@ -986,6 +1238,41 @@ CREATE (parent)-[:CONTAINS]->(child)`);
     }
   }
   
+  // Instrumentation: OBSERVES (activity → referenced step) and
+  // MEASURES {variable} (activity → step owning the referenced QualifiedValue).
+  // A variable carried by a stream has no node to point at; the edge then
+  // targets the observed step and records the stream id.
+  const stepIds = new Set(data.processSteps.map(s => s.id));
+  for (const step of data.processSteps) {
+    if (step.nodeType !== 'InstrumentationActivity') continue;
+    if (step.processStepRef && stepIds.has(step.processStepRef)) {
+      queries.push(`
+MATCH (ia {id: '${escapeString(step.id)}'})
+MATCH (ps {id: '${escapeString(step.processStepRef)}'})
+CREATE (ia)-[:OBSERVES]->(ps)`);
+    }
+    if (step.measuredVariableRef) {
+      const owner = data.qualifiedValueOwners.get(step.measuredVariableRef);
+      if (!owner) continue;
+      let targetId: string | undefined;
+      const relProps: Record<string, string> = {
+        variable: owner.property,
+        qualifiedValueId: step.measuredVariableRef,
+      };
+      if (owner.ownerKind === 'step' && stepIds.has(owner.ownerId)) {
+        targetId = owner.ownerId;
+      } else if (owner.ownerKind === 'stream' && step.processStepRef && stepIds.has(step.processStepRef)) {
+        targetId = step.processStepRef;
+        relProps.streamId = owner.ownerId;
+      }
+      if (!targetId) continue;
+      queries.push(`
+MATCH (ia {id: '${escapeString(step.id)}'})
+MATCH (target {id: '${escapeString(targetId)}'})
+CREATE (ia)-[:MEASURES {${buildPropsString(relProps)}}]->(target)`);
+    }
+  }
+
   // Create Flow relationships (MaterialStream, ElectricalEnergyFlow, etc.)
   for (const stream of data.streams) {
     const sourcePort = data.ports.get(stream.sourcePortId);
@@ -1021,50 +1308,63 @@ MATCH (source {id: '${escapeString(sourceStepId)}'})
 MATCH (target {id: '${escapeString(targetStepId)}'})
 CREATE (source)-[:${flowLabel} {${relProps}}]->(target)`);
     
-    // Check for SubProcessEntry: if source port has SubReference, the flow enters a subprocess
-    // The parent port points to the child port - create entry from parent subprocess to first internal task
-    if (sourcePort.subReference) {
-      const childPort = data.ports.get(sourcePort.subReference);
-      if (childPort) {
-        // Parent subprocess (owner of source port) -> Child task (owner of child port)
-        queries.push(`
-MATCH (parent {id: '${escapeString(sourceStepId)}'})
-MATCH (child {id: '${escapeString(childPort.ownerStepId)}'})
-MERGE (parent)-[:SUB_PROCESS_ENTRY {flowType: '${stream.flowType}', port: '${escapeString(sourcePort.label)}'}]->(child)`);
-      }
+  }
+
+  // Cross-level port links. A subprocess port carries `SubReference` to the
+  // port of the nested boundary proxy (Source/Sink) that stands in for it
+  // inside the subprocess; the proxy's port carries `SuperReference` back.
+  // One edge per link, oriented by the parent port's NominalDirection:
+  //   Inlet  → (subprocess)-[:SUB_PROCESS_ENTRY {port}]->(proxy)
+  //   Outlet → (proxy)-[:SUB_PROCESS_EXIT {port}]->(subprocess)
+  // flowType comes from the stream attached to the parent port, falling
+  // back to the port class.
+  const flowTypeByPortId = new Map<string, string>();
+  for (const stream of data.streams) {
+    flowTypeByPortId.set(stream.sourcePortId, stream.flowType);
+    flowTypeByPortId.set(stream.targetPortId, stream.flowType);
+  }
+  const portFlowType = (port: PortInfo): string => {
+    const fromStream = flowTypeByPortId.get(port.id);
+    if (fromStream) return fromStream;
+    const bare = (port.type.split('.').pop() || '').replace(/Port$/, '');
+    if (bare === 'ThermalEnergy' || bare === 'ElectricalEnergy' || bare === 'MechanicalEnergy') return `${bare}Flow`;
+    if (bare === 'Information') return 'InformationFlow';
+    return 'MaterialStream';
+  };
+  const emittedLinks = new Set<string>();
+  const emitPortLink = (parentPort: PortInfo, childPort: PortInfo) => {
+    const key = `${parentPort.id}→${childPort.id}`;
+    if (emittedLinks.has(key)) return;
+    emittedLinks.add(key);
+    const parentStep = data.processSteps.find(s => s.id === parentPort.ownerStepId);
+    const childStep = data.processSteps.find(s => s.id === childPort.ownerStepId);
+    if (!parentStep || !childStep) return;
+    const props = buildPropsString({
+      flowType: portFlowType(parentPort),
+      port: parentPort.label || parentPort.id,
+      parentPortId: parentPort.id,
+      childPortId: childPort.id,
+    });
+    if (parentPort.direction === 'In') {
+      queries.push(`
+MATCH (parent {id: '${escapeString(parentStep.id)}'})
+MATCH (child {id: '${escapeString(childStep.id)}'})
+MERGE (parent)-[:SUB_PROCESS_ENTRY {${props}}]->(child)`);
+    } else {
+      queries.push(`
+MATCH (child {id: '${escapeString(childStep.id)}'})
+MATCH (parent {id: '${escapeString(parentStep.id)}'})
+MERGE (child)-[:SUB_PROCESS_EXIT {${props}}]->(parent)`);
     }
-    
-    // Check for SubProcessExit: if target port has SubReference, the flow exits a subprocess
-    if (targetPort.subReference) {
-      const childPort = data.ports.get(targetPort.subReference);
-      if (childPort) {
-        // Child task (owner of child port) -> Parent subprocess (owner of target port)
-        queries.push(`
-MATCH (child {id: '${escapeString(childPort.ownerStepId)}'})
-MATCH (parent {id: '${escapeString(targetStepId)}'})
-MERGE (child)-[:SUB_PROCESS_EXIT {flowType: '${stream.flowType}', port: '${escapeString(targetPort.label)}'}]->(parent)`);
-      }
+  };
+  for (const port of data.ports.values()) {
+    if (port.subReference) {
+      const childPort = data.ports.get(port.subReference);
+      if (childPort) emitPortLink(port, childPort);
     }
-    
-    // Also check SuperReference (child pointing to parent) for additional entry/exit detection
-    if (sourcePort.superReference) {
-      const parentPort = data.ports.get(sourcePort.superReference);
-      if (parentPort) {
-        queries.push(`
-MATCH (parent {id: '${escapeString(parentPort.ownerStepId)}'})
-MATCH (child {id: '${escapeString(sourceStepId)}'})
-MERGE (parent)-[:SUB_PROCESS_ENTRY {flowType: '${stream.flowType}', port: '${escapeString(parentPort.label)}'}]->(child)`);
-      }
-    }
-    
-    if (targetPort.superReference) {
-      const parentPort = data.ports.get(targetPort.superReference);
-      if (parentPort) {
-        queries.push(`
-MATCH (child {id: '${escapeString(targetStepId)}'})
-MATCH (parent {id: '${escapeString(parentPort.ownerStepId)}'})
-MERGE (child)-[:SUB_PROCESS_EXIT {flowType: '${stream.flowType}', port: '${escapeString(parentPort.label)}'}]->(parent)`);
-      }
+    if (port.superReference) {
+      const parentPort = data.ports.get(port.superReference);
+      if (parentPort) emitPortLink(parentPort, port);
     }
   }
   
