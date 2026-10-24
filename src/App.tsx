@@ -1355,7 +1355,7 @@ function App() {
             <button
               onClick={() => setShowImportMenu(v => !v)}
               className={`btn ${showImportMenu ? 'btn-active' : ''}`}
-              title="Import a BPMN diagram or a DEXPI XML file"
+              title="Import a BPMN diagram, a DEXPI XML file, or a DEXPI Profile"
             >
               Import ▾
             </button>
@@ -1400,6 +1400,14 @@ function App() {
                     title="Import a DEXPI 2.0 XML file and convert it to BPMN (heuristic layout)"
                   >
                     Import DEXPI XML
+                  </button>
+                  <button
+                    onClick={() => { profileFileInputRef.current?.click(); setShowImportMenu(false); }}
+                    className="btn"
+                    style={{ textAlign: 'left' }}
+                    title="Load a DEXPI Profile (extension classes / properties) for this session"
+                  >
+                    Import DEXPI Profile
                   </button>
                 </div>
               </>
