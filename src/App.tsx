@@ -818,6 +818,17 @@ function App() {
     setShowBpmnExportDialog(true);
   };
 
+  /** Trigger a browser download of `content` as an XML file named `filename`. */
+  const downloadXml = (filename: string, content: string) => {
+    const blob = new Blob([content], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Opens the export-options dialog. The user-supplied filename and metadata
   // fields are then passed into the actual transform via handleExportDexpi.
   const openExportDexpiDialog = () => {
@@ -848,6 +859,13 @@ function App() {
       // legacy port wrappers to flat ports.
       const xmlForTransform = preprocessBpmnXml(bpmnXml);
 
+      // Trim whitespace and ensure a .xml suffix so users can paste a bare
+      // name in the dialog without remembering the extension. The profile
+      // takes the same base name: model.xml → model.profile.xml.
+      const rawName = (exportOptions.filename || '').trim() || 'process-model-dexpi.xml';
+      const dexpiFilename = /\.xml$/i.test(rawName) ? rawName : `${rawName}.xml`;
+      const profileFilename = dexpiFilename.replace(/\.xml$/i, '') + '.profile.xml';
+
       // Per-call transformer instance instead of the module singleton —
       // isolates this handler's strict-mode validation reads from any
       // concurrent transform() (e.g. a parallel Generate Profile, or a
@@ -875,6 +893,12 @@ function App() {
           prefix: p.name.replace(/\.xml$/i, ''),
           source: p.name,
         })),
+        // The export's own profile: generated from the emitted document and
+        // downloaded alongside it (same base name, .profile.xml) whenever
+        // the model uses anything the DEXPI 2.0 vocabulary plus the loaded
+        // profiles do not declare. The document then imports it by that
+        // file name, so the two files travel together.
+        generateProfile: { prefix: 'Profile', source: profileFilename },
         strict: strictMode,
       });
 
@@ -884,16 +908,20 @@ function App() {
       // file production: DEXPI 2.0 permissive philosophy says any XSD-valid
       // output is exchangeable, and we don't want strict mode to gate users
       // out of getting a deliverable.
-      const blob = new Blob([dexpiXml], { type: 'application/xml' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      // Trim whitespace and ensure a .xml suffix so users can paste a bare
-      // name in the dialog without remembering the extension.
-      const rawName = (exportOptions.filename || '').trim() || 'process-model-dexpi.xml';
-      a.download = /\.xml$/i.test(rawName) ? rawName : `${rawName}.xml`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadXml(dexpiFilename, dexpiXml);
+
+      // The profile, when the document imports one (declarations > 0). No
+      // second dialog: it is part of the export, not a separate action.
+      const generated = t.lastGeneratedProfile;
+      const profileNote =
+        generated && generated.declarations > 0
+          ? ` Profile ${profileFilename} downloaded alongside (${generated.declarations} declaration${
+              generated.declarations === 1 ? '' : 's'
+            } on ${generated.classCount} class${generated.classCount === 1 ? '' : 'es'}); keep the two files together.`
+          : '';
+      if (generated && generated.declarations > 0) {
+        downloadXml(profileFilename, generated.xml);
+      }
 
       // Surface strict-mode validation results across all five post-XSD tiers.
       // Per the DEXPI permissive philosophy the export already succeeded — the
@@ -932,11 +960,11 @@ function App() {
             a.tier === b.tier ? a.key.localeCompare(b.key) : a.tier.localeCompare(b.tier),
           );
           setStrictWarning({ totalCount: total, groups: groupList });
-          setValidationMessage('DEXPI XML exported with strict-mode warnings — see dialog.');
+          setValidationMessage(`DEXPI XML exported with strict-mode warnings — see dialog.${profileNote}`);
           console.warn('DEXPI strict-mode fidelity findings (all tiers):');
           for (const g of groupList) console.warn(`  [${g.tier}] ✗ ${g.key} ×${g.count}`);
         } else {
-          setValidationMessage('DEXPI XML exported successfully!');
+          setValidationMessage(`DEXPI XML exported successfully!${profileNote}`);
         }
       } else {
         // Non-strict mode: surface transformer logger warnings (unmapped types,
@@ -947,12 +975,12 @@ function App() {
         const warnings = t.logger.warnings;
         if (warnings.length > 0) {
           setValidationMessage(
-            `DEXPI XML exported with ${warnings.length} transformer warning${warnings.length === 1 ? '' : 's'} — see browser console.`,
+            `DEXPI XML exported with ${warnings.length} transformer warning${warnings.length === 1 ? '' : 's'} — see browser console.${profileNote}`,
           );
           console.warn('DEXPI transformer warnings:');
           for (const w of warnings) console.warn(`  • ${w}`);
         } else {
-          setValidationMessage('DEXPI XML exported successfully!');
+          setValidationMessage(`DEXPI XML exported successfully!${profileNote}`);
         }
       }
     } catch (err) {

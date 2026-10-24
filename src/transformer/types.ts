@@ -355,6 +355,25 @@ export interface TransformOptions {
    */
   profileImports?: { prefix?: string; source: string }[];
   /**
+   * Produce the document's own profile as part of the export. When set,
+   * transform() runs the profile generator (DexpiProfileGenerator) on the
+   * emitted document and the source BPMN, and stores the result in
+   * BpmnToDexpiTransformer.lastGeneratedProfile. When the generator finds
+   * declarations — the model uses properties or classes the DEXPI 2.0
+   * vocabulary (plus any loaded profileXmls) does not declare — the
+   * document imports the profile after the Core / Process imports and any
+   * profileImports:
+   *   <Import prefix="Profile" source="model.profile.xml"/>
+   * so a consumer that resolves imports can read the extension properties.
+   * The caller writes lastGeneratedProfile.xml to `source` (the CLI saves it
+   * next to the output as <output basename>.profile.xml; the UI downloads it
+   * alongside the document). With zero declarations the document imports
+   * nothing extra and there is no profile to ship.
+   * `prefix` defaults to "Profile". Off when omitted (library default); the
+   * CLI and the UI export turn it on.
+   */
+  generateProfile?: { source: string; prefix?: string };
+  /**
    * Strict-mode validation toggle. Default false (DEXPI 2.0's permissive
    * philosophy: any XSD-valid output is exchangeable, so the user-facing
    * default is XSD-only). When true, the transformer additionally runs

@@ -84,18 +84,28 @@ Flags:
                   1 = XSD-invalid or error; 2 = XSD-valid with findings.
 
   --generate-profile FILE
-                  After transforming, emit a DEXPI Profile XML to FILE.
-                  The DEXPI output declares the profile as an
-                  <Import prefix="Profile" source="…"/> (path relative to
-                  the output), as it does for every --profile FILE, so
-                  consumers that resolve imports see the declarations.
-                  declaring every property name that did not resolve
-                  through the loaded schema. Output is deterministic
-                  (sorted, no timestamps) so generated profiles are safe
-                  to commit to source control. Loading the generated
-                  Profile back via --profile closes the strict-mode gap
-                  on the same model. Independent of --strict; can be used
-                  to discover gaps without enforcing them.
+                  Write the export's DEXPI Profile to FILE instead of the
+                  default <output basename>.profile.xml. The file is
+                  always written when this flag is given, even when the
+                  model needs no profile (an empty Profile then).
+
+  --no-profile    Do not generate the export's profile: no profile file,
+                  no <Import prefix="Profile"> in the document.
+
+The export is self-describing by default: after transforming, the CLI
+generates the document's DEXPI Profile — every class and property the
+model uses that the DEXPI 2.0 vocabulary (plus any --profile FILE) does
+not declare, as <ClassExtension> declarations. When there is at least
+one declaration, the profile is written next to the output as
+<output basename>.profile.xml and the document declares it as
+<Import prefix="Profile" source="…"/> (path relative to the output), so
+consumers that resolve imports see the declarations. When there is
+nothing to declare, no profile file is written and nothing is imported.
+Output is deterministic (sorted, no timestamps) so generated profiles
+are safe to commit to source control. Loading the generated Profile
+back via --profile closes the strict-mode gap on the same model.
+When the document goes to stdout there is no output file to sit next
+to, so no profile is written unless --generate-profile FILE names one.
 
 Examples:
   node cli.js process.bpmn                       # Print DEXPI XML to console
@@ -103,8 +113,12 @@ Examples:
   node cli.js --strict process.bpmn output.xml   # Strict-mode validation
   node cli.js --strict --profile examples/profiles/sample-extension.xml
                               process.bpmn output.xml  # With Profile loaded
+  node cli.js process.bpmn output.xml            # Also writes output.profile.xml
+                                                 #   when the model needs one
   node cli.js --generate-profile profile.xml process.bpmn output.xml
-                                                 # Generate Profile + DEXPI
+                                                 # Profile under a chosen name
+  node cli.js --no-profile process.bpmn output.xml
+                                                 # DEXPI only, no profile
   node cli.js --validate output.xml              # Validate an existing DEXPI file
                                                  #   (Process or Plant/P&ID)
   node cli.js --validate output.xml --profile examples/profiles/tep-generated.xml
@@ -121,6 +135,7 @@ From Python:
 
 const strict = args.includes('--strict');
 const validateMode = args.includes('--validate');
+const noProfile = args.includes('--no-profile');
 
 // Parse value-bearing flags (--profile FILE, --generate-profile FILE) and
 // positional args. Walk left-to-right so the file argument that follows
@@ -157,6 +172,17 @@ if (!inputPath) {
   console.error('✗ Error: input file required');
   process.exit(1);
 }
+if (noProfile && generateProfilePath) {
+  console.error('✗ Error: --no-profile and --generate-profile FILE exclude each other');
+  process.exit(1);
+}
+
+// Where the export's profile goes: the path named by --generate-profile,
+// else next to the output as <output basename>.profile.xml (out.xml →
+// out.profile.xml). With no output file (stdout) there is no sibling
+// location, so the profile is only written when a path is named.
+const profilePath = generateProfilePath
+  ?? (outputPath ? outputPath.replace(/\.xml$/i, '') + '.profile.xml' : null);
 
 // ── --validate: fidelity-check an EXISTING DEXPI 2.0 XML document ─────────
 // No transformation happens; the input is the DEXPI file itself. The same
@@ -257,15 +283,29 @@ async function main() {
       );
       return basename(p);
     };
-    const profileImports = [
-      ...profilePaths.map(p => ({ prefix: basename(p).replace(/\.xml$/i, ''), source: importSource(p) })),
-      ...(generateProfilePath ? [{ prefix: 'Profile', source: importSource(generateProfilePath) }] : []),
-    ];
+    const profileImports = profilePaths.map(p => ({
+      prefix: basename(p).replace(/\.xml$/i, ''),
+      source: importSource(p),
+    }));
+
+    // The export's own profile. transform() runs the generator on the
+    // emitted document (plus the BPMN's extension elements) and, when there
+    // is at least one declaration, imports the profile as
+    // <Import prefix="Profile" source="…"/>. Loaded Profiles are part of the
+    // registry the generator queries, so the generated profile only holds
+    // gaps that even the loaded Profiles don't cover. Independent of
+    // --strict. Skipped with --no-profile, and when the document goes to
+    // stdout with no --generate-profile FILE (no file to import).
+    const generateProfile = !noProfile && profilePath
+      ? { prefix: 'Profile', source: importSource(profilePath) }
+      : undefined;
 
     // Transform to DEXPI. strict + profileXmls flow into transform()'s
     // registry construction; profile-loading errors (divergent declarations / unresolved
     // supertype) throw and are caught below.
-    const dexpiXml = await transformer.transform(bpmnXml, { strict, profileXmls, profileImports });
+    const dexpiXml = await transformer.transform(bpmnXml, {
+      strict, profileXmls, profileImports, generateProfile,
+    });
 
     if (outputPath) {
       // Write to file — always produced, even when strict-mode validation finds issues.
@@ -276,27 +316,42 @@ async function main() {
       console.log(dexpiXml);
     }
 
-    // --generate-profile: walk the just-produced DEXPI XML, identify
-    // unresolved (class, property) pairs, and emit a Profile XML that
-    // closes those gaps. Independent of --strict — useful for discovering
-    // gaps without enforcing them. Loaded Profiles are part of the
-    // registry the generator queries, so the generator's output only
-    // contains gaps that even the loaded Profiles don't cover.
-    if (generateProfilePath) {
+    // Write the profile next to the output when the document imports it
+    // (declarations > 0). An explicit --generate-profile FILE is written
+    // regardless, so a script that asked for the file always gets one.
+    const generated = transformer.lastGeneratedProfile;
+    if (generated && (generated.declarations > 0 || generateProfilePath)) {
+      writeFileSync(profilePath, generated.xml, 'utf-8');
+      console.error(
+        generated.declarations > 0
+          ? `✓ DEXPI Profile → ${profilePath}  ` +
+            `(${generated.classCount} class${generated.classCount === 1 ? '' : 'es'}, ` +
+            `${generated.declarations} declaration${generated.declarations === 1 ? '' : 's'}, ` +
+            `converged in ${generated.iterationsUsed} pass${generated.iterationsUsed === 1 ? '' : 'es'}); ` +
+            `the document imports it — keep the two files together.`
+          : `✓ Empty DEXPI Profile → ${profilePath}  (the model needs no profile; nothing imported)`
+      );
+    } else if (generated) {
+      console.error('ℹ The model needs no profile: nothing beyond the DEXPI 2.0 vocabulary is used.');
+    } else if (!noProfile && !outputPath) {
+      // stdout mode without a profile path: say when the document would
+      // have needed one, so the extension properties don't travel silently
+      // without their declarations.
       const sources = [
         { name: 'Process.xml', xml: readFileSync(join(SCHEMA_DIR, 'Process.xml'), 'utf-8') },
         { name: 'Core.xml', xml: readFileSync(join(SCHEMA_DIR, 'Core.xml'), 'utf-8') },
         ...profileXmls,
       ];
       const reg = DexpiProcessClassRegistry.fromXmlSources(sources);
-      const result = generateProfileFromDexpiXml(dexpiXml, reg, { bpmnXml });
-      writeFileSync(generateProfilePath, result.xml, 'utf-8');
-      console.error(
-        `✓ Generated DEXPI Profile → ${generateProfilePath}  ` +
-        `(${result.classCount} class${result.classCount === 1 ? '' : 'es'}, ` +
-        `${result.declarations} declaration${result.declarations === 1 ? '' : 's'}, ` +
-        `converged in ${result.iterationsUsed} pass${result.iterationsUsed === 1 ? '' : 'es'})`
-      );
+      const probe = generateProfileFromDexpiXml(dexpiXml, reg, { bpmnXml });
+      if (probe.declarations > 0) {
+        console.error(
+          `ℹ The model uses ${probe.declarations} extension propert${probe.declarations === 1 ? 'y' : 'ies'} ` +
+          `on ${probe.classCount} class${probe.classCount === 1 ? '' : 'es'} that the document (stdout) does not ` +
+          `declare. Write it to a file to get <output basename>.profile.xml next to it, or pass ` +
+          `--generate-profile FILE.`,
+        );
+      }
     }
 
     // Strict-mode validation: surface findings across ALL five tiers

@@ -40,6 +40,9 @@ npm run dev        # web app at http://localhost:5173
 
 ```bash
 npm run transform input.bpmn output.xml
+# also writes output.profile.xml (imported by output.xml) when the model
+# uses properties or classes beyond the DEXPI 2.0 vocabulary;
+# --no-profile opts out
 
 # validate an existing DEXPI 2.0 XML file (Process or Plant/P&ID, from any
 # tool) — XSD + all five fidelity dimensions; load the Profiles it was
@@ -113,7 +116,7 @@ The same checks also run standalone on existing DEXPI 2.0 files from any tool: `
 A Profile is a DEXPI XML model file that adds project-specific classes or properties on top of the DEXPI 2.0 standard vocabulary — useful when your project needs concepts the standard doesn't cover. Profiles live per-session; re-import after page reload.
 
 - **Import** — UI: *Import Profile* in the DEXPI menu. CLI: `--profile FILE` (repeatable). Library: `profileXmls` option on `transformer.transform()`.
-- **Generate** — walk the current model and emit a Profile that closes every fidelity gap. UI: *Generate Profile*. CLI: `--generate-profile FILE`. Output is deterministic — safe to commit.
+- **Generate** — every DEXPI export produces its own Profile automatically (see [Profile imports in exported documents](#profile-imports-in-exported-documents)). To get the Profile on its own: UI: *Generate Profile*. CLI: `--generate-profile FILE` names where the export's Profile goes. Output is deterministic — safe to commit.
 
 Reference Profiles live in `examples/profiles/` (`sample-extension.xml`, `tep-generated.xml`).
 
@@ -140,7 +143,7 @@ A profile is written in the same grammar as `Process.xml` and `Core.xml` and val
 
 ### Profile imports in exported documents
 
-An exported document names the profiles it was written against, after the Core and Process imports:
+An export is self-describing: the exporter generates the document's Profile automatically, as part of the export, and the document names it after the Core and Process imports:
 
 ```xml
 <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
@@ -148,7 +151,13 @@ An exported document names the profiles it was written against, after the Core a
 <Import prefix="Profile" source="tep.profile.xml"/>
 ```
 
-Convention: the profile is written next to the output and imported by a path relative to it (the CLI derives this from `--generate-profile FILE` and from each `--profile FILE`; the UI uses the loaded profile's file name; the library takes `profileImports: [{ prefix, source }]`). Use an absolute URL as `source` when the profile has a published home. `--validate --profile FILE` treats an import whose file name matches a loaded profile as satisfied.
+The Profile is produced whenever the model uses a class or property that the DEXPI 2.0 vocabulary (plus any loaded Profiles) does not declare — for the Tennessee Eastman example, the thermodynamic material attributes. It is written next to the document with the same base name and the suffix `.profile.xml` (`tep.xml` → `tep.profile.xml`), and the document imports it by that relative path, so the two files travel together. When the model needs nothing beyond the standard vocabulary, no Profile is written and nothing is imported.
+
+- **CLI** — `node cli.js model.bpmn tep.xml` writes `tep.profile.xml` alongside; `--generate-profile FILE` chooses another path (and always writes the file); `--no-profile` opts out. When the document goes to stdout there is no file to sit next to, so no Profile is written unless `--generate-profile FILE` names one; the CLI says on stderr when the model would have needed one.
+- **UI** — the DEXPI export downloads `<name>.profile.xml` together with `<name>.xml` and says so in the export message. *Generate Profile* still produces the Profile on its own.
+- **Library** — `transformer.transform(bpmn, { generateProfile: { source: 'tep.profile.xml' } })` adds the import when there is something to declare and leaves the Profile XML in `transformer.lastGeneratedProfile` for the caller to write; off unless asked for. Profiles loaded with `profileXmls` are declared through `profileImports: [{ prefix, source }]` (the CLI derives these from each `--profile FILE`, the UI from the loaded profile's file name).
+
+Use an absolute URL as `source` when the profile has a published home. `--validate --profile FILE` treats an import whose file name matches a loaded profile as satisfied, so validate an export with its Profile loaded: `--validate tep.xml --profile tep.profile.xml`.
 
 Extension properties are serialised by their bare name (`<Components property="AntoineA">`), the same way the standard properties are. The schema's `property` attribute also allows the qualified form `Profile/CustomMaterialComponentExtension.AntoineA`, and DISC P&ID files use it; the *Profiles for DEXPI* draft does not prescribe either, and bare names are what import-resolving consumers (pyDEXPI, the DEXPIViewer validator with the profile loaded) read today, so bare names are kept until the draft settles the question.
 

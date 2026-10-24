@@ -22,6 +22,7 @@ import { validateEmittedDexpiDataTypes } from './DexpiDataTypeValidator';
 import { validateEmittedDexpiReferences } from './DexpiReferenceValidator';
 import { validateEmittedDexpiCardinality } from './DexpiCardinalityValidator';
 import { validateEmittedDexpiClassExistence } from './DexpiClassExistenceValidator';
+import { generateProfileFromDexpiXml, type GenerateProfileResult } from './DexpiProfileGenerator';
 // Authoritative source of the OriginatingSystem* metadata for the
 // EngineeringModel root. Pulling from package.json keeps "Originating system
 // name = bpmn2dexpi", vendor = author, version = the npm version always in
@@ -117,10 +118,21 @@ export class BpmnToDexpiTransformer {
    */
   lastClassExistenceValidation: ValidationResult | undefined;
 
+  /**
+   * The profile generated for the most recent transform() call, populated
+   * when options.generateProfile is set. `declarations > 0` means the
+   * document imports the profile (options.generateProfile.source) and the
+   * caller should write `xml` there; `declarations === 0` means the model
+   * needs no profile — the document imports none and `xml` is an empty
+   * profile the caller can ignore.
+   */
+  lastGeneratedProfile: GenerateProfileResult | undefined;
+
   async transform(bpmnXml: string, options: TransformOptions = {}): Promise<string> {
 
     // Clear state and log from previous transformations
     this.logger.reset();
+    this.lastGeneratedProfile = undefined;
     this.lastPropertyNameValidation = undefined;
     this.lastDataTypeValidation = undefined;
     this.lastReferenceValidation = undefined;
@@ -193,7 +205,31 @@ export class BpmnToDexpiTransformer {
     const dexpiModel = this.buildDexpiModel(options);
     
     // Generate XML
-    const xml = this.generateXml(dexpiModel);
+    let xml = this.generateXml(dexpiModel);
+
+    // Self-describing export: generate the document's profile from the
+    // emitted XML and the source BPMN. The generator walks the document, so
+    // it has to run after serialisation; when it finds declarations the
+    // document gains an <Import> for the profile and is serialised again.
+    // Both passes are deterministic (same model object, one more Import), so
+    // the second pass differs from the first only by that line. With zero
+    // declarations the document stays as it is: nothing to import.
+    if (options.generateProfile && this.registry.size > 0) {
+      const generated = generateProfileFromDexpiXml(xml, this.registry, { bpmnXml });
+      this.lastGeneratedProfile = generated;
+      for (const w of generated.warnings) this.logger.warn(`Profile generation: ${w}`);
+      if (generated.declarations > 0) {
+        const model = dexpiModel['Model'] as Record<string, unknown>;
+        const imports = model['Import'] as Record<string, unknown>[];
+        imports.push(
+          ...this.buildProfileImports(
+            [{ prefix: options.generateProfile.prefix, source: options.generateProfile.source }],
+            imports,
+          ),
+        );
+        xml = this.generateXml(dexpiModel);
+      }
+    }
 
     // Strict-mode property-name fidelity validation runs against the
     // already-generated XML so it never delays or blocks output. Failures
@@ -2166,9 +2202,17 @@ export class BpmnToDexpiTransformer {
    */
   private buildProfileImports(
     imports: { prefix?: string; source: string }[] | undefined,
+    existing: Record<string, unknown>[] = [],
   ): Record<string, unknown>[] {
     if (!imports || imports.length === 0) return [];
+    // Prefixes already taken: the standard models plus any <Import> entries
+    // built earlier (the generated profile's import is added after the
+    // profileImports ones and must not reuse their prefixes).
     const used = new Set(['Core', 'Process']);
+    for (const e of existing) {
+      const attrs = e['$'] as { prefix?: string } | undefined;
+      if (attrs?.prefix) used.add(attrs.prefix);
+    }
     return imports.map((imp) => {
       let prefix = (imp.prefix || 'Profile').replace(/[^A-Za-z_0-9]/g, '_').replace(/^(?![A-Za-z_])/, '_');
       if (used.has(prefix)) {
