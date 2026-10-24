@@ -141,7 +141,7 @@ A profile is written in the same grammar as `Process.xml` and `Core.xml` and val
 </Model>
 ```
 
-`<ClassExtension>` is the DEXPI 2.0 XML Schema's own element for adding properties to an existing class (it is how the DISC profile, the reference case of the *Profiles for DEXPI* working draft, is published). The generator emits one `<ClassExtension name="<Class>Extension">` per extended class and a `<ConcreteClass>` only for classes the imported models do not declare; it never re-declares a standard class. The registry applies extensions by `baseType` on load. The older style — re-declaring a standard class by name to add properties — still loads, with a deprecation warning, so existing profile files keep working.
+`<ClassExtension>` is the DEXPI 2.0 XML Schema's own element for adding properties to an existing class. The generator emits one `<ClassExtension name="<Class>Extension">` per extended class and a `<ConcreteClass>` only for classes the imported models do not declare; it never re-declares a standard class. The registry applies extensions by `baseType` on load. The older style — re-declaring a standard class by name to add properties — still loads, with a deprecation warning, so existing profile files keep working.
 
 ### Profile imports in exported documents
 
