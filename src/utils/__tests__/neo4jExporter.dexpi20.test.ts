@@ -110,18 +110,18 @@ describe('neo4jExporter — DEXPI 2.0 shape on a fresh TEP export', () => {
   });
 
   it('2. types the relationship from the connection Object class, not the port label', () => {
-    expect(data.streams.length).toBe(61);
+    expect(data.streams.length).toBe(59);
     const byType = data.streams.reduce<Record<string, number>>((acc, s) => {
       acc[s.flowType] = (acc[s.flowType] ?? 0) + 1; return acc;
     }, {});
     expect(byType).toEqual({
       MaterialStream: 54,
-      ElectricalEnergyFlow: 4,
+      ElectricalEnergyFlow: 2,
       ThermalEnergyFlow: 2,
       MechanicalEnergyFlow: 1,
     });
     expect(counts.rels.MaterialStream).toBe(54);
-    expect(counts.rels.ElectricalEnergyFlow).toBe(4);
+    expect(counts.rels.ElectricalEnergyFlow).toBe(2);
     expect(counts.rels.ThermalEnergyFlow).toBe(2);
     expect(counts.rels.MechanicalEnergyFlow).toBe(1);
   });
@@ -130,8 +130,8 @@ describe('neo4jExporter — DEXPI 2.0 shape on a fresh TEP export', () => {
     const ports = [...data.ports.values()];
     const withSub = ports.filter(p => p.subReference);
     const withSuper = ports.filter(p => p.superReference);
-    expect(withSub.length).toBe(20);
-    expect(withSuper.length).toBe(20);
+    expect(withSub.length).toBe(18);
+    expect(withSuper.length).toBe(18);
     // Both directions agree pairwise.
     for (const parent of withSub) {
       const child = data.ports.get(parent.subReference!);
@@ -147,7 +147,7 @@ describe('neo4jExporter — DEXPI 2.0 shape on a fresh TEP export', () => {
     // Nested boundary proxies (Source/Sink owning a SuperReference port) are
     // navigational; subprocesses owning SubReference ports are not.
     const navigational = data.processSteps.filter(s => s.isNavigational);
-    expect(navigational.length).toBe(20);
+    expect(navigational.length).toBe(18);
     for (const s of navigational) {
       expect(['Source', 'Sink']).toContain(s.nodeType);
       expect(s.parent).toBeTruthy();
@@ -161,13 +161,19 @@ describe('neo4jExporter — DEXPI 2.0 shape on a fresh TEP export', () => {
     // One edge per link, oriented by the parent port direction.
     const inlets = withSub.filter(p => p.direction === 'In').length;
     const outlets = withSub.filter(p => p.direction === 'Out').length;
-    expect(inlets + outlets).toBe(20);
+    expect(inlets + outlets).toBe(18);
     expect(counts.rels.SUB_PROCESS_ENTRY).toBe(inlets);
     expect(counts.rels.SUB_PROCESS_EXIT).toBe(outlets);
-    // Energy boundary links keep their energy flow type.
+    // The EEI1 electrical supplies of ReactingChemicals and Compressing are
+    // off-page connectors inside their sections (no port on the section, no
+    // SuperReference), so no energy boundary link exists; the nested Sources
+    // are plain, non-navigational steps.
     const electricalLinks = queries.filter(q =>
       q.includes('[:SUB_PROCESS_ENTRY') && q.includes("flowType: 'ElectricalEnergyFlow'"));
-    expect(electricalLinks.length).toBe(2);
+    expect(electricalLinks.length).toBe(0);
+    const eei1 = data.processSteps.filter(s => s.id === 'uid_Event_01fem2h' || s.id === 'uid_Event_1mp0d4h');
+    expect(eei1.map(s => s.nodeType)).toEqual(['Source', 'Source']);
+    expect(eei1.every(s => !s.isNavigational && !!s.parent)).toBe(true);
   });
 
   it('4. flattens Components-carried QualifiedValues to <property>_value / _unit / _provenance / _range', () => {
@@ -234,10 +240,10 @@ describe('neo4jExporter — DEXPI 2.0 shape on a fresh TEP export', () => {
     expect(counts.rels.HAS_FRACTION).toBe(88);
   });
 
-  it('totals: 116 nodes / 307 relationships (97 / 230 before the DEXPI 2.0 fix)', () => {
+  it('totals: 114 nodes / 303 relationships (97 / 230 before the DEXPI 2.0 fix)', () => {
     const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
-    expect(sum(counts.nodes)).toBe(116);
-    expect(sum(counts.rels)).toBe(307);
+    expect(sum(counts.nodes)).toBe(114);
+    expect(sum(counts.rels)).toBe(303);
   });
 });
 

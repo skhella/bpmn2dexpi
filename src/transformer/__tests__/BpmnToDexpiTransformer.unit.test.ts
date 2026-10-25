@@ -187,10 +187,10 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
     });
   });
 
-  // ── nested boundary proxy without a parent port ───────────────────────────
-  describe('nested boundary proxy port with no counterpart on the subprocess', () => {
-    /** Subprocess whose nested Source carries an EEI1 port; parent ports vary. */
-    function sectionWithNestedSource(parentPorts: string): string {
+  // ── nested boundary proxy whose superReference does not resolve ───────────
+  describe('nested Source/Sink port superReference resolution', () => {
+    /** Subprocess whose nested Source carries an EEI1 port; parent ports and the child's superReference vary. */
+    function sectionWithNestedSource(parentPorts: string, childSuperRef = ''): string {
       return bpmn(`
         <subProcess id="SP1" name="Compressing">
           <extensionElements>
@@ -201,7 +201,7 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
           <startEvent id="SE_in" name="EEI1">
             <extensionElements>
               <dexpi:element dexpiType="Source" identifier="SE_in" uid="uid-SE_in">
-                <dexpi:port id="SE_in_EEI1_port" name="EEI1" portType="ElectricalEnergyPort" direction="Outlet"/>
+                <dexpi:port id="SE_in_EEI1_port" name="EEI1" portType="ElectricalEnergyPort" direction="Outlet"${childSuperRef ? ` superReference="${childSuperRef}"` : ''}/>
               </dexpi:element>
             </extensionElements>
             <outgoing>F_in</outgoing>
@@ -212,15 +212,26 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
         </subProcess>
       `);
     }
-    const GAP = /no counterpart port on the subprocess/i;
+    const GAP = /declares superReference=.*but no port with that id/i;
 
-    it('warns when the nested Source port has no counterpart on the parent', async () => {
+    it('does NOT warn for a nested Source with no superReference — a plain off-page connector is valid DEXPI', async () => {
+      // Source is a ProcessStep allowed under SubProcessSteps and
+      // Sub/SuperReference are optional: the section needs no port for it.
       const t = new BpmnToDexpiTransformer();
       const out = await t.transform(sectionWithNestedSource(''));
+      expect(t.logger.warnings.filter(w => GAP.test(w))).toEqual([]);
+      expect(out).toContain('type="Process/Process.Source"');
+      expect(out).not.toContain('property="SuperReference"');
+    });
+
+    it('warns when the nested Source port declares a superReference that resolves to no port on the parent', async () => {
+      const t = new BpmnToDexpiTransformer();
+      const out = await t.transform(sectionWithNestedSource('', 'SP1_EEI1_port'));
       const gapWarnings = t.logger.warnings.filter(w => GAP.test(w));
       expect(gapWarnings).toHaveLength(1);
       expect(gapWarnings[0]).toContain('"Compressing" (id=SP1)');
       expect(gapWarnings[0]).toContain('port "EEI1" (ElectricalEnergyPort, Outlet)');
+      expect(gapWarnings[0]).toContain('superReference="SP1_EEI1_port"');
       expect(gapWarnings[0]).toContain('subReference="SE_in_EEI1_port"');
       expect(out).not.toContain('property="SuperReference"');
     });
@@ -229,7 +240,7 @@ describe('BpmnToDexpiTransformer – unit tests', () => {
       const parentPort =
         '<dexpi:port id="SP1_EEI1_port" name="EEI1" portType="ElectricalEnergyPort" direction="Inlet" subReference="SE_in_EEI1_port"/>';
       const t = new BpmnToDexpiTransformer();
-      const out = await t.transform(sectionWithNestedSource(parentPort));
+      const out = await t.transform(sectionWithNestedSource(parentPort, 'SP1_EEI1_port'));
       expect(t.logger.warnings.filter(w => GAP.test(w))).toEqual([]);
       expect(out).toContain('property="SuperReference" objects="#SP1_EEI1_port"');
       expect(out).toMatch(/property="SubReference"[\s\S]*?object="#SE_in_EEI1_port"/);

@@ -118,7 +118,7 @@ describe('DEXPI import round-trip — data completeness', () => {
     // 7 sections; 35 unit operations = 33 process steps plus the two
     // root-plane electrical-energy Sources that feed the ReactingChemicals
     // and Compressing sections (nested boundary proxies carry no level).
-    expect(levelCounts(d1)).toEqual({ ProcessSection: 7, UnitOperation: 35 });
+    expect(levelCounts(d1)).toEqual({ ProcessSection: 7, UnitOperation: 33 });
     expect(levelCounts(d2)).toEqual(levelCounts(d1));
     expect((d2.match(/Process\.MaterialTemplate"/g) ?? []).length)
       .toBe((d1.match(/Process\.MaterialTemplate"/g) ?? []).length);

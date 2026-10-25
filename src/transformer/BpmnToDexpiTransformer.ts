@@ -364,26 +364,30 @@ export class BpmnToDexpiTransformer {
       });
     });
 
-    // Guard the hierarchy: a Source/Sink nested in a subprocess is a boundary
-    // proxy for a port on that subprocess, and its port must resolve to that
-    // parent port (SuperReference). A proxy port with no counterpart on the
-    // section means the stream crosses the section boundary without a port on
-    // the section — the export is XSD-valid but the hierarchy is open, which
-    // is invisible to every validator. Surface it as a warning.
+    // Guard the hierarchy: a Source/Sink nested in a subprocess may be a
+    // boundary proxy for a port on that subprocess (its port then carries a
+    // superReference, mirrored by a subReference on the section port), or a
+    // plain off-page connector with no port on the section — both are valid
+    // DEXPI (Source/Sink are ProcessSteps allowed under SubProcessSteps, and
+    // Sub/SuperReference are optional). Only a superReference that does not
+    // resolve to a port on the section is a modelling error: the link is
+    // silently dropped from the output, so surface it as a warning.
     this.processSteps.forEach((step) => {
       if (!step.parentId || (step.type !== 'Source' && step.type !== 'Sink')) return;
       const parent = this.processSteps.get(step.parentId);
       if (!parent) return;
       step.ports.forEach((port: DexpiPort) => {
+        if (!port.superReference) return;
         if (this.ports.get(port.portId)?.parentPortId) return;
         this.logger.warn(
           `Subprocess "${parent.name}" (id=${parent.id}): nested ${step.type} ` +
           `"${step.name}" (id=${step.id}) port "${port.name}" (${port.portType}, ` +
-          `${port.direction}) has no counterpart port on the subprocess — ` +
-          `SuperReference omitted from DEXPI output, so the connection crosses ` +
-          `the section boundary without a port on the section. Declare a ` +
-          `${port.portType} on the subprocess's dexpi:element with ` +
-          `subReference="${port.portId}".`
+          `${port.direction}) declares superReference="${port.superReference}" but no ` +
+          `port with that id and a matching subReference exists on the subprocess — ` +
+          `SuperReference omitted from DEXPI output. Declare a ${port.portType} ` +
+          `with id="${port.superReference}" on the subprocess's dexpi:element with ` +
+          `subReference="${port.portId}", or drop the superReference to keep the ` +
+          `${step.type} as a plain off-page connector.`
         );
       });
     });

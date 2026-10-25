@@ -239,15 +239,16 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     }
   });
 
-  // Hierarchy closure: every Source/Sink nested in a section is a boundary
-  // proxy whose port must link up to a port on the section (SuperReference,
-  // mirrored by SubReference on the section's port). The XSD and every
-  // validator accept an export where a proxy port has no parent — the
-  // stream then crosses the section boundary without a port on the section.
-  // That is exactly how the EEI1 electrical-energy inlets of ReactingChemicals
-  // and Compressing were missing from the fixture until 2026-10-19, while
-  // every material boundary port was linked. Pin closure for ALL port types.
-  it('every nested Source/Sink boundary port carries a SuperReference to a port on its section', () => {
+  // Hierarchy: a Source/Sink nested in a section is either a boundary proxy
+  // whose port links up to a port on the section (SuperReference, mirrored
+  // by SubReference on the section's port) or a plain off-page connector
+  // with no port on the section. Both are valid DEXPI — Source/Sink are
+  // ProcessSteps allowed under SubProcessSteps, Sub/SuperReference are
+  // optional. In TEP every material boundary port is linked both ways,
+  // while the EEI1 electrical supplies of ReactingChemicals and Compressing
+  // are deliberately off-page connectors: the main level stays free of
+  // energy events (modelling decision of 2026-10-25, reverting 82d13fe).
+  it('nested material boundary ports carry a SuperReference; the EEI1 supplies stay plain off-page connectors', () => {
     const doc = new DOMParser().parseFromString(output, 'text/xml');
     const isCarrier = (el: Element | null, prop: string) =>
       el?.tagName === 'Components' && el.getAttribute('property') === prop;
@@ -260,6 +261,7 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
     expect(nestedProxies.length).toBeGreaterThanOrEqual(8);
 
     const missing: string[] = [];
+    const offPage: string[] = [];
     let checked = 0;
     for (const proxy of nestedProxies) {
       const ports = Array.from(proxy.children).find(c => isCarrier(c, 'Ports'));
@@ -267,15 +269,21 @@ describe('Integration – Tennessee Eastman Process (benchmark)', () => {
         checked++;
         const hasSuper = Array.from(port.children).some(c =>
           c.tagName === 'References' && c.getAttribute('property') === 'SuperReference');
-        if (!hasSuper) missing.push(`${proxy.getAttribute('id')} / ${port.getAttribute('id')}`);
+        const isMaterial = port.getAttribute('type') === 'Process/Process.MaterialPort';
+        if (!hasSuper && isMaterial) missing.push(`${proxy.getAttribute('id')} / ${port.getAttribute('id')}`);
+        if (!hasSuper && !isMaterial) offPage.push(port.getAttribute('id') ?? '');
       }
     }
     expect(checked).toBeGreaterThan(0);
-    expect(missing, `nested boundary ports without SuperReference:\n${missing.join('\n')}`).toEqual([]);
-    // The two electrical-energy inlets that used to be open, now linked.
-    expect(output).toContain('objects="#Activity_07878z5_EEI1_port"');
-    expect(output).toContain('objects="#Activity_0yezzw8_EEI1_port"');
-    expect(transformer.logger.warnings.filter(w => /no counterpart port on the subprocess/.test(w)))
+    expect(missing, `nested material boundary ports without SuperReference:\n${missing.join('\n')}`).toEqual([]);
+    // The two electrical-energy supplies are off-page connectors inside
+    // their sections: no port on the section, no root-level energy source.
+    expect(offPage.sort()).toEqual(['Event_01fem2h_EEI1_port', 'Event_1mp0d4h_EEI1_port']);
+    expect(output).not.toContain('Activity_07878z5_EEI1_port');
+    expect(output).not.toContain('Activity_0yezzw8_EEI1_port');
+    expect(output).not.toContain('Event_0eei1rc');
+    expect(output).not.toContain('Event_0eei1cp');
+    expect(transformer.logger.warnings.filter(w => /superReference=.*but no port with that id/.test(w)))
       .toEqual([]);
   });
 
