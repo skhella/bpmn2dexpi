@@ -91,6 +91,8 @@ interface DexpiConnection {
   dexpiType: string;      // Stream, ThermalEnergyFlow, InformationFlow, etc.
   identifier: string;
   label: string;
+  /** False when the DEXPI object carried no Label (label then falls back to the identifier). */
+  hasLabel: boolean;
   sourcePortId: string;
   targetPortId: string;
   informationVariantLabel?: string;
@@ -208,6 +210,7 @@ const V_GAP = 100;       // vertical gap between elements
 const MARGIN_X = 100;
 const MARGIN_Y = 100;
 const ENERGY_BAND_GAP = 80; // vertical gap between an energy boundary event and its connected task
+const PLANE_MIN_MARGIN = 20; // smallest x / y any shape may have on a plane
 
 export interface DexpiToBpmnTransformOptions {
   /** Pre-loaded Process.xml string (for browser builds where the file isn't on disk). */
@@ -858,7 +861,8 @@ export class DexpiToBpmnTransformer {
     const fullType = obj.getAttribute('type') || '';
     const dexpiType = fullType.replace('Process/Process.', '');
     const identifier = this.getDataString(obj, 'Identifier') || id;
-    const label = this.getDataString(obj, 'Label') || identifier;
+    const rawLabel = this.getDataString(obj, 'Label');
+    const label = rawLabel || identifier;
 
     // Resolve Source and Target port references
     const sourceRef = obj.querySelector('References[property="Source"]')?.getAttribute('objects') || '';
@@ -887,7 +891,7 @@ export class DexpiToBpmnTransformer {
     );
 
     return {
-      id, dexpiType, identifier, label,
+      id, dexpiType, identifier, label, hasLabel: !!rawLabel,
       sourcePortId, targetPortId,
       informationVariantLabel: infoVariantLabel,
       materialStateRef, materialTemplateRef,
@@ -1069,6 +1073,7 @@ export class DexpiToBpmnTransformer {
           dexpiType: sourceConnection?.dexpiType || streamTypeForPort(parentPort),
           identifier: flowId,
           label: `${sourcePort?.label || sourcePortId} - ${targetPort?.label || targetPortId}`,
+          hasLabel: true,
           sourcePortId,
           targetPortId,
         });
@@ -1750,6 +1755,14 @@ export class DexpiToBpmnTransformer {
         layout.set(id, { x, y, w, h });
         yOrder.set(id, y);
       });
+
+      // Generic rule: the stack offset above is computed per lane, so a lane-1
+      // stack can extend into lane 0 / lane 2 and land on a box placed there.
+      // Separate the layer's column: keep the top-to-bottom order, push boxes
+      // apart until every pair has at least V_GAP between them, then
+      // re-centre the column on its original midpoint so the layer stays
+      // aligned with its neighbours.
+      this.separateLayerColumn(ids, layout, yOrder);
     });
 
     // Instrumentation steps were excluded from byLayer above. Give them a
@@ -1776,7 +1789,62 @@ export class DexpiToBpmnTransformer {
 
     this.positionInstrumentationActivities(visibleSteps, connections, layout, hiddenStepIds);
 
+    // Generic rule: nothing on a plane sits at a negative coordinate. Energy
+    // proxies are placed relative to their task (ENERGY_BAND_GAP above it) and
+    // can end up above the canvas edge when no instrumentation band pushed the
+    // tasks down; shift the whole plane so its top-left stays at the margin.
+    this.normalizePlaneOrigin(layout);
+
     return layout;
+  }
+
+  /**
+   * Push the boxes of one layer column apart (top-to-bottom order preserved)
+   * until consecutive boxes are at least V_GAP apart, then shift the column so
+   * its vertical midpoint is unchanged.
+   */
+  private separateLayerColumn(
+    ids: string[],
+    layout: Map<string, LayoutBox>,
+    yOrder: Map<string, number>
+  ): void {
+    const entries = ids
+      .map(id => ({ id, box: layout.get(id)! }))
+      .filter(entry => !!entry.box)
+      .sort((a, b) => a.box.y - b.box.y || a.id.localeCompare(b.id));
+    if (entries.length < 2) return;
+
+    const top = entries[0].box.y;
+    const bottom = Math.max(...entries.map(entry => entry.box.y + entry.box.h));
+    const midpoint = (top + bottom) / 2;
+
+    let cursor = -Infinity;
+    const separated = entries.map(entry => {
+      const y = Math.max(entry.box.y, cursor);
+      cursor = y + entry.box.h + V_GAP;
+      return { id: entry.id, box: { ...entry.box, y } };
+    });
+
+    const newTop = separated[0].box.y;
+    const newBottom = Math.max(...separated.map(entry => entry.box.y + entry.box.h));
+    const shift = midpoint - (newTop + newBottom) / 2;
+    separated.forEach(entry => {
+      const box = { ...entry.box, y: entry.box.y + shift };
+      layout.set(entry.id, box);
+      yOrder.set(entry.id, box.y);
+    });
+  }
+
+  /** Shift every box so the plane's minimum x and y are at least PLANE_MIN_MARGIN. */
+  private normalizePlaneOrigin(layout: Map<string, LayoutBox>): void {
+    const boxes = Array.from(layout.values()).filter(box => box.w > 0 && box.h > 0);
+    if (boxes.length === 0) return;
+    const minX = Math.min(...boxes.map(box => box.x));
+    const minY = Math.min(...boxes.map(box => box.y));
+    const dx = minX < PLANE_MIN_MARGIN ? PLANE_MIN_MARGIN - minX : 0;
+    const dy = minY < PLANE_MIN_MARGIN ? PLANE_MIN_MARGIN - minY : 0;
+    if (dx === 0 && dy === 0) return;
+    layout.forEach((box, id) => layout.set(id, { ...box, x: box.x + dx, y: box.y + dy }));
   }
 
   /**
@@ -2378,7 +2446,8 @@ export class DexpiToBpmnTransformer {
       lane: number,
       srcAnchor: Anchor,
       tgtAnchor: Anchor,
-      obstacles: LayoutBox[]
+      obstacles: LayoutBox[],
+      preferredBendX?: number
     ) => {
       const srcPoint = connectionPoint(srcPos, srcAnchor);
       const tgtPoint = connectionPoint(tgtPos, tgtAnchor);
@@ -2419,13 +2488,13 @@ export class DexpiToBpmnTransformer {
       // obstacle x-ranges and returns the gap-midpoint closest to `preferX`.
       // Falls back to a position outside all obstacles if no interior gap
       // accommodates the column.
-      const clearXColumn = (yMin: number, yMax: number, preferX: number) => {
+      const clearXColumns = (yMin: number, yMax: number, preferX: number): number[] => {
         const lo = Math.min(yMin, yMax) - 4;
         const hi = Math.max(yMin, yMax) + 4;
         const blockers = [...obstacles, srcPos, tgtPos].filter(box =>
           box.y + box.h > lo && box.y < hi
         );
-        if (blockers.length === 0) return preferX;
+        if (blockers.length === 0) return [preferX];
 
         const sorted = blockers
           .map(b => ({ x1: b.x - 30, x2: b.x + b.w + 30 }))
@@ -2442,10 +2511,11 @@ export class DexpiToBpmnTransformer {
           gaps.push((merged[i - 1].x2 + merged[i].x1) / 2);
         }
         gaps.push(merged[merged.length - 1].x2 + 30);
-        return gaps.reduce((best, x) =>
-          Math.abs(x - preferX) < Math.abs(best - preferX) ? x : best
-        , gaps[0]);
+        return gaps.sort((a, b) => Math.abs(a - preferX) - Math.abs(b - preferX));
       };
+      const routeObstacleHits = (points: Waypoint[], boxes: LayoutBox[]) =>
+        points.reduce((sum, point, index) =>
+          sum + (index > 0 ? boxes.filter(box => segmentIntersectsObstacle(points[index - 1], point, [box])).length : 0), 0);
 
       // Generic rule: when either endpoint anchors on a top/bottom edge, route
       // with a stub-corner-stub pattern. The stub direction is dictated by the
@@ -2562,14 +2632,11 @@ export class DexpiToBpmnTransformer {
           // outside every obstacle (plus src/tgt boxes) whose Y-extent
           // overlaps the [tgt-stub..src-stub] range → vertical along the
           // clean column → short stub past tgt's edge → into tgt.
-          const srcStubY = srcStub.y;
-          const tgtStubY = tgtStub.y;
-          const cleanX = clearXColumn(
-            Math.min(srcStubY, tgtStubY),
-            Math.max(srcStubY, tgtStubY),
-            (srcPoint.x + tgtPoint.x) / 2
-          );
-          return [
+          // The two horizontal legs run at the stub Ys; when one of them cuts
+          // a box in its row, push that stub further out (away from its
+          // box) in 20px steps until the whole loop is clear. The first
+          // clear combination wins; the unvalidated loop is the fallback.
+          const loopAt = (srcStubY: number, tgtStubY: number, cleanX: number): Waypoint[] => [
             srcPoint,
             { x: srcPoint.x, y: srcStubY },
             { x: cleanX, y: srcStubY },
@@ -2577,6 +2644,26 @@ export class DexpiToBpmnTransformer {
             { x: tgtPoint.x, y: tgtStubY },
             tgtPoint,
           ];
+          const stubCandidates = (stubY: number, side: 'top' | 'bottom') =>
+            Array.from({ length: 7 }, (_, k) => stubY + (side === 'bottom' ? 1 : -1) * k * 20);
+          let fallback: Waypoint[] | null = null;
+          let fallbackHits = Infinity;
+          for (const srcStubY of stubCandidates(srcStub.y, srcSide)) {
+            for (const tgtStubY of stubCandidates(tgtStub.y, tgtSide)) {
+              const columns = clearXColumns(
+                Math.min(srcStubY, tgtStubY),
+                Math.max(srcStubY, tgtStubY),
+                (srcPoint.x + tgtPoint.x) / 2
+              );
+              for (const cleanX of columns) {
+                const loop = loopAt(srcStubY, tgtStubY, cleanX);
+                const hits = routeObstacleHits(loop, obstacles);
+                if (hits === 0) return loop;
+                if (hits < fallbackHits) { fallbackHits = hits; fallback = loop; }
+              }
+            }
+          }
+          return fallback ?? loopAt(srcStub.y, tgtStub.y, clearXColumns(srcStub.y, tgtStub.y, (srcPoint.x + tgtPoint.x) / 2)[0]);
         }
 
         // Mixed sides (one vertical anchor + one horizontal anchor). Build a
@@ -2614,15 +2701,15 @@ export class DexpiToBpmnTransformer {
       // Otherwise, fall back to a lane above all obstacles (or below, based
       // on which side puts the route closer to its endpoints).
       const safeUDetour = (
-        exitX: number,
-        entryX: number,
+        exitX0: number,
+        entryX0: number,
         forceBelow?: boolean
       ): Waypoint[] => {
         const goBelow = forceBelow !== undefined
           ? forceBelow
           : tgtPos.y + tgtPos.h / 2 > srcPos.y + srcPos.h / 2;
 
-        const buildRoute = (detourY: number): Waypoint[] => [
+        const buildRoute = (exitX: number, entryX: number, detourY: number): Waypoint[] => [
           { x: srcX, y: srcY },
           { x: exitX, y: srcY },
           { x: exitX, y: detourY },
@@ -2631,48 +2718,74 @@ export class DexpiToBpmnTransformer {
           { x: tgtX, y: tgtY },
         ];
 
-        const lo = Math.min(exitX, entryX) - 4;
-        const hi = Math.max(exitX, entryX) + 4;
-        const stripObstacles = obstacles.filter(box =>
-          box.x + box.w > lo && box.x < hi
-        );
+        // Generic rule: the exit / entry column must not run through a box
+        // parked beside the endpoint (an energy proxy next to a recycle step,
+        // say). Offer the requested column first, then columns stepped
+        // inward (closer to the endpoint, keeping a short stub) and outward;
+        // the full-route validation below picks the first clear one.
+        const columnCandidates = (x0: number, anchorX: number) => {
+          const dir = x0 >= anchorX ? 1 : -1;
+          const out: number[] = [x0];
+          for (let k = 1; k <= 4; k += 1) {
+            const x = x0 - dir * k * 10;
+            if (Math.abs(x - anchorX) >= 15) out.push(x);
+          }
+          for (let k = 1; k <= 8; k += 1) out.push(x0 + dir * k * 16);
+          return out;
+        };
 
-        // Try the inter-row gap first when src and tgt are on different rows
-        // — keeps the detour close to the endpoints. Validate the full route;
-        // if any segment cuts an obstacle, fall through to the side-lane
-        // candidates below.
-        const rowsOverlap = srcPos.y < tgtPos.y + tgtPos.h && tgtPos.y < srcPos.y + srcPos.h;
-        if (!rowsOverlap) {
-          const gapTop = Math.min(srcPos.y + srcPos.h, tgtPos.y + tgtPos.h);
-          const gapBottom = Math.max(srcPos.y, tgtPos.y);
-          if (gapBottom - gapTop > 30) {
-            // Spread parallel detours within the gap by `laneOffset` so two
-            // routes through the same gap don't sit on top of each other.
-            // The center is the natural pick for lane 0; later lanes
-            // alternate above/below the center, clamped to the gap interior.
-            const center = (gapTop + gapBottom) / 2;
-            const halfGap = (gapBottom - gapTop) / 2 - 6;
-            const spread = Math.max(-halfGap, Math.min(halfGap, laneOffset / 2));
-            const candidate = center + spread;
-            const blocked = stripObstacles.some(box =>
-              candidate >= box.y - 4 && candidate <= box.y + box.h + 4
-            );
-            if (!blocked) {
-              const route = buildRoute(candidate);
+        const sides = [goBelow ? 'bottom' : 'top', goBelow ? 'top' : 'bottom'] as const;
+        const detourCandidates = (exitX: number, entryX: number): number[] => {
+          const list: number[] = [];
+          const lo = Math.min(exitX, entryX) - 4;
+          const hi = Math.max(exitX, entryX) + 4;
+          const stripObstacles = obstacles.filter(box => box.x + box.w > lo && box.x < hi);
+
+          // The inter-row gap first when src and tgt are on different rows —
+          // keeps the detour close to the endpoints. Parallel detours through
+          // the same gap are spread by laneOffset around the centre.
+          const rowsOverlap = srcPos.y < tgtPos.y + tgtPos.h && tgtPos.y < srcPos.y + srcPos.h;
+          if (!rowsOverlap) {
+            const gapTop = Math.min(srcPos.y + srcPos.h, tgtPos.y + tgtPos.h);
+            const gapBottom = Math.max(srcPos.y, tgtPos.y);
+            if (gapBottom - gapTop > 30) {
+              const center = (gapTop + gapBottom) / 2;
+              const halfGap = (gapBottom - gapTop) / 2 - 6;
+              const spread = Math.max(-halfGap, Math.min(halfGap, laneOffset / 2));
+              const candidate = center + spread;
+              const blocked = stripObstacles.some(box =>
+                candidate >= box.y - 4 && candidate <= box.y + box.h + 4
+              );
+              if (!blocked) list.push(candidate);
+            }
+          }
+
+          // Tight lanes: just past the boxes that actually block the band
+          // between the two rows, before the conservative lane past every
+          // box in the strip (which can loop far above the plane).
+          const bandLo = Math.min(srcY, tgtY) - 4;
+          const bandHi = Math.max(srcY, tgtY) + 4;
+          const blockers = stripObstacles.filter(box => box.y + box.h > bandLo && box.y < bandHi);
+          if (blockers.length > 0) {
+            sides.forEach(side => list.push(side === 'top'
+              ? Math.min(...blockers.map(b => b.y)) - 30 - laneOffset
+              : Math.max(...blockers.map(b => b.y + b.h)) + 30 + laneOffset));
+          }
+          sides.forEach(side => list.push(clearLaneY(exitX, entryX, side)));
+          return list;
+        };
+
+        for (const exitX of columnCandidates(exitX0, srcX)) {
+          for (const entryX of columnCandidates(entryX0, tgtX)) {
+            for (const detourY of detourCandidates(exitX, entryX)) {
+              const route = buildRoute(exitX, entryX, detourY);
               if (!routeIntersectsObstacle(route, obstacles)) return route;
             }
           }
         }
 
-        // Side lanes — try the preferred side first, then the opposite.
-        for (const side of [goBelow ? 'bottom' : 'top', goBelow ? 'top' : 'bottom'] as const) {
-          const detourY = clearLaneY(exitX, entryX, side);
-          const route = buildRoute(detourY);
-          if (!routeIntersectsObstacle(route, obstacles)) return route;
-        }
-
-        // Last resort: preferred side with no validation (better than throwing).
-        return buildRoute(clearLaneY(exitX, entryX, goBelow ? 'bottom' : 'top'));
+        // Last resort: requested columns, preferred side, no validation.
+        return buildRoute(exitX0, entryX0, clearLaneY(exitX0, entryX0, goBelow ? 'bottom' : 'top'));
       };
 
       // Helper: pick a clear corridor X between two candidate positions, falling
@@ -2681,7 +2794,10 @@ export class DexpiToBpmnTransformer {
         anchor.side === 'left' ? x - 35 - laneOffset : x + 35 + laneOffset;
 
       if (srcAnchor.side === 'right' && tgtAnchor.side === 'left' && tgtX >= srcX + 50) {
-        const bendX = Math.max(srcX + 35, tgtX - 60 - laneOffset);
+        // The bend column is normally pre-assigned per fan-in / fan-out group
+        // (see assignBendColumns) so flows into the same layer never share a
+        // vertical segment; the lane-offset formula is only the fallback.
+        const bendX = preferredBendX ?? Math.max(srcX + 35, tgtX - 60 - laneOffset);
         const directRoute = [
           { x: srcX, y: srcY },
           { x: bendX, y: srcY },
@@ -3088,7 +3204,43 @@ ${indent}</bpmn:task>`;
     };
     infoFlows.forEach(conn => placeDataObject(conn));
 
-    // Sequence flows
+    // Sequence flows — phase 1: element XML and anchors. Routing happens in a
+    // second pass once every flow's anchors are known, so bend columns can be
+    // assigned per fan-in / fan-out group.
+    type PendingFlow = {
+      conn: DexpiConnection; src: string; tgt: string; key: string;
+      ownerLayout: Map<string, LayoutBox>; srcPos: LayoutBox; tgtPos: LayoutBox; srcA: Anchor; tgtA: Anchor;
+      lane: number;
+    };
+    const pendingFlows: PendingFlow[] = [];
+    // Every routed polyline per owner plane (sequence flows, then the
+    // instrumentation associations as they are emitted) — used to pick the
+    // association detour with the fewest line crossings.
+    const routedPolylinesByOwner = new Map<string, Waypoint[][]>();
+    const countCrossings = (route: Waypoint[], others: Waypoint[][]) => {
+      let count = 0;
+      for (let i = 1; i < route.length; i += 1) {
+        const a = route[i - 1];
+        const b = route[i];
+        for (const other of others) {
+          for (let j = 1; j < other.length; j += 1) {
+            const c = other[j - 1];
+            const d = other[j];
+            const abHorizontal = a.y === b.y;
+            const cdHorizontal = c.y === d.y;
+            if (abHorizontal === cdHorizontal) continue;
+            const h = abHorizontal ? [a, b] : [c, d];
+            const v = abHorizontal ? [c, d] : [a, b];
+            const hx1 = Math.min(h[0].x, h[1].x);
+            const hx2 = Math.max(h[0].x, h[1].x);
+            const vy1 = Math.min(v[0].y, v[1].y);
+            const vy2 = Math.max(v[0].y, v[1].y);
+            if (v[0].x > hx1 && v[0].x < hx2 && h[0].y > vy1 && h[0].y < vy2) count += 1;
+          }
+        }
+      }
+      return count;
+    };
     seqFlows.forEach(conn => {
       const src = portToStep.get(conn.sourcePortId);
       const tgt = portToStep.get(conn.targetPortId);
@@ -3135,7 +3287,12 @@ ${childLines.join('\n')}
         streamXml = `${streamOpenTag}/>`;
       }
 
-      sequenceFlowsByOwner.get(key)!.push(`<bpmn:sequenceFlow id="${connId}" name="${conn.label}" sourceRef="${bpmnId(src)}" targetRef="${bpmnId(tgt)}">
+      // Generic rule: a stream without a DEXPI Label gets an empty BPMN name.
+      // Falling back to the (often 40-character) identifier would print it
+      // beside every line and clutter the diagram; the identifier is kept on
+      // the dexpi:Stream extension either way.
+      const flowName = conn.hasLabel ? escAttr(conn.label) : '';
+      sequenceFlowsByOwner.get(key)!.push(`<bpmn:sequenceFlow id="${connId}" name="${flowName}" sourceRef="${bpmnId(src)}" targetRef="${bpmnId(tgt)}">
   <bpmn:extensionElements>
     ${streamXml}
   </bpmn:extensionElements>
@@ -3165,18 +3322,35 @@ ${childLines.join('\n')}
       };
       const srcA = withNudge(visualEndpointKey(conn, 'source'), srcAnchor);
       const tgtA = withNudge(visualEndpointKey(conn, 'target'), tgtAnchor);
+      pendingFlows.push({ conn, src, tgt, key, ownerLayout, srcPos, tgtPos, srcA, tgtA, lane: nextLane(key) });
+    });
 
+    // Phase 2: route and emit. The non-forward flows (recycle returns, same-
+    // side corridors, energy stubs) go first so the forward flows' bend
+    // columns can be chosen with their polylines known.
+    const routeAndEmit = (flow: PendingFlow, preferredBendX?: number) => {
+      const { conn, src, tgt, key, ownerLayout, srcPos, tgtPos, srcA, tgtA, lane } = flow;
+      const connId = bpmnId(conn.id);
+      // Material Sources/Sinks sit in their own outer columns and are not
+      // obstacles; energy boundary proxies sit between the tasks (above or
+      // below the one they feed) and must be routed around like a task.
       const obstacles = [...ownerLayout.entries()]
         .filter(([stepId, box]) => {
           if (stepId === src || stepId === tgt) return false;
           const obstacleStep = stepById.get(stepId);
-          if (!obstacleStep || obstacleStep.dexpiType === 'Source' || obstacleStep.dexpiType === 'Sink') return false;
+          if (!obstacleStep) return false;
+          const isEvent = obstacleStep.dexpiType === 'Source' || obstacleStep.dexpiType === 'Sink';
+          if (isEvent && !this.isEnergyBoundaryProxy(obstacleStep)) return false;
           return box.w > 0 && box.h > 0;
         })
         .map(([, box]) => box);
       const dataObjObstacles = dataObjBoxesByOwner.get(key) || [];
-      const routedWaypoints = routeSequenceFlow(srcPos, tgtPos, nextLane(key), srcA, tgtA, [...obstacles, ...dataObjObstacles]);
+      const routedWaypoints = routeSequenceFlow(
+        srcPos, tgtPos, lane, srcA, tgtA, [...obstacles, ...dataObjObstacles], preferredBendX
+      );
       const rawWaypoints = routedWaypoints.length > 4 ? simplifyWaypoints(routedWaypoints) : routedWaypoints;
+      if (!routedPolylinesByOwner.has(key)) routedPolylinesByOwner.set(key, []);
+      routedPolylinesByOwner.get(key)!.push(rawWaypoints);
 
       const waypoints = rawWaypoints
         .map(point => `        <di:waypoint x="${point.x}" y="${point.y}"/>`)
@@ -3191,7 +3365,101 @@ ${waypoints}
       } else {
         pushOwned(edgeElementsByOwner, key, edgeXml);
       }
+    };
+
+    // A forward flow leaves its source on the right, enters its target on
+    // the left and has room for a single bend between them (the Z route).
+    type ZFlow = {
+      flow: PendingFlow; srcX: number; srcY: number; tgtX: number; tgtY: number; lo: number; hi: number;
+    };
+    const zFlows: ZFlow[] = [];
+    pendingFlows.forEach(flow => {
+      const { srcPos, tgtPos, srcA, tgtA } = flow;
+      if (srcA.side !== 'right' || tgtA.side !== 'left') return;
+      const s = connectionPoint(srcPos, srcA);
+      const t = connectionPoint(tgtPos, tgtA);
+      if (t.x < s.x + 50) return;
+      zFlows.push({ flow, srcX: s.x, srcY: s.y, tgtX: t.x, tgtY: t.y, lo: Math.min(s.y, t.y), hi: Math.max(s.y, t.y) });
     });
+    const zFlowIds = new Set(zFlows.map(z => z.flow.conn.id));
+    pendingFlows.filter(flow => !zFlowIds.has(flow.conn.id)).forEach(flow => routeAndEmit(flow));
+
+    // Generic rule: flows that enter the same layer from the left all bend
+    // just before their target. If they share the bend column, lines coming
+    // from above and below run along the same vertical segment and read as
+    // intertwined. Give every forward flow in a (plane, target column) group
+    // its own bend column, ordered so that no two lines cross on the way in:
+    // for a fan-in the source farthest above (or below) the target bends
+    // nearest to it, for a fan-out the target farthest from the source bends
+    // nearest to the source — the pairwise test below encodes both. Columns
+    // already taken by the lines routed above (a recycle return dropping
+    // into the same target, say) are avoided the same way.
+    const BEND_BASE = 50;  // first bend column, px before the target's left edge
+    const BEND_STEP = 18;  // spacing between bend columns
+    const bendXByConn = new Map<string, number>();
+    {
+      const groups = new Map<string, ZFlow[]>();
+      zFlows.forEach(z => {
+        const groupKey = `${z.flow.key}:${z.tgtX}`;
+        if (!groups.has(groupKey)) groups.set(groupKey, []);
+        groups.get(groupKey)!.push(z);
+      });
+
+      // `near` bends closer to the target (larger x) than `far`. The two Z
+      // routes cross when near's first horizontal cuts far's vertical, or
+      // far's last horizontal cuts near's vertical.
+      const crosses = (near: ZFlow, far: ZFlow) =>
+        (near.srcY > far.lo && near.srcY < far.hi) ||
+        (far.tgtY > near.lo && far.tgtY < near.hi);
+      const zRoute = (z: ZFlow, x: number): Waypoint[] => [
+        { x: z.srcX, y: z.srcY }, { x, y: z.srcY }, { x, y: z.tgtY }, { x: z.tgtX, y: z.tgtY },
+      ];
+      // A vertical segment of `others` within 6px of column x whose y-range
+      // overlaps [lo, hi] would read as the same line.
+      const coincidences = (x: number, lo: number, hi: number, others: Waypoint[][]) =>
+        others.reduce((sum, other) => sum + other.filter((point, i) =>
+          i > 0 && point.x === other[i - 1].x && Math.abs(point.x - x) < 6 &&
+          Math.min(point.y, other[i - 1].y) < hi + 6 && lo < Math.max(point.y, other[i - 1].y) + 6
+        ).length, 0);
+
+      groups.forEach(flows => {
+        // Order the group near-to-far by inserting each flow where it causes
+        // the fewest crossings with the flows already ordered.
+        const order: ZFlow[] = [];
+        flows.forEach(z => {
+          let bestIdx = 0;
+          let bestCost = Infinity;
+          for (let i = 0; i <= order.length; i += 1) {
+            const cost = order.reduce((sum, other, j) =>
+              sum + ((j < i ? crosses(other, z) : crosses(z, other)) ? 1 : 0), 0);
+            if (cost < bestCost) { bestCost = cost; bestIdx = i; }
+          }
+          order.splice(bestIdx, 0, z);
+        });
+
+        // Hand out columns in that order: the first column whose Z route
+        // neither coincides with nor crosses a line already placed (the
+        // non-forward flows routed above plus the group's earlier members).
+        const reserved = routedPolylinesByOwner.get(flows[0].flow.key) || [];
+        const placed: Waypoint[][] = [];
+        order.forEach(z => {
+          let bestX = z.tgtX - BEND_BASE;
+          let best = Infinity;
+          for (let col = 0; col <= placed.length + reserved.length; col += 1) {
+            const x = Math.max(z.srcX + 35, z.tgtX - BEND_BASE - col * BEND_STEP);
+            const route = zRoute(z, x);
+            const others = [...placed, ...reserved];
+            const cost = coincidences(x, z.lo, z.hi, others) + countCrossings(route, others);
+            if (cost < best) { best = cost; bestX = x; }
+            if (cost === 0) break;
+          }
+          placed.push(zRoute(z, bestX));
+          bendXByConn.set(z.flow.conn.id, bestX);
+        });
+      });
+    }
+
+    zFlows.forEach(z => routeAndEmit(z.flow, bendXByConn.get(z.flow.conn.id)));
 
     // InformationFlows → DataObjectReference + bidirectional associations.
     // Positions in `dobjBySourcePort` were computed by the pre-pass above
@@ -3499,11 +3767,49 @@ ${qualLines}
           const inset = INSTR_DATA_OBJ_W;
           trunkX = dobjCx <= rCx ? refPos.x + inset : refPos.x + refPos.w - inset;
         }
+
+        // Generic rule: the trunk drops through whatever sits in the column
+        // above the measured step (a recycle-lane task, an energy proxy, …).
+        // Treat every other box on the plane as an obstacle, as the sequence
+        // flows do, and when the straight drop is blocked go around: down a
+        // column beside the step, under the blocking box, then into the top
+        // edge. Among the clear candidates take the one crossing the fewest
+        // lines already routed on this plane.
+        const assocObstacles = [...ownerLayout.entries()]
+          .filter(([id, box]) => id !== refStepId && id !== activity.id && box.w > 0 && box.h > 0)
+          .map(([, box]) => box);
+        const underY = refPos.y - 20;
+        const straight: Waypoint[] = [
+          { x: dobjCx, y: dobjBottomY },
+          { x: dobjCx, y: channelY },
+          { x: trunkX, y: channelY },
+          { x: trunkX, y: refPos.y },
+        ];
+        const around = (colX: number): Waypoint[] => [
+          { x: dobjCx, y: dobjBottomY },
+          { x: dobjCx, y: channelY },
+          { x: colX, y: channelY },
+          { x: colX, y: underY },
+          { x: trunkX, y: underY },
+          { x: trunkX, y: refPos.y },
+        ];
+        const nearSideFirst = dobjCx <= rCx
+          ? [refPos.x - 30, refPos.x + refPos.w + 30, refPos.x - 60, refPos.x + refPos.w + 60]
+          : [refPos.x + refPos.w + 30, refPos.x - 30, refPos.x + refPos.w + 60, refPos.x - 60];
+        const candidates = [straight, ...nearSideFirst.map(around)];
+        const routedHere = routedPolylinesByOwner.get(activityKey) || [];
+        let assocRoute = straight;
+        let assocCost = Infinity;
+        candidates.forEach(candidate => {
+          const blocked = routeIntersectsObstacle(candidate, assocObstacles);
+          const cost = (blocked ? 1000 : 0) + countCrossings(candidate, routedHere);
+          if (cost < assocCost) { assocCost = cost; assocRoute = candidate; }
+        });
+        const assocWaypoints = simplifyWaypoints(assocRoute);
+        if (!routedPolylinesByOwner.has(activityKey)) routedPolylinesByOwner.set(activityKey, []);
+        routedPolylinesByOwner.get(activityKey)!.push(assocWaypoints);
         const edgeInXml = `      <bpmndi:BPMNEdge id="${inAssocId}_di" bpmnElement="${inAssocId}">
-        <di:waypoint x="${dobjCx}" y="${dobjBottomY}"/>
-        <di:waypoint x="${dobjCx}" y="${channelY}"/>
-        <di:waypoint x="${trunkX}" y="${channelY}"/>
-        <di:waypoint x="${trunkX}" y="${refPos.y}"/>
+${assocWaypoints.map(point => `        <di:waypoint x="${point.x}" y="${point.y}"/>`).join('\n')}
       </bpmndi:BPMNEdge>`;
         if (activityKey === rootOwner) {
           edgeElements.push(edgeInXml);
@@ -3714,10 +4020,17 @@ ${innerXml}
         if (!byCase.has(key)) byCase.set(key, []);
         byCase.get(key)!.push(s);
       });
-      // Anchor next to the templates container if a second template position
-      // exists, otherwise leave unpositioned.
+      // Anchor next to the templates container: at the second template's slot
+      // when there is one, else one slot to the right of the first template,
+      // else (no templates at all) at the top-right corner of the root plane.
+      // The shape must always exist — a dataObjectReference without DI is
+      // invisible in the editor.
+      const first = materialTemplates[0];
       const second = materialTemplates[1];
-      const pos = second ? layout.get(`dt_${second.uid}`) : undefined;
+      const pos = (second ? layout.get(`dt_${second.uid}`) : undefined)
+        ?? (first && layout.get(`dt_${first.uid}`)
+          ? { ...layout.get(`dt_${first.uid}`)!, x: layout.get(`dt_${first.uid}`)!.x + 120 }
+          : this.topRightSlot(layout, 36, 50));
       let caseIdx = 0;
       for (const [caseName, states] of byCase) {
         const parts: string[] = [];
@@ -3736,7 +4049,7 @@ ${parts.join('\n')}
     </bpmn:extensionElements>
   </bpmn:dataObjectReference>
   <bpmn:dataObject id="DataObject_${dobjId}"/>`);
-        if (caseIdx === 0 && pos) {
+        if (caseIdx === 0) {
           shapeElements.push(`      <bpmndi:BPMNShape id="${dobjId}_di" bpmnElement="${dobjId}">
         <dc:Bounds x="${pos.x}" y="${pos.y}" width="36" height="50"/>
         <bpmndi:BPMNLabel/>
@@ -3789,6 +4102,23 @@ ${subprocessDiagrams ? '\n' + subprocessDiagrams : ''}
   }
 
   // ── Utilities ───────────────────────────────────────────────────────────────
+
+  /**
+   * A free slot of the given size at the top-right corner of a plane: flush
+   * with the plane's right edge at the top margin, moved right until it clears
+   * every laid-out box.
+   */
+  private topRightSlot(layout: Map<string, LayoutBox>, w: number, h: number): LayoutBox {
+    const boxes = Array.from(layout.values()).filter(box => box.w > 0 && box.h > 0);
+    const maxRight = Math.max(MARGIN_X + TASK_W, ...boxes.map(box => box.x + box.w));
+    const y = PLANE_MIN_MARGIN;
+    let x = maxRight - w;
+    const collides = (cx: number) => boxes.some(box =>
+      cx + w > box.x - 12 && cx < box.x + box.w + 12 && y + h > box.y - 12 && y < box.y + box.h + 12
+    );
+    while (collides(x)) x += w + 24;
+    return { x, y, w, h };
+  }
 
   private isPortProxyStep(step: DexpiStep): boolean {
     // A Source/Sink is a port-proxy (mirrored boundary that the BPMN exporter

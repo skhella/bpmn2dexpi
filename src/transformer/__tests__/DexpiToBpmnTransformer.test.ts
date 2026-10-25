@@ -878,6 +878,268 @@ ${step('MX1', 'Mixing', 'Mixer')}
       expect(recycleReturn.at(-1)?.x).toBe(reactor.x);
       expect(Math.min(...recycleReturn.map(point => point.y))).toBeGreaterThanOrEqual(Math.min(reactor.y, branch.y));
     });
+
+    // ── Regressions from the 2026-10-24 import layout audit ───────────────
+    type Pt = { x: number; y: number };
+    type Box = { id: string; x: number; y: number; w: number; h: number };
+    const planeShapes = (xml: string, planeId = 'BPMNPlane_imported'): Box[] => {
+      const plane = xml.match(new RegExp(`<bpmndi:BPMNPlane id="${planeId}"[\\s\\S]*?</bpmndi:BPMNPlane>`))?.[0] || '';
+      return [...plane.matchAll(/<bpmndi:BPMNShape[^>]*bpmnElement="([^"]+)"[^>]*>\s*<dc:Bounds x="(-?[\d.]+)" y="(-?[\d.]+)" width="(-?[\d.]+)" height="(-?[\d.]+)"/g)]
+        .map(m => ({ id: m[1], x: Number(m[2]), y: Number(m[3]), w: Number(m[4]), h: Number(m[5]) }));
+    };
+    const boxesIntersect = (a: Box, b: Box) =>
+      a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    const overlappingPairs = (shapes: Box[]) => {
+      const pairs: string[] = [];
+      shapes.forEach((a, i) => shapes.slice(i + 1).forEach(b => {
+        if (boxesIntersect(a, b)) pairs.push(`${a.id} × ${b.id}`);
+      }));
+      return pairs;
+    };
+    // Proper crossing of two axis-aligned segments (shared endpoints don't count).
+    const segmentsCross = (a1: Pt, a2: Pt, b1: Pt, b2: Pt) => {
+      const aHorizontal = a1.y === a2.y;
+      const bHorizontal = b1.y === b2.y;
+      if (aHorizontal === bHorizontal) return false;
+      const [h1, h2] = aHorizontal ? [a1, a2] : [b1, b2];
+      const [v1, v2] = aHorizontal ? [b1, b2] : [a1, a2];
+      return v1.x > Math.min(h1.x, h2.x) && v1.x < Math.max(h1.x, h2.x) &&
+        h1.y > Math.min(v1.y, v2.y) && h1.y < Math.max(v1.y, v2.y);
+    };
+    const edgesCross = (p: Pt[], q: Pt[]) =>
+      p.some((_, i) => i > 0 && q.some((__, j) => j > 0 && segmentsCross(p[i - 1], p[i], q[j - 1], q[j])));
+    const segmentHitsBox = (a: Pt, b: Pt, box: Box) => {
+      const minX = Math.min(a.x, b.x); const maxX = Math.max(a.x, b.x);
+      const minY = Math.min(a.y, b.y); const maxY = Math.max(a.y, b.y);
+      return maxX > box.x && minX < box.x + box.w && maxY > box.y && minY < box.y + box.h;
+    };
+
+    it('pushes same-layer boxes from different lanes apart instead of letting them overlap', async () => {
+      // Layer 2 holds a three-task lane-1 stack (B1..B3 → D) AND a lane-2
+      // sink-adjacent task (C → Sink). The stack is centred on lane 1 and its
+      // last member lands on C's lane-2 slot unless the layer is separated.
+      const xml = dexpi(
+        step('SE', 'Source', 'Feed', port('SE_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('A', 'MixingSimple', 'A', port('A_in', 'MaterialPort', 'In', 'MI1') + port('A_out', 'MaterialPort', 'Out', 'MO1')) +
+          ['B1', 'B2', 'B3'].map(id =>
+            step(id, 'Separating', id, port(`${id}_in`, 'MaterialPort', 'In', 'MI1') + port(`${id}_out`, 'MaterialPort', 'Out', 'MO1'))).join('') +
+          step('C', 'Pumping', 'C', port('C_in', 'MaterialPort', 'In', 'MI1') + port('C_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('D', 'Compressing', 'D', port('D_in', 'MaterialPort', 'In', 'MI1') + port('D_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('EE1', 'Sink', 'Product', port('EE1_in', 'MaterialPort', 'In', 'MI1')) +
+          step('EE2', 'Sink', 'Purge', port('EE2_in', 'MaterialPort', 'In', 'MI1')),
+        stream('S0', 'Stream', 'SE_out', 'A_in') +
+          ['B1', 'B2', 'B3'].map(id => stream(`S_${id}`, 'Stream', 'A_out', `${id}_in`) + stream(`S_${id}_D`, 'Stream', `${id}_out`, 'D_in')).join('') +
+          stream('S_C', 'Stream', 'A_out', 'C_in') +
+          stream('S_C_sink', 'Stream', 'C_out', 'EE2_in') +
+          stream('S_D_sink', 'Stream', 'D_out', 'EE1_in')
+      );
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+      const shapes = planeShapes(out);
+
+      expect(shapes.length).toBeGreaterThanOrEqual(9);
+      expect(overlappingPairs(shapes)).toEqual([]);
+      // Same column, order kept: the lane-2 task stays below the lane-1 stack.
+      expect(shapeBounds(out, 'C').x).toBe(shapeBounds(out, 'B3').x);
+      expect(shapeBounds(out, 'C').y).toBeGreaterThanOrEqual(shapeBounds(out, 'B3').y + shapeBounds(out, 'B3').h + 100);
+      // Every box keeps a positive position.
+      shapes.forEach(shape => expect(shape.y).toBeGreaterThanOrEqual(0));
+    });
+
+    it('gives fan-in flows distinct bend columns so their vertical segments neither coincide nor cross', async () => {
+      const sources = ['SE1', 'SE2', 'SE3', 'SE4'];
+      const xml = dexpi(
+        sources.map((id, i) => step(id, 'Source', `Feed ${i + 1}`, port(`${id}_out`, 'MaterialPort', 'Out', 'MO1'))).join('') +
+          step('T1', 'ReactingChemicals', 'Reactor',
+            sources.map((_, i) => port(`T1_in${i + 1}`, 'MaterialPort', 'In', `MI${i + 1}`)).join('') +
+            port('T1_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('EE1', 'Sink', 'Product', port('EE1_in', 'MaterialPort', 'In', 'MI1')),
+        sources.map((id, i) => stream(`S${i + 1}`, 'Stream', `${id}_out`, `T1_in${i + 1}`)).join('') +
+          stream('S_out', 'Stream', 'T1_out', 'EE1_in')
+      );
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+      const target = shapeBounds(out, 'T1');
+      const routes = sources.map((_, i) => edgeWaypoints(out, `S${i + 1}`));
+
+      routes.forEach(route => {
+        // Plain Z route: out of the source, one vertical, into the target.
+        expect(route).toHaveLength(4);
+        expect(route[1].x).toBe(route[2].x);
+        expect(route[3].x).toBe(target.x);
+        expect(route[1].x).toBeLessThan(target.x);
+      });
+      const bendX = routes.map(route => route[1].x);
+      const span = routes.map(route => [Math.min(route[1].y, route[2].y), Math.max(route[1].y, route[2].y)]);
+      expect(new Set(bendX).size).toBeGreaterThanOrEqual(2);
+      routes.forEach((route, i) => routes.forEach((other, j) => {
+        if (j <= i) return;
+        const verticalsOverlap = span[i][0] < span[j][1] && span[j][0] < span[i][1];
+        if (verticalsOverlap) expect(bendX[i], `S${i + 1} and S${j + 1} share a bend column`).not.toBe(bendX[j]);
+        expect(edgesCross(route, other), `S${i + 1} crosses S${j + 1}`).toBe(false);
+      }));
+    });
+
+    it('always gives the MaterialStates container a shape, even without material templates', async () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Model name="process_model" uri="http://www.example.org">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel">
+      <Object id="pm1" type="Process/ProcessModel">
+        <Components property="ProcessSteps">
+${step('SE1', 'Source', 'Feed', port('SE_out', 'MaterialPort', 'Out', 'MO1'))}
+${step('T1', 'Pumping', 'Pump', port('T1_in', 'MaterialPort', 'In', 'MI1'))}
+        </Components>
+        <Components property="ProcessConnections">${stream('S1', 'Stream', 'SE_out', 'T1_in')}</Components>
+        <Components property="MaterialStates">
+          <Object id="ms1" type="Process/Process.MaterialState">
+            <Data property="Identifier"><String>ms1</String></Data>
+            <Data property="Label"><String>Base Case - Feed</String></Data>
+          </Object>
+        </Components>
+      </Object>
+    </Components>
+  </Object>
+</Model>`;
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+      expectWellFormedXml(out);
+
+      expect(out).toContain('<bpmn:dataObjectReference id="dt_dobj_MaterialStates"');
+      expect(out).not.toContain('dt_dobj_MaterialTemplates');
+      const shapes = planeShapes(out);
+      const container = shapes.find(shape => shape.id === 'dt_dobj_MaterialStates');
+      expect(container).toBeDefined();
+      expect(container!.y).toBeGreaterThanOrEqual(0);
+      // Top-right corner of the plane, clear of every other shape.
+      expect(container!.x + container!.w).toBeGreaterThanOrEqual(Math.max(...shapes.map(s => s.x + s.w)));
+      expect(overlappingPairs(shapes)).toEqual([]);
+    });
+
+    it('routes a data input association around a box sitting above the measured step', async () => {
+      // A → T2 → R → A puts the recycle task R in T2's column one lane up, so
+      // the straight drop from the instrument's data object into T2's top edge
+      // would run through R.
+      const t2 = `
+        <Object id="T2" type="Process/Process.Separating">
+          <Data property="Identifier"><String>T2</String></Data>
+          <Data property="Label"><String>Separator</String></Data>
+          <Components property="Ports">
+            ${port('T2_in', 'MaterialPort', 'In', 'MI1')}
+            ${port('T2_out', 'MaterialPort', 'Out', 'MO1')}
+            ${port('T2_out2', 'MaterialPort', 'Out', 'MO2')}
+          </Components>
+          <Components property="Temperature">
+            <Object id="T2_Temperature" type="Core/QualifiedValue"/>
+          </Components>
+        </Object>`;
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Model name="process_model" uri="http://www.example.org">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel">
+      <Object id="pm1" type="Process/ProcessModel">
+        <Components property="ProcessSteps">
+${step('SE1', 'Source', 'Feed', port('SE_out', 'MaterialPort', 'Out', 'MO1'))}
+${step('A', 'MixingSimple', 'Mixer', port('A_in', 'MaterialPort', 'In', 'MI1') + port('A_in2', 'MaterialPort', 'In', 'MI2') + port('A_out', 'MaterialPort', 'Out', 'MO1'))}
+${t2}
+${step('R', 'Pumping', 'Recycle pump', port('R_in', 'MaterialPort', 'In', 'MI1') + port('R_out', 'MaterialPort', 'Out', 'MO1'))}
+${step('EE1', 'Sink', 'Product', port('EE1_in', 'MaterialPort', 'In', 'MI1'))}
+        </Components>
+        <Components property="ProcessConnections">
+${stream('S1', 'Stream', 'SE_out', 'A_in')}
+${stream('S2', 'Stream', 'A_out', 'T2_in')}
+${stream('S3', 'Stream', 'T2_out', 'R_in')}
+${stream('S4', 'Stream', 'R_out', 'A_in2')}
+${stream('S5', 'Stream', 'T2_out2', 'EE1_in')}
+        </Components>
+        <Components property="InstrumentationSystemActivities">
+          <Object id="InstrumentationSystem" type="Process/Process.InstrumentationSystemActivity">
+            <Data property="Identifier"><String>Instrumentation</String></Data>
+            <Data property="Label"><String>Instrumentation</String></Data>
+            <Components property="InstrumentationActivities">
+              <Object id="MA1" type="Process/Process.MeasuringProcessVariable">
+                <Data property="Identifier"><String>MA1</String></Data>
+                <Data property="Label"><String>TI-101</String></Data>
+                <References property="ProcessStepReference" objects="#T2"/>
+                <References property="MeasuredVariableReference" objects="#T2_Temperature"/>
+              </Object>
+            </Components>
+          </Object>
+        </Components>
+      </Object>
+    </Components>
+  </Object>
+</Model>`;
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+      const t2Box = shapeBounds(out, 'T2');
+      const rBox = shapeBounds(out, 'R');
+      // Precondition for the regression: R really sits in T2's column above it.
+      expect(rBox.x).toBe(t2Box.x);
+      expect(rBox.y + rBox.h).toBeLessThanOrEqual(t2Box.y);
+
+      const route = edgeWaypoints(out, 'DataInputAssociation_T2_Temperature');
+      expect(route.length).toBeGreaterThanOrEqual(4);
+      for (let i = 1; i < route.length; i += 1) {
+        expect(route[i - 1].x === route[i].x || route[i - 1].y === route[i].y).toBe(true);
+        expect(segmentHitsBox(route[i - 1], route[i], rBox), `segment ${i} runs through R`).toBe(false);
+      }
+      // Still enters the measured step on its top edge.
+      expect(route.at(-1)!.y).toBe(t2Box.y);
+      expect(route.at(-1)!.x).toBeGreaterThan(t2Box.x);
+      expect(route.at(-1)!.x).toBeLessThan(t2Box.x + t2Box.w);
+    });
+
+    it('leaves the sequence-flow name empty when the stream has no Label', async () => {
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', port('SE_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('T1', 'Pumping', 'Pump', port('T1_in', 'MaterialPort', 'In', 'MI1') + port('T1_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('EE1', 'Sink', 'Product', port('EE1_in', 'MaterialPort', 'In', 'MI1')),
+        stream('ProcessConnection_A51176B3A637DA1C9996CCE286816120', 'Stream', 'SE_out', 'T1_in') +
+          stream('S2', 'Stream', 'T1_out', 'EE1_in', 'Product stream')
+      );
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+
+      expect(out).toContain('<bpmn:sequenceFlow id="ProcessConnection_A51176B3A637DA1C9996CCE286816120" name="" ');
+      expect(out).toContain('<bpmn:sequenceFlow id="S2" name="Product stream" ');
+      // The identifier is still carried on the extension element.
+      expect(out).toContain('identifier="ProcessConnection_A51176B3A637DA1C9996CCE286816120"');
+    });
+
+    it('shifts the plane so an energy proxy above the top lane never gets a negative coordinate', async () => {
+      // R is a recycle step (T2 → R → A) and therefore sits in the top lane.
+      // Its electrical-energy source is drawn one band above it — above the
+      // canvas origin unless the plane is shifted down.
+      const xml = dexpi(
+        step('SE1', 'Source', 'Feed', port('SE_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('EE_SRC', 'Source', 'Electrical Energy', port('EE_SRC_out', 'ElectricalEnergyPort', 'Out', 'EEO1')) +
+          step('A', 'MixingSimple', 'Mixer', port('A_in', 'MaterialPort', 'In', 'MI1') + port('A_in2', 'MaterialPort', 'In', 'MI2') + port('A_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('T2', 'Separating', 'Separator', port('T2_in', 'MaterialPort', 'In', 'MI1') + port('T2_out', 'MaterialPort', 'Out', 'MO1') + port('T2_out2', 'MaterialPort', 'Out', 'MO2')) +
+          step('R', 'Compressing', 'Recycle compressor',
+            port('R_in', 'MaterialPort', 'In', 'MI1') + port('R_ee', 'ElectricalEnergyPort', 'In', 'EEI1') + port('R_out', 'MaterialPort', 'Out', 'MO1')) +
+          step('EE1', 'Sink', 'Product', port('EE1_in', 'MaterialPort', 'In', 'MI1')),
+        stream('S1', 'Stream', 'SE_out', 'A_in') +
+          stream('S2', 'Stream', 'A_out', 'T2_in') +
+          stream('S3', 'Stream', 'T2_out', 'R_in') +
+          stream('S4', 'Stream', 'R_out', 'A_in2') +
+          stream('S5', 'Stream', 'T2_out2', 'EE1_in') +
+          stream('S_ee', 'ElectricalEnergyFlow', 'EE_SRC_out', 'R_ee')
+      );
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+      const shapes = planeShapes(out);
+      const proxy = shapes.find(shape => shape.id === 'EE_SRC');
+      const recycle = shapeBounds(out, 'R');
+
+      expect(proxy).toBeDefined();
+      // Drawn above the task it feeds (energy source convention) …
+      expect(proxy!.y + proxy!.h).toBeLessThan(recycle.y);
+      // … but inside the canvas.
+      shapes.forEach(shape => {
+        expect(shape.x, `${shape.id} x`).toBeGreaterThanOrEqual(0);
+        expect(shape.y, `${shape.id} y`).toBeGreaterThanOrEqual(0);
+      });
+      expect(overlappingPairs(shapes)).toEqual([]);
+    });
   });
 
   describe('step Description → bpmn:documentation', () => {
