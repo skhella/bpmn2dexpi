@@ -275,6 +275,14 @@ export class DexpiToBpmnTransformer {
   /** DEXPI Process class registry — loaded from Process.xml. Empty until first transform(). */
   private registry: DexpiProcessClassRegistry = DexpiProcessClassRegistry.empty();
 
+  /**
+   * Human-readable notices about the last import that did not stop it: for
+   * now, that the document also carried a P&ID (a DEXPI Plant model next to
+   * the Process model, which the grammar allows as a second EngineeringModel)
+   * and that only the process model was read. Reset on every transform().
+   */
+  lastImportNotices: string[] = [];
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   async transform(dexpiXml: string, options: DexpiToBpmnTransformOptions = {}): Promise<string> {
@@ -294,6 +302,7 @@ export class DexpiToBpmnTransformer {
         )
       : await DexpiProcessClassRegistry.load(options.processXml);
 
+    this.lastImportNotices = [];
     const parsed = this.parseDexpi(dexpiXml);
     this.materializeBoundaryProxyEvents(parsed);
     const layout = this.computeLayout(parsed);
@@ -311,6 +320,18 @@ export class DexpiToBpmnTransformer {
     // the UI can explain itself rather than report a bare "not found".
     const processModel = this.findProcessModel(doc);
     if (!processModel) throw this.classifyUnreadableDocument(doc);
+
+    // A document may carry a P&ID beside the process model (each in its own
+    // EngineeringModel; one EngineeringModel holds at most one conceptual
+    // model). The process model is imported; say that the rest was not.
+    const plantObject = Array.from(doc.querySelectorAll('Object')).find(el =>
+      /(^|\/)PlantModel$/.test(el.getAttribute('type') || '')
+    );
+    if (plantObject) {
+      this.lastImportNotices.push(
+        'The file also holds a P&ID (a DEXPI Plant model); only the process model was imported.'
+      );
+    }
 
     // Parse steps
     const steps: DexpiStep[] = [];

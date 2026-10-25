@@ -1284,7 +1284,8 @@ function App() {
         // subclasses like MeasuringProcessVariable are not recognized as
         // InstrumentationActivity and the data-object/association
         // reconstruction is silently skipped.
-        const bpmnXml = await new DexpiToBpmnTransformer().transform(dexpiXml, {
+        const importer = new DexpiToBpmnTransformer();
+        const bpmnXml = await importer.transform(dexpiXml, {
           processXml: processXmlRaw,
           coreXml: coreXmlRaw,
         });
@@ -1294,7 +1295,11 @@ function App() {
         // Save imported diagram immediately
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
-        setValidationMessage('DEXPI imported successfully!');
+        setValidationMessage(
+          importer.lastImportNotices.length > 0
+            ? `DEXPI imported successfully. ${importer.lastImportNotices.join(' ')}`
+            : 'DEXPI imported successfully!'
+        );
         // Reset navigation state
         setPlaneStack([]);
         setCurrentPlane(null);

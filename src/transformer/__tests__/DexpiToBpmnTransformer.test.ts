@@ -1414,3 +1414,50 @@ describe('ProcessStep.HierarchyLevel import', () => {
     expect(back).not.toContain('ProcessStepHierarchyLevel.UnitOperation');
   });
 });
+
+describe('DexpiToBpmnTransformer — a document carrying a P&ID beside the process model', () => {
+  // Core allows one conceptual model per EngineeringModel, so a file that holds
+  // both a plant and a process model does so as two EngineeringModel objects.
+  const MIXED = `<?xml version="1.0" encoding="UTF-8"?>
+<Model name="mixed" uri="urn:test:mixed">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Plant" source="https://data.dexpi.org/models/2.0.0/Plant.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel">
+      <Object id="plant1" type="Plant/PlantModel">
+        <Components property="TaggedPlantItems">
+          <Object id="T1" type="Plant/ProcessEquipment.Tank"/>
+        </Components>
+      </Object>
+    </Components>
+  </Object>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel">
+      <Object id="pm1" type="Process/ProcessModel">
+        <Components property="ProcessSteps">
+          <Object id="PU1" type="Process/Process.Pumping">
+            <Data property="Identifier"><String>PU1</String></Data>
+            <Data property="Label"><String>Feed pump</String></Data>
+          </Object>
+        </Components>
+      </Object>
+    </Components>
+  </Object>
+</Model>`;
+
+  it('imports the process model and says the P&ID part was not read', async () => {
+    const t = new DexpiToBpmnTransformer();
+    const out = await t.transform(MIXED);
+    expect(out).toContain('<bpmn:task id="PU1"');
+    expect(out).not.toContain('Tank');
+    expect(t.lastImportNotices).toHaveLength(1);
+    expect(t.lastImportNotices[0]).toMatch(/P&ID.*only the process model/);
+  });
+
+  it('records no notice for a plain process document', async () => {
+    const t = new DexpiToBpmnTransformer();
+    await t.transform(dexpi(step('PU1', 'Pumping', 'Feed pump')));
+    expect(t.lastImportNotices).toEqual([]);
+  });
+});
