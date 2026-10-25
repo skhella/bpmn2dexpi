@@ -381,6 +381,11 @@ export interface TransformOptions {
    * after producing the DEXPI XML; results are surfaced via
    * BpmnToDexpiTransformer.lastPropertyNameValidation.
    *
+   * When `generateProfile` is also set and the export produced a profile
+   * with declarations, the strict checks run with that profile loaded, so
+   * extension properties the export itself declares are not findings;
+   * BpmnToDexpiTransformer.lastStrictVocabulary says how many were covered.
+   *
    * Strict-mode failures NEVER block file production — output is written
    * the same way it is in non-strict mode. The CI test suite hard-codes
    * strict=true regardless of this default; see

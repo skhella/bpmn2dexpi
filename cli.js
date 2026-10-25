@@ -50,6 +50,10 @@ Arguments:
 Flags:
   --strict        Enable Mode 2 validation: layer DEXPI 2.0 metamodel
                   property-name fidelity checks on top of XSD validation.
+                  The checks run with the export's generated profile
+                  loaded (unless --no-profile), so only findings a profile
+                  cannot fix — data types, reference targets, cardinality,
+                  unknown classes — are reported.
                   The output file is always produced regardless of strict-
                   mode findings (DEXPI 2.0's permissive philosophy: any
                   XSD-valid output is exchangeable). When --strict is set
@@ -368,6 +372,13 @@ async function main() {
         { tier: 'cardinality',           result: transformer.lastCardinalityValidation },
         { tier: 'class existence',       result: transformer.lastClassExistenceValidation },
       ];
+      const covered = transformer.lastStrictVocabulary?.generatedProfileDeclarations ?? 0;
+      if (covered > 0) {
+        console.error(
+          `ℹ Strict mode validated with the export's own profile loaded: ${covered} extension ` +
+          `propert${covered === 1 ? 'y is' : 'ies are'} declared by it and ${covered === 1 ? 'is' : 'are'} not findings.`,
+        );
+      }
       let totalViolations = 0;
       for (const { tier, result } of tierResults) {
         if (!result || result.valid) continue;

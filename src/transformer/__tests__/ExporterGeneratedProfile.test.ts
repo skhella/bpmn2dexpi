@@ -119,3 +119,33 @@ describe('exporter: generateProfile option', () => {
     expect(again.declarations).toBe(t.lastGeneratedProfile!.declarations);
   }, 60_000); // two generator runs over the full TEP model, slow under a parallel suite
 });
+
+describe('exporter: strict mode validates against the generated profile', () => {
+  it('extension properties the export declares are not strict findings', async () => {
+    const t = new BpmnToDexpiTransformer();
+    await t.transform(TEP_BPMN, { ...schema, strict: true, generateProfile: { source: 'tep.profile.xml' } });
+    expect(t.lastGeneratedProfile?.declarations).toBeGreaterThan(0);
+    expect(t.lastStrictVocabulary?.generatedProfileDeclarations).toBe(t.lastGeneratedProfile!.declarations);
+    // Every tier is clean: the profile covers the vocabulary gaps, and the
+    // model has no defect a profile cannot fix.
+    expect(t.lastPropertyNameValidation?.valid, t.lastPropertyNameValidation?.errors.slice(0, 3).join('\n')).toBe(true);
+    expect(t.lastDataTypeValidation?.valid).toBe(true);
+    expect(t.lastReferenceValidation?.valid).toBe(true);
+    expect(t.lastCardinalityValidation?.valid).toBe(true);
+    expect(t.lastClassExistenceValidation?.valid).toBe(true);
+  });
+
+  it('without a generated profile the same model still reports its vocabulary gaps', async () => {
+    const t = new BpmnToDexpiTransformer();
+    await t.transform(TEP_BPMN, { ...schema, strict: true });
+    expect(t.lastGeneratedProfile).toBeUndefined();
+    expect(t.lastStrictVocabulary?.generatedProfileDeclarations).toBe(0);
+    expect(t.lastPropertyNameValidation?.valid).toBe(false);
+  });
+
+  it('records no strict vocabulary when strict mode is off', async () => {
+    const t = new BpmnToDexpiTransformer();
+    await t.transform(EXTENDED_BPMN, { ...schema, generateProfile: { source: 'pump.profile.xml' } });
+    expect(t.lastStrictVocabulary).toBeUndefined();
+  });
+});

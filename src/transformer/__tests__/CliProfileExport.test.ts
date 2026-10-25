@@ -105,3 +105,29 @@ describe('cli: self-describing export', () => {
     expect(r.stderr).toContain('needs no profile');
   }, CLI_TIMEOUT);
 });
+
+describe('cli: --strict with the generated profile', () => {
+  it('exits 0 on the Tennessee Eastman export, since its profile declares every extension', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bpmn2dexpi-strict-'));
+    try {
+      const out = join(dir, 'tep.xml');
+      const r = await runCli(['--strict', TEP_BPMN, out]);
+      expect(r.stderr).toContain("validated with the export's own profile loaded");
+      expect(r.code, r.stderr).toBe(0);
+      expect(existsSync(join(dir, 'tep.profile.xml'))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('exits 2 with --no-profile, because the extensions are then undeclared', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bpmn2dexpi-strict-'));
+    try {
+      const r = await runCli(['--strict', '--no-profile', TEP_BPMN, join(dir, 'tep.xml')]);
+      expect(r.code).toBe(2);
+      expect(r.stderr).not.toContain("validated with the export's own profile loaded");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

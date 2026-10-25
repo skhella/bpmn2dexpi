@@ -127,12 +127,22 @@ export class BpmnToDexpiTransformer {
    * profile the caller can ignore.
    */
   lastGeneratedProfile: GenerateProfileResult | undefined;
+  /**
+   * What vocabulary the last strict run validated against: the loaded
+   * models and profiles, plus — when the export generated a profile with
+   * declarations — that profile. `generatedProfileDeclarations` is the number
+   * of extension properties the strict run accepted because the export's own
+   * profile declares them (0 when no profile was generated or none was
+   * needed). Undefined when strict mode was off.
+   */
+  lastStrictVocabulary: { generatedProfileDeclarations: number; generatedProfileClasses: number } | undefined;
 
   async transform(bpmnXml: string, options: TransformOptions = {}): Promise<string> {
 
     // Clear state and log from previous transformations
     this.logger.reset();
     this.lastGeneratedProfile = undefined;
+    this.lastStrictVocabulary = undefined;
     this.lastPropertyNameValidation = undefined;
     this.lastDataTypeValidation = undefined;
     this.lastReferenceValidation = undefined;
@@ -238,12 +248,31 @@ export class BpmnToDexpiTransformer {
     // XSD-valid output is exchangeable, and we don't want strict mode to
     // gate users out of getting a deliverable.
     if (options.strict && this.registry.size > 0) {
+      // Strict validates the export as a consumer that resolves imports sees
+      // it: when the export generated a profile (options.generateProfile)
+      // and the document imports it, the profile's declarations are part of
+      // the vocabulary. A finding that the export's own profile already
+      // closes is not a defect of the export. Everything a profile cannot
+      // fix — wrong data types, wrong reference targets, missing required
+      // properties, unknown classes — still surfaces. Without a generated
+      // profile (library default, --no-profile) the vocabulary is exactly
+      // the loaded models and profiles, as before.
+      const generated = this.lastGeneratedProfile;
+      const coveredByProfile = generated !== undefined && generated.declarations > 0;
+      const strictRegistry = coveredByProfile
+        ? this.registry.cloneAndMergeXml(options.generateProfile?.source ?? 'generated-profile.xml', generated.xml)
+        : this.registry;
+      this.lastStrictVocabulary = {
+        generatedProfileDeclarations: coveredByProfile ? generated.declarations : 0,
+        generatedProfileClasses: coveredByProfile ? generated.classCount : 0,
+      };
+
       // Tier 2: property-name + carrier-kind fidelity.
-      const nameFailures = validateDexpiPropertyNamesImpl(xml, 'transformer output', this.registry);
+      const nameFailures = validateDexpiPropertyNamesImpl(xml, 'transformer output', strictRegistry);
       this.lastPropertyNameValidation = failuresToValidationResultImpl(nameFailures);
 
       // Tier 3: data-type fidelity (Builtin primitives + Enumeration literals).
-      const dataTypeFailures = validateEmittedDexpiDataTypes(xml, 'transformer output', this.registry);
+      const dataTypeFailures = validateEmittedDexpiDataTypes(xml, 'transformer output', strictRegistry);
       this.lastDataTypeValidation = {
         valid: dataTypeFailures.length === 0,
         errors: dataTypeFailures.map(f => `${f.className}.${f.propertyName}: ${f.context}`),
@@ -252,7 +281,7 @@ export class BpmnToDexpiTransformer {
       };
 
       // Tier 4: reference target-class compliance.
-      const refFailures = validateEmittedDexpiReferences(xml, 'transformer output', this.registry);
+      const refFailures = validateEmittedDexpiReferences(xml, 'transformer output', strictRegistry);
       this.lastReferenceValidation = {
         valid: refFailures.length === 0,
         errors: refFailures.map(f => `${f.className}.${f.propertyName}: ${f.context}`),
@@ -261,7 +290,7 @@ export class BpmnToDexpiTransformer {
       };
 
       // Tier 5: cardinality (lower / upper bounds).
-      const cardFailures = validateEmittedDexpiCardinality(xml, 'transformer output', this.registry);
+      const cardFailures = validateEmittedDexpiCardinality(xml, 'transformer output', strictRegistry);
       this.lastCardinalityValidation = {
         valid: cardFailures.length === 0,
         errors: cardFailures.map(f => `${f.className}.${f.propertyName}: ${f.context}`),
@@ -270,7 +299,7 @@ export class BpmnToDexpiTransformer {
       };
 
       // Tier 6: class existence — defense-in-depth post-condition.
-      const classFailures = validateEmittedDexpiClassExistence(xml, 'transformer output', this.registry);
+      const classFailures = validateEmittedDexpiClassExistence(xml, 'transformer output', strictRegistry);
       this.lastClassExistenceValidation = {
         valid: classFailures.length === 0,
         errors: classFailures.map(f => `${f.typeRef}: ${f.context}`),

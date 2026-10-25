@@ -930,7 +930,7 @@ function App() {
         generated && generated.declarations > 0
           ? ` Profile ${profileFilename} downloaded alongside (${generated.declarations} declaration${
               generated.declarations === 1 ? '' : 's'
-            } on ${generated.classCount} class${generated.classCount === 1 ? '' : 'es'}); keep the two files together.`
+            } on ${generated.classCount} class${generated.classCount === 1 ? '' : 'es'}); keep the two files together.${strictMode ? ' Strict checks ran with it loaded.' : ''}`
           : '';
       if (generated && generated.declarations > 0) {
         // Separate task from the document's download: two downloads started
