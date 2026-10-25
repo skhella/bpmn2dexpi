@@ -188,7 +188,7 @@ function App() {
   // A P&ID handed to "Import DEXPI XML" gets a dialog, not a toast — the
   // explanation is longer than a one-liner and the file is valid DEXPI,
   // just the wrong part of the standard for this tool.
-  const [pidImport, setPidImport] = useState<{ kind: 'plant' | 'proteus'; detail: string; fileName: string } | null>(null);
+  const [pidImport, setPidImport] = useState<{ kind: 'plant' | 'proteus' | 'mixed'; detail: string; fileName: string } | null>(null);
   const [_currentPlane, setCurrentPlane] = useState<string | null>(null);
   const [planeStack, setPlaneStack] = useState<string[]>([]);
   const [showPorts, setShowPorts] = useState<boolean>(false);
@@ -1295,11 +1295,12 @@ function App() {
         // Save imported diagram immediately
         const { xml } = await modeler.saveXML({ format: true });
         if (xml) safeLocalSetItem(AUTOSAVE_KEY, xml);
-        setValidationMessage(
-          importer.lastImportNotices.length > 0
-            ? `DEXPI imported successfully. ${importer.lastImportNotices.join(' ')}`
-            : 'DEXPI imported successfully!'
-        );
+        setValidationMessage('DEXPI imported successfully!');
+        // A P&ID beside the process model: say so in a dialog, since a toast
+        // line is easy to miss and the P&ID part is not carried into exports.
+        if (importer.lastImportCompanion) {
+          setPidImport({ kind: 'mixed', detail: importer.lastImportCompanion.detail, fileName: file.name });
+        }
         // Reset navigation state
         setPlaneStack([]);
         setCurrentPlane(null);

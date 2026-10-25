@@ -282,6 +282,12 @@ export class DexpiToBpmnTransformer {
    * and that only the process model was read. Reset on every transform().
    */
   lastImportNotices: string[] = [];
+  /**
+   * Set when the last document carried a P&ID beside the process model: a
+   * structured companion to the notice above, so a UI can show a proper
+   * warning rather than a line of text. Undefined otherwise.
+   */
+  lastImportCompanion: { kind: 'plant'; detail: string } | undefined;
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
@@ -303,6 +309,7 @@ export class DexpiToBpmnTransformer {
       : await DexpiProcessClassRegistry.load(options.processXml);
 
     this.lastImportNotices = [];
+    this.lastImportCompanion = undefined;
     const parsed = this.parseDexpi(dexpiXml);
     this.materializeBoundaryProxyEvents(parsed);
     const layout = this.computeLayout(parsed);
@@ -331,6 +338,10 @@ export class DexpiToBpmnTransformer {
       this.lastImportNotices.push(
         'The file also holds a P&ID (a DEXPI Plant model); only the process model was imported.'
       );
+      this.lastImportCompanion = {
+        kind: 'plant',
+        detail: `beside the Process model it holds an Object of type ${plantObject.getAttribute('type')}`,
+      };
     }
 
     // Parse steps

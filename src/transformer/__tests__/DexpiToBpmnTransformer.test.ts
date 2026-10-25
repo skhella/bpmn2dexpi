@@ -1453,11 +1453,14 @@ describe('DexpiToBpmnTransformer — a document carrying a P&ID beside the proce
     expect(out).not.toContain('Tank');
     expect(t.lastImportNotices).toHaveLength(1);
     expect(t.lastImportNotices[0]).toMatch(/P&ID.*only the process model/);
+    expect(t.lastImportCompanion?.kind).toBe('plant');
+    expect(t.lastImportCompanion?.detail).toContain('Plant/PlantModel');
   });
 
   it('records no notice for a plain process document', async () => {
     const t = new DexpiToBpmnTransformer();
     await t.transform(dexpi(step('PU1', 'Pumping', 'Feed pump')));
     expect(t.lastImportNotices).toEqual([]);
+    expect(t.lastImportCompanion).toBeUndefined();
   });
 });
