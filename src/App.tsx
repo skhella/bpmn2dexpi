@@ -15,7 +15,8 @@ import { CiteDialog } from './components/CiteDialog';
 import { BpmnToDexpiTransformer } from './transformer/BpmnToDexpiTransformer';
 import { DexpiProcessClassRegistry } from './transformer/DexpiProcessClassRegistry';
 import { generateProfileFromDexpiXml } from './transformer/DexpiProfileGenerator';
-import { DexpiToBpmnTransformer } from './transformer/DexpiToBpmnTransformer';
+import { DexpiToBpmnTransformer, DexpiImportError } from './transformer/DexpiToBpmnTransformer';
+import { PidImportDialog } from './components/PidImportDialog';
 import processXmlRaw from '../dexpi-schema-files/Process.xml?raw';
 import coreXmlRaw from '../dexpi-schema-files/Core.xml?raw';
 import tepExampleBpmn from '../examples/Tennessee_Eastman_Process.bpmn?raw';
@@ -175,7 +176,19 @@ function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [modeler, setModeler] = useState<BpmnModeler | null>(null);
   const [selectedElement, setSelectedElement] = useState<any>(null);
-  const [validationMessage, setValidationMessage] = useState<string>('');
+  const [validationMessage, setValidationMessageText] = useState<string>('');
+  // Toast tone. Failures used to paint in the same green as successes; the
+  // tone keeps "import failed" visibly red without a second toast element.
+  const [validationTone, setValidationTone] = useState<'success' | 'error'>('success');
+  const setValidationMessage = (text: string, tone: 'success' | 'error' = 'success') => {
+    setValidationMessageText(text);
+    setValidationTone(tone);
+  };
+  const setValidationError = (text: string) => setValidationMessage(text, 'error');
+  // A P&ID handed to "Import DEXPI XML" gets a dialog, not a toast — the
+  // explanation is longer than a one-liner and the file is valid DEXPI,
+  // just the wrong part of the standard for this tool.
+  const [pidImport, setPidImport] = useState<{ kind: 'plant' | 'proteus'; detail: string; fileName: string } | null>(null);
   const [_currentPlane, setCurrentPlane] = useState<string | null>(null);
   const [planeStack, setPlaneStack] = useState<string[]>([]);
   const [showPorts, setShowPorts] = useState<boolean>(false);
@@ -740,7 +753,7 @@ function App() {
       const result = await modeler.saveXML({ format: true });
       const bpmnXml = result.xml;
       if (!bpmnXml) {
-        setValidationMessage('No BPMN XML to validate.');
+        setValidationError('No BPMN XML to validate.');
         return;
       }
       const xmlForTransform = preprocessBpmnXml(bpmnXml);
@@ -786,7 +799,7 @@ function App() {
         setStrictWarning({ totalCount: total, groups: groupList });
       }
     } catch (err) {
-      setValidationMessage(`Validation failed: ${(err as Error).message}`);
+      setValidationError(`Validation failed: ${(err as Error).message}`);
     }
   };
 
@@ -811,7 +824,7 @@ function App() {
       setValidationMessage('BPMN XML exported successfully!');
     } catch (err) {
       console.error('Export failed:', err);
-      setValidationMessage('Export failed: ' + (err as Error).message);
+      setValidationError('Export failed: ' + (err as Error).message);
     }
   };
 
@@ -858,7 +871,7 @@ function App() {
       const bpmnXml = result.xml;
 
       if (!bpmnXml) {
-        setValidationMessage('No BPMN XML to transform');
+        setValidationError('No BPMN XML to transform');
         return;
       }
 
@@ -1001,7 +1014,7 @@ function App() {
       }
     } catch (err) {
       console.error('DEXPI transformation failed:', err);
-      setValidationMessage('DEXPI export failed: ' + (err as Error).message);
+      setValidationError('DEXPI export failed: ' + (err as Error).message);
     }
   };
 
@@ -1025,7 +1038,7 @@ function App() {
       setValidationMessage('SVG exported successfully!');
     } catch (err) {
       console.error('SVG export failed:', err);
-      setValidationMessage('SVG export failed: ' + (err as Error).message);
+      setValidationError('SVG export failed: ' + (err as Error).message);
     }
   };
 
@@ -1046,7 +1059,7 @@ function App() {
       const bpmnXml = result.xml;
       
       if (!bpmnXml) {
-        setValidationMessage('No BPMN XML to export');
+        setValidationError('No BPMN XML to export');
         setNeo4jExporting(false);
         return;
       }
@@ -1068,11 +1081,11 @@ function App() {
         setValidationMessage(`✓ ${exportResult.message}`);
         setShowNeo4jModal(false);
       } else {
-        setValidationMessage(`✗ ${exportResult.message}`);
+        setValidationError(`✗ ${exportResult.message}`);
       }
     } catch (err) {
       console.error('Neo4j export failed:', err);
-      setValidationMessage('Neo4j export failed: ' + (err as Error).message);
+      setValidationError('Neo4j export failed: ' + (err as Error).message);
     } finally {
       setNeo4jExporting(false);
       setNeo4jProgress(null);
@@ -1117,7 +1130,7 @@ function App() {
       } catch (err) {
         // Registry already produces clear, actionable messages naming the
         // unresolved supertype — surface verbatim.
-        setValidationMessage(`✗ Profile "${file.name}" rejected: ${(err as Error).message}`);
+        setValidationError(`✗ Profile "${file.name}" rejected: ${(err as Error).message}`);
         return;
       }
       setLoadedProfiles(prev => [...prev, candidate]);
@@ -1132,7 +1145,7 @@ function App() {
         setValidationMessage(`✓ Profile "${file.name}" loaded (per-session).`);
       }
     }).catch(err => {
-      setValidationMessage(`✗ Profile "${file.name}" read failed: ${err.message}`);
+      setValidationError(`✗ Profile "${file.name}" read failed: ${err.message}`);
     });
   };
 
@@ -1167,7 +1180,7 @@ function App() {
       const result = await modeler.saveXML({ format: true });
       const bpmnXml = result.xml;
       if (!bpmnXml) {
-        setValidationMessage('No BPMN XML to analyze.');
+        setValidationError('No BPMN XML to analyze.');
         return;
       }
       const xmlForTransform = preprocessBpmnXml(bpmnXml);
@@ -1214,7 +1227,7 @@ function App() {
             }. Re-import to apply in this session.`
       );
     } catch (err) {
-      setValidationMessage(`Profile generation failed: ${(err as Error).message}`);
+      setValidationError(`Profile generation failed: ${(err as Error).message}`);
     }
   };
 
@@ -1237,7 +1250,7 @@ function App() {
       fitViewportSafely(modeler);
     } catch (err) {
       console.error('Import failed:', err);
-      setValidationMessage('Import failed: ' + (err as Error).message);
+      setValidationError('Import failed: ' + (err as Error).message);
     }
   };
 
@@ -1289,7 +1302,11 @@ function App() {
         canvas.zoom('fit-viewport');
       } catch (err) {
         console.error('DEXPI import failed:', err);
-        setValidationMessage('DEXPI import failed: ' + (err as Error).message);
+        if (err instanceof DexpiImportError && (err.kind === 'plant' || err.kind === 'proteus')) {
+          setPidImport({ kind: err.kind, detail: err.detail, fileName: file.name });
+        } else {
+          setValidationError('DEXPI import failed: ' + (err as Error).message);
+        }
       }
     };
     input.click();
@@ -1786,10 +1803,19 @@ function App() {
       </footer>
 
       {validationMessage && (
-        <div className="validation-message">
+        <div className={`validation-message${validationTone === 'error' ? ' validation-message--error' : ''}`} role={validationTone === 'error' ? 'alert' : 'status'}>
           {validationMessage}
           <button onClick={() => setValidationMessage('')} className="btn-close">×</button>
         </div>
+      )}
+
+      {pidImport && (
+        <PidImportDialog
+          kind={pidImport.kind}
+          detail={pidImport.detail}
+          fileName={pidImport.fileName}
+          onClose={() => setPidImport(null)}
+        />
       )}
 
       {strictWarning && (

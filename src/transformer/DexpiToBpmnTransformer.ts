@@ -212,6 +212,52 @@ const MARGIN_Y = 100;
 const ENERGY_BAND_GAP = 80; // vertical gap between an energy boundary event and its connected task
 const PLANE_MIN_MARGIN = 20; // smallest x / y any shape may have on a plane
 
+/**
+ * What kind of document the importer was handed when it is not a DEXPI
+ * Process document it can read.
+ *
+ * - `plant`: a DEXPI 2.0 Plant model (P&ID) — the root <Model> imports
+ *   Plant.xml or holds a PlantModel object.
+ * - `proteus`: a Proteus XML P&ID (DEXPI 1.x) — the root element is
+ *   <PlantModel>.
+ * - `not-dexpi`: not a DEXPI document at all — the root is not <Model>
+ *   (a BPMN file, HTML, arbitrary XML) or the text is not well-formed XML.
+ * - `no-process-model`: a DEXPI 2.0 <Model> document without a ProcessModel
+ *   object.
+ */
+export type DexpiImportErrorKind = 'plant' | 'proteus' | 'not-dexpi' | 'no-process-model';
+
+/**
+ * Thrown by DexpiToBpmnTransformer.transform() when the input is not a DEXPI
+ * Process document. `kind` lets the UI pick a presentation (a dialog for
+ * P&IDs, a toast otherwise); `detail` is the short, factual observation the
+ * classification rests on (root element, imported model, object type).
+ */
+export class DexpiImportError extends Error {
+  readonly kind: DexpiImportErrorKind;
+  readonly detail: string;
+
+  constructor(kind: DexpiImportErrorKind, detail: string) {
+    super(DexpiImportError.describe(kind, detail));
+    this.name = 'DexpiImportError';
+    this.kind = kind;
+    this.detail = detail;
+  }
+
+  private static describe(kind: DexpiImportErrorKind, detail: string): string {
+    switch (kind) {
+      case 'plant':
+        return `This file is a DEXPI Plant model (a P&ID), not a DEXPI Process document — ${detail}. The importer reads DEXPI Process documents (process steps, streams, ports, materials) only.`;
+      case 'proteus':
+        return `This file is a Proteus XML P&ID (the DEXPI 1.x format), not a DEXPI Process document — ${detail}. The importer reads DEXPI 2.0 Process documents only.`;
+      case 'not-dexpi':
+        return `This file is not a DEXPI document — ${detail}. The importer reads DEXPI 2.0 Process documents, whose root element is <Model>.`;
+      case 'no-process-model':
+        return `No ProcessModel found in this DEXPI document — ${detail}. The importer needs a DEXPI Process document with a Process/ProcessModel object.`;
+    }
+  }
+}
+
 export interface DexpiToBpmnTransformOptions {
   /** Pre-loaded Process.xml string (for browser builds where the file isn't on disk). */
   processXml?: string;
@@ -260,9 +306,11 @@ export class DexpiToBpmnTransformer {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xml, 'application/xml');
 
-    // Find ProcessModel — may be nested under EngineeringModel/ConceptualModel
+    // Find ProcessModel — may be nested under EngineeringModel/ConceptualModel.
+    // When there is none, say what the file is instead (P&ID, BPMN, …) so
+    // the UI can explain itself rather than report a bare "not found".
     const processModel = this.findProcessModel(doc);
-    if (!processModel) throw new Error('No ProcessModel found in DEXPI XML');
+    if (!processModel) throw this.classifyUnreadableDocument(doc);
 
     // Parse steps
     const steps: DexpiStep[] = [];
@@ -650,6 +698,70 @@ export class DexpiToBpmnTransformer {
       el => el.getAttribute('type') === 'Process/ProcessModel'
     );
     return direct || null;
+  }
+
+  /**
+   * Classify a document that holds no ProcessModel. Checked in order:
+   * malformed XML, Proteus root, non-DEXPI root, Plant model, and finally a
+   * DEXPI 2.0 Model with nothing the importer can read.
+   */
+  private classifyUnreadableDocument(doc: Document): DexpiImportError {
+    const root = doc.documentElement;
+
+    // Browsers and jsdom report malformed XML as a <parsererror> element
+    // (Firefox and jsdom make it the root; Chromium nests it under <html>).
+    if (!root || root.localName === 'parsererror' || doc.querySelector('parsererror')) {
+      return new DexpiImportError('not-dexpi', 'the file is not well-formed XML');
+    }
+
+    const rootName = root.localName;
+
+    if (rootName === 'PlantModel') {
+      const info = Array.from(root.children).find(el => el.localName === 'PlantInformation');
+      const discipline = info?.getAttribute('Discipline');
+      const version = info?.getAttribute('SchemaVersion');
+      const facts = [
+        'root element <PlantModel>',
+        discipline ? `Discipline="${discipline}"` : '',
+        version ? `SchemaVersion="${version}"` : '',
+      ].filter(Boolean);
+      return new DexpiImportError('proteus', facts.join(', '));
+    }
+
+    if (rootName !== 'Model') {
+      // happy-dom's XML parser does not resolve namespaces, so look at the
+      // declared xmlns values as well as namespaceURI.
+      const declaredNs = Array.from(root.attributes).map(a => a.value).join(' ');
+      const isBpmn = rootName === 'definitions' &&
+        /spec\/BPMN/i.test(`${root.namespaceURI || ''} ${declaredNs}`);
+      const detail = isBpmn
+        ? `root element <${rootName}> is a BPMN diagram (use Import BPMN for it)`
+        : `root element is <${rootName}>, not <Model>`;
+      return new DexpiImportError('not-dexpi', detail);
+    }
+
+    const imports = Array.from(root.children).filter(el => el.localName === 'Import');
+    const importSources = imports.map(el => el.getAttribute('source') || '');
+    const plantImport = importSources.find(src => /Plant\.xml$/.test(src));
+    const plantObject = Array.from(doc.querySelectorAll('Object')).find(el =>
+      /(^|\/)PlantModel$/.test(el.getAttribute('type') || '')
+    );
+    if (plantImport || plantObject) {
+      const detail = plantObject
+        ? `it holds an Object of type ${plantObject.getAttribute('type')}`
+        : `it imports ${plantImport}`;
+      return new DexpiImportError('plant', detail);
+    }
+
+    const processImport = importSources.find(src => /Process\.xml$/.test(src));
+    const objectTypes = Array.from(
+      new Set(Array.from(doc.querySelectorAll('Object')).map(el => el.getAttribute('type') || '').filter(Boolean))
+    );
+    const detail = processImport
+      ? `it imports ${processImport} but holds no Process/ProcessModel object` +
+        (objectTypes.length ? ` (object types present: ${objectTypes.slice(0, 5).join(', ')})` : '')
+      : 'it imports no Process model and holds no Process/ProcessModel object';
+    return new DexpiImportError('no-process-model', detail);
   }
 
   private findComponents(parent: Element, property: string): Element | null {

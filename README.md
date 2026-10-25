@@ -10,7 +10,7 @@ A web-based tool for modeling chemical processes in BPMN 2.0 and exporting to DE
 
 - **Visual modeling** — drag-and-drop BPMN 2.0 editor with a DEXPI-aware palette
 - **DEXPI 2.0 export** — XSD-validated output, with a structural fallback in browser contexts
-- **DEXPI 2.0 import** — open an existing DEXPI Process file as an editable BPMN diagram with automatic layout; content round-trips completely (see below)
+- **DEXPI 2.0 import** — open an existing DEXPI Process file as an editable BPMN diagram with automatic layout; content round-trips completely (see below). The importer reads DEXPI Process documents only; given a P&ID (a DEXPI Plant model, or a Proteus XML file in the DEXPI 1.x format) it explains what the file is and that this tool does not draw P&IDs.
 - **Strict-mode fidelity check** — five-dimensional validation against the DEXPI 2.0 information model: property names and kinds, data types, reference targets, cardinality, and class existence
 - **Profile-based extensibility** — declare custom classes or property extensions in a Profile XML, or auto-generate a Profile from any model to close vocabulary gaps
 - **Material library** — materials, compositions, and thermodynamic states

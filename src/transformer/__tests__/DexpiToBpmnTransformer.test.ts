@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DexpiToBpmnTransformer } from '../DexpiToBpmnTransformer';
+import { DexpiToBpmnTransformer, DexpiImportError } from '../DexpiToBpmnTransformer';
 import { BpmnToDexpiTransformer } from '../BpmnToDexpiTransformer';
 
 // Minimal DEXPI XML helper
@@ -114,6 +114,98 @@ describe('DexpiToBpmnTransformer', () => {
     it('throws if no ProcessModel found', async () => {
       const t = new DexpiToBpmnTransformer();
       await expect(t.transform('<Model><bad/></Model>')).rejects.toThrow('No ProcessModel found');
+    });
+  });
+
+  // The importer reads DEXPI Process documents only. Anything else is
+  // classified so the UI can say what the file is instead of a bare
+  // "not found": a P&ID (Plant model or Proteus XML), a non-DEXPI file, or a
+  // DEXPI Model with no ProcessModel.
+  describe('document classification', () => {
+    async function importError(xml: string): Promise<DexpiImportError> {
+      try {
+        await new DexpiToBpmnTransformer().transform(xml);
+      } catch (err) {
+        expect(err).toBeInstanceOf(DexpiImportError);
+        return err as DexpiImportError;
+      }
+      throw new Error('expected transform() to throw');
+    }
+
+    it('classifies a DEXPI 2.0 Plant model (P&ID) as plant', async () => {
+      const err = await importError(`<?xml version="1.0" encoding="UTF-8"?>
+<Model name="reference_pid" uri="http://www.example.org/pid">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Plant" source="https://data.dexpi.org/models/2.0.0/Plant.xml"/>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel">
+      <Object id="plant1" type="Plant/PlantModel">
+        <Components property="Equipment">
+          <Object id="P4712" type="Plant/CentrifugalPump"/>
+        </Components>
+      </Object>
+    </Components>
+  </Object>
+</Model>`);
+      expect(err.kind).toBe('plant');
+      expect(err.message).toContain('DEXPI Plant model');
+      expect(err.message).toContain('P&ID');
+      expect(err.detail).toContain('Plant/PlantModel');
+    });
+
+    it('classifies a Plant model by its Plant.xml import alone', async () => {
+      const err = await importError(`<Model name="pid" uri="http://www.example.org/pid">
+  <Import prefix="Plant" source="https://data.dexpi.org/models/2.0.0/Plant.xml"/>
+  <Object type="Core/EngineeringModel"/>
+</Model>`);
+      expect(err.kind).toBe('plant');
+      expect(err.detail).toContain('Plant.xml');
+    });
+
+    it('classifies a Proteus XML P&ID (DEXPI 1.x) as proteus', async () => {
+      const err = await importError(`<?xml version="1.0" encoding="UTF-8"?>
+<PlantModel>
+  <PlantInformation SchemaVersion="4.1" OriginatingSystem="Example" Discipline="PID" Units="mm" Is3D="no"/>
+  <Drawing Name="Sheet1" Type="PID"/>
+  <Equipment ID="P4712" ComponentClass="CentrifugalPump"/>
+</PlantModel>`);
+      expect(err.kind).toBe('proteus');
+      expect(err.message).toContain('Proteus XML');
+      expect(err.message).toContain('DEXPI 1.x');
+      expect(err.detail).toContain('<PlantModel>');
+      expect(err.detail).toContain('Discipline="PID"');
+    });
+
+    it('classifies a BPMN diagram as not-dexpi', async () => {
+      const err = await importError(`<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1">
+  <bpmn:process id="Process_1" isExecutable="false"/>
+</bpmn:definitions>`);
+      expect(err.kind).toBe('not-dexpi');
+      expect(err.message).toContain('not a DEXPI document');
+      expect(err.detail).toContain('BPMN');
+    });
+
+    it('classifies a Process Model without a ProcessModel object as no-process-model', async () => {
+      const err = await importError(`<Model name="empty" uri="http://www.example.org/empty">
+  <Import prefix="Core" source="https://data.dexpi.org/models/2.0.0/Core.xml"/>
+  <Import prefix="Process" source="https://data.dexpi.org/models/2.0.0/Process.xml"/>
+  <Object type="Core/EngineeringModel">
+    <Components property="ConceptualModel"/>
+  </Object>
+</Model>`);
+      expect(err.kind).toBe('no-process-model');
+      expect(err.message).toContain('No ProcessModel found');
+      expect(err.detail).toContain('Process.xml');
+    });
+
+    it('still imports a document that holds a ProcessModel next to a Plant import', async () => {
+      const xml = dexpi(step('SE1', 'Source', 'Feed')).replace(
+        '<Import prefix="Process"',
+        '<Import prefix="Plant" source="https://data.dexpi.org/models/2.0.0/Plant.xml"/>\n  <Import prefix="Process"',
+      );
+      const out = await new DexpiToBpmnTransformer().transform(xml);
+      expect(out).toContain('bpmn:startEvent');
     });
   });
 
