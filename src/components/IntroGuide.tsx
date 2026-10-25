@@ -1,13 +1,12 @@
 /**
  * First-visit guide dialog.
  *
- * Orients visitors who open the hosted app without having read the paper:
- * what the tool is, how to model a BFD/PFD with DEXPI Process semantics,
- * the BPMN-to-DEXPI mapping, an entry point into the interactive
- * step-by-step tour, and a one-click way to load the bundled Tennessee
- * Eastman example (the paper's benchmark). Shown once per browser
- * (localStorage flag, owned by App) and reopenable from the toolbar's
- * Guide button.
+ * Orients visitors who open the hosted app without having read the paper.
+ * Kept short on purpose: one sentence on what the tool is, a picture of the
+ * BPMN-to-DEXPI mapping, and three ways in (tour, example, blank canvas).
+ * The full mapping table is folded away; the how-to lives in the tour.
+ * Shown once per browser (localStorage flag, owned by App) and reopenable
+ * from the toolbar's Guide button.
  */
 
 interface IntroGuideProps {
@@ -20,22 +19,59 @@ interface IntroGuideProps {
 const MAPPING: [string, string][] = [
   ['Start event', 'Source'],
   ['End event', 'Sink'],
-  ['Task', 'ProcessStep or InstrumentationActivity (class chosen in the panel)'],
-  ['Subprocess', 'Nested ProcessStep (SubProcessSteps hierarchy)'],
-  ['Sequence flow', 'Stream (MaterialFlow / EnergyFlow / InformationFlow)'],
-  ['Ports on an element', 'MaterialPort / energy ports / InformationPort'],
-  ['Data object', 'Material library host, or a named process variable linking a process step and an instrumentation activity'],
-  ['Pool', 'The process container (ProcessModel)'],
+  ['Task', 'ProcessStep, or an InstrumentationActivity'],
+  ['Subprocess', 'ProcessStep with SubProcessSteps'],
+  ['Sequence flow', 'Stream (material, energy or information)'],
+  ['Ports on an element', 'MaterialPort, energy ports, InformationPort'],
+  ['Data object', 'Material library, or a measured process variable'],
+  ['Pool', 'ProcessModel'],
 ];
 
-const STEPS: string[] = [
-  'Drag a start event onto the canvas for each feed (DEXPI: Source) and an end event for each product (DEXPI: Sink).',
-  'Drag tasks for the process steps and pick each one’s DEXPI class (Compressing, Cooling, ReactingChemicals, …) in the right-hand panel. Splitting and mixing are process steps too (SplittingMaterial, MixingSimple) — DEXPI Process has no gateways.',
-  'Connect elements with sequence flows — each becomes a DEXPI Stream, and typed ports (Material / Energy / Information) are created on both ends automatically. Toggle “Ports” in the toolbar to see them.',
-  'Define materials under “Materials”: templates, components, and states with flow data and composition. Link a stream to a material state in the stream’s panel.',
-  'Model instrumentation as its own small task: set its DEXPI class to MeasuringProcessVariable (or ControllingProcessVariable, ConveyingSignal, …). Create a data object, wire instrumentation task and process step together through it with data associations, and pick the variable (Temperature, Pressure, Level, …) in the data object’s panel. The variable is exported as a Core/QualifiedValue parameter slot on the measured step; the instrumentation activity references it via MeasuredVariableReference and the step via ProcessStepReference.',
-  'Export DEXPI XML — the output is validated against the official DEXPI 2.0 XML Schema. Enable Strict mode in the export dialog for the five information-model fidelity checks.',
-];
+/**
+ * The mapping as a picture: feed → step → product on the main line, an
+ * instrument above the step with its variable carrier. Pure SVG, scales
+ * with the dialog width.
+ */
+function MappingStrip() {
+  const ink = '#1E293B';
+  const label = { fontSize: 11, fill: '#475569', textAnchor: 'middle' as const, fontFamily: 'inherit' };
+  const dexpi = { fontSize: 11.5, fill: '#0E7490', textAnchor: 'middle' as const, fontWeight: 600, fontFamily: 'inherit' };
+  return (
+    <svg viewBox="0 0 560 190" width="100%" role="img" aria-label="BPMN elements and the DEXPI Process concepts they become" style={{ display: 'block', maxWidth: '560px', margin: '0 auto' }}>
+      <defs>
+        <marker id="ig-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill={ink} />
+        </marker>
+      </defs>
+      {/* instrument + variable */}
+      <rect x="236" y="14" width="88" height="40" rx="7" fill="#ECFEFF" stroke="#0E7490" strokeWidth="1.8" />
+      <text x="280" y="38" style={{ ...label, fill: ink, fontSize: 12 }}>TI 101</text>
+      <path d="M280,54 L280,70" stroke="#0E7490" strokeWidth="1.5" strokeDasharray="4 3" />
+      <path d="M268,70 h18 l8,8 v22 h-26 z" fill="#fff" stroke="#0E7490" strokeWidth="1.5" />
+      <path d="M286,70 v8 h8" fill="none" stroke="#0E7490" strokeWidth="1.5" />
+      <path d="M280,100 L280,114" stroke="#0E7490" strokeWidth="1.5" strokeDasharray="4 3" />
+      <text x="334" y="38" style={{ ...dexpi, textAnchor: 'start' }}>MeasuringProcessVariable</text>
+      <text x="306" y="90" style={{ ...dexpi, textAnchor: 'start' }}>process variable</text>
+      {/* main line */}
+      <circle cx="60" cy="140" r="17" fill="#fff" stroke={ink} strokeWidth="1.8" />
+      <path d="M77,140 L228,140" stroke={ink} strokeWidth="1.8" markerEnd="url(#ig-arrow)" />
+      <rect x="232" y="116" width="96" height="48" rx="8" fill="#F8FAFC" stroke={ink} strokeWidth="1.8" />
+      <text x="280" y="145" style={{ ...label, fill: ink, fontSize: 13 }}>Reactor</text>
+      <path d="M328,140 L478,140" stroke={ink} strokeWidth="1.8" markerEnd="url(#ig-arrow)" />
+      <circle cx="500" cy="140" r="17" fill="#fff" stroke={ink} strokeWidth="3.5" />
+      {/* ports */}
+      <circle cx="232" cy="140" r="3.5" fill="#2DD4BF" />
+      <circle cx="328" cy="140" r="3.5" fill="#2DD4BF" />
+      {/* captions */}
+      <text x="60" y="178" style={dexpi}>Source</text>
+      <text x="152" y="130" style={label}>Stream</text>
+      <text x="280" y="178" style={dexpi}>ProcessStep</text>
+      <text x="403" y="130" style={label}>Stream</text>
+      <text x="500" y="178" style={dexpi}>Sink</text>
+      <text x="232" y="106" style={{ ...label, fontSize: 10 }}>port</text>
+    </svg>
+  );
+}
 
 export function IntroGuide({ open, onClose, onLoadExample, onStartTour }: IntroGuideProps) {
   if (!open) return null;
@@ -61,69 +97,58 @@ export function IntroGuide({ open, onClose, onLoadExample, onStartTour }: IntroG
         style={{
           background: '#fff',
           color: '#222',
-          borderRadius: '8px',
+          borderRadius: '10px',
           boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-          padding: '1.25em',
-          maxWidth: '640px',
-          width: '90%',
-          maxHeight: '85vh',
+          padding: '1.4em 1.5em 1.2em',
+          maxWidth: '620px',
+          width: '92%',
+          maxHeight: '88vh',
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.85em',
+          gap: '1em',
         }}
       >
-        <h3 id="intro-guide-title" style={{ margin: 0 }}>Welcome to BPMN2DEXPI</h3>
-
-        <div style={{ fontSize: '0.9em', color: '#444' }}>
-          Model chemical processes as block flow and process flow diagrams
-          using BPMN 2.0 notation, and exchange them as DEXPI 2.0-compliant
-          XML. Everything runs in your browser &mdash; diagrams are autosaved
-          locally and never leave your machine.
+        <div>
+          <h3 id="intro-guide-title" style={{ margin: 0, fontSize: '1.25em' }}>Draw a process. Get DEXPI.</h3>
+          <div style={{ marginTop: '0.35em', fontSize: '0.92em', color: '#444', lineHeight: 1.45 }}>
+            Model block flow and process flow diagrams in BPMN and exchange them as
+            DEXPI 2.0 Process XML. Everything runs in your browser; nothing leaves your machine.
+          </div>
         </div>
 
-        <div>
-          <strong style={{ fontSize: '0.95em' }}>Model your first PFD</strong>
-          <ol style={{ margin: '0.4em 0 0', paddingLeft: '1.4em', fontSize: '0.85em', color: '#444', display: 'flex', flexDirection: 'column', gap: '0.35em' }}>
-            {STEPS.map((step, i) => <li key={i}>{step}</li>)}
-          </ol>
+        <MappingStrip />
+
+        <div style={{ display: 'flex', gap: '0.5em', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button className="btn btn-primary" onClick={onStartTour}>
+            Take the two-minute tour
+          </button>
+          <button className="btn" onClick={onLoadExample}>
+            Open the Tennessee Eastman example
+          </button>
+          <button className="btn" onClick={onClose}>Start with a blank canvas</button>
         </div>
 
-        <div>
-          <strong style={{ fontSize: '0.95em' }}>BPMN to DEXPI Process mapping</strong>
-          <table style={{ marginTop: '0.4em', width: '100%', borderCollapse: 'collapse', fontSize: '0.85em' }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ccc', padding: '0.25em 0.5em 0.25em 0' }}>BPMN element</th>
-                <th style={{ textAlign: 'left', borderBottom: '1px solid #ccc', padding: '0.25em 0' }}>DEXPI Process concept</th>
-              </tr>
-            </thead>
+        <details style={{ fontSize: '0.85em', color: '#444' }}>
+          <summary style={{ cursor: 'pointer', color: '#0E7490' }}>Full BPMN → DEXPI mapping</summary>
+          <table style={{ marginTop: '0.5em', width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               {MAPPING.map(([bpmn, dexpi]) => (
                 <tr key={bpmn}>
-                  <td style={{ padding: '0.25em 0.5em 0.25em 0', borderBottom: '1px solid #eee', whiteSpace: 'nowrap', verticalAlign: 'top' }}>{bpmn}</td>
-                  <td style={{ padding: '0.25em 0', borderBottom: '1px solid #eee', color: '#444' }}>{dexpi}</td>
+                  <td style={{ padding: '0.25em 0.75em 0.25em 0', borderBottom: '1px solid #eee', whiteSpace: 'nowrap', verticalAlign: 'top' }}>{bpmn}</td>
+                  <td style={{ padding: '0.25em 0', borderBottom: '1px solid #eee' }}>{dexpi}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </details>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75em', flexWrap: 'wrap' }}>
-          <div style={{ fontSize: '0.85em' }}>
-            <a href="https://doi.org/10.1016/j.dche.2026.100326" target="_blank" rel="noreferrer">Read the paper</a>
-            {' · '}
-            <a href="https://github.com/skhella/bpmn2dexpi" target="_blank" rel="noreferrer">Documentation</a>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5em', flexWrap: 'wrap' }}>
-            <button className="btn btn-primary" onClick={onStartTour}>
-              Step-by-step tour
-            </button>
-            <button className="btn" onClick={onLoadExample}>
-              Load the Tennessee Eastman example
-            </button>
-            <button className="btn" onClick={onClose}>Start modeling</button>
-          </div>
+        <div style={{ fontSize: '0.8em', color: '#666', textAlign: 'center' }}>
+          <a href="https://doi.org/10.1016/j.dche.2026.100326" target="_blank" rel="noreferrer">Paper</a>
+          {' · '}
+          <a href="https://github.com/skhella/bpmn2dexpi" target="_blank" rel="noreferrer">Documentation</a>
+          {' · '}
+          reopen this any time with <strong>Guide</strong>
         </div>
       </div>
     </div>

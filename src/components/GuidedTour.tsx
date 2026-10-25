@@ -38,6 +38,8 @@ interface TourStep {
   id: string;
   title: string;
   body: string;
+  /** One muted line on what the step means in DEXPI terms. */
+  why?: string;
   /** CSS selectors tried in order; first match anchors the bubble. */
   targets: string[];
   placement: Placement;
@@ -136,21 +138,16 @@ const newSince = (registry: any, baseIds: Set<string>, pred: (e: any) => boolean
 const STEPS: TourStep[] = [
   {
     id: 'welcome',
-    title: 'Welcome to the tour',
-    body:
-      'We will build a tiny PFD together: a feed, one process step and a product, ' +
-      'then measure a variable on the step and export DEXPI 2.0 XML. ' +
-      'The palette on the left holds every element you need. ' +
-      'You can stop any time with the x above or the Esc key.',
+    title: 'Welcome',
+    body: 'A feed, one process step and a product; then a measurement; then export. The palette on the left has everything. Esc leaves the tour.',
     targets: ['.djs-palette'],
     placement: 'right',
   },
   {
     id: 'start-event',
-    title: 'Add the feed (Source)',
-    body:
-      'Drag the thin circle (start event) from the palette onto the canvas. ' +
-      'Start events are exported as DEXPI Sources — one per feed.',
+    title: 'Add the feed',
+    body: 'Drag the thin circle onto the canvas.',
+    why: 'A start event becomes a DEXPI Source, one per feed.',
     targets: ['.djs-palette .entry[data-action="create.start-event"]', '.djs-palette'],
     placement: 'right',
     isDone: (r, b) => newSince(r, b.startEventIds, (e) => e.type === 'bpmn:StartEvent').length >= 1,
@@ -158,24 +155,17 @@ const STEPS: TourStep[] = [
   {
     id: 'task',
     title: 'Add a process step',
-    body:
-      'Drag the rectangle (task) onto the canvas, to the right of the feed. ' +
-      'Tasks are exported as DEXPI ProcessSteps.',
+    body: 'Drag the rectangle onto the canvas, right of the feed.',
+    why: 'A task becomes a DEXPI ProcessStep.',
     targets: ['.djs-palette .entry[data-action="create.task"]', '.djs-palette'],
     placement: 'right',
     isDone: (r, b) => newSince(r, b.taskIds, isTask).length >= 1,
   },
   {
     id: 'classify',
-    title: 'Choose its DEXPI class',
-    body:
-      'Click the task, then open the DEXPI Type dropdown in the right-hand panel ' +
-      'and pick a specific class, for example Mixing. ' +
-      'New tasks start as the generic ProcessStep; the specific class determines ' +
-      'the properties and ports the step carries in the export. ' +
-      'Nothing here is hard-coded: the class, unit, and enumeration dropdowns ' +
-      'throughout the app are built dynamically from the official DEXPI 2.0 ' +
-      'schema release.',
+    title: 'Give it a class',
+    body: 'Click the task and pick a class in the DEXPI Type dropdown, for example Mixing.',
+    why: 'The class decides which properties and ports the step carries. The lists come straight from the DEXPI 2.0 model.',
     targets: ['[data-tour="dexpi-type-select"]', '.properties-panel'],
     placement: 'left',
     isDone: (r, b) =>
@@ -183,36 +173,26 @@ const STEPS: TourStep[] = [
   },
   {
     id: 'attributes',
-    title: 'Fill in its properties',
-    body:
-      'Below the type, the panel lists the properties of the chosen class — ' +
-      'placeholders appear for what the class (or a loaded Profile) requires; fill ' +
-      'the ones you know. You can also press Add Attribute for a project-specific ' +
-      'property, for example DesignMargin with any value. Custom names go beyond ' +
-      'the standard vocabulary — they export as extensions, and later in this ' +
-      'tour strict validation will find them and a Profile will legitimize them. ' +
-      'Press Next when you are done here.',
+    title: 'Fill in what you know',
+    body: 'Set the properties below the type. Add Attribute adds a project-specific one, for example DesignMargin. Press Next when done.',
+    why: 'Custom names export as extensions; a Profile will declare them later in this tour.',
     targets: ['[data-tour="add-attribute"]', '.properties-panel'],
     placement: 'left',
   },
   {
     id: 'end-event',
-    title: 'Add the product (Sink)',
-    body:
-      'Drag the thick circle (end event) onto the canvas after the step. ' +
-      'End events are exported as DEXPI Sinks.',
+    title: 'Add the product',
+    body: 'Drag the thick circle after the step.',
+    why: 'An end event becomes a DEXPI Sink.',
     targets: ['.djs-palette .entry[data-action="create.end-event"]', '.djs-palette'],
     placement: 'right',
     isDone: (r, b) => newSince(r, b.endEventIds, (e) => e.type === 'bpmn:EndEvent').length >= 1,
   },
   {
     id: 'connect',
-    title: 'Connect with streams',
-    body:
-      'Click the feed, then drag the connection arrow from its context menu onto the step; ' +
-      'then connect the step to the product the same way. ' +
-      'Each sequence flow becomes a DEXPI Stream, and typed ports (MI1, MO1, …) ' +
-      'are created on both ends automatically.',
+    title: 'Connect them',
+    body: 'Click the feed and drag its arrow onto the step; then the step onto the product.',
+    why: 'Each flow becomes a Stream, with a material port created on both ends.',
     targets: ['.canvas-container'],
     placement: 'top',
     isDone: (r, b) => newSince(r, b.flowIds, (e) => e.type === 'bpmn:SequenceFlow').length >= 2,
@@ -220,30 +200,25 @@ const STEPS: TourStep[] = [
   {
     id: 'ports',
     title: 'See the ports',
-    body:
-      'Toggle Ports in the toolbar to display the material ports the flows just created. ' +
-      'Toggle again to hide them — they stay in the model either way.',
+    body: 'Toggle Ports in the toolbar; toggle again to hide them.',
+    why: 'They stay in the model either way.',
     targets: ['[data-tour="ports-toggle"]'],
     placement: 'bottom',
   },
   {
     id: 'instr-task',
-    title: 'Now the instrumentation',
-    body:
-      'Instrumentation is modeled as its own small task. ' +
-      'Drag one more task onto the canvas, above the process step — ' +
-      'it will be the measuring instrument, not a process step.',
+    title: 'Add an instrument',
+    body: 'Drag one more task above the process step.',
+    why: 'An instrument is modelled as its own small task.',
     targets: ['.djs-palette .entry[data-action="create.task"]', '.djs-palette'],
     placement: 'right',
     isDone: (r, b) => newSince(r, b.taskIds, isTask).some((e: any) => !hasSpecificClass(e)),
   },
   {
     id: 'instr-class',
-    title: 'Make it a MeasuringProcessVariable',
-    body:
-      'Click the new task and set its DEXPI Type to MeasuringProcessVariable — ' +
-      'the DEXPI class for a measuring activity. ' +
-      'ControllingProcessVariable and ConveyingSignal work the same way.',
+    title: 'Make it a measurement',
+    body: 'Click it and set its DEXPI Type to MeasuringProcessVariable.',
+    why: 'ControllingProcessVariable and ConveyingSignal work the same way.',
     targets: ['[data-tour="dexpi-type-select"]', '.properties-panel'],
     placement: 'left',
     isDone: (r, b) =>
@@ -256,11 +231,9 @@ const STEPS: TourStep[] = [
   },
   {
     id: 'data-object',
-    title: 'Add the variable carrier',
-    body:
-      'Drag a data object onto the canvas between the instrument and the process step. ' +
-      'In DEXPI Process the measured value travels as information — ' +
-      'the data object stands for that variable.',
+    title: 'Add the variable',
+    body: 'Drag a data object between the instrument and the step.',
+    why: 'It stands for the measured variable.',
     targets: ['.djs-palette .entry[data-action="create.data-object"]', '.djs-palette'],
     placement: 'right',
     isDone: (r, b) => newSince(r, b.dataObjectIds, (e) => e.type === 'bpmn:DataObjectReference').length >= 1,
@@ -268,14 +241,8 @@ const STEPS: TourStep[] = [
   {
     id: 'wire',
     title: 'Wire it through',
-    body:
-      'The highlighted page-like shape is your data object. Click the instrument task ' +
-      'and drag its connection arrow onto it — the link appears dashed (a data ' +
-      'association). Then click the data object and drag its connection arrow onto the ' +
-      'process step being measured or controlled. This instrument-variable-step chain ' +
-      'is what the exporter reads: the variable becomes a Core/QualifiedValue parameter ' +
-      'slot on the measured step, and the instrument receives a ProcessStepReference ' +
-      'and a MeasuredVariableReference.',
+    body: 'Drag the instrument\'s arrow onto the data object, then the data object\'s arrow onto the step.',
+    why: 'Instrument, variable, step: that chain is what the export reads. The variable becomes a parameter on the step, referenced by the instrument.',
     targets: ['@@resolve', '.canvas-container'],
     placement: 'right',
     resolveTarget: (modeler: any) => {
@@ -292,13 +259,8 @@ const STEPS: TourStep[] = [
   {
     id: 'name-variable',
     title: 'Pick the variable',
-    body:
-      'Click the highlighted data object (the page-like shape between instrument and ' +
-      'step) — its panel shows the Process Variable editor. Pick the variable from the ' +
-      'dropdown, for example Temperature. The list is exactly the variables the DEXPI ' +
-      'information model already defines for this specific process step class — ' +
-      'anything else is an extension: pick Custom, and strict validation will flag it ' +
-      'until a Profile declares it.',
+    body: 'Click the data object and choose the variable, for example Temperature.',
+    why: 'The list is what DEXPI defines for this step class. Custom is an extension until a Profile declares it.',
     targets: ['#dop-property', '@@resolve', '.properties-panel'],
     placement: 'left',
     resolveTarget: (modeler: any) => {
@@ -322,12 +284,8 @@ const STEPS: TourStep[] = [
   {
     id: 'strict',
     title: 'Turn on Strict mode',
-    body:
-      'Open the DEXPI menu in the toolbar and switch on Strict property-name ' +
-      'validation. Beyond the XSD check that runs on every export, strict adds five ' +
-      'information-model checks: property names and kinds, data types, reference ' +
-      'targets, cardinality, and class existence. Findings are warnings — your ' +
-      'export is never blocked.',
+    body: 'Open the DEXPI menu and switch on Strict validation.',
+    why: 'Five information-model checks on top of the XSD. Findings never block an export.',
     targets: ['[data-tour="strict-toggle"]', '[data-tour="dexpi-menu"]'],
     placement: 'left',
     isDoneDom: () =>
@@ -336,13 +294,9 @@ const STEPS: TourStep[] = [
   },
   {
     id: 'validate-now',
-    title: 'Validate without exporting',
-    body:
-      'Click Validate now in the same menu — the five checks run on the current ' +
-      'model without downloading anything. If you added a custom attribute earlier, ' +
-      'it shows up as a finding: strict points at exactly where your model extends ' +
-      'the standard. A fully standard model gets a green all-clear instead — ' +
-      'in that case skip ahead with Next.',
+    title: 'Validate',
+    body: 'Click Validate now in the same menu.',
+    why: 'Your custom attribute shows up as a finding. All green? Press Next.',
     targets: ['[data-tour="validate-now"]', '[data-tour="dexpi-menu"]'],
     placement: 'left',
     isDoneDom: () => !!document.getElementById('strict-warning-title'),
@@ -350,22 +304,17 @@ const STEPS: TourStep[] = [
   {
     id: 'generate-profile',
     title: 'Generate a Profile',
-    body:
-      'Click Generate Profile in the findings dialog (it is also in the DEXPI ' +
-      'menu). A DEXPI Profile is an XML file that declares your project-specific ' +
-      'classes and properties, so that strict validation — here or in a partner ' +
-      'tool — accepts them as declared vocabulary instead of unknowns.',
+    body: 'Click Generate Profile in the findings dialog.',
+    why: 'A Profile is a small DEXPI model that declares your project vocabulary.',
     targets: ['[data-tour="generate-profile"]', '[data-tour="generate-profile-menu"]', '[data-tour="dexpi-menu"]'],
     placement: 'bottom',
     isDoneDom: () => !!document.getElementById('profile-export-dialog-title'),
   },
   {
     id: 'profile-download',
-    title: 'Download the Profile',
-    body:
-      'Confirm with Generate — the Profile XML downloads. This file is the ' +
-      'shareable artifact: send it to a project partner and their session will ' +
-      'validate models against your vocabulary too.',
+    title: 'Download it',
+    body: 'Confirm with Generate; the Profile downloads.',
+    why: 'Share it and a partner\'s tool validates against your vocabulary too.',
     targets: ['[data-tour="profile-generate-confirm"]'],
     placement: 'left',
     isDoneDom: () => !document.getElementById('profile-export-dialog-title'),
@@ -373,23 +322,17 @@ const STEPS: TourStep[] = [
   {
     id: 'import-profile',
     title: 'Import it back',
-    body:
-      'Open the DEXPI menu again, click Import Profile, and pick the file you ' +
-      'just downloaded. Profiles are per-session, so after a page reload you ' +
-      'would import again. The green confirmation means this session now ' +
-      'accepts your project vocabulary.',
+    body: 'DEXPI menu, Import Profile, pick the file you just downloaded.',
+    why: 'Profiles live per session; import again after a reload.',
     targets: ['[data-tour="import-profile"]', '[data-tour="dexpi-menu"]'],
     placement: 'left',
     isDoneDom: () => (document.body.textContent || '').includes('loaded (per-session)'),
   },
   {
     id: 'round-trip',
-    title: 'Round trip complete',
-    body:
-      'Run Validate now once more — the findings are gone: standard plus Profile ' +
-      'now fully describe your model. Export DEXPI XML ships it validated against ' +
-      'the official DEXPI 2.0 XML Schema. That is the whole loop — draw, classify, ' +
-      'wire, validate, close the gaps with a Profile, exchange.',
+    title: 'Done',
+    body: 'Run Validate now again: the findings are gone. Export DEXPI XML ships it.',
+    why: 'Draw, classify, wire, validate, declare, exchange.',
     targets: ['[data-tour="export-dexpi"]'],
     placement: 'bottom',
   },
@@ -699,6 +642,9 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
           WebkitUserSelect: 'none',
         }}
       >
+        <div aria-hidden="true" style={{ height: '3px', borderRadius: '2px', background: '#E2E8F0', marginBottom: '0.6em', overflow: 'hidden' }}>
+          <div style={{ width: `${Math.round(((stepIndex + 1) / STEPS.length) * 100)}%`, height: '100%', background: '#0E7490', transition: 'width .25s' }} />
+        </div>
         <div
           onMouseDown={startBubbleDrag}
           title="Drag to move this bubble"
@@ -723,10 +669,13 @@ export function GuidedTour({ active, modeler: modelerProp, onExit }: GuidedTourP
             ×
           </button>
         </div>
-        <div style={{ marginTop: '0.45em', color: '#444' }}>{step.body}</div>
+        <div style={{ marginTop: '0.45em', color: '#222' }}>{step.body}</div>
+        {step.why && (
+          <div style={{ marginTop: '0.35em', fontSize: '0.8rem', color: '#64748B', lineHeight: 1.4 }}>{step.why}</div>
+        )}
         {step.isDone && (
           <div style={{ marginTop: '0.45em', fontSize: '0.78rem', color: '#3498db' }}>
-            This step advances by itself once done — or use Next.
+            Advances by itself when done.
           </div>
         )}
         <div
