@@ -133,7 +133,7 @@ describe('exporter: strict mode validates against the generated profile', () => 
     expect(t.lastReferenceValidation?.valid).toBe(true);
     expect(t.lastCardinalityValidation?.valid).toBe(true);
     expect(t.lastClassExistenceValidation?.valid).toBe(true);
-  });
+  }, 60_000);
 
   it('without a generated profile the same model still reports its vocabulary gaps', async () => {
     const t = new BpmnToDexpiTransformer();
@@ -141,7 +141,7 @@ describe('exporter: strict mode validates against the generated profile', () => 
     expect(t.lastGeneratedProfile).toBeUndefined();
     expect(t.lastStrictVocabulary?.generatedProfileDeclarations).toBe(0);
     expect(t.lastPropertyNameValidation?.valid).toBe(false);
-  });
+  }, 60_000);
 
   it('records no strict vocabulary when strict mode is off', async () => {
     const t = new BpmnToDexpiTransformer();

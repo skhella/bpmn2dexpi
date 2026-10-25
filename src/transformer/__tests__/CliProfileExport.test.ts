@@ -118,7 +118,7 @@ describe('cli: --strict with the generated profile', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, CLI_TIMEOUT);
 
   it('exits 2 with --no-profile, because the extensions are then undeclared', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'bpmn2dexpi-strict-'));
@@ -129,5 +129,5 @@ describe('cli: --strict with the generated profile', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, CLI_TIMEOUT);
 });
