@@ -803,8 +803,10 @@ function App() {
       a.href = url;
       const rawName = (bpmnExportFilename || '').trim() || 'process-model.bpmn';
       a.download = /\.bpmn$/i.test(rawName) ? rawName : `${rawName}.bpmn`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 
       setValidationMessage('BPMN XML exported successfully!');
     } catch (err) {
@@ -818,15 +820,26 @@ function App() {
     setShowBpmnExportDialog(true);
   };
 
-  /** Trigger a browser download of `content` as an XML file named `filename`. */
+  /**
+   * Trigger a browser download of `content` as an XML file named `filename`.
+   *
+   * The anchor is attached to the document for the click and the object URL
+   * is revoked only after a delay: revoking in the same tick as the click can
+   * abort the download, and when two downloads are started in one tick the
+   * browser keeps only the last one — which is how an export with a profile
+   * used to deliver the profile and lose the document.
+   */
   const downloadXml = (filename: string, content: string) => {
     const blob = new Blob([content], { type: 'application/xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
 
   // Opens the export-options dialog. The user-supplied filename and metadata
@@ -920,6 +933,9 @@ function App() {
             } on ${generated.classCount} class${generated.classCount === 1 ? '' : 'es'}); keep the two files together.`
           : '';
       if (generated && generated.declarations > 0) {
+        // Separate task from the document's download: two downloads started
+        // in the same tick collapse into one in Chrome and Safari.
+        await new Promise(resolve => window.setTimeout(resolve, 400));
         downloadXml(profileFilename, generated.xml);
       }
 
@@ -1001,8 +1017,10 @@ function App() {
       a.href = url;
       const rawName = (svgExportFilename || '').trim() || 'process-diagram.svg';
       a.download = /\.svg$/i.test(rawName) ? rawName : `${rawName}.svg`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 
       setValidationMessage('SVG exported successfully!');
     } catch (err) {
@@ -1179,8 +1197,10 @@ function App() {
       a.href = url;
       const rawName = (profileExportFilename || '').trim() || 'generated-profile.xml';
       a.download = /\.xml$/i.test(rawName) ? rawName : `${rawName}.xml`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 
       setValidationMessage(
         generated.declarations === 0
